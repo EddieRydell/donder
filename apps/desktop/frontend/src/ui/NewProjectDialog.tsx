@@ -9,10 +9,10 @@ import { listenUiEvent } from "./uiEvents";
 
 const DEFAULT_DIRECTORY_NAME = "New Project";
 
-type Mode = "createProject" | "importProfile";
+type Mode = "createProject" | "importProject";
 
-const TITLES: Record<Mode, string> = { createProject: "New Project", importProfile: "Import Profile" };
-const ACTIONS: Record<Mode, string> = { createProject: "Create", importProfile: "Import" };
+const TITLES: Record<Mode, string> = { createProject: "New Project", importProject: "Import Project" };
+const ACTIONS: Record<Mode, string> = { createProject: "Create", importProject: "Import" };
 
 export function NewProjectDialog() {
   const [mode, setMode] = useState<Mode>("createProject");
@@ -35,7 +35,7 @@ export function NewProjectDialog() {
     };
     const stops = [
       listenUiEvent("newProject", opener("createProject")),
-      listenUiEvent("importProfile", opener("importProfile"))
+      listenUiEvent("importProject", opener("importProject"))
     ];
     return () => { for (const stop of stops) stop(); };
   }, []);
@@ -43,7 +43,7 @@ export function NewProjectDialog() {
   const nameError = validateDirectoryName(directoryName);
   const projectPath = parentPath === "" || directoryName === "" ? "" : `${parentPath.replace(/[\\/]+$/, "")}/${directoryName}`;
   const createDisabled = creating || parentPath === "" || nameError !== null
-    || (mode === "importProfile" && profilePath === "");
+    || (mode === "importProject" && profilePath === "");
 
   async function browseParent() {
     try {
@@ -102,7 +102,7 @@ export function NewProjectDialog() {
       </Button>
     </>}
   >
-    {mode === "importProfile" && <Field label="Profile" tip="The xLights show folder (holds xlights_rgbeffects.xml) or the Vixen profile folder (holds SystemData)">
+    {mode === "importProject" && <Field label="Profile" tip="The xLights show folder (holds xlights_rgbeffects.xml) or the Vixen profile folder (holds SystemData)">
       <FolderButton path={profilePath} disabled={creating} onClick={() => void browseProfile()} />
     </Field>}
     <Field label="Name" tip="The project's folder name">

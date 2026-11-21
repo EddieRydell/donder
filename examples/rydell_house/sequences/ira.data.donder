@@ -1,7 +1,7 @@
 import effects from <effects/standard.donder>, <effects/radial-wipe.donder>;
 import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 
 Sequence ira {
   description: none,
@@ -17,7 +17,7 @@ Sequence ira {
       layer: default,
       start: 0.0924s,
       duration: 6.8922s,
-      target: layouts.main.penguin_right_foot,
+      target: layouts.layout.penguin_right_foot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -31,7 +31,7 @@ Sequence ira {
       layer: default,
       start: 0.1024s,
       duration: 6.8922s,
-      target: layouts.main.penguin_left_foot,
+      target: layouts.layout.penguin_left_foot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -45,7 +45,7 @@ Sequence ira {
       layer: default,
       start: 0.1024s,
       duration: 6.8922s,
-      target: layouts.main.penguin_left_wing,
+      target: layouts.layout.penguin_left_wing,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -59,7 +59,7 @@ Sequence ira {
       layer: default,
       start: 0.1324s,
       duration: 6.8922s,
-      target: layouts.main.penguin_body,
+      target: layouts.layout.penguin_body,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -73,7 +73,7 @@ Sequence ira {
       layer: default,
       start: 0.1324s,
       duration: 6.8922s,
-      target: layouts.main.penguin_right_wing,
+      target: layouts.layout.penguin_right_wing,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -87,7 +87,7 @@ Sequence ira {
       layer: default,
       start: 0.1624s,
       duration: 6.8922s,
-      target: layouts.main.penguin_belly,
+      target: layouts.layout.penguin_belly,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -101,7 +101,7 @@ Sequence ira {
       layer: default,
       start: 0.1724s,
       duration: 6.8922s,
-      target: layouts.main.penguin_beak,
+      target: layouts.layout.penguin_beak,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -115,7 +115,7 @@ Sequence ira {
       layer: default,
       start: 0.1724s,
       duration: 6.8922s,
-      target: layouts.main.penguin_head,
+      target: layouts.layout.penguin_head,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -129,7 +129,7 @@ Sequence ira {
       layer: default,
       start: 0.5s,
       duration: 1.18s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -150,7 +150,7 @@ Sequence ira {
       layer: default,
       start: 0.51s,
       duration: 1.14s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -171,7 +171,7 @@ Sequence ira {
       layer: default,
       start: 0.52s,
       duration: 1.18s,
-      target: layouts.main.bathroom_wreath,
+      target: layouts.layout.bathroom_wreath,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -192,7 +192,7 @@ Sequence ira {
       layer: default,
       start: 0.52s,
       duration: 1.18s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -213,7 +213,7 @@ Sequence ira {
       layer: default,
       start: 0.52s,
       duration: 1.18s,
-      target: layouts.main.front_door_wreath,
+      target: layouts.layout.front_door_wreath,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -234,7 +234,7 @@ Sequence ira {
       layer: default,
       start: 0.52s,
       duration: 1.18s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -255,7 +255,7 @@ Sequence ira {
       layer: default,
       start: 2.36s,
       duration: 0.84s,
-      target: layouts.main.bathroom_wreath,
+      target: layouts.layout.bathroom_wreath,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -276,7 +276,7 @@ Sequence ira {
       layer: default,
       start: 2.36s,
       duration: 0.84s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -297,7 +297,7 @@ Sequence ira {
       layer: default,
       start: 2.36s,
       duration: 0.84s,
-      target: layouts.main.front_door_wreath,
+      target: layouts.layout.front_door_wreath,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -318,7 +318,7 @@ Sequence ira {
       layer: default,
       start: 2.36s,
       duration: 0.84s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -339,7 +339,7 @@ Sequence ira {
       layer: default,
       start: 2.37s,
       duration: 0.84s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -360,7 +360,7 @@ Sequence ira {
       layer: default,
       start: 2.38s,
       duration: 0.84s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -381,7 +381,7 @@ Sequence ira {
       layer: default,
       start: 3.97s,
       duration: 3.109s,
-      target: layouts.main.nativity,
+      target: layouts.layout.nativity,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -395,7 +395,7 @@ Sequence ira {
       layer: default,
       start: 4.174965s,
       duration: 0.022345s,
-      target: layouts.main.star_points,
+      target: layouts.layout.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -409,7 +409,7 @@ Sequence ira {
       layer: default,
       start: 4.19731s,
       duration: 0.362953s,
-      target: layouts.main.star_points,
+      target: layouts.layout.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -423,7 +423,7 @@ Sequence ira {
       layer: default,
       start: 5.147827s,
       duration: 0.071307s,
-      target: layouts.main.star_points,
+      target: layouts.layout.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -437,7 +437,7 @@ Sequence ira {
       layer: default,
       start: 5.219134s,
       duration: 0.071307s,
-      target: layouts.main.star_points,
+      target: layouts.layout.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -451,7 +451,7 @@ Sequence ira {
       layer: default,
       start: 5.268096s,
       duration: 0.071307s,
-      target: layouts.main.star_points,
+      target: layouts.layout.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -465,7 +465,7 @@ Sequence ira {
       layer: default,
       start: 5.339404s,
       duration: 0.30864s,
-      target: layouts.main.star_points,
+      target: layouts.layout.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -479,7 +479,7 @@ Sequence ira {
       layer: default,
       start: 6.282089s,
       duration: 0.790525s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
@@ -499,7 +499,7 @@ Sequence ira {
       layer: default,
       start: 6.284218s,
       duration: 0.790525s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
@@ -519,7 +519,7 @@ Sequence ira {
       layer: default,
       start: 6.286346s,
       duration: 0.788839s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
@@ -539,7 +539,7 @@ Sequence ira {
       layer: default,
       start: 6.286346s,
       duration: 0.790525s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
@@ -559,7 +559,7 @@ Sequence ira {
       layer: default,
       start: 6.288475s,
       duration: 0.790525s,
-      target: layouts.main.trees,
+      target: layouts.layout.trees,
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
@@ -579,7 +579,7 @@ Sequence ira {
       layer: default,
       start: 6.289718s,
       duration: 0.788839s,
-      target: layouts.main.wreaths,
+      target: layouts.layout.wreaths,
       scope: PerFixture,
       effect: vixen.VixenButterfly,
       params: {
@@ -599,7 +599,7 @@ Sequence ira {
       layer: default,
       start: 6.34865s,
       duration: 0.31629s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -620,7 +620,7 @@ Sequence ira {
       layer: default,
       start: 6.34865s,
       duration: 0.071307s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -634,7 +634,7 @@ Sequence ira {
       layer: default,
       start: 6.376748s,
       duration: 0.071307s,
-      target: layouts.main.meteors,
+      target: layouts.layout.meteors,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -648,7 +648,7 @@ Sequence ira {
       layer: default,
       start: 6.394795s,
       duration: 0.071307s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -662,7 +662,7 @@ Sequence ira {
       layer: default,
       start: 6.412843s,
       duration: 0.666157s,
-      target: layouts.main.inside_tree,
+      target: layouts.layout.inside_tree,
       scope: WholeTarget,
       effect: vixen.VixenButterfly,
       params: {
@@ -682,7 +682,7 @@ Sequence ira {
       layer: default,
       start: 6.419957s,
       duration: 0.071307s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -696,7 +696,7 @@ Sequence ira {
       layer: default,
       start: 6.448055s,
       duration: 0.071307s,
-      target: layouts.main.meteors,
+      target: layouts.layout.meteors,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -710,7 +710,7 @@ Sequence ira {
       layer: default,
       start: 6.466103s,
       duration: 0.071307s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -724,7 +724,7 @@ Sequence ira {
       layer: default,
       start: 6.512552s,
       duration: 0.026602s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -738,7 +738,7 @@ Sequence ira {
       layer: default,
       start: 6.539155s,
       duration: 0.538953s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -752,7 +752,7 @@ Sequence ira {
       layer: default,
       start: 6.54065s,
       duration: 0.026602s,
-      target: layouts.main.meteors,
+      target: layouts.layout.meteors,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -766,7 +766,7 @@ Sequence ira {
       layer: default,
       start: 6.558698s,
       duration: 0.026602s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -780,7 +780,7 @@ Sequence ira {
       layer: default,
       start: 6.567253s,
       duration: 0.511747s,
-      target: layouts.main.meteors,
+      target: layouts.layout.meteors,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -794,7 +794,7 @@ Sequence ira {
       layer: default,
       start: 6.5853s,
       duration: 0.4937s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -812,7 +812,7 @@ Sequence ira {
   },
   automation: [
     AutomationClip {
-      row: layouts.main.left_magnolia,
+      row: layouts.layout.left_magnolia,
       start: 6.282089s,
       duration: 0.790525s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -822,7 +822,7 @@ Sequence ira {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.right_magnolia,
+      row: layouts.layout.right_magnolia,
       start: 6.284218s,
       duration: 0.790525s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -832,7 +832,7 @@ Sequence ira {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.fran_wreath,
+      row: layouts.layout.fran_wreath,
       start: 6.286346s,
       duration: 0.788839s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -842,7 +842,7 @@ Sequence ira {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.front_lines,
+      row: layouts.layout.front_lines,
       start: 6.286346s,
       duration: 0.790525s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -852,7 +852,7 @@ Sequence ira {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.trees,
+      row: layouts.layout.trees,
       start: 6.288475s,
       duration: 0.790525s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -862,7 +862,7 @@ Sequence ira {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.wreaths,
+      row: layouts.layout.wreaths,
       start: 6.289718s,
       duration: 0.788839s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -872,7 +872,7 @@ Sequence ira {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.inside_tree,
+      row: layouts.layout.inside_tree,
       start: 6.412843s,
       duration: 0.666157s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },

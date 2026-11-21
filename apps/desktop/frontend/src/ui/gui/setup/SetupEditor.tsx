@@ -1,22 +1,16 @@
-import { OwnershipActions } from "../OwnershipActions";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { ControllerForm } from "../controller/ControllerForm";
 import { Cable, CircuitBoard, Keyboard, LayoutGrid, Plus } from "lucide-react";
 import { InputDeviceForm } from "../inputDevice/InputDeviceForm";
-import { AvailableInputDevices, inputDeviceEntries } from "./InputDeviceMembership";
-import { useState, type ReactNode } from "react";
+import { AvailableInputDevices } from "./InputDeviceMembership";
+import { useCallback, useState, type ReactNode } from "react";
 
 import type { GuiEditCommand, GuiInputControl, GuiInputDriver, SetupControllerConfig, SetupControllerPort, SetupGuiDocument } from "../../../types";
 import { navigateToGuiObject } from "../../../workspace/navigation";
-import { AddRow, Dialog, IconButton } from "../../kit";
-import { AvailableControllers, controllerEntries } from "./ControllerMembership";
-import { DEFAULT_OBJECT_STORAGE } from "../objectStorage";
+import { AddRow, Dialog, Field, IconButton, TextField } from "../../kit";
+import { AvailableControllers } from "./ControllerMembership";
+import { MemberActions, memberName } from "../MemberActions";
 import { countOf } from "../../count";
-
-const addController = (config: SetupControllerConfig, ports: SetupControllerPort[]): GuiEditCommand =>
-  ({ type: "setup", edit: { type: "addController", config, ports, storage: DEFAULT_OBJECT_STORAGE } });
-const addInputDevice = (driver: GuiInputDriver, controls: GuiInputControl[]): GuiEditCommand =>
-  ({ type: "setup", edit: { type: "addInputDevice", driver, controls, storage: DEFAULT_OBJECT_STORAGE } });
 
 export function SetupEditor({ document }: { document: SetupGuiDocument }) {
   return (
@@ -27,29 +21,55 @@ export function SetupEditor({ document }: { document: SetupGuiDocument }) {
       </header>
       <section className="object-overview-group">
         <h3>Composition</h3>
-        <div className="object-overview-row-with-actions"><SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" onOpen={() => void navigateToGuiObject(document.layoutRef)} /><OwnershipActions declarations={document.availableDeclarations} source={document.layoutRef} label="Layout" /></div>
-        <div className="object-overview-row-with-actions"><SetupRow icon={<Cable aria-hidden="true" />} title="Patch" onOpen={() => void navigateToGuiObject(document.patchRef)} /><OwnershipActions declarations={document.availableDeclarations} source={document.patchRef} label="Patch" /></div>
+        <div className="object-overview-row-with-actions"><SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" onOpen={() => void navigateToGuiObject(document.layoutRef)} /><MemberActions source={document.layoutRef} label={memberName(document.layoutRef)} deletable={false} /></div>
+        <div className="object-overview-row-with-actions"><SetupRow icon={<Cable aria-hidden="true" />} title="Patch" onOpen={() => void navigateToGuiObject(document.patchRef)} /><MemberActions source={document.patchRef} label={memberName(document.patchRef)} deletable={false} /></div>
       </section>
       <CreationGroup title="Controllers" addLabel="Add controller" empty={document.controllers.length === 0} form={(close) => <>
-        <ControllerForm edit={addController} onApplied={close} />
+        <AddController newName={document.newControllerName} onApplied={close} />
         <AvailableControllers document={document} />
       </>}>
         {document.controllers.map((controller) => <div className="object-overview-row-with-actions" key={guiObjectKey(controller.sourceRef)}>
           <SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} detail={controller.config.type === "donder" ? countOf(controller.ports.length, "output") : countOf(controller.config.universes.count, "universe")} onOpen={() => void navigateToGuiObject(controller.sourceRef)} />
-          <OwnershipActions declarations={document.availableDeclarations} source={controller.sourceRef} label={controller.label} entries={controllerEntries(controller)} />
+          <MemberActions source={controller.sourceRef} label={controller.label} />
         </div>)}
       </CreationGroup>
       <CreationGroup title="Input devices" addLabel="Add input device" empty={document.inputDevices.length === 0} form={(close) => <>
-        <InputDeviceForm keyCodes={document.keyCodes} limits={document.inputLimits} edit={addInputDevice} onApplied={close} />
+        <AddInputDevice document={document} onApplied={close} />
         <AvailableInputDevices document={document} />
       </>}>
         {document.inputDevices.map((device) => <div className="object-overview-row-with-actions" key={guiObjectKey(device.sourceRef)}>
           <SetupRow icon={<Keyboard aria-hidden="true" />} title={device.name} detail={countOf(device.controls.length, "control")} onOpen={() => void navigateToGuiObject(device.sourceRef)} />
-          <OwnershipActions declarations={document.availableDeclarations} source={device.sourceRef} label={device.name} entries={inputDeviceEntries(device)} />
+          <MemberActions source={device.sourceRef} label={device.name} />
         </div>)}
       </CreationGroup>
     </main>
   );
+}
+
+/** A new controller's name, then its connection and outputs. */
+function AddController({ newName, onApplied }: { newName: string; onApplied: () => void }) {
+  const [name, setName] = useState(newName);
+  const edit = useCallback((config: SetupControllerConfig, ports: SetupControllerPort[]): GuiEditCommand =>
+    ({ type: "setup", edit: { type: "addController", config, ports, name: name.trim() } }), [name]);
+  return <>
+    <NewName name={name} onChange={setName} />
+    <ControllerForm edit={edit} onApplied={onApplied} />
+  </>;
+}
+
+/** A new input device's name, then its driver and controls. */
+function AddInputDevice({ document, onApplied }: { document: SetupGuiDocument; onApplied: () => void }) {
+  const [name, setName] = useState(document.newInputDeviceName);
+  const edit = useCallback((driver: GuiInputDriver, controls: GuiInputControl[]): GuiEditCommand =>
+    ({ type: "setup", edit: { type: "addInputDevice", driver, controls, name: name.trim() } }), [name]);
+  return <>
+    <NewName name={name} onChange={setName} />
+    <InputDeviceForm keyCodes={document.keyCodes} limits={document.inputLimits} edit={edit} onApplied={onApplied} />
+  </>;
+}
+
+function NewName({ name, onChange }: { name: string; onChange: (name: string) => void }) {
+  return <Field label="Name"><TextField name="Name" live autoFocus value={name} invalid={name.trim() === ""} onCommit={onChange} /></Field>;
 }
 
 /** A group of the setup's members with the dialog that adds one: a "+" in its header, or in place of an empty list. */

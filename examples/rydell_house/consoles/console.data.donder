@@ -1,6 +1,6 @@
-import setups from <setups/main.data.donder>;
+import setups from <setups/setup.data.donder>;
 import effects from <effects/radial-wipe.donder>;
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
 import devices from <input_devices/mpk_mini.data.donder>;
 
@@ -14,7 +14,7 @@ Console console {
       name: radial_wipe_2,
       description: none,
       layer: default,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -32,7 +32,7 @@ Console console {
   always: [],
   events: [
     On {
-      event: Press { control: setups.main.input_devices.input_device_2.control_1 },
+      event: Press { control: setups.setup.input_devices.input_device_2.control_1 },
       actions: [Play { clip: radial_wipe_2, copies: 10, length: Fixed { duration: 1s } }],
     },
     On {

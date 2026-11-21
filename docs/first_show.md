@@ -12,10 +12,8 @@ and enter **Pixel A**; Donder stores it as the name `pixel_a`, which the text
 and references use. In the fixture editor, choose **Pixel** and click the canvas.
 Its default diameter is 0.01 meters; edit its position and diameter as needed.
 
-Close the fixture editor. Select Pixel A and use its ownership actions to **Make
-reusable**, choosing this file or a new file under Advanced settings. Add that
-reusable fixture through **Add fixture** and
-rename its new instance to **Pixel B**. Drag B on the layout canvas to place it.
+Close the fixture editor. Pixel A's definition has a file of its own, so add it
+again through **Add fixture** and rename its new instance to **Pixel B**. Drag B on the layout canvas to place it.
 Both instances share their shapes while retaining independent effect targets.
 Right-click a fixture row and choose **Edit fixture** to edit its shapes later.
 Fixtures contain ordered shapes; layout groups organize instances for effect

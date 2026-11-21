@@ -3,8 +3,8 @@ use std::time::Duration;
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::{DonderProject, ProjectData, ProjectEdit, ProjectId, ProjectRoot};
 use donder_model::{Layout, LayoutId};
-use donder_model::{ObjectId, SequenceId};
-use donder_model::{Owned, OwnershipSite, add_sequence, make_reusable, use_existing};
+
+use donder_model::{Owned, OwnershipSite, add_sequence, make_reusable};
 use donder_model::{Patch, PatchId};
 use donder_model::{Setup, SetupId};
 use donder_runtime_types::Color;
@@ -273,14 +273,6 @@ fn a_failed_later_batch_request_rolls_back_earlier_changes() {
     assert_eq!(project, before);
 }
 
-/// The project's sequence slot at `index`.
-fn sequence_site(project: &DonderProject, index: usize) -> OwnershipSite {
-    OwnershipSite::Member {
-        owner: project.root().id.into(),
-        member: (*project.root().sequences[index].id()).into(),
-    }
-}
-
 #[test]
 fn rejected_ownership_change_does_not_partially_promote_or_replace() {
     let mut project = DonderProject::try_new(data()).unwrap();
@@ -297,53 +289,5 @@ fn rejected_ownership_change_does_not_partially_promote_or_replace() {
     make_reusable(&mut project, &layout).unwrap();
     let before = project.clone();
     assert!(make_reusable(&mut project, &layout).is_err());
-    assert_eq!(project, before);
-    let site = OwnershipSite::Member {
-        owner: project.root().id.into(),
-        member: SequenceId(98).into(),
-    };
-    assert!(
-        use_existing(
-            &mut project,
-            &site,
-            ObjectId::Sequence(SequenceId(99)),
-            &|_| None
-        )
-        .is_err()
-    );
-    assert_eq!(project, before);
-}
-
-#[test]
-fn membership_validation_failure_rolls_back_a_completed_replacement() {
-    let mut project = DonderProject::try_new(data()).unwrap();
-    add_sequence(
-        &mut project,
-        DonderDuration(Duration::from_secs(1)),
-        30,
-        color(),
-    )
-    .unwrap();
-    add_sequence(
-        &mut project,
-        DonderDuration(Duration::from_secs(1)),
-        30,
-        color(),
-    )
-    .unwrap();
-    let site = sequence_site(&project, 0);
-    let reusable = make_reusable(&mut project, &site).unwrap();
-    let second = sequence_site(&project, 1);
-    let before = project.clone();
-    let error = use_existing(&mut project, &second, reusable, &|_| None).unwrap_err();
-    assert!(matches!(
-        error,
-        donder_model::EditError::Invalid(donder_model::ProjectValidationError {
-            problem: donder_model::ValidationProblem::Ownership(
-                donder_model::OwnershipProblem::DuplicateSequence
-            ),
-            ..
-        })
-    ));
     assert_eq!(project, before);
 }

@@ -1,6 +1,6 @@
-import setups from <setups/main.data.donder>;
+import setups from <setups/setup.data.donder>;
 import effects from <effects/standard.donder>;
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 
 Console console {
   description: none,
@@ -15,7 +15,7 @@ Console console {
       name: chase,
       description: none,
       layer: default,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -36,7 +36,7 @@ Console console {
   always: [],
   events: [
     On {
-      event: Press { control: setups.main.input_devices.input_device.control_1 },
+      event: Press { control: setups.setup.input_devices.input_device.control_1 },
       actions: [Play { clip: chase, copies: 5, length: Fixed { duration: 1s } }],
     },
   ],

@@ -178,7 +178,7 @@ impl Parser<'_> {
     fn path(&mut self) -> Parsed<Spanned<String>> {
         let token = self.expect(
             TokenKind::Path,
-            "a path like `<sequences/main.data.donder>`",
+            "a path like `<sequences/opening.data.donder>`",
         )?;
         let text = self.text(token.span);
         Ok(Spanned::new(

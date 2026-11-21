@@ -19,42 +19,28 @@ pub(super) fn edit_project(
             "The requested project is not the active project.".into(),
         ));
     }
-    let (id, name, storage) = match edit {
+    match edit {
         ProjectGuiEdit::AddSequence {
             initial_color,
-            storage,
+            name,
         } => {
             let color = super::model::parse_color(&initial_color)?;
             let duration = super::checked_gui_duration(NEW_SEQUENCE_SECONDS)?;
             let id =
                 donder_model::add_sequence(&mut session.project, duration, NEW_FRAME_RATE, color)
                     .map_err(super::GuiMutationError::from)?;
-            // `add_sequence` appends the sequence inline under a fresh name.
-            let name = new_member_name(session.project.root().sequences.last())?;
-            (id.into(), name, storage)
+            super::ownership::store_new_member(session, resolved.object, id.into(), &name)
         }
         ProjectGuiEdit::AddConsole {
             initial_color,
-            storage,
+            name,
         } => {
             let color = super::model::parse_color(&initial_color)?;
             let id = donder_model::add_console(&mut session.project, NEW_FRAME_RATE, color)
                 .map_err(super::GuiMutationError::from)?;
-            // `add_console` appends the console inline under a fresh name.
-            let name = new_member_name(session.project.root().consoles.last())?;
-            (id.into(), name, storage)
+            super::ownership::store_new_member(session, resolved.object, id.into(), &name)
         }
-    };
-    super::ownership::store_new_member(session, resolved, resolved.object, id, &name, storage)
-}
-
-fn new_member_name<T, I>(
-    member: Option<&donder_model::OwnedMember<T, I>>,
-) -> Result<String, super::GuiMutationError> {
-    member
-        .and_then(donder_model::OwnedMember::name)
-        .map(|name| name.as_str().to_string())
-        .ok_or_else(|| super::GuiMutationError::Invalid("The new member is missing.".into()))
+    }
 }
 
 pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
@@ -65,14 +51,6 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
     GuiDocument::Project {
         document: ProjectGuiDocument {
             description: session.project.root().description.clone(),
-            available_declarations: super::ownership::available_declarations(
-                session,
-                &[
-                    donder_model::ObjectKind::Setup,
-                    donder_model::ObjectKind::Sequence,
-                    donder_model::ObjectKind::Console,
-                ],
-            ),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
             setup: object_ref(session, *session.project.root().setup.id()),
@@ -90,6 +68,14 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
                 .iter()
                 .map(|console| object_ref(session, *console.id()))
                 .collect(),
+            new_sequence_name: super::model::new_object_name(
+                session,
+                donder_model::ObjectKind::Sequence,
+            ),
+            new_console_name: super::model::new_object_name(
+                session,
+                donder_model::ObjectKind::Console,
+            ),
         },
     }
 }

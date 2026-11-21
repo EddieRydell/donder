@@ -28,23 +28,3 @@ pub fn attach_input_device(
         Ok(())
     })
 }
-
-/// Remove setup membership, retaining a reusable device's authored source.
-/// The project's consoles must no longer play from it.
-pub fn detach_input_device(
-    project: &mut DonderProject,
-    setup_id: &SetupId,
-    device: &InputDeviceId,
-) -> Result<(), crate::EditError> {
-    project.checked_edit(|project| {
-        let setup = project
-            .find_mut::<crate::Setup>(*setup_id)
-            .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-        let count = setup.input_devices.len();
-        setup.input_devices.retain(|source| source.id() != device);
-        if setup.input_devices.len() == count {
-            return Err(EditRejection::NotInSetup(ObjectKind::InputDevice));
-        }
-        Ok(())
-    })
-}

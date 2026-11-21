@@ -1,7 +1,7 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import type { SetupGuiDocument } from "../../../types";
-import { Button, Section, type MenuEntry } from "../../kit";
+import { Button, Section } from "../../kit";
 
 export function AvailableControllers({ document }: { document: SetupGuiDocument }) {
   if (document.availableControllers.length === 0) return null;
@@ -13,9 +13,3 @@ export function AvailableControllers({ document }: { document: SetupGuiDocument 
   </Section>;
 }
 
-/** Removing a controller from the setup, with the outputs routed to it. */
-export function controllerEntries(controller: SetupGuiDocument["controllers"][number]): MenuEntry[] {
-  return [
-    { type: "action", label: "Remove from setup", danger: true, onSelect: () => { void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "detachController", controller: controller.sourceRef } })); } }
-  ];
-}

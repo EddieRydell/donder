@@ -774,30 +774,12 @@ fn groups(
     (items, root_members)
 }
 
-/// A new data document under `directory` named `main`, or `main_2` and so
-/// on when that is taken.
-fn new_document(
-    session: &mut ProjectSession,
-    directory: &str,
-    objects: Vec<(ObjectId, Identifier)>,
-) -> Result<DocumentId, ImportError> {
-    let path = |stem: &str| {
-        Utf8PathBuf::from(format!(
-            "{directory}/{stem}{}",
-            donder_language::data::DATA_DOCUMENT_SUFFIX
-        ))
-    };
-    let stem = donder_language::unique_name("main", |stem| {
-        let path = path(stem);
-        session
-            .source
-            .documents
-            .contains_key(&session.source.project_document(path.clone()))
-            || session.source.project_root().join(&path).exists()
-    });
+/// A file of its own for `id`, named after its kind.
+fn new_document(session: &mut ProjectSession, id: ObjectId) -> Result<DocumentId, ImportError> {
+    let name = session.source.new_object_name(id.kind());
     session
         .source
-        .add_data_document(path(stem.as_str()), objects)
+        .add_object_document(id, name)
         .map_err(ImportError::Project)
 }
 
@@ -864,11 +846,7 @@ fn insert(
                 },
             )
             .map_err(invalid)?;
-            new_document(
-                session,
-                "setups",
-                vec![(id, donder_language::object_name("main"))],
-            )?
+            new_document(session, id)?
         }
         Owned::Reference(id) => session
             .address_of((*id).into())
@@ -882,16 +860,8 @@ fn insert(
             .add_object(&setup_document, id, name.as_str())
             .map_err(ImportError::Project)?;
     }
-    new_document(
-        session,
-        "layouts",
-        vec![(layout.id.into(), donder_language::object_name("main"))],
-    )?;
-    new_document(
-        session,
-        "patches",
-        vec![(patch.id.into(), donder_language::object_name("main"))],
-    )?;
+    new_document(session, layout.id.into())?;
+    new_document(session, patch.id.into())?;
     donder_project_io::maintain_ownership_sources(session)
         .map_err(|error| ImportError::Project(error.to_string()))?;
     Ok(())

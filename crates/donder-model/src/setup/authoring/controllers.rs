@@ -34,26 +34,3 @@ fn attach_controller_candidate(
     setup.controllers.push(OwnedMember::Reference(controller));
     Ok(())
 }
-
-/// Remove setup membership, retaining the reusable authored controller
-/// definition. The outputs routed to it are removed as repairs.
-pub fn detach_controller(
-    project: &mut DonderProject,
-    setup_id: &SetupId,
-    controller: &ControllerId,
-) -> Result<(), crate::EditError> {
-    project.checked_edit(|project| {
-        let setup = project
-            .find_mut::<crate::Setup>(*setup_id)
-            .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-        if !setup
-            .controllers
-            .iter()
-            .any(|source| source.id() == controller)
-        {
-            return Err(EditRejection::NotInSetup(ObjectKind::Controller));
-        }
-        setup.controllers.retain(|source| source.id() != controller);
-        Ok(())
-    })
-}

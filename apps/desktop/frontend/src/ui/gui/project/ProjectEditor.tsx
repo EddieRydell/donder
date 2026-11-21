@@ -1,17 +1,22 @@
-import { OwnershipActions } from "../OwnershipActions";
-import { guiObjectKey, guiObjectName } from "../../../workspace/guiIdentity";
+import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { Boxes, ListVideo, Play, Plus, Radio } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
 import { THEME_COLORS } from "../../../theme";
 import { AddRow, IconButton } from "../../kit";
 import { PerformButton } from "../../PerformBar";
-import { DEFAULT_OBJECT_STORAGE } from "../objectStorage";
+import { MemberActions, memberName } from "../MemberActions";
+import { NameDialog } from "../NameDialog";
 
-import type { ProjectGuiDocument } from "../../../types";
+import type { GuiEditCommand, GuiObjectRef, ProjectGuiDocument } from "../../../types";
 import { navigateToGuiObject, playSequence } from "../../../workspace/navigation";
 import { countOf } from "../../count";
+
+const addSequence = (name: string): GuiEditCommand =>
+  ({ type: "project", edit: { type: "addSequence", initialColor: THEME_COLORS.defaultSequenceColor, name } });
+const addConsole = (name: string): GuiEditCommand =>
+  ({ type: "project", edit: { type: "addConsole", initialColor: THEME_COLORS.defaultSequenceColor, name } });
 
 export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
   return (
@@ -30,59 +35,49 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
           icon={<Boxes aria-hidden="true" />}
           title="Display setup"
           onOpen={() => void navigateToGuiObject(document.setup)}
-        /><OwnershipActions declarations={document.availableDeclarations} source={document.setup} label="Setup" /></div>
+        /><MemberActions source={document.setup} label={memberName(document.setup)} deletable={false} /></div>
       </section>
 
-      <SequenceList document={document} />
-      <ConsoleList document={document} />
+      <MemberList title="Sequences" noun="sequence" members={document.sequences} newName={document.newSequenceName} add={addSequence}
+        row={(sequence, name) => <><ObjectRow icon={<ListVideo aria-hidden="true" />} title={name} onOpen={() => void navigateToGuiObject(sequence)} />
+          <IconButton icon={Play} label={`Play ${name}`} onClick={() => void playSequence(sequence)} /></>} />
+      <MemberList title="Consoles" noun="console" members={document.consoles} newName={document.newConsoleName} add={addConsole}
+        row={(console, name, index) => <><ObjectRow icon={<Radio aria-hidden="true" />} title={name} onOpen={() => void navigateToGuiObject(console)} />
+          <PerformButton index={index} /></>} />
     </main>
   );
 }
 
-/** The project's sequences. */
-function SequenceList({ document }: { document: ProjectGuiDocument }) {
+/** A list of the project's members with the "+" that names and adds one: in its header, or in place of an empty
+ * list. */
+function MemberList({ title, noun, members, newName, add, row }: {
+  title: string;
+  noun: string;
+  members: GuiObjectRef[];
+  newName: string;
+  add: (name: string) => GuiEditCommand;
+  row: (member: GuiObjectRef, name: string, index: number) => ReactNode;
+}) {
   const pending = useAppStore((state) => state.guiEditPending);
-  const addSequence = () => void runGuiEditCommand((request) =>
-    commands.applyGuiEdit(request, { type: "project", edit: { type: "addSequence", initialColor: THEME_COLORS.defaultSequenceColor, storage: DEFAULT_OBJECT_STORAGE } }));
+  const [adding, setAdding] = useState(false);
+  const label = `Add ${noun}`;
+  const show = () => { setAdding(true); };
   return <section className="object-overview-group">
     <div className="object-overview-group-header">
-      <h3>Sequences</h3>
-      {document.sequences.length > 0 && <IconButton icon={Plus} label="Add sequence" disabled={pending} onClick={addSequence} />}
+      <h3>{title}</h3>
+      {members.length > 0 && <IconButton icon={Plus} label={label} disabled={pending} onClick={show} />}
     </div>
-    {document.sequences.length === 0 ? <AddRow label="Add sequence" disabled={pending} onAdd={addSequence} />
-      : document.sequences.map((sequence) => {
-        const name = guiObjectName(sequence) ?? sequence.objectKey;
-        return <div className="object-overview-row-with-actions" key={guiObjectKey(sequence)}><ObjectRow
-          icon={<ListVideo aria-hidden="true" />}
-          title={name}
-          onOpen={() => void navigateToGuiObject(sequence)}
-        /><IconButton icon={Play} label={`Play ${name}`} onClick={() => void playSequence(sequence)} />
-          <OwnershipActions declarations={document.availableDeclarations} source={sequence} label={name}
-            entries={[{ type: "action", label: "Play", icon: Play, onSelect: () => void playSequence(sequence) }]} /></div>;
+    {members.length === 0 ? <AddRow label={label} disabled={pending} onAdd={show} />
+      : members.map((member, index) => {
+        const name = memberName(member);
+        return <div className="object-overview-row-with-actions" key={guiObjectKey(member)}>
+          {row(member, name, index)}
+          <MemberActions source={member} label={name} />
+        </div>;
       })}
-  </section>;
-}
-
-/** The project's consoles, which Perform plays live. */
-function ConsoleList({ document }: { document: ProjectGuiDocument }) {
-  const pending = useAppStore((state) => state.guiEditPending);
-  const addConsole = () => void runGuiEditCommand((request) =>
-    commands.applyGuiEdit(request, { type: "project", edit: { type: "addConsole", initialColor: THEME_COLORS.defaultSequenceColor, storage: DEFAULT_OBJECT_STORAGE } }));
-  return <section className="object-overview-group">
-    <div className="object-overview-group-header">
-      <h3>Consoles</h3>
-      {document.consoles.length > 0 && <IconButton icon={Plus} label="Add console" disabled={pending} onClick={addConsole} />}
-    </div>
-    {document.consoles.length === 0 ? <AddRow label="Add console" disabled={pending} onAdd={addConsole} />
-      : document.consoles.map((entry, index) => {
-        const name = guiObjectName(entry) ?? entry.objectKey;
-        return <div className="object-overview-row-with-actions" key={guiObjectKey(entry)}><ObjectRow
-          icon={<Radio aria-hidden="true" />}
-          title={name}
-          onOpen={() => void navigateToGuiObject(entry)}
-        /><PerformButton index={index} />
-          <OwnershipActions declarations={document.availableDeclarations} source={entry} label={name} /></div>;
-      })}
+    {adding && <NameDialog title={label} action="Add" initial={newName} draft={add}
+      submit={(name) => runGuiEditCommand((request) => commands.applyGuiEdit(request, add(name)))}
+      onClose={() => { setAdding(false); }} />}
   </section>;
 }
 

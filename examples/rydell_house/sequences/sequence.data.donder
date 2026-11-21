@@ -1,0 +1,17 @@
+Sequence sequence {
+  description: none,
+  duration: 60s,
+  frame_rate: 100,
+  audio: none,
+  marks: [MarkCollection { name: marks, description: none, color: #38bdf8, times: [] }],
+  layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+  clips: [],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 80.0) },
+      RootNode { position: (420.0, 80.0) },
+    ],
+    edges: [Edge { from: layers.default, to: root }],
+  },
+  automation: [],
+}

@@ -1,5 +1,5 @@
 import layouts from <layouts/outputs.data.donder>;
-import setups from <setups/main.data.donder>;
+import setups from <setups/setup.data.donder>;
 
 Patch outputs {
   description: none,

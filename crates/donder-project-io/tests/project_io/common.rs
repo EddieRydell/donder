@@ -123,53 +123,16 @@ fn copy_tree(source: &Utf8Path, destination: &Utf8Path) {
     }
 }
 
-/// An ownership slot by its owner and position, as tests name them.
-#[derive(Clone, Copy)]
-pub(crate) enum Slot {
-    ProjectSetup,
-    ProjectSequence(usize),
-    ProjectConsole(usize),
-    SetupLayout(donder_model::SetupId),
-    SetupPatch(donder_model::SetupId),
-    SetupController {
-        setup: donder_model::SetupId,
-        index: usize,
-    },
-    SetupInputDevice {
-        setup: donder_model::SetupId,
-        index: usize,
-    },
-    LayoutFixture {
-        layout: donder_model::LayoutId,
-        fixture: donder_model::FixtureInstanceId,
-    },
-}
-
-/// The site of the member `slot` holds in `project`.
-pub(crate) fn site(
+/// The site of the project's sequence at `index`.
+pub(crate) fn sequence_site(
     project: &donder_model::DonderProject,
-    slot: Slot,
+    index: usize,
 ) -> donder_model::OwnershipSite {
-    use donder_model::{ObjectId, OwnershipSite};
     let root = project.root();
-    let setup = |id| project.get::<donder_model::Setup>(id).unwrap();
-    let (owner, member): (ObjectId, ObjectId) = match slot {
-        Slot::ProjectSetup => (root.id.into(), (*root.setup.id()).into()),
-        Slot::ProjectSequence(index) => (root.id.into(), (*root.sequences[index].id()).into()),
-        Slot::ProjectConsole(index) => (root.id.into(), (*root.consoles[index].id()).into()),
-        Slot::SetupLayout(id) => (id.into(), (*setup(id).layout.id()).into()),
-        Slot::SetupPatch(id) => (id.into(), (*setup(id).patch.id()).into()),
-        Slot::SetupController { setup: id, index } => {
-            (id.into(), (*setup(id).controllers[index].id()).into())
-        }
-        Slot::SetupInputDevice { setup: id, index } => {
-            (id.into(), (*setup(id).input_devices[index].id()).into())
-        }
-        Slot::LayoutFixture { layout, fixture } => {
-            return OwnershipSite::Fixture { layout, fixture };
-        }
-    };
-    OwnershipSite::Member { owner, member }
+    donder_model::OwnershipSite::Member {
+        owner: root.id.into(),
+        member: (*root.sequences[index].id()).into(),
+    }
 }
 
 /// The diagnostics a check gives the document at `path` when its text is

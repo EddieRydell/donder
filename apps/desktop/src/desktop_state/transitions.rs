@@ -50,7 +50,7 @@ impl DesktopState {
             request.transition,
             WorkspaceTransition::OpenProject { .. }
                 | WorkspaceTransition::CreateProject { .. }
-                | WorkspaceTransition::ImportProfile { .. }
+                | WorkspaceTransition::ImportProject { .. }
                 | WorkspaceTransition::ReloadProject
         );
         let previous_epoch = snapshot.project_epoch;
@@ -83,12 +83,12 @@ impl DesktopState {
                 directory_name,
                 initial_color,
             } => self.create_new_project_locked(&parent_path, &directory_name, &initial_color),
-            WorkspaceTransition::ImportProfile {
+            WorkspaceTransition::ImportProject {
                 parent_path,
                 directory_name,
                 initial_color,
                 profile_path,
-            } => self.import_profile_project_locked(
+            } => self.import_project_locked(
                 &parent_path,
                 &directory_name,
                 &initial_color,

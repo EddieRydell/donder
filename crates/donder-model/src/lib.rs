@@ -74,8 +74,7 @@ pub use operator::{
     composition_graph_root_dependencies, param_matches, validate_composition_graph,
 };
 pub use ownership::edit::{
-    OwnershipSite, add_console, add_sequence, duplicate_layout_fixture, make_independent,
-    make_reusable, use_existing,
+    OwnershipSite, add_console, add_sequence, duplicate_layout_fixture, make_reusable,
 };
 pub use ownership::{Identified, Owned, OwnedMember};
 pub use patch::{
@@ -94,9 +93,7 @@ pub use sequence::{
     MarkCollectionKey, OwnedSequence, Sequence, SequenceAudio, SequenceCompositionGraph,
     SequenceLayer, SequenceLayerId, Window, automation_curve_is_normalized, automation_value_at,
 };
-pub use setup::authoring::{
-    attach_controller, attach_input_device, detach_controller, detach_input_device,
-};
+pub use setup::authoring::{attach_controller, attach_input_device};
 pub use setup::{OwnedSetup, Setup};
 pub use validation::{
     AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,

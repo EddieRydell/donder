@@ -1,9 +1,9 @@
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 import effects_2 from <effects/vixen.donder>;
 
-Sequence main {
+Sequence hero {
   description: none,
   duration: 330.489624s,
   frame_rate: 144,
@@ -190,7 +190,7 @@ Sequence main {
       layer: hue_shift,
       start: 67.82798s,
       duration: 9.960629s,
-      target: layouts.main.desk_leg_left,
+      target: layouts.layout.desk_leg_left,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -208,7 +208,7 @@ Sequence main {
       layer: hue_shift,
       start: 67.796455s,
       duration: 9.811603s,
-      target: layouts.main.desk_leg_left,
+      target: layouts.layout.desk_leg_left,
       scope: WholeTarget,
       effect: effects.MarkChase,
       params: {
@@ -232,7 +232,7 @@ Sequence main {
       layer: hue_shift,
       start: 67.850548s,
       duration: 9.960629s,
-      target: layouts.main.desk_leg_right,
+      target: layouts.layout.desk_leg_right,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -250,7 +250,7 @@ Sequence main {
       layer: hue_shift,
       start: 67.79187s,
       duration: 9.811603s,
-      target: layouts.main.desk_leg_right,
+      target: layouts.layout.desk_leg_right,
       scope: WholeTarget,
       effect: effects.MarkChase,
       params: {
@@ -274,7 +274,7 @@ Sequence main {
       layer: hue_shift,
       start: 67.866844s,
       duration: 0.404527s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.MarkPulse,
       params: {
@@ -292,7 +292,7 @@ Sequence main {
       layer: hue_shift,
       start: 73.926605s,
       duration: 0.628821s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.MarkPulse,
       params: {
@@ -310,7 +310,7 @@ Sequence main {
       layer: hue_shift,
       start: 70.753166s,
       duration: 0.398952s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.MarkPulse,
       params: {
@@ -328,7 +328,7 @@ Sequence main {
       layer: hue_shift,
       start: 71.174309s,
       duration: 0.398952s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.MarkPulse,
       params: {
@@ -346,7 +346,7 @@ Sequence main {
       layer: hue_shift,
       start: 77.093742s,
       duration: 0.47094s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.MarkPulse,
       params: {
@@ -364,7 +364,7 @@ Sequence main {
       layer: hue_shift,
       start: 68.021805s,
       duration: 3.319892s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkChase,
       params: {
@@ -390,7 +390,7 @@ Sequence main {
       layer: hue_shift,
       start: 71.359451s,
       duration: 3.094254s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkChase,
       params: {
@@ -416,7 +416,7 @@ Sequence main {
       layer: hue_shift,
       start: 74.529404s,
       duration: 3.094254s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkChase,
       params: {
@@ -442,7 +442,7 @@ Sequence main {
       layer: hue_shift,
       start: 77.753281s,
       duration: 3.089171s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -476,7 +476,7 @@ Sequence main {
       layer: hue_shift,
       start: 77.54528s,
       duration: 0.362912s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.MarkPulse,
       params: {
@@ -494,7 +494,7 @@ Sequence main {
       layer: default,
       start: 80.357948s,
       duration: 0.555424s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -513,7 +513,7 @@ Sequence main {
       layer: default,
       start: 80.357948s,
       duration: 0.555424s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -532,7 +532,7 @@ Sequence main {
       layer: hue_shift,
       start: 81.002533s,
       duration: 3.089171s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -569,7 +569,7 @@ Sequence main {
       layer: hue_shift,
       start: 80.674782s,
       duration: 10.348273s,
-      target: layouts.main.desk_leg_left,
+      target: layouts.layout.desk_leg_left,
       scope: WholeTarget,
       effect: effects.MarkChase,
       params: {
@@ -593,7 +593,7 @@ Sequence main {
       layer: hue_shift,
       start: 80.706306s,
       duration: 10.497299s,
-      target: layouts.main.desk_leg_left,
+      target: layouts.layout.desk_leg_left,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -611,7 +611,7 @@ Sequence main {
       layer: hue_shift,
       start: 80.637878s,
       duration: 10.348273s,
-      target: layouts.main.desk_leg_right,
+      target: layouts.layout.desk_leg_right,
       scope: WholeTarget,
       effect: effects.MarkChase,
       params: {
@@ -635,7 +635,7 @@ Sequence main {
       layer: hue_shift,
       start: 80.669403s,
       duration: 10.497299s,
-      target: layouts.main.desk_leg_right,
+      target: layouts.layout.desk_leg_right,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -653,7 +653,7 @@ Sequence main {
       layer: hue_shift,
       start: 80.783806s,
       duration: 0.42206s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.MarkPulse,
       params: {
@@ -671,7 +671,7 @@ Sequence main {
       layer: gradient_base,
       start: 67.132805s,
       duration: 7.250016s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
       params: { gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (1.0, #ffa600)] } },
@@ -682,7 +682,7 @@ Sequence main {
       layer: hue_shift,
       start: 84.245712s,
       duration: 1.468685s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -719,7 +719,7 @@ Sequence main {
       layer: hue_shift,
       start: 85.783058s,
       duration: 0.596427s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -756,7 +756,7 @@ Sequence main {
       layer: hue_shift,
       start: 86.3908s,
       duration: 0.764169s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -793,7 +793,7 @@ Sequence main {
       layer: hue_shift,
       start: 87.24556s,
       duration: 3.38715s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -830,7 +830,7 @@ Sequence main {
       layer: hue_shift,
       start: 90.460312s,
       duration: 3.41221s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -864,7 +864,7 @@ Sequence main {
       layer: gradient_base,
       start: 74.380547s,
       duration: 6.476666s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
       params: { gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff00d6), (1.0, #6aff00)] } },
@@ -875,7 +875,7 @@ Sequence main {
       layer: gradient_base,
       start: 80.822891s,
       duration: 13.161526s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
       params: { gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (1.0, #ff00c3)] } },
@@ -886,7 +886,7 @@ Sequence main {
       layer: buildup,
       start: 55.170227051s,
       duration: 3.231966257s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -905,7 +905,7 @@ Sequence main {
       layer: buildup,
       start: 55.073162079s,
       duration: 0.898833156s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -929,7 +929,7 @@ Sequence main {
       layer: buildup,
       start: 58.319702148s,
       duration: 0.898833156s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -953,7 +953,7 @@ Sequence main {
       layer: buildup,
       start: 55.170227051s,
       duration: 3.198450327s,
-      target: layouts.main.desk_legs,
+      target: layouts.layout.desk_legs,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -972,7 +972,7 @@ Sequence main {
       layer: buildup,
       start: 55.170227051s,
       duration: 6.575187683s,
-      target: layouts.main.desk_legs,
+      target: layouts.layout.desk_legs,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -991,7 +991,7 @@ Sequence main {
       layer: buildup,
       start: 58.345867157s,
       duration: 3.374409199s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -1009,7 +1009,7 @@ Sequence main {
       layer: buildup,
       start: 58.337490082s,
       duration: 3.41630435s,
-      target: layouts.main.desk_legs,
+      target: layouts.layout.desk_legs,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -1028,7 +1028,7 @@ Sequence main {
       layer: buildup,
       start: 61.492107391s,
       duration: 5.766691208s,
-      target: layouts.main.desk_legs,
+      target: layouts.layout.desk_legs,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -1047,7 +1047,7 @@ Sequence main {
       layer: buildup,
       start: 61.608932495s,
       duration: 3.18275547s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -1065,7 +1065,7 @@ Sequence main {
       layer: buildup,
       start: 64.650520325s,
       duration: 2.757999659s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -1092,7 +1092,7 @@ Sequence main {
       layer: buildup,
       start: 61.546455383s,
       duration: 0.898833156s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -1116,7 +1116,7 @@ Sequence main {
       layer: buildup,
       start: 64.504119873s,
       duration: 2.782971621s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -1135,7 +1135,7 @@ Sequence main {
       layer: buildup,
       start: 63.10534668s,
       duration: 0.898833156s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -1237,7 +1237,7 @@ Sequence main {
   },
   automation: [
     AutomationClip {
-      row: layouts.main.desk,
+      row: layouts.layout.desk,
       start: 61.125797272s,
       duration: 36.798931122s,
       curve: Curve {
@@ -1262,7 +1262,7 @@ Sequence main {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.desk,
+      row: layouts.layout.desk,
       start: 64.443359s,
       duration: 39.604469s,
       curve: Curve {
@@ -1279,7 +1279,7 @@ Sequence main {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.desk,
+      row: layouts.layout.desk,
       start: 54.79399537s,
       duration: 12.928729889s,
       curve: Curve { points: [(0.0, 0.046), (0.7888914, 0.488), (0.9418507, 1.0), (1.0, 1.0)] },
@@ -1287,7 +1287,7 @@ Sequence main {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.desk,
+      row: layouts.layout.desk,
       start: 54.755928302s,
       duration: 12.916355382s,
       curve: Curve { points: [(0.0, 1.0), (1.0, 0.744)] },

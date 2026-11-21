@@ -7,13 +7,12 @@ use donder_editor::dto::{
     ConsoleGuiEdit, ConsolePlayLength, FixtureGuiDocument, FixtureGuiEdit, FixtureTarget,
     GuiControlInput, GuiDocument, GuiDocumentRequest, GuiEditCommand, GuiFixtureElement,
     GuiFixtureShape, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiItem,
-    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, GuiOwnershipEdit,
-    GuiPixelEncoding, GuiPixelRoute, GuiUniverses, LayoutGuiDocument, LayoutGuiEdit,
-    NewObjectStorage, ObjectKind, OwnedObjectSlot, OwnershipMember, Point3Meters,
-    ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, Rotation3Degrees, Scale3,
-    SequenceClipScope, SequenceEffectReference, SequenceGraphEdge, SequenceGraphNodeKind,
-    SequenceGraphOperator, SequenceGuiEdit, SequenceParamValue, SetupControllerConfig,
-    SetupGuiDocument, SetupGuiEdit, Transform,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, GuiPixelEncoding,
+    GuiPixelRoute, GuiUniverses, LayoutGuiDocument, LayoutGuiEdit, ObjectKind, OwnedObjectSlot,
+    Point3Meters, ProjectGuiDocument, ProjectGuiEdit, Rotation3Degrees, Scale3, SequenceClipScope,
+    SequenceEffectReference, SequenceGraphEdge, SequenceGraphNodeKind, SequenceGraphOperator,
+    SequenceGuiEdit, SequenceParamValue, SetupControllerConfig, SetupGuiDocument, SetupGuiEdit,
+    Transform,
 };
 
 pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditResult {
@@ -303,26 +302,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     let mut settings = state.snapshot().settings;
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
-    let empty_layout = setup_command(
-        &state,
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::Layout),
-            edit: GuiOwnershipEdit::MakeReusable {
-                name: "Empty stage".into(),
-                storage: ReusableStorage::SameFile,
-            },
-        },
-    )
-    .layout_ref;
-    setup_command(
-        &state,
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::Layout),
-            edit: GuiOwnershipEdit::MakeIndependent,
-        },
-    );
     let initial = state.project_session().unwrap();
-    let setup_id = *initial.project.root().setup.id();
     let sequence_id = *initial.project.root().sequences[0].id();
     let initial_color = initial
         .project
@@ -335,7 +315,6 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
-                storage: NewObjectStorage::NewFile,
                 name: "Strip".into(),
                 parent: None,
                 transform: transform(0.0),
@@ -412,7 +391,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     let setup = setup_edit(
         &state,
         SetupGuiEdit::AddController {
-            storage: NewObjectStorage::Inline,
+            name: "controller".into(),
             config: SetupControllerConfig::E131 {
                 sender_name: "Test".into(),
                 bind_address: "0.0.0.0".into(),
@@ -508,34 +487,6 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         result.document
     );
     let before_invalid = state.project_session().unwrap();
-    state.open_file_path(address(&state, setup_id).document().as_str());
-    let rejected_link = state.apply_gui_edit(
-        GuiDocumentRequest {
-            owned_path: address(&state, setup_id)
-                .owned_path()
-                .iter()
-                .map(Into::into)
-                .collect(),
-            project_revision: state.snapshot().project_revision,
-            path: address(&state, setup_id).document().to_string(),
-            object_key: address(&state, setup_id).root_source().object().into(),
-        },
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::Layout),
-            edit: GuiOwnershipEdit::UseExisting {
-                declaration: empty_layout,
-            },
-        },
-    );
-    assert!(matches!(
-        rejected_link.document,
-        GuiDocument::Blocked { .. }
-    ));
-    assert!(std::sync::Arc::ptr_eq(
-        &before_invalid,
-        &state.project_session().unwrap()
-    ));
-
     let result = fixture_edit(
         &state,
         &definition,
@@ -575,62 +526,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             .collect::<Vec<_>>(),
         [(3, 0, 2.0), (2, 1, 1.0), (1, 2, 0.0)]
     );
-    setup_command(
-        &state,
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::Layout),
-            edit: GuiOwnershipEdit::MakeReusable {
-                name: "Original layout".into(),
-                storage: ReusableStorage::SameFile,
-            },
-        },
-    );
-    let before_copy = state.project_session().unwrap();
-    setup_command(
-        &state,
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::Layout),
-            edit: GuiOwnershipEdit::MakeIndependent,
-        },
-    );
     let final_session = state.project_session().unwrap();
-    let copied_layout = final_session
-        .project
-        .get::<donder_model::Setup>(setup_id)
-        .unwrap()
-        .layout
-        .id();
-    assert_ne!(
-        *copied_layout,
-        *before_copy
-            .project
-            .get::<donder_model::Setup>(setup_id)
-            .unwrap()
-            .layout
-            .id()
-    );
-    assert_eq!(
-        final_session
-            .project
-            .reusable::<donder_model::FixtureDefinition>(),
-        before_copy
-            .project
-            .reusable::<donder_model::FixtureDefinition>()
-    );
-    assert_eq!(
-        final_session
-            .project
-            .get::<donder_model::Sequence>(*final_session.project.root().sequences[0].id())
-            .unwrap()
-            .clips[0]
-            .target
-            .layout,
-        *copied_layout
-    );
-    state.undo_active_edit();
-    assert_eq!(*state.project_session().unwrap(), *before_copy);
-    state.redo_active_edit();
-    assert_eq!(*state.project_session().unwrap(), *final_session);
     let prepared = donder_elaboration::prepare(
         &final_session.project,
         final_session.project.root().sequences[0].id(),
@@ -652,179 +548,6 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
 }
 
 #[test]
-fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-    write_new_project_files(&root, &new_test_project_files("Local copy").unwrap()).unwrap();
-    let starter = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let library = root.join("rig");
-    let paths = [
-        "layouts/outputs.data.donder",
-        "patches/outputs.data.donder",
-        "setups/main.data.donder",
-        "fixtures/vertical.data.donder",
-        "input_devices/keyboard.data.donder",
-    ];
-    for path in paths {
-        let text = std::fs::read_to_string(starter.join(path)).unwrap();
-        let bytes = paths
-            .iter()
-            .fold(text, |text, path| {
-                text.replace(&format!("<{path}>"), &format!("<rig/{path}>"))
-            })
-            .into_bytes();
-        std::fs::create_dir_all(library.join(path).parent().unwrap()).unwrap();
-        std::fs::write(library.join(path), &bytes).unwrap();
-    }
-    std::fs::create_dir_all(root.join("setups")).unwrap();
-    write_root_content(
-        &root,
-        "import setups from <setups/main.data.donder>;",
-        "  setup: setups.main,\n  sequences: [],",
-    );
-    std::fs::write(
-        root.join("setups/main.data.donder"),
-        "import layout from <rig/layouts/outputs.data.donder>;
-import patch from <rig/patches/outputs.data.donder>;
-import controllers from <rig/setups/main.data.donder>;
-
-Setup main {
-  description: none,
-  layout: layout.outputs_layout,
-  patch: patch.outputs,
-  controllers: [controllers.output_controller],
-  input_devices: [],
-}
-",
-    )
-    .unwrap();
-    let state = DesktopState::new(|_| {});
-    state.open_project_path(root.as_str());
-    let mut settings = state.snapshot().settings;
-    settings.autosave_project_edits = false;
-    state.update_app_settings(settings);
-    let original = state.project_session().unwrap();
-    let setup_id = *original.project.root().setup.id();
-    state.open_file_path(address(&state, setup_id).document().as_str());
-    let request = || GuiDocumentRequest {
-        owned_path: Vec::new(),
-        project_revision: state.snapshot().project_revision,
-        path: address(&state, setup_id).document().to_string(),
-        object_key: address(&state, setup_id).root_source().object().to_string(),
-    };
-    let GuiDocument::Setup { document: _ } = state.get_gui_document(request()).document else {
-        panic!("setup missing")
-    };
-    for slot in [Slot::Controller(0), Slot::Layout] {
-        let result = state.apply_gui_edit(
-            request(),
-            GuiEditCommand::Ownership {
-                member: member(&state, slot),
-                edit: GuiOwnershipEdit::MakeIndependent,
-            },
-        );
-        assert!(
-            matches!(result.document, GuiDocument::Setup { .. }),
-            "{:?}",
-            result.document
-        );
-    }
-    let copied = state.project_session().unwrap();
-    let GuiDocument::Setup { document: _ } = state.get_gui_document(request()).document else {
-        panic!("setup missing")
-    };
-    let copied_setup = &copied.project.reusable::<donder_model::Setup>()[&setup_id];
-    assert_eq!(
-        copied
-            .project
-            .get::<donder_model::Patch>(*copied_setup.patch.id())
-            .unwrap()
-            .routes
-            .len(),
-        30
-    );
-    assert_eq!(
-        copied
-            .project
-            .get::<donder_model::Layout>(*copied_setup.layout.id())
-            .unwrap()
-            .iter_fixtures()
-            .count(),
-        31
-    );
-    assert_eq!(
-        copied.project.reusable::<donder_model::FixtureDefinition>(),
-        original
-            .project
-            .reusable::<donder_model::FixtureDefinition>()
-    );
-    let imported_request = GuiDocumentRequest {
-        owned_path: Vec::new(),
-        path: "rig/setups/main.data.donder".into(),
-        ..request()
-    };
-    assert!(matches!(
-        state.get_gui_document(imported_request).document,
-        GuiDocument::Setup { .. }
-    ));
-    let old_setup = &original.project.reusable::<donder_model::Setup>()[&setup_id];
-    assert_eq!(
-        copied.project.reusable::<donder_model::Layout>()[old_setup.layout.id()],
-        original.project.reusable::<donder_model::Layout>()[old_setup.layout.id()]
-    );
-    assert_eq!(
-        copied.project.reusable::<donder_model::Patch>()[old_setup.patch.id()],
-        original.project.reusable::<donder_model::Patch>()[old_setup.patch.id()]
-    );
-    state.undo_active_edit();
-    state.undo_active_edit();
-    assert_eq!(*state.project_session().unwrap(), *original);
-    state.redo_active_edit();
-    state.redo_active_edit();
-    assert_eq!(*state.project_session().unwrap(), *copied);
-    let request = GuiDocumentRequest {
-        owned_path: address(&state, *copied_setup.layout.id())
-            .owned_path()
-            .iter()
-            .map(Into::into)
-            .collect(),
-        project_revision: state.snapshot().project_revision,
-        path: address(&state, *copied_setup.layout.id())
-            .document()
-            .to_string(),
-        object_key: address(&state, *copied_setup.layout.id())
-            .root_source()
-            .object()
-            .into(),
-    };
-    let mut layout = layout_document(state.get_gui_document(request).document);
-    layout.fixtures[0].name = "My outputs".into();
-    layout_document(
-        edit_layout(
-            &state,
-            LayoutGuiEdit::SetFixtures {
-                fixtures: layout.fixtures,
-                root: layout.root,
-            },
-        )
-        .document,
-    );
-    state.save_all().unwrap();
-    let saved = state.project_session().unwrap();
-    crate::desktop_foundation_tests::tests::assert_reloads(&root, &saved);
-    for path in paths {
-        let document = original
-            .source
-            .document_for_workspace_path(&Utf8PathBuf::from(format!("rig/{path}")));
-        let document = document.unwrap();
-        assert_eq!(
-            donder_project_io::source_document_text(&saved, &document).unwrap(),
-            donder_project_io::source_document_text(&original, &document).unwrap(),
-        );
-    }
-}
-
-#[test]
 fn shape_handles_conversion_and_undo_preserve_output_order() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
@@ -838,7 +561,6 @@ fn shape_handles_conversion_and_undo_preserve_output_order() {
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
-                storage: NewObjectStorage::Inline,
                 name: "Shapes".into(),
                 parent: None,
                 transform: transform(0.0),
@@ -938,212 +660,58 @@ fn shape_handles_conversion_and_undo_preserve_output_order() {
 
 #[test]
 fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
-    for storage in [
-        NewObjectStorage::Inline,
-        NewObjectStorage::SameFile,
-        NewObjectStorage::NewFile,
-    ] {
-        let temporary = tempfile::tempdir().unwrap();
-        let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-        write_new_project_files(&root, &new_test_project_files("Storage").unwrap()).unwrap();
-        let state = DesktopState::new(|_| {});
-        state.open_project_path(root.as_str());
-        let mut settings = state.snapshot().settings;
-        settings.autosave_project_edits = false;
-        state.update_app_settings(settings);
-        let layout = layout_document(
-            edit_layout(
-                &state,
-                LayoutGuiEdit::AddDefinition {
-                    name: "My Strip".into(),
-                    storage,
-                    parent: None,
-                    transform: transform(0.0),
-                },
-            )
-            .document,
-        );
-        let definition = fixture_reference(&layout, 0);
-        assert_eq!(
-            definition.path.replace('\\', "/"),
-            match storage {
-                NewObjectStorage::Inline | NewObjectStorage::SameFile => "project.data.donder",
-                NewObjectStorage::NewFile => "fixtures/my_strip.data.donder",
-            }
-        );
-        let mut second = layout.fixtures[0].clone();
-        second.id = 2;
-        second.name = "Shared placement".into();
-        let group = GuiLayoutFixture {
-            id: 3,
-            name: "Group".into(),
-            description: None,
-            kind: GuiLayoutFixtureKind::Group { members: vec![2] },
-        };
-        layout_document(
-            edit_layout(
-                &state,
-                LayoutGuiEdit::SetFixtures {
-                    fixtures: vec![layout.fixtures[0].clone(), group.clone(), second.clone()],
-                    root: vec![layout.fixtures[0].id, 3],
-                },
-            )
-            .document,
-        );
-        layout_document(
-            edit_layout(
-                &state,
-                LayoutGuiEdit::SetFixtures {
-                    fixtures: vec![group, second],
-                    root: vec![3],
-                },
-            )
-            .document,
-        );
-        assert_eq!(
-            state
-                .project_session()
-                .unwrap()
-                .project
-                .reusable::<donder_model::FixtureDefinition>()
-                .len(),
-            usize::from(!matches!(storage, NewObjectStorage::Inline))
-        );
-        let before = state.project_session().unwrap();
-        let removed = layout_document(
-            edit_layout(
-                &state,
-                LayoutGuiEdit::SetFixtures {
-                    fixtures: vec![],
-                    root: vec![],
-                },
-            )
-            .document,
-        );
-        assert!(removed.fixtures.is_empty());
-        let after = state.project_session().unwrap();
-        assert_eq!(
-            after
-                .project
-                .reusable::<donder_model::FixtureDefinition>()
-                .len(),
-            usize::from(!matches!(storage, NewObjectStorage::Inline))
-        );
-        state.undo_active_edit();
-        assert_eq!(*state.project_session().unwrap(), *before);
-        state.redo_active_edit();
-        assert_eq!(*state.project_session().unwrap(), *after);
-        state.save_all().unwrap();
-        crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
-        let text = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
-        assert!(!text.contains("fixture_1"));
-        if matches!(storage, NewObjectStorage::NewFile) {
-            assert!(root.join("fixtures/my_strip.data.donder").exists());
-        }
-    }
-}
-
-#[test]
-fn inline_fixture_copies_have_independent_ownership() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-    write_new_project_files(&root, &new_test_project_files("Shared").unwrap()).unwrap();
+    write_new_project_files(&root, &new_test_project_files("Storage").unwrap()).unwrap();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let mut settings = state.snapshot().settings;
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
-    let original = layout_document(
+    let layout = layout_document(
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
-                name: "Shared".into(),
-                storage: NewObjectStorage::Inline,
+                name: "My Strip".into(),
                 parent: None,
                 transform: transform(0.0),
             },
         )
         .document,
     );
-    let reference = fixture_reference(&original, 0);
-    assert!(matches!(
-        fixture_edit(
-            &state,
-            &reference,
-            FixtureGuiEdit::SetElements {
-                elements: vec![GuiFixtureElement {
-                    id: 1,
-                    name: "Owned pixel".into(),
-                    transform: transform(2.0),
-                    diameter_meters: 0.01,
-                    reverse: false,
-                    shape: GuiFixtureShape::Pixel,
-                }]
-            }
-        ),
-        GuiDocument::Fixture { .. }
-    ));
-    setup_command(
-        &state,
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::Layout),
-            edit: GuiOwnershipEdit::MakeReusable {
-                name: "Original layout".into(),
-                storage: ReusableStorage::NewFile,
-            },
-        },
+    let definition = fixture_reference(&layout, 0);
+    assert_eq!(
+        definition.path.replace('\\', "/"),
+        "fixtures/my_strip.data.donder"
     );
-    let original_layout = *state
-        .project_session()
-        .unwrap()
-        .project
-        .get::<donder_model::Setup>(*state.project_session().unwrap().project.root().setup.id())
-        .unwrap()
-        .layout
-        .id();
-    setup_command(
-        &state,
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::Layout),
-            edit: GuiOwnershipEdit::MakeIndependent,
-        },
-    );
-    let copied = state.project_session().unwrap();
-    let copied_layout = copied
-        .project
-        .get::<donder_model::Layout>(
-            *copied
-                .project
-                .get::<donder_model::Setup>(*copied.project.root().setup.id())
-                .unwrap()
-                .layout
-                .id(),
-        )
-        .unwrap();
-    assert!(
-        matches!(&copied_layout.fixtures[0].kind, donder_model::LayoutFixtureKind::Fixture {definition: donder_model::OwnedFixture::Inline(value),..} if value.elements.len() == 1)
-    );
-    state.open_file_path(address(&state, original_layout).document().as_str());
+    let mut second = layout.fixtures[0].clone();
+    second.id = 2;
+    second.name = "Shared placement".into();
+    let group = GuiLayoutFixture {
+        id: 3,
+        name: "Group".into(),
+        description: None,
+        kind: GuiLayoutFixtureKind::Group { members: vec![2] },
+    };
     layout_document(
-        state
-            .apply_gui_edit(
-                GuiDocumentRequest {
-                    owned_path: Vec::new(),
-                    project_revision: state.snapshot().project_revision,
-                    path: address(&state, original_layout).document().to_string(),
-                    object_key: address(&state, original_layout)
-                        .root_source()
-                        .object()
-                        .into(),
-                },
-                GuiEditCommand::Layout {
-                    edit: LayoutGuiEdit::SetFixtures {
-                        fixtures: vec![],
-                        root: vec![],
-                    },
-                },
-            )
-            .document,
+        edit_layout(
+            &state,
+            LayoutGuiEdit::SetFixtures {
+                fixtures: vec![layout.fixtures[0].clone(), group.clone(), second.clone()],
+                root: vec![layout.fixtures[0].id, 3],
+            },
+        )
+        .document,
+    );
+    layout_document(
+        edit_layout(
+            &state,
+            LayoutGuiEdit::SetFixtures {
+                fixtures: vec![group, second],
+                root: vec![3],
+            },
+        )
+        .document,
     );
     assert_eq!(
         state
@@ -1152,9 +720,10 @@ fn inline_fixture_copies_have_independent_ownership() {
             .project
             .reusable::<donder_model::FixtureDefinition>()
             .len(),
-        0
+        1
     );
-    layout_document(
+    let before = state.project_session().unwrap();
+    let removed = layout_document(
         edit_layout(
             &state,
             LayoutGuiEdit::SetFixtures {
@@ -1164,19 +733,24 @@ fn inline_fixture_copies_have_independent_ownership() {
         )
         .document,
     );
-    assert!(
-        state
-            .project_session()
-            .unwrap()
+    assert!(removed.fixtures.is_empty());
+    let after = state.project_session().unwrap();
+    assert_eq!(
+        after
             .project
             .reusable::<donder_model::FixtureDefinition>()
-            .is_empty()
+            .len(),
+        1
     );
+    state.undo_active_edit();
+    assert_eq!(*state.project_session().unwrap(), *before);
+    state.redo_active_edit();
+    assert_eq!(*state.project_session().unwrap(), *after);
     state.save_all().unwrap();
-    crate::desktop_foundation_tests::tests::assert_reloads(
-        &root,
-        &state.project_session().unwrap(),
-    );
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
+    let text = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
+    assert!(!text.contains("fixture_1"));
+    assert!(root.join("fixtures/my_strip.data.donder").exists());
 }
 
 #[test]
@@ -1203,7 +777,6 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
             &state,
             LayoutGuiEdit::AddDefinition {
                 name: "Owned strip".into(),
-                storage: NewObjectStorage::Inline,
                 parent: None,
                 transform: transform(0.0),
             },
@@ -1236,11 +809,12 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     assert_eq!(document.render_plan.pixels.len(), 1);
     let after = state.project_session().unwrap();
     assert!(after.project.reusable::<donder_model::Layout>().is_empty());
-    assert!(
+    assert_eq!(
         after
             .project
             .reusable::<donder_model::FixtureDefinition>()
-            .is_empty()
+            .len(),
+        1
     );
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);
@@ -1248,228 +822,7 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     assert_eq!(*state.project_session().unwrap(), *after);
     // Use the desktop save barrier so this readback cannot race background autosave.
     state.save_all().unwrap();
-    let reloaded =
-        donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
-            .into_session()
-            .unwrap();
-    assert_eq!(reloaded.project, after.project);
-}
-#[test]
-fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
-    for storage in [ReusableStorage::SameFile, ReusableStorage::NewFile] {
-        let temporary = tempfile::tempdir().unwrap();
-        let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-        write_new_project_files(&root, &new_test_project_files("Owned show").unwrap()).unwrap();
-        write_root_content(
-            &root,
-            "",
-            "  setup: Setup {
-    description: none,
-    layout: Layout {
-      description: none,
-      root: [my_strip],
-      items: [
-        Fixture {
-          name: my_strip,
-          description: none,
-          definition: FixtureDefinition { description: none, shapes: [] },
-          transform: Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
-        },
-      ],
-    },
-    patch: Patch { description: none, routes: [] },
-    controllers: [
-      Controller main {
-        description: none,
-        protocol: E131 {
-          sender_name: \"Test\",
-          bind_address: \"0.0.0.0\",
-          priority: 100,
-          mode: Multicast,
-          start_universe: 1,
-          universes: 1,
-          channels: 512,
-          ports: [],
-        },
-      },
-    ],
-    input_devices: [],
-  },
-  sequences: [
-    Sequence main {
-      description: none,
-      duration: 1s,
-      frame_rate: 30,
-      audio: none,
-      marks: [],
-      layers: [Layer { name: default, description: none, color: #50a0ff, enabled: true }],
-      clips: [],
-      graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
-      automation: [],
-    },
-  ],",
-        );
-        let state = DesktopState::new(|_| {});
-        state.open_project_path(root.as_str());
-        let mut settings = state.snapshot().settings;
-        settings.autosave_project_edits = false;
-        state.update_app_settings(settings);
-        let setup = setup_edit(
-            &state,
-            SetupGuiEdit::AddInputDevice {
-                storage: NewObjectStorage::Inline,
-                driver: GuiInputDriver::Keyboard,
-                controls: vec![GuiInputControl {
-                    id: 1,
-                    name: "kick".into(),
-                    description: None,
-                    kind: GuiInputControlKind::Button,
-                    input: GuiControlInput::Key {
-                        code: "KeyA".into(),
-                    },
-                }],
-            },
-        );
-        assert_eq!(setup.input_devices.len(), 1);
-        project_edit(
-            &state,
-            ProjectGuiEdit::AddConsole {
-                storage: NewObjectStorage::Inline,
-                initial_color: "#38bdf8".into(),
-            },
-        );
-        for slot in [
-            Slot::Fixture(1),
-            Slot::Controller(0),
-            Slot::InputDevice(0),
-            Slot::Layout,
-            Slot::Patch,
-            Slot::Sequence(0),
-            Slot::Console(0),
-            Slot::Setup,
-        ] {
-            let session = state.project_session().unwrap();
-            let setup = session
-                .project
-                .get::<donder_model::Setup>(*session.project.root().setup.id())
-                .unwrap();
-            let owner = match slot {
-                Slot::Fixture(..) => address(&state, *setup.layout.id()),
-                Slot::Controller(..) | Slot::InputDevice(..) | Slot::Layout | Slot::Patch => {
-                    address(&state, setup.id)
-                }
-                Slot::Sequence(..) | Slot::Console(..) | Slot::Setup => {
-                    address(&state, session.project.root().id)
-                }
-            };
-            state.open_file_path(owner.document().as_str());
-            let request = || GuiDocumentRequest {
-                owned_path: owner.owned_path().iter().map(Into::into).collect(),
-                project_revision: state.snapshot().project_revision,
-                path: owner.document().to_string(),
-                object_key: owner.root_source().object().into(),
-            };
-            for step in 0..4 {
-                let edit = match step {
-                    0 => GuiOwnershipEdit::MakeReusable {
-                        name: "Reusable source".into(),
-                        storage: storage.clone(),
-                    },
-                    1 | 3 => GuiOwnershipEdit::MakeIndependent,
-                    2 => {
-                        let projected = state.get_gui_document(request()).document;
-                        let sources = match projected {
-                            GuiDocument::Project { document } => document.available_declarations,
-                            GuiDocument::Setup { document } => document.available_declarations,
-                            GuiDocument::Layout { document } => document.available_fixtures,
-                            other => panic!("Missing source choices: {other:?}"),
-                        };
-                        let kind = match slot {
-                            Slot::Setup => ObjectKind::Setup,
-                            Slot::Sequence(..) => ObjectKind::Sequence,
-                            Slot::Layout => ObjectKind::Layout,
-                            Slot::Patch => ObjectKind::Patch,
-                            Slot::Controller(..) => ObjectKind::Controller,
-                            Slot::InputDevice(..) => ObjectKind::InputDevice,
-                            Slot::Console(..) => ObjectKind::Console,
-                            Slot::Fixture(..) => ObjectKind::Fixture,
-                        };
-                        GuiOwnershipEdit::UseExisting {
-                            declaration: sources
-                                .into_iter()
-                                .find(|source| source.kind == kind)
-                                .unwrap(),
-                        }
-                    }
-                    _ => unreachable!(),
-                };
-                let before = state.project_session().unwrap();
-                let result = state.apply_gui_edit(
-                    request(),
-                    GuiEditCommand::Ownership {
-                        member: member(&state, slot),
-                        edit,
-                    },
-                );
-                assert!(
-                    !matches!(result.document, GuiDocument::Blocked { .. }),
-                    "{:?}",
-                    result.document
-                );
-                let after = state.project_session().unwrap();
-                state.undo_active_edit();
-                assert_eq!(*state.project_session().unwrap(), *before);
-                state.redo_active_edit();
-                assert_eq!(*state.project_session().unwrap(), *after);
-                // The promoted and final unlinked states cover both persisted ownership forms.
-                if matches!(step, 0 | 3) {
-                    state.save_all().unwrap();
-                    crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
-                }
-            }
-        }
-        let session = state.project_session().unwrap();
-        let setup = session
-            .project
-            .get::<donder_model::Setup>(*session.project.root().setup.id())
-            .unwrap();
-        assert_eq!(
-            session
-                .project
-                .get::<donder_model::Layout>(*setup.layout.id())
-                .unwrap()
-                .fixtures[0]
-                .name
-                .as_str(),
-            "my_strip"
-        );
-        assert_eq!(
-            session
-                .project
-                .reusable::<donder_model::FixtureDefinition>()
-                .len(),
-            1
-        );
-        assert_eq!(
-            session.project.reusable::<donder_model::Controller>().len(),
-            1
-        );
-        assert_eq!(session.project.reusable::<donder_model::Layout>().len(), 1);
-        assert_eq!(session.project.reusable::<donder_model::Patch>().len(), 1);
-        assert_eq!(
-            session.project.reusable::<donder_model::Sequence>().len(),
-            1
-        );
-        assert_eq!(
-            session
-                .project
-                .reusable::<donder_model::InputDevice>()
-                .len(),
-            1
-        );
-        assert_eq!(session.project.reusable::<donder_model::Console>().len(), 1);
-        assert_eq!(session.project.reusable::<donder_model::Setup>().len(), 1);
-    }
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
 }
 
 #[test]
@@ -1616,155 +969,147 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
 
 #[test]
 fn duplicated_groups_own_geometry_and_preserve_original_sources() {
-    for storage in [
-        NewObjectStorage::Inline,
-        NewObjectStorage::SameFile,
-        NewObjectStorage::NewFile,
-    ] {
-        let temporary = tempfile::tempdir().unwrap();
-        let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-        write_new_project_files(&root, &new_test_project_files("Duplicates").unwrap()).unwrap();
-        let state = DesktopState::new(|_| {});
-        state.open_project_path(root.as_str());
-        let mut settings = state.snapshot().settings;
-        settings.autosave_project_edits = false;
-        state.update_app_settings(settings);
-        let layout = layout_document(
-            edit_layout(
-                &state,
-                LayoutGuiEdit::AddDefinition {
-                    name: "Original Strip".into(),
-                    storage,
-                    parent: None,
-                    transform: transform(2.0),
-                },
-            )
-            .document,
-        );
-        let source = fixture_reference(&layout, 0);
-        let pixel = GuiFixtureElement {
-            id: 1,
-            name: "Pixel".into(),
-            transform: transform(0.0),
-            diameter_meters: 0.01,
-            reverse: false,
-            shape: GuiFixtureShape::Pixel,
-        };
-        assert!(matches!(
-            fixture_edit(
-                &state,
-                &source,
-                FixtureGuiEdit::SetElements {
-                    elements: vec![pixel]
-                }
-            ),
-            GuiDocument::Fixture { .. }
-        ));
-        let current = state.project_session().unwrap();
-        let layout_id = current
-            .project
-            .get::<donder_model::Setup>(*current.project.root().setup.id())
-            .unwrap()
-            .layout
-            .id();
-        let request = GuiDocumentRequest {
-            project_revision: state.snapshot().project_revision,
-            path: address(&state, *layout_id).document().to_string(),
-            object_key: address(&state, *layout_id).root_source().object().into(),
-            owned_path: address(&state, *layout_id)
-                .owned_path()
-                .iter()
-                .map(Into::into)
-                .collect(),
-        };
-        let layout = layout_document(state.get_gui_document(request).document);
+    let temporary = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
+    write_new_project_files(&root, &new_test_project_files("Duplicates").unwrap()).unwrap();
+    let state = DesktopState::new(|_| {});
+    state.open_project_path(root.as_str());
+    let mut settings = state.snapshot().settings;
+    settings.autosave_project_edits = false;
+    state.update_app_settings(settings);
+    let layout = layout_document(
         edit_layout(
             &state,
-            LayoutGuiEdit::SetFixtures {
-                fixtures: std::iter::once(GuiLayoutFixture {
-                    id: 2,
-                    name: "Group".into(),
-                    description: None,
-                    kind: GuiLayoutFixtureKind::Group {
-                        members: layout.fixtures.iter().map(|fixture| fixture.id).collect(),
-                    },
-                })
-                .chain(layout.fixtures)
-                .collect(),
-                root: vec![2],
+            LayoutGuiEdit::AddDefinition {
+                name: "Original Strip".into(),
+                parent: None,
+                transform: transform(2.0),
             },
-        );
-        let before = state.project_session().unwrap();
-        let duplicate = layout_document(
-            edit_layout(&state, LayoutGuiEdit::DuplicateFixture { id: 2 }).document,
-        );
-        let after = state.project_session().unwrap();
-        // The group copy lists its own copied member, after the original in the root.
-        assert_eq!(
-            duplicate
-                .fixtures
-                .iter()
-                .map(|fixture| fixture.id)
-                .collect::<Vec<_>>(),
-            [2, 3, 1, 4]
-        );
-        assert_eq!(duplicate.root, [2, 3]);
-        let GuiLayoutFixtureKind::Group { members } = &duplicate.fixtures[1].kind else {
-            panic!("Expected copied group")
-        };
-        assert_eq!(members, &[4]);
-        let GuiLayoutFixtureKind::Fixture {
-            definition,
-            transform: placement,
-        } = &duplicate.fixtures[3].kind
-        else {
-            panic!("Expected copied fixture")
-        };
-        assert!(matches!(definition, GuiOwnedFixture::Inline { .. }));
-        assert_eq!(placement.position.x_meters, 2.0);
-        assert_eq!(
-            after.project.reusable::<donder_model::FixtureDefinition>(),
-            before.project.reusable::<donder_model::FixtureDefinition>()
-        );
-        state.undo_active_edit();
-        assert_eq!(*state.project_session().unwrap(), *before);
-        state.redo_active_edit();
-        assert_eq!(*state.project_session().unwrap(), *after);
-        let mut copied_source = duplicate.source_ref;
-        copied_source.kind = ObjectKind::Fixture;
-        copied_source
-            .owned_path
-            .push(OwnedObjectSlot::Fixture { id: 4 });
-        assert!(matches!(
-            fixture_edit(
-                &state,
-                &copied_source,
-                FixtureGuiEdit::SetElements { elements: vec![] }
-            ),
-            GuiDocument::Fixture { .. }
-        ));
-        let changed = state.project_session().unwrap();
-        assert_eq!(
-            changed
-                .project
-                .get::<donder_model::Layout>(*layout_id)
-                .unwrap()
-                .fixtures[0],
-            before
-                .project
-                .get::<donder_model::Layout>(*layout_id)
-                .unwrap()
-                .fixtures[0]
-        );
-        assert_eq!(
-            changed
-                .project
-                .reusable::<donder_model::FixtureDefinition>(),
-            before.project.reusable::<donder_model::FixtureDefinition>()
-        );
-        state.save_all().unwrap();
-        crate::desktop_foundation_tests::tests::assert_reloads(&root, &changed);
-    }
+        )
+        .document,
+    );
+    let source = fixture_reference(&layout, 0);
+    let pixel = GuiFixtureElement {
+        id: 1,
+        name: "Pixel".into(),
+        transform: transform(0.0),
+        diameter_meters: 0.01,
+        reverse: false,
+        shape: GuiFixtureShape::Pixel,
+    };
+    assert!(matches!(
+        fixture_edit(
+            &state,
+            &source,
+            FixtureGuiEdit::SetElements {
+                elements: vec![pixel]
+            }
+        ),
+        GuiDocument::Fixture { .. }
+    ));
+    let current = state.project_session().unwrap();
+    let layout_id = current
+        .project
+        .get::<donder_model::Setup>(*current.project.root().setup.id())
+        .unwrap()
+        .layout
+        .id();
+    let request = GuiDocumentRequest {
+        project_revision: state.snapshot().project_revision,
+        path: address(&state, *layout_id).document().to_string(),
+        object_key: address(&state, *layout_id).root_source().object().into(),
+        owned_path: address(&state, *layout_id)
+            .owned_path()
+            .iter()
+            .map(Into::into)
+            .collect(),
+    };
+    let layout = layout_document(state.get_gui_document(request).document);
+    edit_layout(
+        &state,
+        LayoutGuiEdit::SetFixtures {
+            fixtures: std::iter::once(GuiLayoutFixture {
+                id: 2,
+                name: "Group".into(),
+                description: None,
+                kind: GuiLayoutFixtureKind::Group {
+                    members: layout.fixtures.iter().map(|fixture| fixture.id).collect(),
+                },
+            })
+            .chain(layout.fixtures)
+            .collect(),
+            root: vec![2],
+        },
+    );
+    let before = state.project_session().unwrap();
+    let duplicate =
+        layout_document(edit_layout(&state, LayoutGuiEdit::DuplicateFixture { id: 2 }).document);
+    let after = state.project_session().unwrap();
+    // The group copy lists its own copied member, after the original in the root.
+    assert_eq!(
+        duplicate
+            .fixtures
+            .iter()
+            .map(|fixture| fixture.id)
+            .collect::<Vec<_>>(),
+        [2, 3, 1, 4]
+    );
+    assert_eq!(duplicate.root, [2, 3]);
+    let GuiLayoutFixtureKind::Group { members } = &duplicate.fixtures[1].kind else {
+        panic!("Expected copied group")
+    };
+    assert_eq!(members, &[4]);
+    let GuiLayoutFixtureKind::Fixture {
+        definition,
+        transform: placement,
+    } = &duplicate.fixtures[3].kind
+    else {
+        panic!("Expected copied fixture")
+    };
+    assert!(matches!(definition, GuiOwnedFixture::Inline { .. }));
+    assert_eq!(placement.position.x_meters, 2.0);
+    assert_eq!(
+        after.project.reusable::<donder_model::FixtureDefinition>(),
+        before.project.reusable::<donder_model::FixtureDefinition>()
+    );
+    state.undo_active_edit();
+    assert_eq!(*state.project_session().unwrap(), *before);
+    state.redo_active_edit();
+    assert_eq!(*state.project_session().unwrap(), *after);
+    let mut copied_source = duplicate.source_ref;
+    copied_source.kind = ObjectKind::Fixture;
+    copied_source
+        .owned_path
+        .push(OwnedObjectSlot::Fixture { id: 4 });
+    assert!(matches!(
+        fixture_edit(
+            &state,
+            &copied_source,
+            FixtureGuiEdit::SetElements { elements: vec![] }
+        ),
+        GuiDocument::Fixture { .. }
+    ));
+    let changed = state.project_session().unwrap();
+    assert_eq!(
+        changed
+            .project
+            .get::<donder_model::Layout>(*layout_id)
+            .unwrap()
+            .fixtures[0],
+        before
+            .project
+            .get::<donder_model::Layout>(*layout_id)
+            .unwrap()
+            .fixtures[0]
+    );
+    assert_eq!(
+        changed
+            .project
+            .reusable::<donder_model::FixtureDefinition>(),
+        before.project.reusable::<donder_model::FixtureDefinition>()
+    );
+    state.save_all().unwrap();
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &changed);
 }
 
 #[test]
@@ -1782,7 +1127,6 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
             &state,
             LayoutGuiEdit::AddDefinition {
                 name: name.into(),
-                storage: NewObjectStorage::Inline,
                 parent: None,
                 transform: transform(x),
             },
@@ -1979,7 +1323,6 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
             &state,
             LayoutGuiEdit::AddDefinition {
                 name: "Strip".into(),
-                storage: NewObjectStorage::SameFile,
                 parent: None,
                 transform: transform(2.0),
             },
@@ -2122,7 +1465,6 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
-                storage: NewObjectStorage::Inline,
                 name: "Line".into(),
                 parent: None,
                 transform: transform(0.0),
@@ -2223,48 +1565,6 @@ fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
 }
 
 /// Where an object of the state's session is written.
-/// A slot of the active project, its setup or its layout.
-#[derive(Clone, Copy)]
-enum Slot {
-    Setup,
-    Sequence(usize),
-    Console(usize),
-    Layout,
-    Patch,
-    Controller(usize),
-    InputDevice(usize),
-    Fixture(u32),
-}
-
-/// The member a slot of the active project holds, as the GUI names it.
-fn member(state: &DesktopState, slot: Slot) -> OwnershipMember {
-    let session = state.project_session().unwrap();
-    let root = session.project.root();
-    let setup = session
-        .project
-        .get::<donder_model::Setup>(*root.setup.id())
-        .unwrap();
-    let id: donder_model::ObjectId = match slot {
-        Slot::Setup => (*root.setup.id()).into(),
-        Slot::Sequence(index) => (*root.sequences[index].id()).into(),
-        Slot::Console(index) => (*root.consoles[index].id()).into(),
-        Slot::Layout => (*setup.layout.id()).into(),
-        Slot::Patch => (*setup.patch.id()).into(),
-        Slot::Controller(index) => (*setup.controllers[index].id()).into(),
-        Slot::InputDevice(index) => (*setup.input_devices[index].id()).into(),
-        Slot::Fixture(id) => return OwnershipMember::Fixture { id },
-    };
-    let address = address(state, id);
-    OwnershipMember::Object {
-        source: GuiObjectRef {
-            owned_path: address.owned_path().iter().map(Into::into).collect(),
-            path: address.document().to_string(),
-            object_key: address.root_source().object().into(),
-            kind: id.kind().into(),
-        },
-    }
-}
-
 fn address(
     state: &DesktopState,
     id: impl Into<donder_model::ObjectId>,
@@ -2304,15 +1604,6 @@ fn console_edit(
     {
         GuiDocument::Console { document } => document,
         other => panic!("console edit rejected: {other:?}"),
-    }
-}
-
-fn setup_document(state: &DesktopState) -> SetupGuiDocument {
-    let session = state.project_session().unwrap();
-    let id = *session.project.root().setup.id();
-    match state.get_gui_document(object_request(state, id)).document {
-        GuiDocument::Setup { document } => document,
-        other => panic!("setup projection missing: {other:?}"),
     }
 }
 
@@ -2362,22 +1653,11 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
     );
     assert!(matches!(duplicate.document, GuiDocument::Blocked { .. }));
 
-    // The jam console plays from the keyboard, so the setup keeps it.
-    let detach = state.apply_gui_edit(
-        object_request(&state, setup.id),
-        GuiEditCommand::Setup {
-            edit: SetupGuiEdit::DetachInputDevice {
-                device: document.device.source_ref.clone(),
-            },
-        },
-    );
-    assert!(matches!(detach.document, GuiDocument::Blocked { .. }));
-
-    // A new device, made reusable, detached and attached again.
+    // A new device gets its own file.
     let added = setup_edit(
         &state,
         SetupGuiEdit::AddInputDevice {
-            storage: NewObjectStorage::Inline,
+            name: "pads".into(),
             driver: GuiInputDriver::Keyboard,
             controls: vec![GuiInputControl {
                 id: 1,
@@ -2391,36 +1671,17 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
         },
     );
     assert_eq!(added.input_devices.len(), 2);
-    setup_command(
-        &state,
-        GuiEditCommand::Ownership {
-            member: member(&state, Slot::InputDevice(1)),
-            edit: GuiOwnershipEdit::MakeReusable {
-                name: "Pads".into(),
-                storage: ReusableStorage::NewFile,
-            },
-        },
+    assert_eq!(added.input_devices[1].name, "pads");
+    assert_eq!(
+        added.input_devices[1].source_ref.path,
+        "input_devices/pads.data.donder"
     );
-    let pads = setup_edit(
-        &state,
-        SetupGuiEdit::DetachInputDevice {
-            device: setup_document(&state).input_devices[1].source_ref.clone(),
-        },
-    );
-    assert_eq!(pads.input_devices.len(), 1);
-    let available = pads.available_input_devices[0].source_ref.clone();
-    let attached = setup_edit(
-        &state,
-        SetupGuiEdit::AttachInputDevice { device: available },
-    );
-    assert_eq!(attached.input_devices.len(), 2);
-    assert_eq!(attached.input_devices[1].name, "pads");
 
     // A new console starts with the default layer drawn to the output.
     let project = project_edit(
         &state,
         ProjectGuiEdit::AddConsole {
-            storage: NewObjectStorage::Inline,
+            name: "live".into(),
             initial_color: "#38bdf8".into(),
         },
     );
@@ -2546,8 +1807,8 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
     crate::desktop_foundation_tests::tests::assert_reloads(&root, &saved);
     let jam = std::fs::read_to_string(root.join("consoles/jam.data.donder")).unwrap();
     assert!(jam.contains("devices.keyboard.hit"));
-    let project = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
-    assert!(project.contains("name: flash"));
-    assert!(project.contains("copies: 3"));
-    assert!(project.contains("length: Fixed { duration: 0.5s }"));
+    let live = std::fs::read_to_string(root.join("consoles/live.data.donder")).unwrap();
+    assert!(live.contains("name: flash"));
+    assert!(live.contains("copies: 3"));
+    assert!(live.contains("length: Fixed { duration: 0.5s }"));
 }

@@ -1,6 +1,6 @@
 use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject, next_id};
-use crate::dto::{GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit, NewObjectStorage};
+use crate::dto::{GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
 use donder_model::{FixtureDefinition, OwnedFixture};
 use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::ProjectSession;
@@ -115,49 +115,28 @@ pub(super) fn edit_layout(
         }
         LayoutGuiEdit::AddDefinition {
             name,
-            storage,
             parent,
             transform,
         } => {
-            let declared = super::model::typed_name(&name)?;
-            let definition = match storage {
-                NewObjectStorage::Inline => OwnedFixture::Inline(FixtureDefinition {
-                    description: None,
-                    elements: Vec::new(),
-                }),
-                NewObjectStorage::SameFile | NewObjectStorage::NewFile => {
-                    let definition = donder_model::FixtureDefinitionId(session.project.new_id());
-                    if matches!(storage, NewObjectStorage::SameFile) {
-                        session
-                            .source
-                            .add_object(
-                                resolved.document_id(),
-                                definition.into(),
-                                declared.as_str(),
-                            )
-                            .map_err(GuiMutationError::Invalid)?;
-                    } else {
-                        super::model::create_object_document(session, definition.into(), &name)?;
-                    }
-                    session
-                        .project
-                        .put(donder_model::Object::FixtureDefinition(
-                            definition,
-                            FixtureDefinition {
-                                description: None,
-                                elements: Vec::new(),
-                            },
-                        ))
-                        .map_err(GuiMutationError::from)?;
-                    donder_project_io::ensure_document_can_reference_object(
-                        session,
-                        resolved.document_id(),
-                        definition.into(),
-                    )
-                    .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-                    OwnedFixture::Reference(definition)
-                }
-            };
+            let definition = donder_model::FixtureDefinitionId(session.project.new_id());
+            super::model::create_object_document(session, definition.into(), &name)?;
+            session
+                .project
+                .put(donder_model::Object::FixtureDefinition(
+                    definition,
+                    FixtureDefinition {
+                        description: None,
+                        elements: Vec::new(),
+                    },
+                ))
+                .map_err(GuiMutationError::from)?;
+            donder_project_io::ensure_document_can_reference_object(
+                session,
+                resolved.document_id(),
+                definition.into(),
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+            let definition = OwnedFixture::Reference(definition);
             add_instance(session, &id, name, definition, parent, transform)?;
         }
         LayoutGuiEdit::SetFixtures { fixtures, root } => {

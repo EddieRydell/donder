@@ -1,4 +1,4 @@
-Layout main {
+Layout layout {
   description: none,
   root: [house_and_trees, yard, mega_tree, star_rings, garage_matrix, arch_tunnel, everything],
   items: [

@@ -81,8 +81,8 @@ pub(crate) mod tests {
         let request = GuiDocumentRequest {
             owned_path: Vec::new(),
             project_revision: 0,
-            path: "setups/main.data.donder".to_string(),
-            object_key: "main".to_string(),
+            path: "setups/setup.data.donder".to_string(),
+            object_key: "setup".to_string(),
         };
         let GuiDocument::Setup { document } =
             donder_editor::project_gui_document(Some(&session), &request)

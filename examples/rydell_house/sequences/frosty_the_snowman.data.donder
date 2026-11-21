@@ -1,7 +1,7 @@
 import effects from <effects/standard.donder>, <effects/radial-wipe.donder>;
 import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 
 Sequence frosty_the_snowman {
   description: none,
@@ -20,7 +20,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0s,
       duration: 54.26432s,
-      target: layouts.main.radio_1,
+      target: layouts.layout.radio_1,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -34,7 +34,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0s,
       duration: 54.26432s,
-      target: layouts.main.radio_9_a,
+      target: layouts.layout.radio_9_a,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -48,7 +48,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0s,
       duration: 54.26432s,
-      target: layouts.main.radio_9_b,
+      target: layouts.layout.radio_9_b,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -62,7 +62,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0s,
       duration: 54.26432s,
-      target: layouts.main.radio_dot,
+      target: layouts.layout.radio_dot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -76,7 +76,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0s,
       duration: 54.26432s,
-      target: layouts.main.radio_f,
+      target: layouts.layout.radio_f,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -90,7 +90,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0s,
       duration: 54.26432s,
-      target: layouts.main.radio_m,
+      target: layouts.layout.radio_m,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -104,7 +104,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.13214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_right_foot,
+      target: layouts.layout.penguin_right_foot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -118,7 +118,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.14214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_left_foot,
+      target: layouts.layout.penguin_left_foot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -132,7 +132,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.14214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_left_wing,
+      target: layouts.layout.penguin_left_wing,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -146,7 +146,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.17214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_body,
+      target: layouts.layout.penguin_body,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -160,7 +160,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.17214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_right_wing,
+      target: layouts.layout.penguin_right_wing,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -174,7 +174,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.20214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_belly,
+      target: layouts.layout.penguin_belly,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -188,7 +188,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.21214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_beak,
+      target: layouts.layout.penguin_beak,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -202,7 +202,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.21214s,
       duration: 53.59786s,
-      target: layouts.main.penguin_head,
+      target: layouts.layout.penguin_head,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -216,7 +216,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -230,7 +230,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 1.108303s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -244,7 +244,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -258,7 +258,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -272,7 +272,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -286,7 +286,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -300,7 +300,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -314,7 +314,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -328,7 +328,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.394s,
       duration: 0.613s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -342,7 +342,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.766s,
       duration: 0.581s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -365,7 +365,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.766s,
       duration: 0.581s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -388,7 +388,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 0.766s,
       duration: 0.581s,
-      target: layouts.main.stairs,
+      target: layouts.layout.stairs,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -411,7 +411,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -425,7 +425,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 1.039866s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -439,7 +439,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -453,7 +453,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -467,7 +467,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -481,7 +481,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -495,7 +495,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -509,7 +509,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -523,7 +523,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.509s,
       duration: 0.604s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -537,7 +537,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.857s,
       duration: 0.708s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -560,7 +560,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.857s,
       duration: 0.708s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -583,7 +583,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 1.857s,
       duration: 0.708s,
-      target: layouts.main.stairs,
+      target: layouts.layout.stairs,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -606,7 +606,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -620,7 +620,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -634,7 +634,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -648,7 +648,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -662,7 +662,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -676,7 +676,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -690,7 +690,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -704,7 +704,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -718,7 +718,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.567408s,
       duration: 0.71s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -732,7 +732,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.82s,
       duration: 0.436187s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -755,7 +755,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.82s,
       duration: 0.436187s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -778,7 +778,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 2.82s,
       duration: 0.436187s,
-      target: layouts.main.stairs,
+      target: layouts.layout.stairs,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -801,7 +801,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.256187s,
       duration: 1.109s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: WholeTarget,
       effect: vixen.VixenCurtain,
       params: {
@@ -821,7 +821,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.256187s,
       duration: 1.109s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenCurtain,
       params: {
@@ -841,7 +841,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.256187s,
       duration: 1.109s,
-      target: layouts.main.stairs,
+      target: layouts.layout.stairs,
       scope: WholeTarget,
       effect: vixen.VixenCurtain,
       params: {
@@ -861,7 +861,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -875,7 +875,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 2.110035s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -889,7 +889,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -903,7 +903,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -917,7 +917,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -931,7 +931,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -945,7 +945,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -959,7 +959,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -973,7 +973,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 3.277408s,
       duration: 0.743s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -987,7 +987,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 4.375187s,
       duration: 1.109s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: WholeTarget,
       effect: vixen.VixenCurtain,
       params: {
@@ -1007,7 +1007,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 4.375187s,
       duration: 1.109s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenCurtain,
       params: {
@@ -1027,7 +1027,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 4.375187s,
       duration: 1.109s,
-      target: layouts.main.stairs,
+      target: layouts.layout.stairs,
       scope: WholeTarget,
       effect: vixen.VixenCurtain,
       params: {
@@ -1047,7 +1047,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 5.408703s,
       duration: 0.692401s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1068,7 +1068,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 5.408703s,
       duration: 0.692401s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1089,7 +1089,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 5.459425s,
       duration: 1.5s,
-      target: layouts.main.star_points,
+      target: layouts.layout.star_points,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -1103,7 +1103,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: vixen.VixenAlternating,
       params: {
@@ -1127,7 +1127,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1151,7 +1151,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1175,7 +1175,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: vixen.VixenAlternating,
       params: {
@@ -1199,7 +1199,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1223,7 +1223,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1247,7 +1247,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.left_magnolia_truck,
+      target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1271,7 +1271,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1295,7 +1295,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1319,7 +1319,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.right_magnolia_truck,
+      target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1343,7 +1343,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1367,7 +1367,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1391,7 +1391,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1415,7 +1415,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1439,7 +1439,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1463,7 +1463,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1487,7 +1487,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 6.16s,
       duration: 11.04s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenAlternating,
       params: {
@@ -1511,7 +1511,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 6.18s,
       duration: 0.772007s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1532,7 +1532,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 6.954s,
       duration: 0.58s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1553,7 +1553,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 7.186s,
       duration: 0.58s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1574,7 +1574,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 7.534s,
       duration: 0.516996s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1595,7 +1595,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 7.686s,
       duration: 1.075028s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1616,7 +1616,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 8.757s,
       duration: 0.444993s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1637,7 +1637,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 8.967999s,
       duration: 0.58s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1658,7 +1658,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 9.201992s,
       duration: 0.503008s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1679,7 +1679,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 9.427005s,
       duration: 0.498996s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1700,7 +1700,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 9.705s,
       duration: 0.503008s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1721,7 +1721,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 9.963554s,
       duration: 0.503008s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1742,7 +1742,7 @@ Sequence frosty_the_snowman {
       layer: overlay,
       start: 10.208008s,
       duration: 1.07904s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1763,7 +1763,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 11.16s,
       duration: 0.64s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -1786,7 +1786,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 11.2s,
       duration: 0.62s,
-      target: layouts.main.right_arches_01,
+      target: layouts.layout.right_arches_01,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1807,7 +1807,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 11.23s,
       duration: 0.57s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -1830,7 +1830,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 11.77s,
       duration: 0.64s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -1853,7 +1853,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 11.8s,
       duration: 0.62s,
-      target: layouts.main.right_arches_02,
+      target: layouts.layout.right_arches_02,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1874,7 +1874,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 11.84s,
       duration: 0.57s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -1897,7 +1897,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 11.84s,
       duration: 0.57s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -1920,7 +1920,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 12.38s,
       duration: 0.64s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -1943,7 +1943,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 12.39s,
       duration: 0.62s,
-      target: layouts.main.right_arches_03,
+      target: layouts.layout.right_arches_03,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -1964,7 +1964,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 12.45s,
       duration: 0.57s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -1987,7 +1987,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 12.93s,
       duration: 0.62s,
-      target: layouts.main.right_arches_04,
+      target: layouts.layout.right_arches_04,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -2008,7 +2008,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 12.98s,
       duration: 0.64s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2031,7 +2031,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 13.05s,
       duration: 0.57s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2054,7 +2054,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 13.05s,
       duration: 0.57s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2077,7 +2077,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 13.52s,
       duration: 0.62s,
-      target: layouts.main.right_arches_05,
+      target: layouts.layout.right_arches_05,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -2098,7 +2098,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 13.57s,
       duration: 0.64s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2121,7 +2121,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 13.64s,
       duration: 0.57s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2144,7 +2144,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 14.09s,
       duration: 0.62s,
-      target: layouts.main.right_arches_06,
+      target: layouts.layout.right_arches_06,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -2165,7 +2165,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 14.17s,
       duration: 0.64s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2188,7 +2188,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 14.24s,
       duration: 0.57s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2211,7 +2211,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 14.24s,
       duration: 0.57s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2234,7 +2234,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 14.7s,
       duration: 0.62s,
-      target: layouts.main.right_arches_07,
+      target: layouts.layout.right_arches_07,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -2255,7 +2255,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 14.78s,
       duration: 0.64s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2278,7 +2278,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 14.85s,
       duration: 0.57s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2301,7 +2301,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 15.26s,
       duration: 0.62s,
-      target: layouts.main.right_arches_08,
+      target: layouts.layout.right_arches_08,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -2322,7 +2322,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 15.35s,
       duration: 1.83s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2345,7 +2345,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 15.36s,
       duration: 1.83s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2368,7 +2368,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 15.42s,
       duration: 1.73s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2391,7 +2391,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 15.43s,
       duration: 1.73s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2414,7 +2414,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 15.43s,
       duration: 1.73s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2437,7 +2437,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 15.89s,
       duration: 1.29s,
-      target: layouts.main.right_arches_07,
+      target: layouts.layout.right_arches_07,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -2458,7 +2458,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.196903s,
       duration: 6s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2480,7 +2480,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2502,7 +2502,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: vixen.VixenColorwash,
       params: {
@@ -2524,7 +2524,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2546,7 +2546,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2568,7 +2568,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: vixen.VixenColorwash,
       params: {
@@ -2590,7 +2590,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2612,7 +2612,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2634,7 +2634,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.left_magnolia_truck,
+      target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2656,7 +2656,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2678,7 +2678,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2700,7 +2700,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.right_magnolia_truck,
+      target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2722,7 +2722,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2744,7 +2744,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2766,7 +2766,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2788,7 +2788,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2810,7 +2810,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2832,7 +2832,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2854,7 +2854,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.2s,
       duration: 6s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2876,7 +2876,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 17.276151s,
       duration: 6s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: vixen.VixenColorwash,
       params: {
@@ -2898,7 +2898,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2921,7 +2921,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -2944,7 +2944,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2967,7 +2967,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -2990,7 +2990,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -3013,7 +3013,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3036,7 +3036,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3059,7 +3059,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.left_magnolia_truck,
+      target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3082,7 +3082,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3105,7 +3105,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3128,7 +3128,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.right_magnolia_truck,
+      target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3151,7 +3151,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3174,7 +3174,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3197,7 +3197,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3220,7 +3220,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3243,7 +3243,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3266,7 +3266,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3289,7 +3289,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.21s,
       duration: 5.582569s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3312,7 +3312,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.25s,
       duration: 5.562974s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
@@ -3339,7 +3339,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.25s,
       duration: 5.562974s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenSnowflakes,
       params: {
@@ -3366,7 +3366,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.259405s,
       duration: 5.582569s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3389,7 +3389,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 23.318842s,
       duration: 5.582569s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -3412,7 +3412,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.34172s,
       duration: 0.49s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3426,7 +3426,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.34172s,
       duration: 0.49s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3440,7 +3440,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.3596s,
       duration: 0.49s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3454,7 +3454,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.3596s,
       duration: 0.49s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3468,7 +3468,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.3596s,
       duration: 0.49s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3482,7 +3482,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.3596s,
       duration: 0.49s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3496,7 +3496,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.3596s,
       duration: 0.49s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3510,7 +3510,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.3596s,
       duration: 0.49s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3524,7 +3524,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.386878s,
       duration: 0.49s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3538,7 +3538,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.397022s,
       duration: 0.49s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3552,7 +3552,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.407166s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3566,7 +3566,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.437598s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3580,7 +3580,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.437598s,
       duration: 0.49s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3594,7 +3594,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.669711s,
       duration: 0.49s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3608,7 +3608,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.669711s,
       duration: 0.49s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3622,7 +3622,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.687591s,
       duration: 0.49s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3636,7 +3636,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.687591s,
       duration: 0.49s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3650,7 +3650,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.687591s,
       duration: 0.49s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3664,7 +3664,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.687591s,
       duration: 0.49s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3678,7 +3678,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.687591s,
       duration: 0.49s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3692,7 +3692,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.687591s,
       duration: 0.49s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3706,7 +3706,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.714869s,
       duration: 0.49s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3720,7 +3720,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.725013s,
       duration: 0.49s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3734,7 +3734,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.735157s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3748,7 +3748,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.765589s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3762,7 +3762,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 29.765589s,
       duration: 0.49s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3776,7 +3776,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.069517s,
       duration: 0.49s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3790,7 +3790,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.069517s,
       duration: 0.49s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3804,7 +3804,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.087397s,
       duration: 0.49s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3818,7 +3818,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.087397s,
       duration: 0.49s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3832,7 +3832,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.087397s,
       duration: 0.49s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3846,7 +3846,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.087397s,
       duration: 0.49s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3860,7 +3860,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.087397s,
       duration: 0.49s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3874,7 +3874,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.087397s,
       duration: 0.49s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3888,7 +3888,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.114675s,
       duration: 0.49s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3902,7 +3902,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.124819s,
       duration: 0.49s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3916,7 +3916,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.134963s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3930,7 +3930,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.165394s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3944,7 +3944,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.165394s,
       duration: 0.49s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3958,7 +3958,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.445715s,
       duration: 0.49s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3972,7 +3972,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.445715s,
       duration: 0.49s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -3986,7 +3986,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.463595s,
       duration: 0.49s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4000,7 +4000,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.463595s,
       duration: 0.49s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4014,7 +4014,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.463595s,
       duration: 0.49s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4028,7 +4028,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.463595s,
       duration: 0.49s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4042,7 +4042,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.463595s,
       duration: 0.49s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4056,7 +4056,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.463595s,
       duration: 0.49s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4070,7 +4070,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.490873s,
       duration: 0.49s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4084,7 +4084,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.501017s,
       duration: 0.49s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4098,7 +4098,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.511161s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4112,7 +4112,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.541593s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4126,7 +4126,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.541593s,
       duration: 0.49s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4140,7 +4140,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.850519s,
       duration: 0.49s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4154,7 +4154,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.850519s,
       duration: 0.49s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4168,7 +4168,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.868399s,
       duration: 0.49s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4182,7 +4182,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.868399s,
       duration: 0.49s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4196,7 +4196,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.868399s,
       duration: 0.49s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4210,7 +4210,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.868399s,
       duration: 0.49s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4224,7 +4224,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.868399s,
       duration: 0.49s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4238,7 +4238,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.868399s,
       duration: 0.49s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4252,7 +4252,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.895677s,
       duration: 0.49s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4266,7 +4266,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.905821s,
       duration: 0.49s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4280,7 +4280,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.915965s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4294,7 +4294,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.946397s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4308,7 +4308,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 30.946397s,
       duration: 0.49s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4322,7 +4322,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.177916s,
       duration: 0.5732s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4336,7 +4336,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.177916s,
       duration: 0.5732s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4350,7 +4350,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.195796s,
       duration: 0.5732s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4364,7 +4364,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.195796s,
       duration: 0.5732s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4378,7 +4378,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.195796s,
       duration: 0.5732s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4392,7 +4392,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.195796s,
       duration: 0.5732s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4406,7 +4406,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.195796s,
       duration: 0.5732s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4420,7 +4420,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.195796s,
       duration: 0.5732s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4434,7 +4434,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.223074s,
       duration: 0.5732s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4448,7 +4448,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.233218s,
       duration: 0.5732s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4462,7 +4462,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.243362s,
       duration: 0.5732s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4476,7 +4476,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.273793s,
       duration: 0.5732s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4490,7 +4490,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.273793s,
       duration: 0.5732s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4504,7 +4504,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.447868s,
       duration: 0.49s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4518,7 +4518,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.447868s,
       duration: 0.49s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4532,7 +4532,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.465748s,
       duration: 0.49s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4546,7 +4546,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.465748s,
       duration: 0.49s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4560,7 +4560,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.465748s,
       duration: 0.49s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4574,7 +4574,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.465748s,
       duration: 0.49s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4588,7 +4588,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.465748s,
       duration: 0.49s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4602,7 +4602,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.465748s,
       duration: 0.49s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4616,7 +4616,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.493026s,
       duration: 0.49s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4630,7 +4630,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.50317s,
       duration: 0.49s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4644,7 +4644,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.513314s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4658,7 +4658,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.543746s,
       duration: 0.49s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4672,7 +4672,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.543746s,
       duration: 0.49s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -4686,7 +4686,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.82212s,
       duration: 2.188928s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4707,7 +4707,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.82212s,
       duration: 2.188928s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4728,7 +4728,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4749,7 +4749,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.RadialWipe,
       params: {
@@ -4770,7 +4770,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4791,7 +4791,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4812,7 +4812,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.RadialWipe,
       params: {
@@ -4833,7 +4833,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4854,7 +4854,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4875,7 +4875,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.left_magnolia_truck,
+      target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4896,7 +4896,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4917,7 +4917,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4938,7 +4938,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.right_magnolia_truck,
+      target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4959,7 +4959,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -4980,7 +4980,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5001,7 +5001,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5022,7 +5022,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5043,7 +5043,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5064,7 +5064,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5085,7 +5085,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.84s,
       duration: 2.188928s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5106,7 +5106,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.867278s,
       duration: 2.188928s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5127,7 +5127,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.877422s,
       duration: 2.188928s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5148,7 +5148,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.887566s,
       duration: 2.188928s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5169,7 +5169,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.917998s,
       duration: 2.188928s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5190,7 +5190,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 31.917998s,
       duration: 2.188928s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5211,7 +5211,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.022952s,
       duration: 0.468109s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5232,7 +5232,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.022952s,
       duration: 0.468109s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5253,7 +5253,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5274,7 +5274,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.RadialWipe,
       params: {
@@ -5295,7 +5295,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5316,7 +5316,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5337,7 +5337,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.RadialWipe,
       params: {
@@ -5358,7 +5358,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5379,7 +5379,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5400,7 +5400,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.left_magnolia_truck,
+      target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5421,7 +5421,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5442,7 +5442,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5463,7 +5463,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.right_magnolia_truck,
+      target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5484,7 +5484,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5505,7 +5505,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5526,7 +5526,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5547,7 +5547,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5568,7 +5568,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5589,7 +5589,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5610,7 +5610,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.040832s,
       duration: 0.468109s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5631,7 +5631,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.408056s,
       duration: 0.645572s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5652,7 +5652,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.408056s,
       duration: 0.645572s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5673,7 +5673,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5694,7 +5694,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.RadialWipe,
       params: {
@@ -5715,7 +5715,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5736,7 +5736,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5757,7 +5757,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.RadialWipe,
       params: {
@@ -5778,7 +5778,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5799,7 +5799,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5820,7 +5820,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.left_magnolia_truck,
+      target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5841,7 +5841,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5862,7 +5862,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5883,7 +5883,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.right_magnolia_truck,
+      target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5904,7 +5904,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5925,7 +5925,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5946,7 +5946,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5967,7 +5967,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -5988,7 +5988,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -6009,7 +6009,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -6030,7 +6030,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 34.425936s,
       duration: 0.645572s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.RadialWipe,
       params: {
@@ -6051,7 +6051,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 35.136s,
       duration: 0.7008s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -6072,7 +6072,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 35.225914s,
       duration: 4.631588s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6095,7 +6095,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 35.6032s,
       duration: 0.7008s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -6116,7 +6116,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 36.0576s,
       duration: 0.7008s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -6137,7 +6137,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 36.736s,
       duration: 0.7008s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -6158,7 +6158,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 37.2352s,
       duration: 0.7008s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -6179,7 +6179,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 37.8944s,
       duration: 0.7008s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -6200,7 +6200,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 38.5216s,
       duration: 0.7008s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenTwinkle,
       params: {
@@ -6221,7 +6221,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.861945s,
       duration: 1.108456s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6244,7 +6244,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.861945s,
       duration: 0.989189s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6267,7 +6267,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.901569s,
       duration: 0.989189s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6290,7 +6290,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: vixen.VixenBars,
       params: {
@@ -6313,7 +6313,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6336,7 +6336,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6359,7 +6359,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: vixen.VixenBars,
       params: {
@@ -6382,7 +6382,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6405,7 +6405,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6428,7 +6428,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.left_magnolia_truck,
+      target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6451,7 +6451,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6474,7 +6474,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6497,7 +6497,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.right_magnolia_truck,
+      target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6520,7 +6520,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6543,7 +6543,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6566,7 +6566,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6589,7 +6589,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6612,7 +6612,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6635,7 +6635,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6658,7 +6658,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 39.9104s,
       duration: 0.989189s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: vixen.VixenBars,
       params: {
@@ -6681,7 +6681,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 40.826268s,
       duration: 6.021878s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Spin,
       params: {
@@ -6703,7 +6703,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 40.852444s,
       duration: 6.021878s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Spin,
       params: {
@@ -6725,7 +6725,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 40.904718s,
       duration: 2s,
-      target: layouts.main.right_arches_01,
+      target: layouts.layout.right_arches_01,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -6739,7 +6739,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.335982s,
       duration: 6.021878s,
-      target: layouts.main.left_pot_circle,
+      target: layouts.layout.left_pot_circle,
       scope: WholeTarget,
       effect: effects.Spin,
       params: {
@@ -6761,7 +6761,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.362157s,
       duration: 6.021878s,
-      target: layouts.main.right_pot_circle,
+      target: layouts.layout.right_pot_circle,
       scope: WholeTarget,
       effect: effects.Spin,
       params: {
@@ -6783,7 +6783,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.387477s,
       duration: 4.631588s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6806,7 +6806,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.518942s,
       duration: 2s,
-      target: layouts.main.right_arches_02,
+      target: layouts.layout.right_arches_02,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -6820,7 +6820,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -6843,7 +6843,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6866,7 +6866,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6889,7 +6889,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -6912,7 +6912,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6935,7 +6935,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6958,7 +6958,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -6981,7 +6981,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7004,7 +7004,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7027,7 +7027,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7050,7 +7050,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7073,7 +7073,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7096,7 +7096,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7119,7 +7119,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7142,7 +7142,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 41.741243s,
       duration: 2s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7165,7 +7165,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 42.028618s,
       duration: 2s,
-      target: layouts.main.right_arches_03,
+      target: layouts.layout.right_arches_03,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7179,7 +7179,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 42.261655s,
       duration: 2s,
-      target: layouts.main.right_arches_04,
+      target: layouts.layout.right_arches_04,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7193,7 +7193,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 42.664597s,
       duration: 2s,
-      target: layouts.main.right_arches_05,
+      target: layouts.layout.right_arches_05,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7207,7 +7207,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 42.916103s,
       duration: 2s,
-      target: layouts.main.right_arches_06,
+      target: layouts.layout.right_arches_06,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7221,7 +7221,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.800186s,
       duration: 2s,
-      target: layouts.main.right_arches_07,
+      target: layouts.layout.right_arches_07,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7235,7 +7235,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -7258,7 +7258,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7281,7 +7281,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7304,7 +7304,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -7327,7 +7327,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7350,7 +7350,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7373,7 +7373,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7396,7 +7396,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7419,7 +7419,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7442,7 +7442,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7465,7 +7465,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7488,7 +7488,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7511,7 +7511,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7534,7 +7534,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7557,7 +7557,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 43.871416s,
       duration: 2s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7580,7 +7580,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 44.028828s,
       duration: 2s,
-      target: layouts.main.right_arches_08,
+      target: layouts.layout.right_arches_08,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7594,7 +7594,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 44.341305s,
       duration: 2s,
-      target: layouts.main.right_arches_01,
+      target: layouts.layout.right_arches_01,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7608,7 +7608,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 44.935774s,
       duration: 2s,
-      target: layouts.main.right_arches_03,
+      target: layouts.layout.right_arches_03,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7622,7 +7622,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 45.111067s,
       duration: 2s,
-      target: layouts.main.right_arches_04,
+      target: layouts.layout.right_arches_04,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7636,7 +7636,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 45.287749s,
       duration: 2s,
-      target: layouts.main.right_arches_03,
+      target: layouts.layout.right_arches_03,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7650,7 +7650,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 45.370194s,
       duration: 2s,
-      target: layouts.main.right_arches_05,
+      target: layouts.layout.right_arches_05,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -7664,7 +7664,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.142381s,
       duration: 1.943368s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -7693,7 +7693,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -7716,7 +7716,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7739,7 +7739,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7762,7 +7762,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.Wipe,
       params: {
@@ -7785,7 +7785,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7808,7 +7808,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.left_magnolia,
+      target: layouts.layout.left_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7831,7 +7831,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7854,7 +7854,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.right_magnolia,
+      target: layouts.layout.right_magnolia,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7877,7 +7877,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7900,7 +7900,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7923,7 +7923,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7946,7 +7946,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7969,7 +7969,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -7992,7 +7992,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -8015,7 +8015,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.255181s,
       duration: 2s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -8038,7 +8038,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.825882s,
       duration: 0.635769s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8067,7 +8067,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.833503s,
       duration: 0.757728s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8096,7 +8096,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.833503s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8125,7 +8125,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.837231s,
       duration: 0.635769s,
-      target: layouts.main.upper_right_front_line,
+      target: layouts.layout.upper_right_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8154,7 +8154,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.837397s,
       duration: 0.615957s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8183,7 +8183,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.841124s,
       duration: 0.635769s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8212,7 +8212,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.845018s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8241,7 +8241,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 46.848746s,
       duration: 0.635769s,
-      target: layouts.main.left_front_line,
+      target: layouts.layout.left_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8270,7 +8270,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.461651s,
       duration: 0.635769s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8299,7 +8299,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.469272s,
       duration: 0.757728s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8328,7 +8328,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.469272s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8357,7 +8357,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.473s,
       duration: 0.635769s,
-      target: layouts.main.upper_right_front_line,
+      target: layouts.layout.upper_right_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8386,7 +8386,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.473166s,
       duration: 0.635769s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8415,7 +8415,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.476894s,
       duration: 0.635769s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8444,7 +8444,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.480788s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8473,7 +8473,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 47.484515s,
       duration: 0.635769s,
-      target: layouts.main.left_front_line,
+      target: layouts.layout.left_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8502,7 +8502,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.123591s,
       duration: 3.802922s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Spin,
       params: {
@@ -8524,7 +8524,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.194006s,
       duration: 0.635769s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8553,7 +8553,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.197734s,
       duration: 0.757728s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8582,7 +8582,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.201627s,
       duration: 0.635769s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8611,7 +8611,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.201627s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8640,7 +8640,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.205355s,
       duration: 0.635769s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8669,7 +8669,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.205355s,
       duration: 0.635769s,
-      target: layouts.main.upper_right_front_line,
+      target: layouts.layout.upper_right_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8698,7 +8698,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.209249s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8727,7 +8727,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.212976s,
       duration: 0.635769s,
-      target: layouts.main.left_front_line,
+      target: layouts.layout.left_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8756,7 +8756,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.829775s,
       duration: 0.635769s,
-      target: layouts.main.trunk_bl,
+      target: layouts.layout.trunk_bl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8785,7 +8785,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.833503s,
       duration: 0.757728s,
-      target: layouts.main.right_arches,
+      target: layouts.layout.right_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8814,7 +8814,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.837397s,
       duration: 0.635769s,
-      target: layouts.main.trunk_br,
+      target: layouts.layout.trunk_br,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8843,7 +8843,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.837397s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fl,
+      target: layouts.layout.trunk_fl,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8872,7 +8872,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.841124s,
       duration: 0.635769s,
-      target: layouts.main.left_arches,
+      target: layouts.layout.left_arches,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8901,7 +8901,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.841124s,
       duration: 0.635769s,
-      target: layouts.main.upper_right_front_line,
+      target: layouts.layout.upper_right_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8930,7 +8930,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.845018s,
       duration: 0.635769s,
-      target: layouts.main.trunk_fr,
+      target: layouts.layout.trunk_fr,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8959,7 +8959,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 48.848746s,
       duration: 0.635769s,
-      target: layouts.main.left_front_line,
+      target: layouts.layout.left_front_line,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -8988,7 +8988,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 49.737s,
       duration: 1.161646s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9002,7 +9002,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 49.996384s,
       duration: 1.161646s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9016,7 +9016,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 50.110705s,
       duration: 1.161646s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9030,7 +9030,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 50.468s,
       duration: 1.161646s,
-      target: layouts.main.fran_wreath,
+      target: layouts.layout.fran_wreath,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9044,7 +9044,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 50.898646s,
       duration: 1.161646s,
-      target: layouts.main.wreath_1,
+      target: layouts.layout.wreath_1,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9058,7 +9058,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 51.15803s,
       duration: 1.161646s,
-      target: layouts.main.wreath_2,
+      target: layouts.layout.wreath_2,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9072,7 +9072,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 51.525407s,
       duration: 1.161646s,
-      target: layouts.main.wreath_3,
+      target: layouts.layout.wreath_3,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9086,7 +9086,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 52.165259s,
       duration: 1.388629s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.Chase,
       params: {
@@ -9115,7 +9115,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 53.113853s,
       duration: 1.306577s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9129,7 +9129,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 53.113853s,
       duration: 1.306577s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9143,7 +9143,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 53.113853s,
       duration: 1.306577s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9157,7 +9157,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 53.113853s,
       duration: 1.306577s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -9171,7 +9171,7 @@ Sequence frosty_the_snowman {
       layer: default,
       start: 53.113853s,
       duration: 1.306577s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {

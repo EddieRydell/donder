@@ -163,8 +163,8 @@ pub enum CommandId {
 pub enum AppCommandId {
     #[serde(rename = "file.newProject")]
     FileNewProject,
-    #[serde(rename = "file.importProfile")]
-    FileImportProfile,
+    #[serde(rename = "file.importProject")]
+    FileImportProject,
     #[serde(rename = "file.openProject")]
     FileOpenProject,
     #[serde(rename = "file.save")]

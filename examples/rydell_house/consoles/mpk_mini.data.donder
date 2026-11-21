@@ -1,4 +1,4 @@
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>, <effects/impact-burst.donder>;
 import operators from <operators/standard.donder>;
 import devices from <input_devices/mpk_mini.data.donder>;
@@ -19,7 +19,7 @@ Console mpk_mini {
       name: mark_pulse,
       description: none,
       layer: default,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -37,7 +37,7 @@ Console mpk_mini {
       name: mark_field_wipe,
       description: none,
       layer: default,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects_2.MarkFieldWipe,
       params: {
@@ -117,6 +117,9 @@ Console mpk_mini {
         position: (538.9499, 85.887505),
       },
     ],
-    edges: [Edge { from: layers.default, to: hue_shift.source }, Edge { from: hue_shift, to: root }],
+    edges: [
+      Edge { from: layers.default, to: hue_shift.source },
+      Edge { from: hue_shift, to: root },
+    ],
   },
 }

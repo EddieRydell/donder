@@ -434,7 +434,7 @@ impl DesktopState {
     /// A new project from the template, then the profile in
     /// `profile_path` imported into it. What was left out is written to
     /// [`IMPORT_REPORT_FILE`] in the project.
-    pub(super) fn import_profile_project_locked(
+    pub(super) fn import_project_locked(
         &self,
         parent_path: &str,
         directory_name: &str,

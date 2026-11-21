@@ -1,11 +1,11 @@
-import layouts from <layouts/main.data.donder>;
-import setups from <setups/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
+import setups from <setups/setup.data.donder>;
 
-Patch main {
+Patch patch {
   description: none,
   routes: [
     Route {
-      target: layouts.main.desk_left,
+      target: layouts.layout.desk_left,
       pixels: none,
       controller: setups.dig_quad,
       port: "port_1",
@@ -16,7 +16,7 @@ Patch main {
       dither: false,
     },
     Route {
-      target: layouts.main.desk_front,
+      target: layouts.layout.desk_front,
       pixels: none,
       controller: setups.dig_quad,
       port: "port_1",
@@ -27,7 +27,7 @@ Patch main {
       dither: false,
     },
     Route {
-      target: layouts.main.desk_right,
+      target: layouts.layout.desk_right,
       pixels: none,
       controller: setups.dig_quad,
       port: "port_1",
@@ -38,7 +38,7 @@ Patch main {
       dither: false,
     },
     Route {
-      target: layouts.main.desk_leg_left,
+      target: layouts.layout.desk_leg_left,
       pixels: none,
       controller: setups.dig_quad,
       port: "port_1",
@@ -49,7 +49,7 @@ Patch main {
       dither: false,
     },
     Route {
-      target: layouts.main.desk_leg_right,
+      target: layouts.layout.desk_leg_right,
       pixels: none,
       controller: setups.dig_quad,
       port: "port_1",

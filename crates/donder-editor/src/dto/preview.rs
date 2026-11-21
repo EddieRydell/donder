@@ -199,7 +199,6 @@ pub enum LayoutGuiEdit {
     },
     AddDefinition {
         name: String,
-        storage: NewObjectStorage,
         parent: Option<u32>,
         transform: Transform,
     },

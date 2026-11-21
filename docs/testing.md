@@ -10,8 +10,8 @@ pnpm check
 `pnpm check` runs, in order:
 1. `cargo fmt --check`, then the workspace Rust tests of every target, compiled
    once with `clippy-driver` as the workspace compiler and every warning denied,
-   so linting and testing share one build; their `generated_bindings` tests
-   write the committed TypeScript bindings;
+   so linting and testing share one build; the desktop's `generated_bindings`
+   test writes the committed TypeScript bindings;
 2. frontend typechecking, lint, unused-export analysis, tests and production build;
 3. the firmware-owned device-storage tests on the host (`pnpm storage:test`).
 

@@ -1,7 +1,7 @@
 import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>, <effects/radial-wipe.donder>, <effects/field-wipe.donder>;
 import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
-import setups from <setups/main.data.donder>;
+import setups from <setups/setup.data.donder>;
 import sequences from <sequences/empty.data.donder>;
 import ding_dong from <sequences/ding_dong.data.donder>;
 import most_wonderful_time from <sequences/most_wonderful_time.data.donder>;
@@ -23,11 +23,12 @@ import trans_siberian_mix from <sequences/trans_siberian_mix.data.donder>;
 import consoles from <consoles/mpk_mini.data.donder>;
 import consoles_2 from <consoles/console.data.donder>;
 import sequences_2 from <sequences/hero.data.donder>;
+import sequences_3 from <sequences/sequence.data.donder>;
 
 Project rydell_house {
   format: 2,
   description: none,
-  setup: setups.main,
+  setup: setups.setup,
   sequences: [
     sequences.empty,
     ding_dong.ding_dong,
@@ -48,6 +49,7 @@ Project rydell_house {
     tiny_tree.tiny_tree,
     trans_siberian_mix.trans_siberian_mix,
     sequences_2.hero,
+    sequences_3.sequence,
   ],
   consoles: [consoles.mpk_mini, consoles_2.console],
 }

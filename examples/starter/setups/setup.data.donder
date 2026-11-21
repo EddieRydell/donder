@@ -2,7 +2,7 @@ import layouts from <layouts/outputs.data.donder>;
 import patches from <patches/outputs.data.donder>;
 import devices from <input_devices/keyboard.data.donder>;
 
-Setup main {
+Setup setup {
   description: none,
   layout: layouts.outputs_layout,
   patch: patches.outputs,

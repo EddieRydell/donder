@@ -114,6 +114,37 @@ impl SourceProject {
         ))
     }
 
+    /// Declare `id` as `name`; refused when its document already declares
+    /// that name. References print the new name when their documents are saved.
+    pub fn rename_object(&mut self, id: ObjectId, name: Identifier) -> Result<(), String> {
+        let source = self
+            .documents
+            .values_mut()
+            .find(|source| source.objects.iter().any(|object| object.id == id))
+            .ok_or_else(|| "The object is not declared.".to_string())?;
+        if source
+            .objects
+            .iter()
+            .any(|object| object.id != id && object.name == name)
+        {
+            return Err(format!("This file already declares {}.", name.as_str()));
+        }
+        for object in &mut source.objects {
+            if object.id == id {
+                object.name = name.clone();
+            }
+        }
+        Ok(())
+    }
+
+    /// Stop declaring `id`. The caller removes its typed object from the same
+    /// candidate session.
+    pub fn remove_object(&mut self, id: ObjectId) {
+        for source in self.documents.values_mut() {
+            source.objects.retain(|object| object.id != id);
+        }
+    }
+
     pub fn project_root(&self) -> &Utf8Path {
         &self.workspace.root
     }

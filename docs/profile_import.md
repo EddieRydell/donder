@@ -1,6 +1,6 @@
 # Profile import
 
-**File > Import Profile** creates a new project from the layout, controllers
+**File > Import Project** creates a new project from the layout, controllers
 and patch of an xLights or Vixen profile. `donder -p <new project>
 import <folder>` does the same into a project whose setup is still empty;
 the folder's contents say which program it is from. Sequences, effects and

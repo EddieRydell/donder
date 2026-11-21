@@ -34,6 +34,7 @@ pub use project_config::{
     PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE, ProjectWorkspace, atomic_write,
     validate_document_path, validate_relative_path,
 };
+mod object_files;
 mod path_refactor;
 mod project_edit;
 mod serialization;
@@ -53,6 +54,7 @@ pub use imports::{
 };
 pub use inclusion::{Inclusion, include_document};
 pub use index::{Link, LinkTarget, ProjectIndex, ScriptMember};
+pub use object_files::object_document_path;
 pub use path_refactor::{
     PathChangeImpact, PathChangePlan, PathChangeSourceKind, apply_path_change, plan_path_change,
 };

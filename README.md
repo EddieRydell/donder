@@ -116,7 +116,7 @@ working on tuning it to be more intuitive and less janky. If you have trouble wi
 when creating a sequence or editing a profile, you can always ask an LLM to figure it
 out for you. I've found this works especially well for setting up layouts and fixtures. The
 layout, controllers and patch of an xLights or Vixen profile import into a new project with
-File > Import Profile; see [profile import](docs/profile_import.md).
+File > Import Project; see [profile import](docs/profile_import.md).
 
 Donder controllers are classic ESP32 boards with 4 MB flash, including the
 QuinLED Dig-Quad, with up to 800 pixels on four outputs of 200 per controller. Larger

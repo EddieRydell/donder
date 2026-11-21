@@ -23,7 +23,7 @@ fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
         .into_session()
         .expect("load");
     for (source, destination) in [
-        ("setups/main.data.donder", "moved/main.data.donder"),
+        ("setups/setup.data.donder", "moved/setup.data.donder"),
         (
             "sequences/layer_test.data.donder",
             "moved/layer_test.data.donder",
@@ -86,7 +86,7 @@ fn rejects_collisions_root_escapes_and_descendant_moves() {
         plan_path_change(
             &session,
             Utf8Path::new("project.data.donder"),
-            Utf8Path::new("setups/main.data.donder")
+            Utf8Path::new("setups/setup.data.donder")
         )
         .expect_err("collision")
         .contains("Destination already exists")

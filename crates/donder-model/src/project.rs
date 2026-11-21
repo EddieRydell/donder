@@ -153,14 +153,9 @@ pub enum EditRejection {
     MissingItem,
     MemberNotInOwner,
     NoMembers,
-    Unnamed,
     AlreadyReusable,
-    AlreadyIndependent(ObjectKind),
     NonPositiveTiming,
-    ChooseReusable(ObjectKind),
-    ChooseMatchingKind,
     AlreadyInSetup(ObjectKind),
-    NotInSetup(ObjectKind),
     NotAGroup,
     NotInSourceGroup,
     NotInGroup,
@@ -180,18 +175,11 @@ impl std::fmt::Display for EditRejection {
             Self::MissingItem => f.write_str("The fixture or group was not found."),
             Self::MemberNotInOwner => f.write_str("The member was not found in its owner."),
             Self::NoMembers => f.write_str("This object owns no members."),
-            Self::Unnamed => f.write_str("The reusable value has no name."),
             Self::AlreadyReusable => f.write_str("This value is already reusable."),
-            Self::AlreadyIndependent(kind) => write!(f, "This {kind} is already independent."),
             Self::NonPositiveTiming => {
                 f.write_str("Sequence duration and frame rate must be positive.")
             }
-            Self::ChooseReusable(kind) => write!(f, "Choose a reusable {kind}."),
-            Self::ChooseMatchingKind => {
-                f.write_str("Choose a reusable declaration of the matching kind.")
-            }
             Self::AlreadyInSetup(kind) => write!(f, "This {kind} is already in the setup."),
-            Self::NotInSetup(kind) => write!(f, "Choose a {kind} in this setup."),
             Self::NotAGroup => f.write_str("Items can only be placed in groups."),
             Self::NotInSourceGroup => f.write_str("The item is not in the source group."),
             Self::NotInGroup => f.write_str("The item is not in that group."),

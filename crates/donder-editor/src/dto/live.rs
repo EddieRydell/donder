@@ -490,16 +490,10 @@ pub enum ConsoleGuiEdit {
     rename_all_fields = "camelCase"
 )]
 pub enum ProjectGuiEdit {
-    /// A new sequence of the project, stored where `storage` says, with the
-    /// default layer drawn to the output.
-    AddSequence {
-        initial_color: String,
-        storage: NewObjectStorage,
-    },
-    /// A new console of the project, stored where `storage` says, with the
-    /// default layer drawn to the output.
-    AddConsole {
-        initial_color: String,
-        storage: NewObjectStorage,
-    },
+    /// A new sequence of the project in a file of its own named `name`, with
+    /// the default layer drawn to the output.
+    AddSequence { initial_color: String, name: String },
+    /// A new console of the project in a file of its own named `name`, with
+    /// the default layer drawn to the output.
+    AddConsole { initial_color: String, name: String },
 }

@@ -41,6 +41,9 @@ pub use clip_match::matching_sequence_clips;
 use edit::edit_sequence;
 use fixture::edit_fixture;
 use layout::edit_layout;
+pub use ownership::{
+    DeletedMember, delete_member, member_file_rename, member_name_site, rename_member,
+};
 pub use problem::{check_edit, edit_site, refusal};
 use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};

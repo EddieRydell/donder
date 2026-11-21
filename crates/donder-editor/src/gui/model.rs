@@ -457,48 +457,25 @@ use crate::dto::{
     SequenceGraphOperator, SequenceLibraryLink, SequenceParamValue,
 };
 
+/// The name a new object of `kind` is offered.
+pub fn new_object_name(session: &ProjectSession, kind: donder_model::ObjectKind) -> String {
+    session.source.new_object_name(kind).as_str().to_string()
+}
+
+/// A file of its own declaring `id` as `name`; refused when that file exists.
 pub(super) fn create_object_document(
     session: &mut ProjectSession,
     id: ObjectId,
     name: &str,
 ) -> Result<donder_project_io::SourceIdentity, GuiMutationError> {
-    use donder_model::ObjectKind as Kind;
-    let directory = match id.kind() {
-        Kind::Project => "projects",
-        Kind::Setup => "setups",
-        Kind::Layout => "layouts",
-        Kind::Patch => "patches",
-        Kind::Controller => "controllers",
-        Kind::InputDevice => "input_devices",
-        Kind::Sequence => "sequences",
-        Kind::Console => "consoles",
-        Kind::FixtureDefinition => "fixtures",
-        Kind::Curve => "curves",
-        Kind::Gradient => "gradients",
-        Kind::EffectDefinition => "effects",
-        Kind::OperatorDefinition => "operators",
-    };
-    let path = |stem: &str| {
-        camino::Utf8PathBuf::from(format!(
-            "{directory}/{stem}{}",
-            donder_language::data::DATA_DOCUMENT_SUFFIX
-        ))
-    };
-    let stem = fresh_name(name, |stem| {
-        let path = path(stem);
-        session
-            .source
-            .documents
-            .contains_key(&session.source.project_document(path.clone()))
-            || session.source.project_root().join(&path).exists()
-    });
+    let name = typed_name(name)?;
     let document = session
         .source
-        .add_data_document(path(stem.as_str()), vec![(id, stem.clone())])
+        .add_object_document(id, name.clone())
         .map_err(GuiMutationError::Invalid)?;
     Ok(donder_project_io::SourceIdentity::from_document(
         document,
-        stem.as_str().to_string(),
+        name.as_str().to_string(),
     ))
 }
 

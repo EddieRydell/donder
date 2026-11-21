@@ -135,7 +135,7 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
         color,
     )
     .unwrap();
-    let site = common::site(&session.project, common::Slot::ProjectSequence(index));
+    let site = common::sequence_site(&session.project, index);
     let destination = donder_model::make_reusable(&mut session.project, &site).unwrap();
     let document = session
         .source

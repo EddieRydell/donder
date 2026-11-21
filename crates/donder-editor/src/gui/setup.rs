@@ -60,15 +60,6 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
     GuiDocument::Setup {
         document: SetupGuiDocument {
             description: setup.description.clone(),
-            available_declarations: super::ownership::available_declarations(
-                session,
-                &[
-                    donder_model::ObjectKind::Layout,
-                    donder_model::ObjectKind::Patch,
-                    donder_model::ObjectKind::Controller,
-                    donder_model::ObjectKind::InputDevice,
-                ],
-            ),
             source_ref: resolved.source_ref(),
             layout_ref: object_ref(session, *setup.layout.id()),
             patch_ref: object_ref(session, *setup.patch.id()),
@@ -98,6 +89,14 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
                 .collect(),
             key_codes: super::input_device::key_codes(),
             input_limits: super::input_device::input_limits(),
+            new_controller_name: super::model::new_object_name(
+                session,
+                donder_model::ObjectKind::Controller,
+            ),
+            new_input_device_name: super::model::new_object_name(
+                session,
+                donder_model::ObjectKind::InputDevice,
+            ),
         },
     }
 }
@@ -120,11 +119,6 @@ pub(super) fn edit_setup(
             donder_project_io::link_declaration(session, resolved.document_id(), id.into())
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
-        SetupGuiEdit::DetachController { controller } => {
-            let id: ControllerId = object_id_from_gui(session, &controller)?;
-            donder_model::detach_controller(&mut session.project, &setup.id, &id)
-                .map_err(GuiMutationError::from)?;
-        }
         SetupGuiEdit::AttachInputDevice { device } => {
             let id: InputDeviceId = object_id_from_gui(session, &device)?;
             donder_model::attach_input_device(&mut session.project, &setup.id, id)
@@ -132,66 +126,35 @@ pub(super) fn edit_setup(
             donder_project_io::link_declaration(session, resolved.document_id(), id.into())
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
-        SetupGuiEdit::DetachInputDevice { device } => {
-            let id: InputDeviceId = object_id_from_gui(session, &device)?;
-            donder_model::detach_input_device(&mut session.project, &setup.id, &id)
-                .map_err(GuiMutationError::from)?;
-        }
         SetupGuiEdit::AddInputDevice {
             driver,
             controls,
-            storage,
+            name,
         } => {
-            let name = super::model::fresh_name("input_device", |name| {
-                setup
-                    .input_devices
-                    .iter()
-                    .any(|source| source.name().is_some_and(|taken| taken.as_str() == name))
-            });
             let id = InputDeviceId(session.project.new_id());
             let device = super::input_device::domain_input_device(id, None, driver, controls)?;
             setup.input_devices.push(donder_model::OwnedMember::Inline {
-                name: name.clone(),
+                name: super::model::typed_name(&name)?,
                 value: Box::new(device),
             });
             let owner = setup.id.into();
             session.project.put(setup).map_err(GuiMutationError::from)?;
-            super::ownership::store_new_member(
-                session,
-                resolved,
-                owner,
-                id.into(),
-                name.as_str(),
-                storage,
-            )?;
+            super::ownership::store_new_member(session, owner, id.into(), &name)?;
         }
         SetupGuiEdit::AddController {
             config,
             ports,
-            storage,
+            name,
         } => {
-            let name = super::model::fresh_name("controller", |name| {
-                setup
-                    .controllers
-                    .iter()
-                    .any(|source| source.name().is_some_and(|taken| taken.as_str() == name))
-            });
             let id = ControllerId(session.project.new_id());
             let controller = super::controller::domain_controller(id, None, config, ports)?;
             setup.controllers.push(donder_model::OwnedMember::Inline {
-                name: name.clone(),
+                name: super::model::typed_name(&name)?,
                 value: Box::new(controller),
             });
             let owner = setup.id.into();
             session.project.put(setup).map_err(GuiMutationError::from)?;
-            super::ownership::store_new_member(
-                session,
-                resolved,
-                owner,
-                id.into(),
-                name.as_str(),
-                storage,
-            )?;
+            super::ownership::store_new_member(session, owner, id.into(), &name)?;
         }
     }
     Ok(())

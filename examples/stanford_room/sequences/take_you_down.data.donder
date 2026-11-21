@@ -1,5 +1,5 @@
 import operators from <operators/standard.donder>;
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import effects_2 from <effects/vixen.donder>;
 
@@ -113,7 +113,7 @@ Sequence take_you_down {
       layer: predrop_16ths,
       start: 57.383237252s,
       duration: 21.527042991s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -133,7 +133,7 @@ Sequence take_you_down {
       layer: default,
       start: 78.721098125s,
       duration: 0.63232953s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.Wipe,
       params: {
@@ -152,7 +152,7 @@ Sequence take_you_down {
       layer: predrop_snares,
       start: 68.758991777s,
       duration: 10.293877659s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -173,7 +173,7 @@ Sequence take_you_down {
       layer: default,
       start: 79.433873158s,
       duration: 0.53476502s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -187,7 +187,7 @@ Sequence take_you_down {
       layer: default,
       start: 80.040648409s,
       duration: 21.62746935s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects.MarkPulse,
       params: {
@@ -206,7 +206,7 @@ Sequence take_you_down {
       layer: default,
       start: 44.153180949s,
       duration: 5.92499999s,
-      target: layouts.main.desk_top,
+      target: layouts.layout.desk_top,
       scope: WholeTarget,
       effect: effects_2.VixenAlternating,
       params: {
@@ -257,7 +257,7 @@ Sequence take_you_down {
   },
   automation: [
     AutomationClip {
-      row: layouts.main.desk,
+      row: layouts.layout.desk,
       start: 56.715087772s,
       duration: 22.702652045s,
       curve: Curve {
@@ -270,7 +270,7 @@ Sequence take_you_down {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.desk,
+      row: layouts.layout.desk,
       start: 56.818961559s,
       duration: 22.394494431s,
       curve: Curve {
@@ -285,7 +285,7 @@ Sequence take_you_down {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.desk,
+      row: layouts.layout.desk,
       start: 56.606261359s,
       duration: 23.022695851s,
       curve: Curve {

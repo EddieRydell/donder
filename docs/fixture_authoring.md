@@ -84,11 +84,8 @@ or its undo history.
 The layout sidebar contains groups and fixture instances. Each instance has a
 name and position/rotation/scale. Effects target instances or whole layout groups.
 The list and canvas share Add fixture and Add group actions. New fixtures get
-a uniquely named file in the fixtures folder and open for editing. Advanced settings,
-below Name, can instead declare it in this file or store it inside its placement. Existing reusable fixtures can be added from the
-Add fixture submenu. A selected fixture's "…" menu offers **Move to file**
-for owned geometry and **Copy inside parent** for a link. Making a link independent
-copies its geometry into that placement and leaves the reusable declaration unchanged.
+a file named after them in the fixtures folder and open for editing. Existing
+reusable fixtures can be added from the Add fixture submenu.
 
 Right-click a fixture row to edit it, change its name and description, or
 remove it. Removing

@@ -2,7 +2,7 @@
 //! link to an object written elsewhere; objects owned in place are not
 //! references of their owner.
 use super::{DonderProject, ProjectRoot};
-use crate::console::{Action, Console, InputEvent, LengthSource, Play, PlayLength};
+use crate::console::{Action, Console, LengthSource, Play, PlayLength};
 use crate::effect::{Clip, ParamValue};
 use crate::identity::ObjectId;
 use crate::layout::{Layout, LayoutFixtureKind};
@@ -11,257 +11,138 @@ use crate::patch::Patch;
 use crate::sequence::{CompositionGraphNodeKind, Sequence, SequenceCompositionGraph};
 use crate::setup::Setup;
 
-/// Sees each reference as `(referrer, target)`; it may change the target to
-/// another object of the same kind.
-type Visit<'a> = dyn FnMut(ObjectId, &mut ObjectId) + 'a;
+/// Sees each reference as `(referrer, target)`.
+type Visit<'a> = dyn FnMut(ObjectId, ObjectId) + 'a;
 
-/// Visit one reference held at `$place`, recording whether it would change.
-macro_rules! visit_read {
-    ($f:ident, $changed:ident, $owner:expr, $place:expr) => {{
-        let before: ObjectId = ($place).into();
-        let mut target = before;
-        $f($owner, &mut target);
-        *$changed |= target != before;
-    }};
+fn root(owner: ObjectId, root: &ProjectRoot, f: &mut Visit<'_>) {
+    if let Owned::Reference(id) = &root.setup {
+        f(owner, (*id).into());
+    }
+    for source in &root.sequences {
+        if let OwnedMember::Reference(id) = source {
+            f(owner, (*id).into());
+        }
+    }
+    for source in &root.consoles {
+        if let OwnedMember::Reference(id) = source {
+            f(owner, (*id).into());
+        }
+    }
 }
 
-/// Visit one reference held at `$place` and store its new target.
-macro_rules! visit_write {
-    ($f:ident, $changed:ident, $owner:expr, $place:expr) => {{
-        let before: ObjectId = ($place).into();
-        let mut target = before;
-        $f($owner, &mut target);
-        if target != before {
-            $place = target
-                .try_into()
-                .unwrap_or_else(|_| unreachable!("a reference keeps its kind"));
-            *$changed = true;
+fn setup(owner: ObjectId, setup: &Setup, f: &mut Visit<'_>) {
+    if let Owned::Reference(id) = &setup.layout {
+        f(owner, (*id).into());
+    }
+    if let Owned::Reference(id) = &setup.patch {
+        f(owner, (*id).into());
+    }
+    for source in &setup.controllers {
+        if let OwnedMember::Reference(id) = source {
+            f(owner, (*id).into());
         }
-    }};
+    }
+    for source in &setup.input_devices {
+        if let OwnedMember::Reference(id) = source {
+            f(owner, (*id).into());
+        }
+    }
 }
 
-/// A clip is shared between project snapshots; it is visited in place only
-/// when one of its references changes.
-macro_rules! clip_read {
-    ($f:ident, $changed:ident, $owner:expr, $clip:expr) => {
-        super::read::clip($owner, &**$clip, $f, $changed)
-    };
+fn layout(owner: ObjectId, layout: &Layout, f: &mut Visit<'_>) {
+    for fixture in &layout.fixtures {
+        if let LayoutFixtureKind::Fixture {
+            definition: Owned::Reference(id),
+            ..
+        } = &fixture.kind
+        {
+            f(owner, (*id).into());
+        }
+    }
 }
 
-macro_rules! clip_write {
-    ($f:ident, $changed:ident, $owner:expr, $clip:expr) => {{
-        let mut moves = false;
-        super::read::clip($owner, &**$clip, $f, &mut moves);
-        if moves {
-            super::write::clip($owner, std::sync::Arc::make_mut($clip), $f, $changed);
-        }
-    }};
+fn patch(owner: ObjectId, patch: &Patch, f: &mut Visit<'_>) {
+    for route in &patch.routes {
+        f(owner, route.target.layout.into());
+        f(owner, route.controller.into());
+    }
 }
 
-/// The reference listing, read-only or in place; `$($m)*` is empty or `mut`.
-macro_rules! walks {
-    ($visit:ident, $clip:ident, $($m:tt)*) => {
-        use super::*;
+fn sequence(owner: ObjectId, sequence: &Sequence, f: &mut Visit<'_>) {
+    for clip in &sequence.clips {
+        self::clip(owner, clip, f);
+    }
+    for clip in &sequence.automation_clips {
+        f(owner, clip.row_target.layout.into());
+    }
+    graph(owner, &sequence.composition_graph, f);
+}
 
-        pub(super) fn root(owner: ObjectId, root: & $($m)* ProjectRoot, f: &mut Visit<'_>, changed: &mut bool) {
-            if let Owned::Reference(id) = & $($m)* root.setup {
-                $visit!(f, changed, owner, *id);
-            }
-            for source in & $($m)* root.sequences {
-                if let OwnedMember::Reference(id) = source {
-                    $visit!(f, changed, owner, *id);
-                }
-            }
-            for source in & $($m)* root.consoles {
-                if let OwnedMember::Reference(id) = source {
-                    $visit!(f, changed, owner, *id);
-                }
-            }
+fn clip(owner: ObjectId, clip: &Clip, f: &mut Visit<'_>) {
+    f(owner, clip.target.layout.into());
+    f(owner, clip.definition.into());
+    for value in clip.param_overrides.values() {
+        param(owner, value, f);
+    }
+}
+
+fn console(owner: ObjectId, console: &Console, f: &mut Visit<'_>) {
+    for clip in &console.clips {
+        f(owner, clip.target.layout.into());
+        f(owner, clip.definition.into());
+        for value in clip.param_overrides.values() {
+            param(owner, value, f);
         }
-
-        pub(super) fn setup(owner: ObjectId, setup: & $($m)* Setup, f: &mut Visit<'_>, changed: &mut bool) {
-            if let Owned::Reference(id) = & $($m)* setup.layout {
-                $visit!(f, changed, owner, *id);
-            }
-            if let Owned::Reference(id) = & $($m)* setup.patch {
-                $visit!(f, changed, owner, *id);
-            }
-            for source in & $($m)* setup.controllers {
-                if let OwnedMember::Reference(id) = source {
-                    $visit!(f, changed, owner, *id);
-                }
-            }
-            for source in & $($m)* setup.input_devices {
-                if let OwnedMember::Reference(id) = source {
-                    $visit!(f, changed, owner, *id);
-                }
-            }
-        }
-
-        pub(super) fn layout(owner: ObjectId, layout: & $($m)* Layout, f: &mut Visit<'_>, changed: &mut bool) {
-            for fixture in & $($m)* layout.fixtures {
-                if let LayoutFixtureKind::Fixture {
-                    definition: Owned::Reference(id),
-                    ..
-                } = & $($m)* fixture.kind
-                {
-                    $visit!(f, changed, owner, *id);
-                }
-            }
-        }
-
-        pub(super) fn patch(owner: ObjectId, patch: & $($m)* Patch, f: &mut Visit<'_>, changed: &mut bool) {
-            for route in & $($m)* patch.routes {
-                $visit!(f, changed, owner, route.target.layout);
-                $visit!(f, changed, owner, route.controller);
-            }
-        }
-
-        pub(super) fn sequence(owner: ObjectId, sequence: & $($m)* Sequence, f: &mut Visit<'_>, changed: &mut bool) {
-            for clip in & $($m)* sequence.clips {
-                $clip!(f, changed, owner, clip);
-            }
-            for clip in & $($m)* sequence.automation_clips {
-                $visit!(f, changed, owner, clip.row_target.layout);
-            }
-            graph(owner, & $($m)* sequence.composition_graph, f, changed);
-        }
-
-        pub(super) fn clip(owner: ObjectId, clip: & $($m)* Clip, f: &mut Visit<'_>, changed: &mut bool) {
-            $visit!(f, changed, owner, clip.target.layout);
-            $visit!(f, changed, owner, clip.definition);
-            for value in (& $($m)* clip.param_overrides).values_mut_or_ref() {
-                param(owner, value, f, changed);
-            }
-        }
-
-        pub(super) fn console(owner: ObjectId, console: & $($m)* Console, f: &mut Visit<'_>, changed: &mut bool) {
-            for clip in & $($m)* console.clips {
-                $visit!(f, changed, owner, clip.target.layout);
-                $visit!(f, changed, owner, clip.definition);
-                for value in (& $($m)* clip.param_overrides).values_mut_or_ref() {
-                    param(owner, value, f, changed);
-                }
-            }
-            for on in & $($m)* console.events {
-                $visit!(f, changed, owner, (& $($m)* on.event).control_mut_or_ref().device);
-                for action in & $($m)* on.actions {
-                    if let Action::Play(Play {
-                        length: PlayLength::Scaled { by: LengthSource::Axis(control), .. },
+    }
+    for on in &console.events {
+        f(owner, on.event.control().device.into());
+        for action in &on.actions {
+            if let Action::Play(Play {
+                length:
+                    PlayLength::Scaled {
+                        by: LengthSource::Axis(control),
                         ..
-                    }) = action
-                    {
-                        $visit!(f, changed, owner, control.device);
-                    }
-                }
-            }
-            graph(owner, & $($m)* console.composition_graph, f, changed);
-        }
-
-        fn graph(owner: ObjectId, graph: & $($m)* SequenceCompositionGraph, f: &mut Visit<'_>, changed: &mut bool) {
-            for node in & $($m)* graph.nodes {
-                if let CompositionGraphNodeKind::Operator(operator) = & $($m)* node.kind {
-                    $visit!(f, changed, owner, operator.operator);
-                    for value in (& $($m)* operator.params).values_mut_or_ref() {
-                        param(owner, value, f, changed);
-                    }
-                }
+                    },
+                ..
+            }) = action
+            {
+                f(owner, control.device.into());
             }
         }
-
-        /// A parameter value's curve and gradient references.
-        fn param(owner: ObjectId, value: & $($m)* ParamValue, f: &mut Visit<'_>, changed: &mut bool) {
-            match value {
-                ParamValue::Curve(Owned::Reference(id)) => {
-                    $visit!(f, changed, owner, *id)
-                }
-                ParamValue::Gradient(Owned::Reference(id)) => {
-                    $visit!(f, changed, owner, *id)
-                }
-                ParamValue::Array(values) => {
-                    for value in values {
-                        param(owner, value, f, changed);
-                    }
-                }
-                ParamValue::Int(_)
-                | ParamValue::Float(_)
-                | ParamValue::Bool(_)
-                | ParamValue::Color(_)
-                | ParamValue::Enum { .. }
-                | ParamValue::Marks(_)
-                | ParamValue::Curve(Owned::Inline(_))
-                | ParamValue::Gradient(Owned::Inline(_)) => {}
-            }
-        }
-    };
+    }
+    graph(owner, &console.composition_graph, f);
 }
 
-/// `values()` for a read walk and `values_mut()` for an in-place one, so the
-/// listing above reads the same in both.
-trait ValuesOf<'a, V: 'a> {
-    type Values: Iterator<Item = V>;
-    fn values_mut_or_ref(self) -> Self::Values;
-}
-
-impl<'a, K, V> ValuesOf<'a, &'a V> for &'a indexmap::IndexMap<K, V> {
-    type Values = indexmap::map::Values<'a, K, V>;
-    fn values_mut_or_ref(self) -> Self::Values {
-        self.values()
+fn graph(owner: ObjectId, graph: &SequenceCompositionGraph, f: &mut Visit<'_>) {
+    for node in &graph.nodes {
+        if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
+            f(owner, operator.operator.into());
+            for value in operator.params.values() {
+                param(owner, value, f);
+            }
+        }
     }
 }
 
-impl<'a, K, V> ValuesOf<'a, &'a mut V> for &'a mut indexmap::IndexMap<K, V> {
-    type Values = indexmap::map::ValuesMut<'a, K, V>;
-    fn values_mut_or_ref(self) -> Self::Values {
-        self.values_mut()
-    }
-}
-
-/// The control an event reads, borrowed as the event is.
-trait ControlOf<'a> {
-    type Control;
-    fn control_mut_or_ref(self) -> Self::Control;
-}
-
-impl<'a> ControlOf<'a> for &'a InputEvent {
-    type Control = &'a crate::input_device::ControlRef;
-    fn control_mut_or_ref(self) -> Self::Control {
-        self.control()
-    }
-}
-
-impl<'a> ControlOf<'a> for &'a mut InputEvent {
-    type Control = &'a mut crate::input_device::ControlRef;
-    fn control_mut_or_ref(self) -> Self::Control {
-        self.control_mut()
-    }
-}
-
-mod read {
-    walks!(visit_read, clip_read,);
-}
-
-mod write {
-    walks!(visit_write, clip_write, mut);
-}
-
-/// Retarget the references every object of a kind holds. The read walk runs
-/// first, so an object whose references stay the same is never detached from
-/// the snapshots that share it.
-macro_rules! retarget {
-    ($project:expr, $f:ident, $walk:ident, $kind:ty) => {
-        let ids: Vec<_> = $project.objects::<$kind>().map(|value| value.id).collect();
-        for id in ids {
-            let owner = id.into();
-            let mut moves = false;
-            if let Some(object) = $project.get::<$kind>(id) {
-                read::$walk(owner, object, $f, &mut moves);
-            }
-            if moves && let Some(object) = $project.find_mut::<$kind>(id) {
-                write::$walk(owner, object, $f, &mut false);
+/// A parameter value's curve and gradient references.
+fn param(owner: ObjectId, value: &ParamValue, f: &mut Visit<'_>) {
+    match value {
+        ParamValue::Curve(Owned::Reference(id)) => f(owner, (*id).into()),
+        ParamValue::Gradient(Owned::Reference(id)) => f(owner, (*id).into()),
+        ParamValue::Array(values) => {
+            for value in values {
+                param(owner, value, f);
             }
         }
-    };
+        ParamValue::Int(_)
+        | ParamValue::Float(_)
+        | ParamValue::Bool(_)
+        | ParamValue::Color(_)
+        | ParamValue::Enum { .. }
+        | ParamValue::Marks(_)
+        | ParamValue::Curve(Owned::Inline(_))
+        | ParamValue::Gradient(Owned::Inline(_)) => {}
+    }
 }
 
 impl DonderProject {
@@ -269,77 +150,21 @@ impl DonderProject {
     /// is the object that holds the reference, whether it is declared or owned
     /// in place.
     pub fn for_each_reference(&self, visit: &mut dyn FnMut(ObjectId, ObjectId)) {
-        let f: &mut Visit<'_> = &mut |owner, target: &mut ObjectId| visit(owner, *target);
-        let mut changed = false;
-        let changed = &mut changed;
-        read::root(self.root.id.into(), &self.root, f, changed);
-        for setup in self.objects::<Setup>() {
-            read::setup(setup.id.into(), setup, f, changed);
+        root(self.root.id.into(), &self.root, visit);
+        for value in self.objects::<Setup>() {
+            setup(value.id.into(), value, visit);
         }
-        for layout in self.objects::<Layout>() {
-            read::layout(layout.id.into(), layout, f, changed);
+        for value in self.objects::<Layout>() {
+            layout(value.id.into(), value, visit);
         }
-        for patch in self.objects::<Patch>() {
-            read::patch(patch.id.into(), patch, f, changed);
+        for value in self.objects::<Patch>() {
+            patch(value.id.into(), value, visit);
         }
-        for sequence in self.objects::<Sequence>() {
-            read::sequence(sequence.id.into(), sequence, f, changed);
+        for value in self.objects::<Sequence>() {
+            sequence(value.id.into(), value, visit);
         }
-        for console in self.objects::<Console>() {
-            read::console(console.id.into(), console, f, changed);
+        for value in self.objects::<Console>() {
+            console(value.id.into(), value, visit);
         }
-    }
-
-    /// Point references at other objects: `retarget(referrer, target)` may
-    /// replace the target with another object of its kind. It is called more
-    /// than once for a reference, so it must answer the same each time. Only
-    /// the objects and clips whose references change are detached.
-    pub(crate) fn retarget_references(
-        &mut self,
-        retarget: &mut dyn FnMut(ObjectId, &mut ObjectId),
-    ) {
-        let f: &mut Visit<'_> = retarget;
-        let mut moves = false;
-        read::root(self.root.id.into(), &self.root, f, &mut moves);
-        if moves {
-            let mut changed = false;
-            let owner = self.root.id.into();
-            write::root(owner, &mut self.root, f, &mut changed);
-        }
-        retarget!(self, f, setup, Setup);
-        retarget!(self, f, layout, Layout);
-        retarget!(self, f, patch, Patch);
-        retarget!(self, f, sequence, Sequence);
-        retarget!(self, f, console, Console);
-    }
-}
-
-/// An object whose own references can be read and retargeted alone.
-pub(crate) trait References {
-    fn references(&self, visit: &mut dyn FnMut(ObjectId));
-    fn retarget(&mut self, retarget: &mut dyn FnMut(ObjectId, &mut ObjectId));
-}
-
-macro_rules! references_of {
-    ($($kind:ty => $walk:ident),*) => {$(
-        impl References for $kind {
-            fn references(&self, visit: &mut dyn FnMut(ObjectId)) {
-                let f: &mut Visit<'_> = &mut |_, target: &mut ObjectId| visit(*target);
-                read::$walk(self.id.into(), self, f, &mut false);
-            }
-            fn retarget(&mut self, retarget: &mut dyn FnMut(ObjectId, &mut ObjectId)) {
-                write::$walk(self.id.into(), self, retarget, &mut false);
-            }
-        }
-    )*};
-}
-references_of!(Patch => patch, Console => console, Sequence => sequence);
-
-impl<T: References> References for Box<T> {
-    fn references(&self, visit: &mut dyn FnMut(ObjectId)) {
-        self.as_ref().references(visit);
-    }
-    fn retarget(&mut self, retarget: &mut dyn FnMut(ObjectId, &mut ObjectId)) {
-        self.as_mut().retarget(retarget);
     }
 }

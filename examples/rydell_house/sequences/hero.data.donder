@@ -1,4 +1,4 @@
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
 import operators from <operators/standard.donder>;
@@ -119,7 +119,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.front_lines,
+      target: layouts.layout.front_lines,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -157,7 +157,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.left_pot,
+      target: layouts.layout.left_pot,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -195,7 +195,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.right_pot,
+      target: layouts.layout.right_pot,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -233,7 +233,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.all_arches,
+      target: layouts.layout.all_arches,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -271,7 +271,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.radio_sign,
+      target: layouts.layout.radio_sign,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -309,7 +309,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.nativity,
+      target: layouts.layout.nativity,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -347,7 +347,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.bushes,
+      target: layouts.layout.bushes,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -385,7 +385,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.stairs,
+      target: layouts.layout.stairs,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -423,7 +423,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.pilasters,
+      target: layouts.layout.pilasters,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -461,7 +461,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.spiral_trees,
+      target: layouts.layout.spiral_trees,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -499,7 +499,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.neighbor_trees,
+      target: layouts.layout.neighbor_trees,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -537,7 +537,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.penguin,
+      target: layouts.layout.penguin,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -575,7 +575,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -613,7 +613,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.624034681s,
       duration: 26.97991492s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -651,7 +651,7 @@ Sequence hero {
       layer: hue_shift,
       start: 80.239132513s,
       duration: 1.062888866s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -676,7 +676,7 @@ Sequence hero {
       layer: hue_shift,
       start: 81.302021379s,
       duration: 9.560489231s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -701,7 +701,7 @@ Sequence hero {
       layer: hue_shift,
       start: 90.621024464s,
       duration: 3.531483571s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: PerFixture,
       effect: effects.MarkWipe,
       params: {
@@ -739,7 +739,7 @@ Sequence hero {
       layer: hue_shift,
       start: 80.239132513s,
       duration: 1.062888866s,
-      target: layouts.main.yard,
+      target: layouts.layout.yard,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -764,7 +764,7 @@ Sequence hero {
       layer: hue_shift,
       start: 80.239132513s,
       duration: 1.062888866s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -789,7 +789,7 @@ Sequence hero {
       layer: hue_shift,
       start: 80.239132513s,
       duration: 1.062888866s,
-      target: layouts.main.arch_tunnel,
+      target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -814,7 +814,7 @@ Sequence hero {
       layer: hue_shift,
       start: 80.239132513s,
       duration: 1.062888866s,
-      target: layouts.main.garage_matrix,
+      target: layouts.layout.garage_matrix,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -839,7 +839,7 @@ Sequence hero {
       layer: hue_shift,
       start: 93.516961068s,
       duration: 0.801163663s,
-      target: layouts.main.everything,
+      target: layouts.layout.everything,
       scope: WholeTarget,
       effect: effects.MarkWipe,
       params: {
@@ -864,7 +864,7 @@ Sequence hero {
       layer: hue_shift,
       start: 67.843028281s,
       duration: 10.143018877s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects_2.MarkFieldWipe,
       params: {
@@ -895,7 +895,7 @@ Sequence hero {
       layer: hue_shift,
       start: 77.892128286s,
       duration: 2.442170233s,
-      target: layouts.main.house_and_trees,
+      target: layouts.layout.house_and_trees,
       scope: WholeTarget,
       effect: effects_2.MarkFieldWipe,
       params: {
@@ -927,7 +927,7 @@ Sequence hero {
       layer: default,
       start: 67.556560902s,
       duration: 27.111698471s,
-      target: layouts.main.mega_tree,
+      target: layouts.layout.mega_tree,
       scope: WholeTarget,
       effect: effects_2.MarkFieldWipe,
       params: {
@@ -963,7 +963,7 @@ Sequence hero {
   },
   automation: [
     AutomationClip {
-      row: layouts.main.house_and_trees,
+      row: layouts.layout.house_and_trees,
       start: 63.883301869s,
       duration: 37.762129549s,
       curve: Curve {
@@ -979,7 +979,7 @@ Sequence hero {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.mega_tree,
+      row: layouts.layout.mega_tree,
       start: 67.556560902s,
       duration: 27.111698471s,
       curve: Curve {
@@ -997,7 +997,7 @@ Sequence hero {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.mega_tree,
+      row: layouts.layout.mega_tree,
       start: 67.556560902s,
       duration: 27.111698471s,
       curve: Curve { points: [(0.0, 0.0), (0.26716578, 0.674), (0.5220398, 0.099), (1.0, 1.0)] },
@@ -1007,7 +1007,7 @@ Sequence hero {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.mega_tree,
+      row: layouts.layout.mega_tree,
       start: 67.556560902s,
       duration: 27.111698471s,
       curve: Curve {
@@ -1022,7 +1022,7 @@ Sequence hero {
       detached: [],
     },
     AutomationClip {
-      row: layouts.main.mega_tree,
+      row: layouts.layout.mega_tree,
       start: 67.556560902s,
       duration: 27.111698471s,
       curve: Curve {

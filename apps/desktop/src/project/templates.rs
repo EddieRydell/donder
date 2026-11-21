@@ -32,7 +32,7 @@ Project {project} {{
     input_devices: [],
   }},
   sequences: [
-    Sequence main {{
+    Sequence sequence {{
       description: none,
       duration: 60s,
       frame_rate: 60,

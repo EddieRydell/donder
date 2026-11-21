@@ -39,9 +39,6 @@ pub fn apply_edit(
     let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
     let none = |()| GuiEditOutcome::default();
     match (resolved.kind, edit) {
-        (_, GuiEditCommand::Ownership { member, edit }) => {
-            super::ownership::edit(session, &resolved, member, edit).map(none)
-        }
         (_, GuiEditCommand::Rename { item, name }) => {
             super::item::edit(session, &resolved, item, Verb::Rename(name))
                 .map(GuiEditOutcome::created)

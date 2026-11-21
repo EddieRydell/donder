@@ -1,4 +1,4 @@
-import layouts from <layouts/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 
@@ -20,7 +20,7 @@ Sequence hidden_daggers {
       layer: default,
       start: 168.546646118s,
       duration: 0.148064598s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Pulse,
       params: {
@@ -34,7 +34,7 @@ Sequence hidden_daggers {
       layer: layer_1,
       start: 168.565917969s,
       duration: 1s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: PerFixture,
       effect: effects.Spin,
       params: {
@@ -52,7 +52,7 @@ Sequence hidden_daggers {
       layer: gradient,
       start: 168.565109253s,
       duration: 1s,
-      target: layouts.main.desk,
+      target: layouts.layout.desk,
       scope: WholeTarget,
       effect: effects.Gradient,
       params: {

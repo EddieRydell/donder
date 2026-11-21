@@ -1,14 +1,14 @@
 import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>;
 import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
-import setups from <setups/main.data.donder>;
+import setups from <setups/setup.data.donder>;
 import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;
 import consoles from <consoles/jam.data.donder>;
 
 Project starter {
   format: 2,
   description: none,
-  setup: setups.main,
+  setup: setups.setup,
   sequences: [sequences.empty, sequences.layer_test],
   consoles: [consoles.jam],
 }

@@ -818,7 +818,7 @@ mod tests {
             GuiEditCommand::Project {
                 edit: ProjectGuiEdit::AddConsole {
                     initial_color: "#38bdf8".into(),
-                    storage: donder_editor::dto::NewObjectStorage::NewFile,
+                    name: "gui_console".into(),
                 },
             },
         );

@@ -9,6 +9,7 @@ use super::{DesktopState, generated_source_texts, lock_unpoisoned};
 use crate::state_tasks::GuiHistoryEntry;
 use donder_editor::dto::{
     AppSnapshot, GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate,
+    GuiObjectRef, WorkspacePathChangeRequest,
 };
 
 impl DesktopState {
@@ -142,7 +143,11 @@ impl DesktopState {
         };
         if !prepared.changes.is_empty() {
             let changes = prepared.changes.clone();
-            *lock_unpoisoned(&self.pending_gui_edit) = Some(PendingGuiEdit { prepared, outcome });
+            *lock_unpoisoned(&self.pending_gui_edit) = Some(PendingGuiEdit {
+                prepared,
+                outcome,
+                deleted_document: None,
+            });
             return gui_update(
                 self.snapshot(),
                 GuiDocumentChange::NeedsConfirmation { changes },
@@ -159,18 +164,169 @@ impl DesktopState {
     pub(crate) fn confirm_gui_edit(&self, request: GuiDocumentRequest) -> GuiEditUpdate {
         let _authoring = lock_unpoisoned(&self.authoring);
         let pending = lock_unpoisoned(&self.pending_gui_edit).take();
-        let Some(PendingGuiEdit { prepared, outcome }) = pending.filter(|pending| {
+        let Some(PendingGuiEdit {
+            prepared,
+            outcome,
+            deleted_document,
+        }) = pending.filter(|pending| {
             pending.prepared.request == request
                 && self.snapshot().project_revision == request.project_revision
-        }) else {
+        })
+        else {
             return self.gui_edit_error(GuiProblem::without_site(
                 "The project changed before the edit was confirmed.",
             ));
         };
-        match self.commit_gui_edit(prepared) {
+        let committed = match deleted_document {
+            Some(document) => self.commit_file_deletion(prepared, &document),
+            None => self.commit_gui_edit(prepared),
+        };
+        match committed {
             Ok(update) => with_outcome(update, outcome),
             Err(problem) => self.gui_edit_error(problem),
         }
+    }
+
+    /// Name `source`, a member of the object `request` opens, `name`. A
+    /// member alone in its file has the file renamed to match first, which
+    /// clears undo as moving a file does.
+    pub(crate) fn rename_gui_member(
+        &self,
+        request: GuiDocumentRequest,
+        source: GuiObjectRef,
+        name: String,
+    ) -> GuiEditUpdate {
+        let site = Some(donder_editor::member_name_site());
+        let moved = {
+            let _authoring = self.settled_authoring();
+            let Some(project) = self.project_session() else {
+                return self.gui_edit_error(GuiProblem::without_site("No project is loaded."));
+            };
+            donder_editor::resolve_request(&project, &request)
+                .map_err(GuiMutationError::Invalid)
+                .and_then(|owner| {
+                    donder_editor::member_file_rename(&project, &owner, &source, &name)
+                })
+                .map_err(|error| {
+                    donder_editor::refusal(&project, &project, &request, site.clone(), error)
+                })
+        };
+        let (request, source) = match moved {
+            Ok(None) => (request, source),
+            Ok(Some((from, to))) => {
+                let moved = self.apply_workspace_path_change(WorkspacePathChangeRequest {
+                    source: from,
+                    destination: to.clone(),
+                    project_revision: request.project_revision,
+                });
+                if let Err(message) = moved {
+                    return self.gui_edit_error(GuiProblem::without_site(message));
+                }
+                let project_revision = self.snapshot().project_revision;
+                (
+                    GuiDocumentRequest {
+                        project_revision,
+                        ..request
+                    },
+                    GuiObjectRef { path: to, ..source },
+                )
+            }
+            Err(problem) => return self.gui_edit_error(problem),
+        };
+        let _authoring = lock_unpoisoned(&self.authoring);
+        match self.mutate_gui_project_locked(&request, site, |session| {
+            let owner = donder_editor::resolve_request(session, &request)
+                .map_err(GuiMutationError::Invalid)?;
+            donder_editor::rename_member(session, &owner, &source, &name)
+        }) {
+            Ok((update, ())) => update,
+            Err(problem) => self.gui_edit_error(problem),
+        }
+    }
+
+    /// Delete `source`, a member of the object `request` opens, once the
+    /// person confirms with [`Self::confirm_gui_edit`]. A member alone in its
+    /// file takes the file with it.
+    pub(crate) fn delete_gui_member(
+        &self,
+        request: GuiDocumentRequest,
+        source: GuiObjectRef,
+    ) -> GuiEditUpdate {
+        let _authoring = lock_unpoisoned(&self.authoring);
+        let prepared = self.prepare_gui_edit(&request, None, |session| {
+            let owner = donder_editor::resolve_request(session, &request)
+                .map_err(GuiMutationError::Invalid)?;
+            donder_editor::delete_member(session, &owner, &source)
+        });
+        let (mut prepared, deleted) = match prepared {
+            Ok(prepared) => prepared,
+            Err(problem) => return self.gui_edit_error(problem),
+        };
+        prepared.changes.insert(
+            0,
+            match &deleted.document {
+                Some(document) => {
+                    format!("Delete {} and its file {}", deleted.name, document.path())
+                }
+                None => format!("Delete {}", deleted.name),
+            },
+        );
+        let changes = prepared.changes.clone();
+        *lock_unpoisoned(&self.pending_gui_edit) = Some(PendingGuiEdit {
+            prepared,
+            outcome: donder_editor::GuiEditOutcome::default(),
+            deleted_document: deleted.document,
+        });
+        gui_update(
+            self.snapshot(),
+            GuiDocumentChange::NeedsConfirmation { changes },
+        )
+    }
+
+    /// Apply a prepared edit that removed `document`, and delete its file.
+    /// Undo cannot bring the file back, so the history clears.
+    fn commit_file_deletion(
+        &self,
+        prepared: PreparedGuiEdit,
+        document: &donder_project_io::DocumentId,
+    ) -> Result<GuiEditUpdate, GuiProblem> {
+        let path = document.path().to_string();
+        if lock_unpoisoned(&self.workspace)
+            .documents
+            .get(document.path())
+            .is_some_and(|document| document.buffer.dirty)
+        {
+            return Err(GuiProblem::without_site(format!(
+                "Save or discard the edits to {path} before deleting it."
+            )));
+        }
+        let PreparedGuiEdit {
+            request,
+            before,
+            edited,
+            ..
+        } = prepared;
+        let paths = edited
+            .source
+            .documents
+            .keys()
+            .map(|document| document.path().to_string())
+            .collect();
+        let texts =
+            generated_source_texts(&edited, &paths, &mut lock_unpoisoned(&self.document_texts))
+                .map_err(GuiProblem::without_site)?;
+        {
+            let _filesystem = lock_unpoisoned(&self.filesystem);
+            std::fs::remove_file(edited.source.absolute_path(document))
+                .map_err(|error| GuiProblem::without_site(error.to_string()))?;
+        }
+        lock_unpoisoned(&self.gui_history).clear();
+        let edited = Arc::new(edited);
+        self.accept_gui_sources(Arc::clone(&edited), texts, &format!("Deleted {path}"))
+            .map_err(GuiProblem::without_site)?;
+        let snapshot = self.after_workspace_changed(Some(&path), None);
+        let change = donder_editor::project_gui_document_change(&before, &edited, &request);
+        Ok(gui_update(snapshot, change))
     }
 
     /// Remove a sequence selection as one edit, with its clipboard text: none
@@ -515,6 +671,8 @@ pub(super) struct PreparedGuiEdit {
 pub(super) struct PendingGuiEdit {
     prepared: PreparedGuiEdit,
     outcome: donder_editor::GuiEditOutcome,
+    /// The document a member deletion removes, whose file goes with it.
+    deleted_document: Option<donder_project_io::DocumentId>,
 }
 
 /// An edit's update before its outcome is known.

@@ -172,24 +172,17 @@ is edited once for every user. An owned single value is a record
 named script declaration. Parameter values, clips, layers and groups are always
 owned.
 
-The editor's ownership actions move values between the two forms:
-
-- **Move to file** promotes an owned value to a declaration, in a new
-  document or this one, and rebases references to its descendants.
-- **Copy inside parent** copies a shared value into its owner, leaving the
-  declaration unchanged.
-- **Use another** links a field to a declaration.
-
-Linked curves and gradients follow their declaration; making one independent
-keeps its current value in the parameter. New sequences, fixtures, consoles,
-controllers and input devices are declarations in a new document of their own by
-default; creation dialogs offer this document, or storing the value inside its
-owner, under Advanced settings. Routing follows these
-changes: making a layout or controller independent also makes its patch
-independent when routes must change, and for the active setup, sequences that
-target a copied layout become independent before their targets change. Imports
-follow typed references, and undo and redo include document registration and
-imports.
+The GUI names every sequence, console, controller, input device and fixture
+when it is added and declares it in a document of its own,
+`<folder>/<name>.data.donder`, such as `sequences/opening.data.donder`; a name
+whose document exists is refused. The project and setup overviews rename and
+delete their members. Renaming a member alone in its document renames the
+document to match, and renaming an owned member moves it into a document of its
+own. Deleting a member removes its document, after the editor lists what else
+changes; moving or deleting a document clears undo. Owned values are written in
+text. Linked curves and gradients follow their declaration; making one
+independent keeps its current value in the parameter. Imports follow typed
+references, and undo and redo include document registration and imports.
 
 ## Imports
 
@@ -230,14 +223,14 @@ a list.
 ### Project
 
 ```text
-import setups from <setups/main.data.donder>;
+import setups from <setups/setup.data.donder>;
 import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;
 import consoles from <consoles/jam.data.donder>;
 
 Project starter {
   format: 2,
   description: none,
-  setup: setups.main,
+  setup: setups.setup,
   sequences: [sequences.empty, sequences.layer_test],
   consoles: [consoles.jam],
 }

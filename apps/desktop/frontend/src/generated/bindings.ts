@@ -64,6 +64,10 @@ export const commands = {
 	 *  objects.
 	 */
 	confirmGuiEdit: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditUpdate>("confirm_gui_edit", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	/**  Rename a member of the open project or setup, and its file to match. */
+	renameGuiMember: (request: GuiDocumentRequest, source: GuiObjectRef, name: string) => __TAURI_INVOKE<GuiEditUpdate>("rename_gui_member", { request, source, name }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	/**  Delete a member of the open project or setup once the person confirms. */
+	deleteGuiMember: (request: GuiDocumentRequest, source: GuiObjectRef) => __TAURI_INVOKE<GuiEditUpdate>("delete_gui_member", { request, source }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	/**
 	 *  What would refuse `edit` of the open object, a draft form's edit; none
 	 *  when it would be accepted. Nothing changes.
@@ -142,7 +146,7 @@ export const ACCESS_POINT_PASSWORD = "12345678" as const;
 
 /* Types */
 /**  Commands the workbench runs, whatever editor is open. */
-export type AppCommandId = "file.newProject" | "file.importProfile" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.commandPalette" | "project.reload" | "perform.stop";
+export type AppCommandId = "file.newProject" | "file.importProject" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.commandPalette" | "project.reload" | "perform.stop";
 
 export type AppSettings = {
 	reopenLastProject: boolean,
@@ -673,7 +677,7 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "ownership"; member: OwnershipMember; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; gradient: SequenceGradient } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "console"; edit: ConsoleGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
+export type GuiEditCommand = { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; gradient: SequenceGradient } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "console"; edit: ConsoleGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
 /**
  *  The name becomes a `snake_case` name, which the edit reports; renaming
  *  marks renames every parameter and action that names them.
@@ -804,8 +808,6 @@ export type GuiObjectRef = {
 };
 
 export type GuiOwnedFixture = { type: "inline"; elements: GuiFixtureElement[] } | { type: "reference"; object: GuiObjectRef };
-
-export type GuiOwnershipEdit = { type: "useExisting"; declaration: GuiObjectRef } | { type: "makeIndependent" } | { type: "makeReusable"; name: string; storage: ReusableStorage };
 
 export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
 
@@ -969,7 +971,7 @@ export type LayoutGuiEdit =
 /**  List an item in another group as well. */
 { type: "addMember"; id: number; to: number | null; before: number | null } | { type: "removeMember"; id: number; from: number | null } | 
 /**  Delete fixtures and groups everywhere. */
-{ type: "removeItems"; ids: number[] } | { type: "duplicateFixture"; id: number } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; storage: NewObjectStorage; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[]; root: number[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
+{ type: "removeItems"; ids: number[] } | { type: "duplicateFixture"; id: number } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[]; root: number[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
 
 /**
  *  What a device sent while an input was being learned: the kind of control it
@@ -1014,12 +1016,6 @@ export type NewMarkCollection = {
 	marksSeconds: number[],
 };
 
-/**
- *  Where a new object is stored: inside the object it is added to, or as a
- *  declaration of its own that other objects can use.
- */
-export type NewObjectStorage = "inline" | "sameFile" | "newFile";
-
 export type ObjectKind = "project" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "sequence" | "console" | "curve" | "gradient" | "effect" | "operator";
 
 export type OutputTestPattern = { type: "solid"; red: number; green: number; blue: number } | { type: "count" } | { type: "order" } | { type: "chase" } | { type: "rise" };
@@ -1037,13 +1033,6 @@ export type OutputTestTarget =
 export type OwnedObjectSlot = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
 /**  Owned controllers, input devices, sequences and consoles are named. */
 { type: "controller"; name: string } | { type: "inputDevice"; name: string } | { type: "sequence"; name: string } | { type: "console"; name: string } | { type: "fixture"; id: number };
-
-/**
- *  The member of the open object an ownership edit changes: the object a slot
- *  holds, owned or linked, or a layout's fixture, whose definition several
- *  fixtures may link.
- */
-export type OwnershipMember = { type: "object"; source: GuiObjectRef } | { type: "fixture"; id: number };
 
 export type PatchFixtureTarget = {
 	id: number,
@@ -1225,25 +1214,27 @@ export type PreviewWindowChanged = {
 export type ProjectGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
-	availableDeclarations: GuiObjectRef[],
 	path: string,
 	objectKey: string,
 	setup: GuiObjectRef,
 	sequences: GuiObjectRef[],
 	consoles: GuiObjectRef[],
+	/**  The names a new sequence and console are offered. */
+	newSequenceName: string,
+	newConsoleName: string,
 };
 
 export type ProjectGuiEdit = 
 /**
- *  A new sequence of the project, stored where `storage` says, with the
- *  default layer drawn to the output.
+ *  A new sequence of the project in a file of its own named `name`, with
+ *  the default layer drawn to the output.
  */
-{ type: "addSequence"; initialColor: string; storage: NewObjectStorage } | 
+{ type: "addSequence"; initialColor: string; name: string } | 
 /**
- *  A new console of the project, stored where `storage` says, with the
- *  default layer drawn to the output.
+ *  A new console of the project in a file of its own named `name`, with
+ *  the default layer drawn to the output.
  */
-{ type: "addConsole"; initialColor: string; storage: NewObjectStorage };
+{ type: "addConsole"; initialColor: string; name: string };
 
 export type ProjectHealth = "closed" | "ready" | "checking" | "invalid";
 
@@ -1277,8 +1268,6 @@ export type ProjectSearchResponse = {
 	skippedOversized: number,
 	truncated: boolean,
 };
-
-export type ReusableStorage = "sameFile" | "newFile";
 
 export type Rotation3Degrees = {
 	xDegrees: number,
@@ -1812,7 +1801,6 @@ export type SetupDonderOutput = {
 export type SetupGuiDocument = {
 	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
 	description: string | null,
-	availableDeclarations: GuiObjectRef[],
 	sourceRef: GuiObjectRef,
 	layoutRef: GuiObjectRef,
 	patchRef: GuiObjectRef,
@@ -1823,9 +1811,16 @@ export type SetupGuiDocument = {
 	/**  Every key a new input device's control can read, in the language's order. */
 	keyCodes: string[],
 	inputLimits: GuiInputLimits,
+	/**  The names a new controller and input device are offered. */
+	newControllerName: string,
+	newInputDeviceName: string,
 };
 
-export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[]; storage: NewObjectStorage } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[]; storage: NewObjectStorage } | { type: "attachInputDevice"; device: GuiObjectRef } | { type: "detachInputDevice"; device: GuiObjectRef };
+export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[]; 
+/**  The name of the controller and of its file. */
+name: string } | { type: "attachController"; controller: GuiObjectRef } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[]; 
+/**  The name of the device and of its file. */
+name: string } | { type: "attachInputDevice"; device: GuiObjectRef };
 
 /**  An input device as a setup lists it and its editor edits it. */
 export type SetupInputDevice = {
@@ -1973,7 +1968,7 @@ export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: 
  *  A new project holding the layout, controllers and patch of the
  *  xLights or Vixen profile in `profile_path`.
  */
-{ type: "importProfile"; parentPath: string; directoryName: string; initialColor: string; profilePath: string } | { type: "closeApplication" };
+{ type: "importProject"; parentPath: string; directoryName: string; initialColor: string; profilePath: string } | { type: "closeApplication" };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

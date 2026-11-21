@@ -11,7 +11,7 @@ const separator: AppMenuEntry = { type: "separator" };
 
 export const FILE_MENU: AppMenuEntry[] = [
   item("file.newProject"),
-  item("file.importProfile"),
+  item("file.importProject"),
   separator,
   item("file.openProject"),
   separator,

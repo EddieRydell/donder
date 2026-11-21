@@ -4,7 +4,7 @@ import type { TextNavigation } from "../workspace/navigation";
 /** Every window event the frontend sends itself, with its detail. */
 type UiEvents = {
   newProject: undefined;
-  importProfile: undefined;
+  importProject: undefined;
   settings: undefined;
   openCommandPalette: undefined;
   focusSidebar: SidebarView;

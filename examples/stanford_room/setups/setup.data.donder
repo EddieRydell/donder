@@ -1,10 +1,10 @@
-import layout from <layouts/main.data.donder>;
-import patches from <patches/main.data.donder>;
+import layout from <layouts/layout.data.donder>;
+import patches from <patches/patch.data.donder>;
 
-Setup main {
+Setup setup {
   description: none,
-  layout: layout.main,
-  patch: patches.main,
+  layout: layout.layout,
+  patch: patches.patch,
   controllers: [dig_quad],
   input_devices: [
     InputDevice input_device {

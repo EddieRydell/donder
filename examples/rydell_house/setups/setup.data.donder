@@ -1,11 +1,11 @@
-import layouts from <layouts/main.data.donder>;
-import patches from <patches/main.data.donder>;
+import layouts from <layouts/layout.data.donder>;
+import patches from <patches/patch.data.donder>;
 import devices from <input_devices/mpk_mini.data.donder>;
 
-Setup main {
+Setup setup {
   description: none,
-  layout: layouts.main,
-  patch: patches.main,
+  layout: layouts.layout,
+  patch: patches.patch,
   controllers: [
     nativity,
     pauls_balls,

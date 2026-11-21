@@ -201,6 +201,29 @@ pub(crate) fn confirm_gui_edit(
     state.confirm_gui_edit(request)
 }
 
+/// Rename a member of the open project or setup, and its file to match.
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn rename_gui_member(
+    request: GuiDocumentRequest,
+    source: GuiObjectRef,
+    name: String,
+    state: State<'_, DesktopState>,
+) -> GuiEditUpdate {
+    state.rename_gui_member(request, source, name)
+}
+
+/// Delete a member of the open project or setup once the person confirms.
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn delete_gui_member(
+    request: GuiDocumentRequest,
+    source: GuiObjectRef,
+    state: State<'_, DesktopState>,
+) -> GuiEditUpdate {
+    state.delete_gui_member(request, source)
+}
+
 /// What would refuse `edit` of the open object, a draft form's edit; none
 /// when it would be accepted. Nothing changes.
 #[tauri::command(async)]

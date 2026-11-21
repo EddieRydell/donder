@@ -37,8 +37,8 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
     dispatchUiEvent("newProject");
   }),
-  "file.importProfile": command("Import Profile...", "File", ["xlights", "vixen", "layout", "controllers", "create"], () => {
-    dispatchUiEvent("importProfile");
+  "file.importProject": command("Import Project...", "File", ["xlights", "vixen", "layout", "controllers", "create"], () => {
+    dispatchUiEvent("importProject");
   }),
   "file.openProject": command("Open Project...", "File", ["folder", "workspace"], async () => {
     await openProjectDialog();

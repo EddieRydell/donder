@@ -1048,7 +1048,7 @@ mod tests {
             .unwrap();
         let (_temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
         // Stream the starter's controller to this test over Art-Net.
-        let path = root.join("setups/main.data.donder");
+        let path = root.join("setups/setup.data.donder");
         let text = std::fs::read_to_string(&path)
             .unwrap()
             .replace("\r\n", "\n");

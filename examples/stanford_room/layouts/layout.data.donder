@@ -1,4 +1,4 @@
-Layout main {
+Layout layout {
   description: none,
   root: [desk],
   items: [

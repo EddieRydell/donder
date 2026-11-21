@@ -34,8 +34,8 @@ pnpm check
 ```
 
 `pnpm check` runs Rust formatting and the workspace tests, built once with
-Clippy as the compiler so that strict lints and tests share one build (their
-`generated_bindings` tests regenerate the TypeScript bindings), then frontend
+Clippy as the compiler so that strict lints and tests share one build (the
+desktop's `generated_bindings` test regenerates the TypeScript bindings), then frontend
 typechecking, lint, unused-export analysis, tests and build, and the
 device-storage tests. The device-storage tests need a host C compiler
 and native libclang. Set `DONDER_HOST_LIBCLANG_PATH` to the library file or its

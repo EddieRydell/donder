@@ -75,10 +75,6 @@ pub struct GuiObjectRef {
     rename_all_fields = "camelCase"
 )]
 pub enum GuiEditCommand {
-    Ownership {
-        member: OwnershipMember,
-        edit: GuiOwnershipEdit,
-    },
     Patch {
         routes: Vec<GuiPixelRoute>,
     },
@@ -237,12 +233,14 @@ pub struct GradientGuiDocument {
 pub struct ProjectGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub(crate) description: Option<String>,
-    pub available_declarations: Vec<GuiObjectRef>,
     pub(crate) path: String,
     pub(crate) object_key: String,
     pub(crate) setup: GuiObjectRef,
     pub(crate) sequences: Vec<GuiObjectRef>,
     pub consoles: Vec<GuiObjectRef>,
+    /// The names a new sequence and console are offered.
+    pub(crate) new_sequence_name: String,
+    pub(crate) new_console_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -250,7 +248,6 @@ pub struct ProjectGuiDocument {
 pub struct SetupGuiDocument {
     /// The open object's description, edited with `GuiEditCommand::SetDescription`.
     pub(crate) description: Option<String>,
-    pub available_declarations: Vec<GuiObjectRef>,
     pub(crate) source_ref: GuiObjectRef,
     pub layout_ref: GuiObjectRef,
     pub patch_ref: GuiObjectRef,
@@ -261,6 +258,9 @@ pub struct SetupGuiDocument {
     /// Every key a new input device's control can read, in the language's order.
     pub(crate) key_codes: Vec<String>,
     pub(crate) input_limits: GuiInputLimits,
+    /// The names a new controller and input device are offered.
+    pub(crate) new_controller_name: String,
+    pub(crate) new_input_device_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -325,23 +325,19 @@ pub enum SetupGuiEdit {
     AddController {
         config: SetupControllerConfig,
         ports: Vec<SetupControllerPort>,
-        storage: NewObjectStorage,
+        /// The name of the controller and of its file.
+        name: String,
     },
     AttachController {
-        controller: GuiObjectRef,
-    },
-    DetachController {
         controller: GuiObjectRef,
     },
     AddInputDevice {
         driver: GuiInputDriver,
         controls: Vec<GuiInputControl>,
-        storage: NewObjectStorage,
+        /// The name of the device and of its file.
+        name: String,
     },
     AttachInputDevice {
-        device: GuiObjectRef,
-    },
-    DetachInputDevice {
         device: GuiObjectRef,
     },
 }
@@ -485,52 +481,4 @@ impl TryFrom<&OwnedObjectSlot> for donder_project_io::OwnedObjectSlot {
             OwnedObjectSlot::Fixture { id } => Self::Fixture(*id),
         })
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-/// The member of the open object an ownership edit changes: the object a slot
-/// holds, owned or linked, or a layout's fixture, whose definition several
-/// fixtures may link.
-pub enum OwnershipMember {
-    Object { source: GuiObjectRef },
-    Fixture { id: u32 },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum GuiOwnershipEdit {
-    UseExisting {
-        declaration: GuiObjectRef,
-    },
-    MakeIndependent,
-    MakeReusable {
-        name: String,
-        storage: ReusableStorage,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ReusableStorage {
-    SameFile,
-    NewFile,
-}
-
-/// Where a new object is stored: inside the object it is added to, or as a
-/// declaration of its own that other objects can use.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum NewObjectStorage {
-    Inline,
-    SameFile,
-    NewFile,
 }

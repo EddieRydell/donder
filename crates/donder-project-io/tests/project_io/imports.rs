@@ -158,13 +158,13 @@ fn missing_group_member_points_at_its_own_path_token() {
 
 #[test]
 fn imported_names_are_not_transitive_and_wrong_kinds_do_not_resolve() {
-    for reference in ["setups.outputs_layout", "effects.Pulse", "missing.main"] {
+    for reference in ["setups.outputs_layout", "effects.Pulse", "missing.setup"] {
         let mut sources = sources();
         let project = sources
             .get_mut(&Utf8PathBuf::from(PROJECT_ROOT_FILE))
             .unwrap();
-        assert!(project.contains("setup: setups.main"));
-        *project = project.replace("setup: setups.main", &format!("setup: {reference}"));
+        assert!(project.contains("setup: setups.setup"));
+        *project = project.replace("setup: setups.setup", &format!("setup: {reference}"));
         let report = check_project(&root(), &sources, &mut Default::default());
         assert!(report.session.is_none(), "{reference}");
         assert!(

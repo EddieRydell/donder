@@ -1,7 +1,7 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import type { SetupGuiDocument } from "../../../types";
-import { Button, Section, type MenuEntry } from "../../kit";
+import { Button, Section } from "../../kit";
 
 export function AvailableInputDevices({ document }: { document: SetupGuiDocument }) {
   if (document.availableInputDevices.length === 0) return null;
@@ -13,7 +13,3 @@ export function AvailableInputDevices({ document }: { document: SetupGuiDocument
   </Section>;
 }
 
-/** Removing an input device from the setup; consoles play only from devices the setup lists. */
-export function inputDeviceEntries(device: SetupGuiDocument["inputDevices"][number]): MenuEntry[] {
-  return [{ type: "action", label: "Remove from setup", danger: true, onSelect: () => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "detachInputDevice", device: device.sourceRef } })) }];
-}

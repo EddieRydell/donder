@@ -2,13 +2,11 @@ import { SpatialSelectionControls } from "./SpatialSelectionControls";
 import { layoutItems, selectedItems, selectionClick, moveLayout, type SpatialMove } from "./spatialSelection";
 import { LayoutTree } from "./LayoutTree";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { OwnershipActions } from "../OwnershipActions";
-import { DEFAULT_OBJECT_STORAGE, NEW_OBJECT_STORAGE, ObjectStorageField } from "../objectStorage";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
-import type { NewObjectStorage, GuiDocument, GuiDocumentRequest, GuiLayoutFixture, GuiObjectRef, Point3Meters, Transform } from "../../../types";
+import type { GuiDocument, GuiDocumentRequest, GuiLayoutFixture, GuiObjectRef, Point3Meters, Transform } from "../../../types";
 import { FixtureEditor } from "./FixtureEditor";
 import { Placement } from "./FixtureFields";
 import { SpatialCanvas } from "./SpatialCanvas";
@@ -40,7 +38,6 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const [menuTarget, setMenuTarget] = useState<{ id: number; parent: number | null } | null>(null);
   const [creating, setCreating] = useState<NewFixture | null>(null);
   const [name, setName] = useState("");
-  const [storage, setStorage] = useState<NewObjectStorage>(DEFAULT_OBJECT_STORAGE);
   const request = useAppStore((state) => state.guiRequest);
   const revision = useAppStore((state) => state.guiDocumentRevision);
   const inline = useAppStore((state) => state.guiParents.length > 0);
@@ -80,13 +77,12 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     if (request === null) return;
     setCreating(position === undefined ? { parent, origin: request } : { parent, origin: request, position });
     setName("");
-    setStorage(DEFAULT_OBJECT_STORAGE);
   };
   const submitCreate = async () => {
     if (creating === null || name.trim() === "") return;
     const id = nextLayoutId(layoutFixtures);
     const result = await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "layout", edit: {
-      type: "addDefinition", name: name.trim(), storage, parent: creating.parent, transform: identityTransform(creating.position)
+      type: "addDefinition", name: name.trim(), parent: creating.parent, transform: identityTransform(creating.position)
     } }), creating.origin);
     if (result === null) return;
     const layout = result.change.type === "document" && result.change.document.type === "layout" ? result.change.document.document : null;
@@ -177,8 +173,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
         <fieldset className="composition-controls" disabled={!editable}>
           <LayoutTree fixtures={layoutFixtures} root={root} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} onOpen={openFixture} enabled={editable} request={request} addEntries={addEntries(null)} />
           <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
-          {instance !== null && <ItemFields key={instance.id} instance={instance} editable={editable} changeItem={changeItem} changeTransform={changeTransform}
-            ownership={instance.kind.type === "fixture" ? <OwnershipActions declarations={gui.document.availableFixtures} key={instance.id} source={fixtureDeclaration(instance)} fixture={instance.id} label={instance.name} /> : null} />}
+          {instance !== null && <ItemFields key={instance.id} instance={instance} editable={editable} changeItem={changeItem} changeTransform={changeTransform} />}
         </fieldset>
       </aside>
     </ContextMenuArea>
@@ -192,7 +187,6 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
       </>}
     >
       <NewFixtureName name={name} disabled={!editable} onChange={setName} />
-      <ObjectStorageField value={storage} choices={NEW_OBJECT_STORAGE} disabled={!editable} onChange={setStorage} />
     </Dialog>
     <SpatialCanvas reference={gui.document.sourceRef} plan={gui.document.renderPlan} documentKey={guiObjectKey(gui.document.sourceRef)} selection={selection} items={items} onSelect={setSelection} onOpen={openFixture} layoutMenu={layoutMenu} onDelete={remove} onDuplicate={duplicate} onMoveStart={(ids, anchor) => {
       if (!editable) return null;
@@ -212,13 +206,12 @@ function NewFixtureName({ name, disabled, onChange }: { name: string; disabled: 
   </Field>;
 }
 
-/** The selected item's name, description and, for a fixture, placement and storage. */
-function ItemFields({ instance, editable, changeItem, changeTransform, ownership }: {
+/** The selected item's name, description and, for a fixture, placement. */
+function ItemFields({ instance, editable, changeItem, changeTransform }: {
   instance: GuiLayoutFixture;
   editable: boolean;
   changeItem: (id: number, update: (item: GuiLayoutFixture) => GuiLayoutFixture) => void;
   changeTransform: (transform: Transform) => void;
-  ownership: ReactNode;
 }) {
   const member = { type: "layoutItem", id: instance.id } as const;
   const nameProblem = useFieldProblem(member, { type: "name" });
@@ -233,6 +226,6 @@ function ItemFields({ instance, editable, changeItem, changeTransform, ownership
         <TextField name="Description" multiline value={instance.description ?? ""} invalid={descriptionProblem !== null} onCommit={(value) => { const description = value.trim() === "" ? null : value.trim(); if (description !== instance.description) changeItem(instance.id, (item) => ({ ...item, description })); }} />
       </Problem>
     </Section>
-    {instance.kind.type === "fixture" && <><Placement value={instance.kind.transform} disabled={!editable} problem={placementProblem} onChange={changeTransform} />{ownership}</>}
+    {instance.kind.type === "fixture" && <Placement value={instance.kind.transform} disabled={!editable} problem={placementProblem} onChange={changeTransform} />}
   </div>;
 }

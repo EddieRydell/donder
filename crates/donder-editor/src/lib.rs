@@ -14,11 +14,12 @@ pub mod dto;
 mod gui;
 mod source_documents;
 
-pub use gui::model::source_identity_from_gui;
+pub use gui::model::{new_object_name, source_identity_from_gui};
 pub use gui::{
-    GuiEditOutcome, GuiMutationError, ResolvedGuiObject, affected_paths, apply_edit, blocked,
-    check_edit, copy_selection, cut_selection, edit_site, gui_editor_order,
-    matching_sequence_clips, paste, project_gui_document, project_gui_document_change, refusal,
-    repair_changes, resolve_request, sequence_clip_details,
+    DeletedMember, GuiEditOutcome, GuiMutationError, ResolvedGuiObject, affected_paths, apply_edit,
+    blocked, check_edit, copy_selection, cut_selection, delete_member, edit_site, gui_editor_order,
+    matching_sequence_clips, member_file_rename, member_name_site, paste, project_gui_document,
+    project_gui_document_change, refusal, rename_member, repair_changes, resolve_request,
+    sequence_clip_details,
 };
 pub use source_documents::document_for_editor_path;

@@ -12,7 +12,7 @@ use donder_project_io::{check_project, project_source_texts};
 
 const KEYBOARD: &str = "input_devices/keyboard.data.donder";
 const JAM: &str = "consoles/jam.data.donder";
-const SETUP: &str = "setups/main.data.donder";
+const SETUP: &str = "setups/setup.data.donder";
 
 #[test]
 fn starter_keyboard_and_jam_console_load_typed() {

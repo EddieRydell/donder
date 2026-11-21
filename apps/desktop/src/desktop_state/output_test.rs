@@ -105,7 +105,7 @@ mod tests {
             setup_request(),
             GuiEditCommand::Setup {
                 edit: SetupGuiEdit::AddController {
-                    storage: donder_editor::dto::NewObjectStorage::Inline,
+                    name: "output_test".into(),
                     config: SetupControllerConfig::ArtNet {
                         bind_address: "127.0.0.1:0".into(),
                         destination: receiver.local_addr().unwrap().to_string(),

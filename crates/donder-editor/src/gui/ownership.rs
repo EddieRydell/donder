@@ -1,133 +1,153 @@
+//! The members an object holds: a new member gets a file of its own, and the
+//! object that holds a member renames or deletes it.
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::{GuiOwnershipEdit, NewObjectStorage, OwnershipMember, ReusableStorage};
-use donder_model::{
-    FixtureInstanceId, ObjectId, ObjectKind, OwnershipSite, make_independent, make_reusable,
-    use_existing,
-};
-use donder_project_io::ProjectSession;
+use crate::dto::GuiObjectRef;
+use donder_model::{ObjectId, ObjectKind, OwnershipSite, make_reusable};
+use donder_project_io::{DocumentId, ProjectSession};
 
-pub(super) fn edit(
-    session: &mut ProjectSession,
-    owner: &ResolvedGuiObject,
-    member: OwnershipMember,
-    edit: GuiOwnershipEdit,
-) -> Result<(), GuiMutationError> {
-    if owner.kind == ObjectKind::Project
-        && owner.object != ObjectId::from(session.project.root().id)
-    {
-        return Err(GuiMutationError::Invalid(
-            "The requested project is not the active project.".into(),
-        ));
-    }
-    let site = match member {
-        OwnershipMember::Fixture { id } if owner.kind == ObjectKind::Layout => {
-            OwnershipSite::Fixture {
-                layout: owner.id(),
-                fixture: FixtureInstanceId(id),
-            }
-        }
-        OwnershipMember::Fixture { .. } => {
-            return Err(GuiMutationError::Invalid(
-                "Only a layout owns fixtures.".into(),
-            ));
-        }
-        OwnershipMember::Object { source } => OwnershipSite::Member {
-            owner: owner.object,
-            member: super::model::object_id_from_gui(session, &source)?,
-        },
-    };
-    edit_site(session, owner, site, edit)
-}
-
-/// Stores `member`, just added inside `owner`'s object `owner_id`, where
-/// `storage` says: kept there, or moved to a declaration named `name`.
+/// Moves `member`, just added inside `owner`, to a file of its own that
+/// declares it as `name`.
 pub(super) fn store_new_member(
     session: &mut ProjectSession,
-    owner: &ResolvedGuiObject,
-    owner_id: ObjectId,
+    owner: ObjectId,
     member: ObjectId,
     name: &str,
-    storage: NewObjectStorage,
 ) -> Result<(), GuiMutationError> {
-    let storage = match storage {
-        NewObjectStorage::Inline => return Ok(()),
-        NewObjectStorage::SameFile => ReusableStorage::SameFile,
-        NewObjectStorage::NewFile => ReusableStorage::NewFile,
-    };
-    edit_site(
-        session,
-        owner,
-        OwnershipSite::Member {
-            owner: owner_id,
-            member,
-        },
-        GuiOwnershipEdit::MakeReusable {
-            name: name.to_string(),
-            storage,
-        },
+    let id = make_reusable(
+        &mut session.project,
+        &OwnershipSite::Member { owner, member },
     )
-}
-
-pub(super) fn edit_site(
-    session: &mut ProjectSession,
-    owner: &ResolvedGuiObject,
-    site: OwnershipSite,
-    edit: GuiOwnershipEdit,
-) -> Result<(), GuiMutationError> {
-    let kind = match site {
-        OwnershipSite::Member { member, .. } => member.kind(),
-        OwnershipSite::Fixture { .. } => ObjectKind::FixtureDefinition,
-    };
-    match edit {
-        GuiOwnershipEdit::UseExisting { declaration } => {
-            if declaration.kind != crate::dto::ObjectKind::from(kind)
-                || !declaration.owned_path.is_empty()
-            {
-                return Err(GuiMutationError::Invalid(
-                    "Choose a reusable declaration of the matching kind.".into(),
-                ));
-            }
-            let id: ObjectId = super::model::declared_from_gui(
-                session,
-                &declaration.path,
-                &declaration.object_key,
-            )?;
-            if id.kind() != kind {
-                return Err(GuiMutationError::Invalid(
-                    "Choose a reusable declaration of the matching kind.".into(),
-                ));
-            }
-            donder_project_io::link_declaration(session, owner.document_id(), id)
-                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            use_existing(&mut session.project, &site, id, &|id| {
-                session.source.declared_name(id)
-            })
-            .map_err(GuiMutationError::from)?;
-        }
-        GuiOwnershipEdit::MakeIndependent => {
-            make_independent(&mut session.project, &site, &|id| {
-                session.source.declared_name(id)
-            })
-            .map_err(GuiMutationError::from)?;
-        }
-        GuiOwnershipEdit::MakeReusable { name, storage } => {
-            let declared = super::model::typed_name(&name)?;
-            let id = make_reusable(&mut session.project, &site).map_err(GuiMutationError::from)?;
-            match storage {
-                ReusableStorage::SameFile => {
-                    session
-                        .source
-                        .add_object(owner.document_id(), id, declared.as_str())
-                        .map_err(GuiMutationError::Invalid)?;
-                }
-                ReusableStorage::NewFile => {
-                    super::model::create_object_document(session, id, &name)?;
-                }
-            }
-        }
-    }
+    .map_err(GuiMutationError::from)?;
+    super::model::create_object_document(session, id, name)?;
     donder_project_io::maintain_ownership_sources(session)
         .map_err(|error| GuiMutationError::Invalid(error.to_string()))
+}
+
+/// The member of `owner` that `source` names.
+fn member(
+    session: &ProjectSession,
+    owner: &ResolvedGuiObject,
+    source: &GuiObjectRef,
+) -> Result<ObjectId, GuiMutationError> {
+    if !matches!(owner.kind, ObjectKind::Project | ObjectKind::Setup) {
+        return Err(GuiMutationError::Invalid(
+            "Only a project or setup renames and deletes its members.".into(),
+        ));
+    }
+    super::model::object_id_from_gui(session, source)
+}
+
+/// The document that declares `id` and nothing else.
+fn own_document(session: &ProjectSession, id: ObjectId) -> Option<DocumentId> {
+    let (document, _) = session.declaration(id)?;
+    (session.source.documents[document].objects().len() == 1).then(|| document.clone())
+}
+
+/// Where the file of `source` moves when it is renamed `name`: a member
+/// alone in its file keeps the file named after it. None when it has no file
+/// of its own or the file already has that name.
+pub fn member_file_rename(
+    session: &ProjectSession,
+    owner: &ResolvedGuiObject,
+    source: &GuiObjectRef,
+    name: &str,
+) -> Result<Option<(String, String)>, GuiMutationError> {
+    let id = member(session, owner, source)?;
+    let Some(document) = own_document(session, id) else {
+        return Ok(None);
+    };
+    let to = donder_project_io::object_document_path(id.kind(), &super::model::typed_name(name)?);
+    if to == document.path() {
+        return Ok(None);
+    }
+    if session.source.has_document_at(&to) {
+        return Err(GuiMutationError::Invalid(format!(
+            "The file {to} already exists."
+        )));
+    }
+    Ok(Some((document.path().to_string(), to.to_string())))
+}
+
+/// Where a refused rename of a member shows: the name being chosen.
+pub fn member_name_site() -> crate::dto::GuiProblemSite {
+    crate::dto::GuiProblemSite::object(crate::dto::GuiField::Name)
+}
+
+/// Name `source`, a member of `owner`, `name`. A member stored inside its
+/// owner moves to a file of its own by that name.
+pub fn rename_member(
+    session: &mut ProjectSession,
+    owner: &ResolvedGuiObject,
+    source: &GuiObjectRef,
+    name: &str,
+) -> Result<(), GuiMutationError> {
+    let id = member(session, owner, source)?;
+    if source.owned_path.is_empty() {
+        session
+            .source
+            .rename_object(id, super::model::typed_name(name)?)
+            .map_err(GuiMutationError::Invalid)
+    } else {
+        store_new_member(session, owner.object, id, name)
+    }
+}
+
+/// A member removed from the project: what it was called, and the document
+/// it alone was declared in, which the caller deletes.
+pub struct DeletedMember {
+    pub name: String,
+    pub document: Option<DocumentId>,
+}
+
+/// Remove `source`, a member of `owner`, from the project, and what refers
+/// to it gives way.
+pub fn delete_member(
+    session: &mut ProjectSession,
+    owner: &ResolvedGuiObject,
+    source: &GuiObjectRef,
+) -> Result<DeletedMember, GuiMutationError> {
+    let id = member(session, owner, source)?;
+    let name = session
+        .address_of(id)
+        .map(|address| address.declared_name().to_string())
+        .ok_or_else(|| GuiMutationError::Invalid("The member is missing.".into()))?;
+    if matches!(
+        id.kind(),
+        ObjectKind::Setup | ObjectKind::Layout | ObjectKind::Patch
+    ) {
+        return Err(GuiMutationError::Invalid(format!(
+            "A project needs its {}.",
+            id.kind()
+        )));
+    }
+    if let Some(document) = own_document(session, id) {
+        donder_project_io::remove_documents(session, std::slice::from_ref(&document))
+            .map_err(GuiMutationError::from)?;
+        return Ok(DeletedMember {
+            name,
+            document: Some(document),
+        });
+    }
+    if !source.owned_path.is_empty() {
+        // Removal applies to reusable objects, which keep their ids.
+        make_reusable(
+            &mut session.project,
+            &OwnershipSite::Member {
+                owner: owner.object,
+                member: id,
+            },
+        )
+        .map_err(GuiMutationError::from)?;
+    }
+    session
+        .project
+        .apply_edits([donder_model::ProjectEdit::Remove(id)])
+        .map_err(GuiMutationError::from)?;
+    session.source.remove_object(id);
+    Ok(DeletedMember {
+        name,
+        document: None,
+    })
 }
 
 pub(super) fn available_declarations(

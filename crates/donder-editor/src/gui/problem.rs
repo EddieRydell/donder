@@ -11,9 +11,9 @@ use donder_project_io::ProjectSession;
 use super::{GuiMutationError, apply_edit, resolve_request};
 use crate::dto::{
     CompositionGuiEdit, ConsoleClipEdit, ConsoleGuiEdit, FixtureGuiEdit, GuiDocumentRequest,
-    GuiEditCommand, GuiField, GuiItem, GuiMember, GuiOwnershipEdit, GuiProblem, GuiProblemSite,
-    LayoutGuiEdit, SequenceAutomationTarget, SequenceClipCommonEdit, SequenceClipRef,
-    SequenceGuiEdit,
+    GuiEditCommand, GuiField, GuiItem, GuiMember, GuiProblem, GuiProblemSite, LayoutGuiEdit,
+    ProjectGuiEdit, SequenceAutomationTarget, SequenceClipCommonEdit, SequenceClipRef,
+    SequenceGuiEdit, SetupGuiEdit,
 };
 
 /// What a person reads about `error`, raised by an edit of the object
@@ -275,11 +275,12 @@ pub fn edit_site(edit: &GuiEditCommand) -> Option<GuiProblemSite> {
         GuiEditCommand::Rename { item, .. } => on(item_member(item), GuiField::Name),
         GuiEditCommand::SetDescription { item, .. } => on(item_member(item), GuiField::Description),
         GuiEditCommand::SetColor { item, .. } => on(item_member(item), GuiField::Color),
-        GuiEditCommand::Ownership { edit, .. } => Some(GuiProblemSite::object(match edit {
-            GuiOwnershipEdit::MakeReusable { .. } => GuiField::Name,
-            GuiOwnershipEdit::UseExisting { .. } => GuiField::Declaration,
-            GuiOwnershipEdit::MakeIndependent => return None,
-        })),
+        GuiEditCommand::Project {
+            edit: ProjectGuiEdit::AddSequence { .. } | ProjectGuiEdit::AddConsole { .. },
+        }
+        | GuiEditCommand::Setup {
+            edit: SetupGuiEdit::AddController { .. } | SetupGuiEdit::AddInputDevice { .. },
+        } => Some(GuiProblemSite::object(GuiField::Name)),
         GuiEditCommand::Curve { .. } | GuiEditCommand::Gradient { .. } => {
             Some(GuiProblemSite::object(GuiField::Points))
         }

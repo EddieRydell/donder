@@ -595,7 +595,6 @@ pub(crate) fn remap_workspace_path(path: &str, source: &str, destination: &str) 
 #[cfg(test)]
 mod authoring_acceptance;
 #[cfg(test)]
-#[cfg(test)]
 mod library_array_acceptance;
 
 #[cfg(test)]
