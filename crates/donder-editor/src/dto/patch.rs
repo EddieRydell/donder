@@ -39,15 +39,24 @@ pub struct GuiPixelRoute {
     pub fixture: u32,
     pub pixels: Option<GuiPixelSpan>,
     pub controller: GuiObjectRef,
-    /// A Donder controller's port; none for an E1.31 or Art-Net controller.
-    pub port: Option<u32>,
-    /// From 0: across an E1.31 or Art-Net controller's universes, or in the
-    /// Donder port.
-    pub start_channel: u32,
+    /// One of the controller's ports, by id.
+    pub port: u32,
+    pub start: GuiRouteStart,
     pub encoding: GuiPixelEncoding,
     pub gamma: f32,
     pub brightness: f32,
     pub dither: bool,
+}
+
+/// Where a route's channels begin.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum GuiRouteStart {
+    /// Right after the route before it on its port.
+    Next,
+    /// From 0: across an E1.31 or Art-Net controller's universes, or in the
+    /// Donder port.
+    Channel { channel: u32 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

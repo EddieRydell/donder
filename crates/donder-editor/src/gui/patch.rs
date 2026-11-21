@@ -1,10 +1,10 @@
 use crate::dto::{
     GuiChannelPlace, GuiDocument, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,
-    ObjectKind, PatchFixtureTarget, PatchGuiDocument, PatchLayout,
+    GuiRouteStart, ObjectKind, PatchFixtureTarget, PatchGuiDocument, PatchLayout,
 };
 use crate::gui::model::{object_address, object_id_from_gui, object_ref};
 use crate::gui::{GuiMutationError, ResolvedGuiObject, blocked};
-use donder_model::{ChannelPlace, ControllerId, ControllerOutput, ControllerPortId};
+use donder_model::{ChannelPlace, ControllerId, ControllerPortId, RouteStart};
 use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use donder_model::{PatchId, PixelRoute, PixelRouteId, PixelSpan};
 use donder_project_io::{ProjectSession, ensure_document_can_reference_object};
@@ -86,11 +86,14 @@ pub(super) fn project_document(
                 .iter()
                 .map(|route| project_route(session, route))
                 .collect(),
-            placements: patch
-                .routes
-                .iter()
-                .filter_map(|route| placement(session, route, &counts))
-                .collect(),
+            placements: {
+                let placed = donder_model::patch_placements(&session.project, patch, &counts);
+                patch
+                    .routes
+                    .iter()
+                    .filter_map(|route| placement(session, route, placed.get(&route.id)?))
+                    .collect()
+            },
             layouts,
             controllers: session
                 .project
@@ -104,26 +107,16 @@ pub(super) fn project_document(
     }
 }
 
-/// Where a route's channels land on its controller.
+/// Where a route's `placed` channels land on its controller, as people count.
 fn placement(
     session: &ProjectSession,
     route: &PixelRoute,
-    counts: &indexmap::IndexMap<donder_model::FixtureDefinitionId, u32>,
+    placed: &donder_model::RoutePlacement,
 ) -> Option<GuiRoutePlacement> {
-    let pixels = match route.pixels {
-        Some(span) => span.count,
-        None => session
-            .project
-            .get::<donder_model::Layout>(route.target.layout)?
-            .target_pixel_count(&route.target, counts)
-            .ok()?,
-    };
-    let width = pixels.checked_mul(route.encoding.channel_order().len() as u32)?;
-    let channels = route.start_channel..route.start_channel.checked_add(width)?;
     let place = session
         .project
         .get::<donder_model::Controller>(route.controller)?
-        .place(route.output, channels)?;
+        .place(placed.output, placed.channels.clone())?;
     Some(GuiRoutePlacement {
         route: route.id.0,
         place: match place {
@@ -133,11 +126,7 @@ fn placement(
                 last_universe: last.universe,
                 last_channel: last.channel,
             },
-            ChannelPlace::Port { port, first, last } => GuiChannelPlace::Port {
-                port: port.as_str().to_string(),
-                first,
-                last,
-            },
+            ChannelPlace::Port { port, first, last } => GuiChannelPlace::Port { port, first, last },
         },
     })
 }
@@ -152,11 +141,11 @@ fn project_route(session: &ProjectSession, route: &PixelRoute) -> GuiPixelRoute 
             count: pixels.count,
         }),
         controller: object_ref(session, route.controller),
-        port: match route.output {
-            ControllerOutput::Universes => None,
-            ControllerOutput::Port(port) => Some(port.0),
+        port: route.port.0,
+        start: match route.start {
+            RouteStart::Next => GuiRouteStart::Next,
+            RouteStart::Channel(channel) => GuiRouteStart::Channel { channel },
         },
-        start_channel: route.start_channel,
         encoding: match route.encoding {
             PixelEncoding::Rgb { order } => GuiPixelEncoding::Rgb { order },
             PixelEncoding::Rgbw { order } => GuiPixelEncoding::Rgbw { order },
@@ -200,11 +189,11 @@ pub(super) fn replace(
                     count: pixels.count,
                 }),
                 controller,
-                output: match route.port {
-                    Some(port) => ControllerOutput::Port(ControllerPortId(port)),
-                    None => ControllerOutput::Universes,
+                port: ControllerPortId(route.port),
+                start: match route.start {
+                    GuiRouteStart::Next => RouteStart::Next,
+                    GuiRouteStart::Channel { channel } => RouteStart::Channel(channel),
                 },
-                start_channel: route.start_channel,
                 encoding: match route.encoding {
                     GuiPixelEncoding::Rgb { order } => PixelEncoding::Rgb { order },
                     GuiPixelEncoding::Rgbw { order } => PixelEncoding::Rgbw { order },

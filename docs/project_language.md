@@ -117,7 +117,7 @@ does not also report the fields the error swallowed.
 
 ## Names and references
 
-**Every object other objects refer to has a name**: setups, controllers, ports,
+**Every object other objects refer to has a name**: setups, controllers,
 input devices, controls, layouts, fixtures, groups, fixture definitions, fixture
 shapes, patches, sequences, layers, clips, mark collections, graph operator
 nodes, consoles, console clips, live mark collections, curves
@@ -285,6 +285,7 @@ Controller output_controller {
     start_universe: 1,
     universes: 30,
     channels: 339,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -292,7 +293,7 @@ Controller dig_quad {
   description: none,
   protocol: Donder {
     device: "b0cbd8030790",
-    ports: [Port { name: port_1, output: 1, slots: 450 }],
+    ports: [DonderPort { name: "port_1", description: none, output: 1, slots: 450 }],
   },
 }
 ```
@@ -302,21 +303,26 @@ Controller dig_quad {
 - `Controller`: `description`, `protocol`.
 - `protocol` is one of:
   - `E131 { sender_name, bind_address, priority, mode, start_universe,
-    universes, channels }` with `mode` either `Multicast` or
+    universes, channels, ports: [Port] }` with `mode` either `Multicast` or
     `Unicast { destination }`;
   - `ArtNet { bind_address, destination, mode, start_universe, universes,
-    channels }` with socket addresses such as `"0.0.0.0:6454"`, `mode` either
-    `Unicast` or `Broadcast`, and `start_universe` the 15-bit port-address of
-    the first universe;
-  - `Donder { device, ports: [Port] }`, `device` the controller's twelve
+    channels, ports: [Port] }` with socket addresses such as
+    `"0.0.0.0:6454"`, `mode` either `Unicast` or `Broadcast`, and
+    `start_universe` the 15-bit port-address of the first universe;
+  - `Donder { device, ports: [DonderPort] }`, `device` the controller's twelve
     lowercase hexadecimal digits.
 - An E1.31 or Art-Net controller sends `universes` consecutive universes from
   `start_universe`, each of `channels` channels (at most 512; 510 carries 170
   RGB pixels). Its channels are numbered across all of them: with 510 channels
   per universe, channel 510 from 0 is the first channel of the second universe.
   A route, and one pixel, may run on from one universe into the next.
-- `Port`: `name`, `output` (the Donder controller's physical output, from 1)
-  and `slots`.
+- Ports are the controller's physical outputs, in the order its channels fill
+  them. A port's `name` is free text, as the controller itself names the
+  output (`"7"`, `"1A"`), unique within the controller; routes name it.
+  - `Port`: `name` and `description`.
+  - `DonderPort`: `name`, `description`, `output` (the Donder controller's
+    physical output, from 1) and `slots`. Each is its own channel stream.
+- A port's pixel count is the sum of the routes on it; nothing stores it.
 
 ### Input devices
 
@@ -450,8 +456,8 @@ Patch outputs {
       target: layouts.outputs_layout.output_01,
       pixels: none,
       controller: setups.output_controller,
-      port: none,
-      start_channel: 0,
+      port: "1",
+      start: Next,
       encoding: Rgb { order: (1, 0, 2) },
       gamma: 1.0,
       brightness: 1.0,
@@ -462,10 +468,17 @@ Patch outputs {
 ```
 
 - `Route`: `target` (a fixture; groups are not routed), `pixels`, `controller`,
-  `port`, `start_channel`, `encoding`, `gamma`, `brightness`, `dither`.
-- On an E1.31 or Art-Net controller `port` is `none` and `start_channel`, from
-  0, counts across all its universes. On a Donder controller `port` names one
-  of its ports and `start_channel`, from 0, counts in that port.
+  `port`, `start`, `encoding`, `gamma`, `brightness`, `dither`.
+- `port` names one of the controller's ports.
+- `start` is `Next` or `Channel { channel }`:
+  - `Next` begins right after the route before it on its port, in patch order.
+    The first route on an E1.31 or Art-Net port begins right after the last
+    route on the controller's previous port, or at channel 0 on its first
+    port. The first route on a Donder port begins at the port's channel 0.
+  - `Channel { channel }`, from 0, counts across all of an E1.31 or Art-Net
+    controller's universes, or in the Donder port. It places routes that
+    leave gaps or follow a controller's own per-output addresses; a route
+    after it with `Next` follows on from it.
 - `dither: true` varies each byte over an eight-frame cycle so it averages to
   the exact level, keeping dim colors' hue. It suits outputs that receive every
   frame at a high rate; at a long FSEQ step the cycle shows as flicker.
@@ -899,8 +912,7 @@ are canonical and every field is explicit, saving a loaded project rewrites no
 byte of a canonically formatted document, and changes only whitespace in any
 other valid one. Script text is kept exactly and never regenerated. Audio is a
 project-relative path; copying a sequence keeps the path and does not copy audio
-bytes. **Create Standalone Project Copy** (and `donder copy`) writes a separate
-project containing the loaded sources and referenced audio.
+bytes.
 
 Each file is written through `donder_project_io::atomic_write`, which replaces
 it with a complete synced temporary file. That keeps any one file from being

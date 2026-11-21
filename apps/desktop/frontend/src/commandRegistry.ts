@@ -37,15 +37,9 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
     dispatchUiEvent("newProject");
   }),
-  "file.copyProject": command("Create Standalone Project Copy...", "File", ["copy", "folder"], () => {
-    dispatchUiEvent("copyProject");
-  }, hasProject),
   "file.importProfile": command("Import Profile...", "File", ["xlights", "vixen", "layout", "controllers", "create"], () => {
     dispatchUiEvent("importProfile");
   }),
-  "file.newSequence": command("New Sequence...", "File", ["create", "document"], () => {
-    dispatchUiEvent("newSequence");
-  }, hasProject),
   "file.openProject": command("Open Project...", "File", ["folder", "workspace"], async () => {
     await openProjectDialog();
   }, always, [shortcut("o", { primary: true })]),
@@ -118,9 +112,6 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
   "view.focusExplorer": command("Focus Explorer", "View", ["files", "sidebar"], focusingSidebar("explorer")),
   "view.focusSearch": command("Focus Search", "View", ["find", "sidebar"], focusingSidebar("search")),
   "view.focusProblems": command("Focus Problems", "View", ["diagnostics", "errors", "sidebar"], focusingSidebar("problems")),
-  "workbench.quickOpen": command("Quick Open...", "Workbench", ["file", "recent"], () => {
-    dispatchUiEvent("openQuickOpen");
-  }, hasProject, [shortcut("p", { primary: true })]),
   "workbench.commandPalette": command("Command Palette...", "Workbench", ["commands"], () => {
     dispatchUiEvent("openCommandPalette");
   }, always, [shortcut("p", { primary: true, shift: true })]),

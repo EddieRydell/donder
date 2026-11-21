@@ -129,9 +129,8 @@ export function EditorPane({
   if (snapshot.tabs.length === 0) {
     return (
       <section className="editor-shell empty-editor">
-        {snapshot.projectRoot !== null
-          ? <Button variant="ghost" icon={FileText} tip="Quick Open" command="workbench.quickOpen" onClick={() => { runCommand("workbench.quickOpen"); }}>Open file</Button>
-          : <Button variant="ghost" icon={FolderOpen} tip="Open Project" command="file.openProject" onClick={() => { runCommand("file.openProject"); }}>Open project</Button>}
+        {snapshot.projectRoot === null
+          && <Button variant="ghost" icon={FolderOpen} tip="Open Project" command="file.openProject" onClick={() => { runCommand("file.openProject"); }}>Open project</Button>}
       </section>
     );
   }

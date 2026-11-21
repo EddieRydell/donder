@@ -20,5 +20,6 @@ Controller output_controller {
     start_universe: 1,
     universes: 30,
     channels: 339,
+    ports: [Port { name: "1", description: none }],
   },
 }

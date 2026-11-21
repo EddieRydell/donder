@@ -32,14 +32,14 @@ pub use live::{
     ProjectGuiEdit, SetupInputDevice,
 };
 pub use output::{
-    ControllerOutputTest, DonderDeviceConnection, DonderDeviceNetwork, DonderDeviceNetworkRequest,
-    DonderDeviceStatus, LiveOutputControllerSnapshot, LiveOutputControllerState,
-    LiveOutputSnapshot, LiveOutputState, Point3Meters, SequenceExportOptions, SequenceExportPort,
+    DonderDeviceConnection, DonderDeviceNetwork, DonderDeviceNetworkRequest, DonderDeviceStatus,
+    LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
+    OutputTestPattern, OutputTestTarget, Point3Meters, SequenceExportOptions, SequenceExportPort,
     VideoExportProgress,
 };
 pub use patch::{
     GuiChannelPlace, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,
-    PatchFixtureTarget, PatchGuiDocument, PatchLayout,
+    GuiRouteStart, PatchFixtureTarget, PatchGuiDocument, PatchLayout,
 };
 pub use perform::{
     PerformButton, PerformConsole, PerformMidi, PerformOsc, PerformSession, PerformSnapshot,
@@ -67,7 +67,7 @@ pub use setup::{
     GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, GuiItem, GuiObjectRef,
     GuiOwnershipEdit, GuiUniverses, NewObjectStorage, OwnedObjectSlot, OwnershipMember,
     ProjectGuiDocument, ReusableStorage, SetupController, SetupControllerConfig,
-    SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
+    SetupControllerPort, SetupDonderOutput, SetupGuiDocument, SetupGuiEdit,
 };
 pub use synchronization::{
     DocumentSaveState, DocumentSaveStatus, DocumentText, DocumentTextEdit, DocumentTextEdits,
@@ -85,13 +85,12 @@ pub use view_state::{
 pub use workspace::{
     AppCommandId, AppSettings, ClipRasterSettings, CommandId, DocumentDescriptor,
     DocumentObjectDescriptor, EditorBuffer, EditorCommandId, EditorTab, EditorViewMode, KeyBinding,
-    NewSequenceRequest, NewSequenceResult, ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind,
-    ProjectSearchRequest, ProjectSearchResponse, SequenceClipMatch, SequenceClipTimeMatch,
-    SequenceFollowMode, SequenceInitialZoomMode, Shortcut, SidebarView, SpatialSnapSettings,
-    SpatialUnit, TextDocumentSyntax, Transform, WorkspaceEntry, WorkspaceEntryKind,
-    WorkspaceEntryPlainRole, WorkspaceEntryRole, WorkspaceExplorerState, WorkspaceLayoutState,
-    WorkspaceOperation, WorkspacePathChangeImpact, WorkspacePathChangePlan,
-    WorkspacePathChangeRequest,
+    ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind, ProjectSearchRequest,
+    ProjectSearchResponse, SequenceClipMatch, SequenceClipTimeMatch, SequenceFollowMode,
+    SequenceInitialZoomMode, Shortcut, SidebarView, SpatialSnapSettings, SpatialUnit,
+    TextDocumentSyntax, Transform, WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryPlainRole,
+    WorkspaceEntryRole, WorkspaceExplorerState, WorkspaceLayoutState, WorkspaceOperation,
+    WorkspacePathChangeImpact, WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
 
 // Shared serialized edit contract for desktop and browser clients.

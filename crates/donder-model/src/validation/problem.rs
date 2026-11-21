@@ -92,10 +92,6 @@ pub enum RouteProblem {
         pixels: u32,
     },
     MissingController,
-    /// The route names a port of an E1.31 or Art-Net controller.
-    PortOnUniverses,
-    /// The route on a Donder controller names none of its ports.
-    NeedsPort,
     MissingPort,
     ChannelOverflow,
     /// Zero-based `channels` end past the `available` channels of `output`.
@@ -337,6 +333,7 @@ pub enum EventProblem {
 pub enum AdmissionProblem {
     GeometryOutOfRange,
     InvalidEncoding(PixelRouteId),
+    UnplacedRoute(PixelRouteId),
     Binding(Member, BindingError),
     LiveMarksInOperator(CompositionGraphNodeId),
     TooManyParams,
@@ -616,8 +613,6 @@ impl fmt::Display for RouteProblem {
                 Span(span.start..span.start.saturating_add(span.count))
             ),
             Self::MissingController => f.write_str("its controller is missing"),
-            Self::PortOnUniverses => f.write_str("E1.31 and Art-Net controllers have no ports"),
-            Self::NeedsPort => f.write_str("it needs a port"),
             Self::MissingPort => f.write_str("its port is missing"),
             Self::ChannelOverflow => {
                 f.write_str("it has more channels than a controller can address")
@@ -992,6 +987,7 @@ impl fmt::Display for AdmissionProblem {
         match self {
             Self::GeometryOutOfRange => f.write_str("a fixture is placed too far out"),
             Self::InvalidEncoding(_) => f.write_str("an output's encoding is invalid"),
+            Self::UnplacedRoute(_) => f.write_str("an output's channels cannot be placed"),
             Self::Binding(_, error) => f.write_str(&error.message),
             Self::LiveMarksInOperator(_) => {
                 f.write_str("operators in a console can't read live marks")
@@ -1140,8 +1136,8 @@ impl fmt::Display for ControllerValidationError {
                 u32::from(universes.start) + u32::from(universes.count) - 1
             ),
             Self::DuplicatePort(port) => write!(f, "port id {} is used twice", port.0),
-            Self::InvalidPortName(_) => f.write_str("names use lowercase letters, digits and _"),
-            Self::DuplicatePortName(_) => f.write_str("two outputs have the same name"),
+            Self::EmptyPortName(_) => f.write_str("a port has no name"),
+            Self::DuplicatePortName(_) => f.write_str("two ports have the same name"),
             Self::EmptyPort(_) => f.write_str("an output has no channels"),
             Self::InvalidDonderOutput { output, .. } => {
                 write!(f, "the controller has no output {output}")
@@ -1158,7 +1154,7 @@ impl ControllerValidationError {
     fn port(&self) -> Option<ControllerPortId> {
         match self {
             Self::DuplicatePort(port)
-            | Self::InvalidPortName(port)
+            | Self::EmptyPortName(port)
             | Self::DuplicatePortName(port)
             | Self::EmptyPort(port)
             | Self::InvalidDonderOutput { port, .. } => Some(*port),

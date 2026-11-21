@@ -117,7 +117,6 @@ function PathRefactorDialog({
         ["Importing documents", plan.impact.imports],
         ["Assets", plan.impact.assets],
         ["Open files", plan.impact.openFiles],
-        ["Recent files", plan.impact.recentFiles],
         ["Persisted editor state", plan.impact.persistedState]
       ] as const;
   return (

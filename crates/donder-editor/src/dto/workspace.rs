@@ -2,34 +2,6 @@ use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct NewSequenceRequest {
-    /// The declaration's name, when `storage` declares one.
-    pub name: String,
-    pub storage: NewObjectStorage,
-    pub initial_color: String,
-    pub duration_seconds: f64,
-    pub frame_rate: u32,
-}
-
-/// A created sequence and the project with it, or why it was refused.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum NewSequenceResult {
-    Created {
-        snapshot: Box<AppSnapshot>,
-        source: GuiObjectRef,
-    },
-    Refused {
-        problem: GuiProblem,
-    },
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct WorkspaceLayoutState {
@@ -65,7 +37,6 @@ pub enum SidebarView {
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceExplorerState {
     pub expanded_paths: Vec<String>,
-    pub recent_files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -192,12 +163,8 @@ pub enum CommandId {
 pub enum AppCommandId {
     #[serde(rename = "file.newProject")]
     FileNewProject,
-    #[serde(rename = "file.copyProject")]
-    FileCopyProject,
     #[serde(rename = "file.importProfile")]
     FileImportProfile,
-    #[serde(rename = "file.newSequence")]
-    FileNewSequence,
     #[serde(rename = "file.openProject")]
     FileOpenProject,
     #[serde(rename = "file.save")]
@@ -230,8 +197,6 @@ pub enum AppCommandId {
     ViewFocusSearch,
     #[serde(rename = "view.focusProblems")]
     ViewFocusProblems,
-    #[serde(rename = "workbench.quickOpen")]
-    WorkbenchQuickOpen,
     #[serde(rename = "workbench.commandPalette")]
     WorkbenchCommandPalette,
     #[serde(rename = "project.reload")]
@@ -423,7 +388,6 @@ pub struct WorkspacePathChangeImpact {
     pub imports: Vec<String>,
     pub assets: Vec<String>,
     pub open_files: Vec<String>,
-    pub recent_files: Vec<String>,
     pub persisted_state: Vec<String>,
 }
 

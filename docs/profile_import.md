@@ -48,9 +48,12 @@ importer does not know refuses the model.
 - E1.31 and Art-Net controllers become a controller for each run of
   consecutive universes of one width; a shorter last universe sends its
   unused channels as zero. Universes that do not follow on, or follow a
-  shorter one, start another controller.
+  shorter one, start another controller. Each has one port, `"1"`: profiles
+  do not say which physical output carries which channels.
 - Each model's channels become one route for each run of consecutive
-  channels on one controller, across universe boundaries.
+  channels on one controller, across universe boundaries. A route that
+  follows on from the one before it on its controller starts at `Next`;
+  others start at their channel.
 - A model's dimming curve that is one brightness and gamma for all its
   colors (`ModelBrightness`, or a `dimmingCurve` with an `all` entry) sets
   its routes' brightness and gamma. xLights truncates the curve to whole

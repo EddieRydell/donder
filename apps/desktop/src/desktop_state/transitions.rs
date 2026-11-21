@@ -50,7 +50,6 @@ impl DesktopState {
             request.transition,
             WorkspaceTransition::OpenProject { .. }
                 | WorkspaceTransition::CreateProject { .. }
-                | WorkspaceTransition::CopyProject { .. }
                 | WorkspaceTransition::ImportProfile { .. }
                 | WorkspaceTransition::ReloadProject
         );
@@ -84,14 +83,6 @@ impl DesktopState {
                 directory_name,
                 initial_color,
             } => self.create_new_project_locked(&parent_path, &directory_name, &initial_color),
-            WorkspaceTransition::CopyProject {
-                parent_path,
-                directory_name,
-            } => self.copy_project_locked(
-                &parent_path,
-                &directory_name,
-                matches!(request.decision, Some(TransitionDecision::Discard)),
-            ),
             WorkspaceTransition::ImportProfile {
                 parent_path,
                 directory_name,

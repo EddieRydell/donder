@@ -26,7 +26,9 @@ fn starter() -> DonderProject {
 /// port for each of its universes, one per fixture, so each fixture is an
 /// output of its own.
 fn port_per_universe(project: &mut DonderProject) {
-    use donder_model::{ControllerPort, ControllerProtocol, DonderConfig, DonderDeviceId};
+    use donder_model::{
+        ControllerPort, ControllerProtocol, DonderConfig, DonderDeviceId, DonderPort, RouteStart,
+    };
     let setup = &project.reusable::<donder_model::Setup>()[project.root().setup.id()];
     let id = *setup.controllers[0].id();
     let patch_id = *setup.patch.id();
@@ -36,9 +38,12 @@ fn port_per_universe(project: &mut DonderProject) {
     controller.protocol = ControllerProtocol::Donder(DonderConfig {
         device: DonderDeviceId::parse("000000000000").unwrap(),
         ports: (1..=universes.count)
-            .map(|output| ControllerPort {
-                id: ControllerPortId(u32::from(output)),
-                name: donder_language::object_name(&format!("port_{output}")),
+            .map(|output| DonderPort {
+                port: ControllerPort {
+                    id: ControllerPortId(u32::from(output)),
+                    name: format!("port_{output}"),
+                    description: None,
+                },
                 output: output as u8,
                 slot_count: universes.channels,
             })
@@ -48,9 +53,14 @@ fn port_per_universe(project: &mut DonderProject) {
         .get::<donder_model::Patch>(patch_id)
         .unwrap()
         .clone();
+    let counts =
+        donder_model::fixture_pixel_counts(project.reusable::<donder_model::FixtureDefinition>())
+            .unwrap();
+    let placements = donder_model::patch_placements(project, &patch, &counts);
     for route in &mut patch.routes {
-        route.output = ControllerOutput::Port(ControllerPortId(route.start_channel / channels + 1));
-        route.start_channel %= channels;
+        let start = placements[&route.id].channels.start;
+        route.port = ControllerPortId(start / channels + 1);
+        route.start = RouteStart::Channel(start % channels);
     }
     project
         .apply_edits([
@@ -217,7 +227,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         let route = &mut patch.routes[index];
         route.target.fixture = FixtureInstanceId(2);
         route.pixels = Some(PixelSpan { start, count: 37 });
-        route.start_channel = 7;
+        route.start = donder_model::RouteStart::Channel(7);
     }
     project.put(patch).unwrap();
     let ports = ports(&project);

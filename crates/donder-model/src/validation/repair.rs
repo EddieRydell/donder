@@ -342,8 +342,6 @@ impl State<'_> {
             | RouteProblem::TargetNotFixture
             | RouteProblem::Target(_)
             | RouteProblem::MissingController
-            | RouteProblem::PortOnUniverses
-            | RouteProblem::NeedsPort
             | RouteProblem::MissingPort => unchanged.then_some(remove),
             RouteProblem::SpanExceedsTarget { span, pixels } => {
                 if !unchanged {
@@ -366,7 +364,7 @@ impl State<'_> {
                 });
                 shorten(
                     span.start,
-                    available.saturating_sub(route.start_channel) / per_pixel,
+                    available.saturating_sub(channels.start) / per_pixel,
                 )
             }
             RouteProblem::OutputsOverlap { other, .. } => {
@@ -375,10 +373,14 @@ impl State<'_> {
                 }
                 // The route the edit placed wins over the one already there.
                 let patch_value = self.project.get::<Patch>(patch)?;
+                let controller = self.project.get::<crate::Controller>(route.controller)?;
+                let same_stream = |candidate: &crate::patch::PixelRoute| {
+                    controller.port_output(candidate.port) == controller.port_output(route.port)
+                };
                 let earlier = patch_value.routes.iter().find(|candidate| {
                     candidate.id != id
                         && candidate.controller == route.controller
-                        && candidate.output == route.output
+                        && same_stream(candidate)
                         && route_fixture(self.project, candidate).as_ref() == Some(other)
                         && self.route_unchanged(patch, candidate.id)
                 })?;

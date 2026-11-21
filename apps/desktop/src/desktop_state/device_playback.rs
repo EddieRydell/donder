@@ -407,7 +407,7 @@ impl DesktopState {
                 let mut ports = config
                     .ports
                     .iter()
-                    .map(|port| (port.output, port.id))
+                    .map(|port| (port.output, port.port.id))
                     .collect::<Vec<_>>();
                 ports.sort();
                 Some(SetupDevice {

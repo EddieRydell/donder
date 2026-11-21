@@ -1,8 +1,6 @@
 use std::net::{IpAddr, SocketAddr};
 use std::ops::Range;
 
-use donder_runtime_types::Identifier;
-
 pub(crate) use crate::identity::ControllerId;
 
 pub(crate) const DMX_SLOT_LIMIT: u16 = 512;
@@ -32,8 +30,17 @@ pub enum ControllerProtocol {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DonderConfig {
     pub device: DonderDeviceId,
-    /// Its physical outputs.
-    pub ports: Vec<ControllerPort>,
+    /// Its physical outputs, each its own channel stream.
+    pub ports: Vec<DonderPort>,
+}
+
+/// A Donder controller's port and the physical output it drives.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DonderPort {
+    pub port: ControllerPort,
+    /// The controller's physical output, numbered from 1.
+    pub output: u8,
+    pub slot_count: u16,
 }
 
 /// A Donder controller's factory MAC address as 12 lowercase hex digits.
@@ -61,6 +68,8 @@ pub struct E131Config {
     pub priority: u8,
     pub mode: E131Mode,
     pub universes: Universes,
+    /// Its physical outputs, in the order its channels fill them.
+    pub ports: Vec<ControllerPort>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,6 +84,8 @@ pub struct ArtNetConfig {
     pub destination: SocketAddr,
     pub mode: ArtNetMode,
     pub universes: Universes,
+    /// Its physical outputs, in the order its channels fill them.
+    pub ports: Vec<ControllerPort>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -161,20 +172,19 @@ pub enum ChannelPlace {
         last: UniverseChannel,
     },
     Port {
-        port: Identifier,
+        port: String,
         first: u32,
         last: u32,
     },
 }
 
+/// One of a controller's physical outputs, as the controller names it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ControllerPort {
     pub id: ControllerPortId,
-    /// Unique within the controller; routes use it.
-    pub name: Identifier,
-    /// The controller's physical output, numbered from 1.
-    pub output: u8,
-    pub slot_count: u16,
+    /// Free text, unique within the controller; routes use it.
+    pub name: String,
+    pub description: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -186,8 +196,7 @@ pub enum ControllerValidationError {
     E131UniversesOutOfRange(Universes),
     ArtNetUniversesOutOfRange(Universes),
     DuplicatePort(ControllerPortId),
-    /// Port names are `snake_case`.
-    InvalidPortName(ControllerPortId),
+    EmptyPortName(ControllerPortId),
     /// Port names are unique within their controller.
     DuplicatePortName(ControllerPortId),
     EmptyPort(ControllerPortId),
@@ -208,8 +217,36 @@ impl Controller {
         }
     }
 
-    /// A Donder controller's ports; other controllers have none.
-    pub fn ports(&self) -> &[ControllerPort] {
+    /// Its physical outputs, in order.
+    pub fn ports(&self) -> Vec<&ControllerPort> {
+        match &self.protocol {
+            ControllerProtocol::E131(config) => config.ports.iter().collect(),
+            ControllerProtocol::ArtNet(config) => config.ports.iter().collect(),
+            ControllerProtocol::Donder(config) => {
+                config.ports.iter().map(|port| &port.port).collect()
+            }
+        }
+    }
+
+    pub fn port(&self, id: ControllerPortId) -> Option<&ControllerPort> {
+        self.ports().into_iter().find(|port| port.id == id)
+    }
+
+    /// The channel stream a port plays in: an E1.31 or Art-Net controller's
+    /// universes, which all its ports share, or a Donder port's own.
+    pub fn port_output(&self, id: ControllerPortId) -> Option<ControllerOutput> {
+        self.port(id)?;
+        Some(match self.protocol {
+            ControllerProtocol::E131(_) | ControllerProtocol::ArtNet(_) => {
+                ControllerOutput::Universes
+            }
+            ControllerProtocol::Donder(_) => ControllerOutput::Port(id),
+        })
+    }
+
+    /// A Donder controller's ports with their physical outputs; other
+    /// controllers have none.
+    pub fn donder_ports(&self) -> &[DonderPort] {
         match &self.protocol {
             ControllerProtocol::Donder(config) => &config.ports,
             ControllerProtocol::E131(_) | ControllerProtocol::ArtNet(_) => &[],
@@ -221,9 +258,14 @@ impl Controller {
         match self.universes() {
             Some(universes) => vec![(ControllerOutput::Universes, universes.channel_count())],
             None => self
-                .ports()
+                .donder_ports()
                 .iter()
-                .map(|port| (ControllerOutput::Port(port.id), u32::from(port.slot_count)))
+                .map(|port| {
+                    (
+                        ControllerOutput::Port(port.port.id),
+                        u32::from(port.slot_count),
+                    )
+                })
                 .collect(),
         }
     }
@@ -233,9 +275,9 @@ impl Controller {
         match (self.universes(), output) {
             (Some(universes), ControllerOutput::Universes) => Some(universes.channel_count()),
             (None, ControllerOutput::Port(id)) => self
-                .ports()
+                .donder_ports()
                 .iter()
-                .find(|port| port.id == id)
+                .find(|port| port.port.id == id)
                 .map(|port| u32::from(port.slot_count)),
             _ => None,
         }
@@ -263,11 +305,7 @@ impl Controller {
                 universes.start,
                 u32::from(universes.start) + u32::from(universes.count) - 1
             )),
-            (None, ControllerOutput::Port(id)) => self
-                .ports()
-                .iter()
-                .find(|port| port.id == id)
-                .map(|port| port.name.as_str().to_string()),
+            (None, ControllerOutput::Port(id)) => self.port(id).map(|port| port.name.clone()),
             _ => None,
         }
     }
@@ -283,7 +321,7 @@ impl Controller {
                 last: universes.locate(channels.end - 1),
             }),
             (None, ControllerOutput::Port(id)) => {
-                let port = self.ports().iter().find(|port| port.id == id)?;
+                let port = self.port(id)?;
                 Some(ChannelPlace::Port {
                     port: port.name.clone(),
                     first: channels.start + 1,
@@ -304,6 +342,7 @@ impl Controller {
                     return Err(ControllerValidationError::InvalidPriority(config.priority));
                 }
                 validate_universes(&config.universes)?;
+                validate_ports(&config.ports)?;
                 let universes = config.universes;
                 if universes.start < E131_UNIVERSE_MIN
                     || u32::from(universes.start) + u32::from(universes.count) - 1
@@ -317,6 +356,7 @@ impl Controller {
             }
             ControllerProtocol::ArtNet(config) => {
                 validate_universes(&config.universes)?;
+                validate_ports(&config.ports)?;
                 let universes = config.universes;
                 if u32::from(universes.start) + u32::from(universes.count) - 1
                     > u32::from(ARTNET_PORT_ADDRESS_MAX)
@@ -327,7 +367,10 @@ impl Controller {
                 }
                 Ok(())
             }
-            ControllerProtocol::Donder(config) => validate_ports(&config.ports),
+            ControllerProtocol::Donder(config) => {
+                validate_ports(config.ports.iter().map(|port| &port.port))?;
+                validate_donder_ports(&config.ports)
+            }
         }
     }
 }
@@ -344,35 +387,46 @@ fn validate_universes(universes: &Universes) -> Result<(), ControllerValidationE
     Ok(())
 }
 
-/// A Donder controller reports its own output widths when it admits a show.
-fn validate_ports(ports: &[ControllerPort]) -> Result<(), ControllerValidationError> {
+fn validate_ports<'a>(
+    ports: impl IntoIterator<Item = &'a ControllerPort>,
+) -> Result<(), ControllerValidationError> {
     let mut ids = std::collections::HashSet::new();
     let mut names = std::collections::HashSet::new();
-    let mut outputs = std::collections::HashSet::new();
     for port in ports {
         if !ids.insert(port.id) {
             return Err(ControllerValidationError::DuplicatePort(port.id));
         }
-        if !donder_language::NameKind::Object.accepts(port.name.as_str()) {
-            return Err(ControllerValidationError::InvalidPortName(port.id));
+        if port.name.trim().is_empty() {
+            return Err(ControllerValidationError::EmptyPortName(port.id));
         }
         if !names.insert(&port.name) {
             return Err(ControllerValidationError::DuplicatePortName(port.id));
         }
-        if port.slot_count == 0 {
+    }
+    Ok(())
+}
+
+/// A Donder controller reports its own output widths when it admits a show.
+fn validate_donder_ports(ports: &[DonderPort]) -> Result<(), ControllerValidationError> {
+    let mut outputs = std::collections::HashSet::new();
+    for DonderPort {
+        port,
+        output,
+        slot_count,
+    } in ports
+    {
+        if *slot_count == 0 {
             return Err(ControllerValidationError::EmptyPort(port.id));
         }
         // Unique outputs within 1..=ports map one-to-one onto device lanes.
-        if port.output == 0 || usize::from(port.output) > ports.len() {
+        if *output == 0 || usize::from(*output) > ports.len() {
             return Err(ControllerValidationError::InvalidDonderOutput {
                 port: port.id,
-                output: port.output,
+                output: *output,
             });
         }
-        if !outputs.insert(port.output) {
-            return Err(ControllerValidationError::DuplicateDonderOutput(
-                port.output,
-            ));
+        if !outputs.insert(*output) {
+            return Err(ControllerValidationError::DuplicateDonderOutput(*output));
         }
     }
     Ok(())

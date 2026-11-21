@@ -9,10 +9,10 @@ import { listenUiEvent } from "./uiEvents";
 
 const DEFAULT_DIRECTORY_NAME = "New Project";
 
-type Mode = "createProject" | "copyProject" | "importProfile";
+type Mode = "createProject" | "importProfile";
 
-const TITLES: Record<Mode, string> = { createProject: "New Project", copyProject: "Copy Project", importProfile: "Import Profile" };
-const ACTIONS: Record<Mode, string> = { createProject: "Create", copyProject: "Copy", importProfile: "Import" };
+const TITLES: Record<Mode, string> = { createProject: "New Project", importProfile: "Import Profile" };
+const ACTIONS: Record<Mode, string> = { createProject: "Create", importProfile: "Import" };
 
 export function NewProjectDialog() {
   const [mode, setMode] = useState<Mode>("createProject");
@@ -35,7 +35,6 @@ export function NewProjectDialog() {
     };
     const stops = [
       listenUiEvent("newProject", opener("createProject")),
-      listenUiEvent("copyProject", opener("copyProject")),
       listenUiEvent("importProfile", opener("importProfile"))
     ];
     return () => { for (const stop of stops) stop(); };
@@ -77,9 +76,7 @@ export function NewProjectDialog() {
     try {
       const applied = await runWorkspaceTransition(mode === "createProject"
         ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor }
-        : mode === "importProfile"
-          ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor, profilePath }
-          : { type: mode, parentPath, directoryName });
+        : { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor, profilePath });
       if (!applied) {
         setError(useAppStore.getState().failures.command ?? null);
         return;
@@ -108,7 +105,7 @@ export function NewProjectDialog() {
     {mode === "importProfile" && <Field label="Profile" tip="The xLights show folder (holds xlights_rgbeffects.xml) or the Vixen profile folder (holds SystemData)">
       <FolderButton path={profilePath} disabled={creating} onClick={() => void browseProfile()} />
     </Field>}
-    <Field label="Name" tip={mode === "copyProject" ? "The copy's folder; it holds the show, imported definitions and audio, and edits independently" : "The project's folder name"}>
+    <Field label="Name" tip="The project's folder name">
       <TextField
         autoFocus
         name="Project folder name"

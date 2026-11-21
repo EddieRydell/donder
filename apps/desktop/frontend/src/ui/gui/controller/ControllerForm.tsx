@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
@@ -32,17 +32,26 @@ function defaultConfig(type: ControllerConfig["type"], device: string): Controll
   }
 }
 
-/** The first `port_<n>` no other port of the controller uses. */
+/** The first number no other port of the controller is named. */
 function freshPortName(ports: ControllerPorts): string {
   const used = new Set(ports.map((port) => port.name));
   for (let index = ports.length + 1; ; index += 1) {
-    const name = `port_${index}`;
+    const name = String(index);
     if (!used.has(name)) return name;
   }
 }
 
-function newPort(ports: ControllerPorts): ControllerPorts[number] {
-  return { id: Math.max(0, ...ports.map((port) => port.id)) + 1, name: freshPortName(ports), output: ports.length + 1, slotCount: DONDER_OUTPUT_CHANNELS };
+/** A Donder controller's ports each drive a physical output; other controllers' ports drive none. */
+const donderOutput = (type: ControllerConfig["type"], output: number) => type === "donder" ? { output, slotCount: DONDER_OUTPUT_CHANNELS } : null;
+
+function newPort(type: ControllerConfig["type"], ports: ControllerPorts): ControllerPorts[number] {
+  return { id: Math.max(0, ...ports.map((port) => port.id)) + 1, name: freshPortName(ports), description: null, donder: donderOutput(type, ports.length + 1) };
+}
+
+/** `ports` for a controller of `type`: Donder ports gain outputs, others drop them; a controller starts with one port. */
+function portsFor(type: ControllerConfig["type"], ports: ControllerPorts): ControllerPorts {
+  if (ports.length === 0) return [newPort(type, ports)];
+  return ports.map((port, index) => ({ ...port, donder: type === "donder" ? port.donder ?? donderOutput(type, index + 1) : null }));
 }
 
 /** A labelled field of the controller or one of its ports, marked when its value breaks a rule. */
@@ -71,13 +80,22 @@ export function ControllerForm({ controller, edit, onApplied }: {
   const devices = useAppStore((state) => state.snapshot?.devices ?? []);
   const request = useAppStore((state) => state.guiRequest);
   const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? defaultConfig("e131", ""));
-  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? []);
+  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [newPort("e131", [])]);
   useDeviceWatch(config.type === "donder");
-  // E1.31 and Art-Net controllers send universes; only Donder controllers have outputs.
-  const draft = useMemo(() => edit(config, config.type === "donder" ? ports : []), [edit, config, ports]);
+  const draft = useMemo(() => edit(config, ports), [edit, config, ports]);
   const { checking, problem } = useDraftCheck(request, draft);
   const changePort = (index: number, change: Partial<ControllerPorts[number]>) => {
     setPorts(ports.map((candidate, i) => i === index ? { ...candidate, ...change } : candidate));
+  };
+  /** Swap the port at `index` with its neighbour `offset` away; each keeps its own Donder output. */
+  const movePort = (index: number, offset: number) => {
+    const other = index + offset;
+    const moved = [...ports];
+    const [a, b] = [moved[index], moved[other]];
+    if (a === undefined || b === undefined) return;
+    moved[index] = b;
+    moved[other] = a;
+    setPorts(moved);
   };
   const deviceOptions = config.type !== "donder" ? [] : [
     ...(config.device === "" ? [{ value: "", label: devices.length === 0 ? "None found" : "Choose", disabled: true }] : []),
@@ -92,7 +110,7 @@ export function ControllerForm({ controller, edit, onApplied }: {
       <Field label="Protocol">
         <Select name="Protocol" value={config.type} options={PROTOCOLS} onChange={(type) => {
           setConfig(defaultConfig(type, devices[0]?.id ?? ""));
-          if (type === "donder" && ports.length === 0) setPorts([newPort(ports)]);
+          setPorts(portsFor(type, ports));
         }} />
       </Field>
       {config.type === "e131" && <>
@@ -116,19 +134,26 @@ export function ControllerForm({ controller, edit, onApplied }: {
         <ConfigField label="Device" field={{ type: "device" }}>{(invalid) =>
           <Select name="Device" value={config.device} options={deviceOptions} invalid={invalid} onChange={(device) => { setConfig({ ...config, device }); }} />}
         </ConfigField>
+      </>}
+      <Section title="Ports">
         {ports.map((port, index) => <div className="controller-port-row" key={port.id}>
-          <ConfigField label="Name" member={{ type: "port", id: port.id }} field={{ type: "name" }}>{(invalid) => <TextField name="Output name" value={port.name} invalid={invalid} onCommit={(name) => { changePort(index, { name }); }} />}</ConfigField>
-          <span>Output {port.output}</span>
-          <ConfigField label="Channels" member={{ type: "port", id: port.id }} field={{ type: "channels" }}>{(invalid) =>
-            <NumberField name="Channels" value={port.slotCount} step={1} min={1} integer invalid={invalid} onCommit={(slotCount) => { changePort(index, { slotCount }); }} />}
-          </ConfigField>
-          <IconButton icon={X} label="Remove output" danger onClick={() => {
+          <ConfigField label="Name" tip="As the controller names this output" member={{ type: "port", id: port.id }} field={{ type: "name" }}>{(invalid) => <TextField name="Port name" value={port.name} invalid={invalid} onCommit={(name) => { changePort(index, { name }); }} />}</ConfigField>
+          <Field label="Description"><TextField name="Port description" value={port.description ?? ""} onCommit={(description) => { changePort(index, { description: description.trim() === "" ? null : description }); }} /></Field>
+          {port.donder !== null && <>
+            <span>Output {port.donder.output}</span>
+            <ConfigField label="Channels" member={{ type: "port", id: port.id }} field={{ type: "channels" }}>{(invalid) =>
+              <NumberField name="Channels" value={port.donder?.slotCount ?? DONDER_OUTPUT_CHANNELS} step={1} min={1} integer invalid={invalid} onCommit={(slotCount) => { if (port.donder !== null) changePort(index, { donder: { ...port.donder, slotCount } }); }} />}
+            </ConfigField>
+          </>}
+          <IconButton icon={ArrowUp} label="Move up" disabled={index === 0} onClick={() => { movePort(index, -1); }} />
+          <IconButton icon={ArrowDown} label="Move down" disabled={index === ports.length - 1} onClick={() => { movePort(index, 1); }} />
+          <IconButton icon={X} label="Remove port" danger onClick={() => {
             // Donder outputs are numbered 1..n to match the controller's physical outputs.
-            setPorts(ports.filter((_, i) => i !== index).map((candidate, i) => ({ ...candidate, output: i + 1 })));
+            setPorts(ports.filter((_, i) => i !== index).map((candidate, i) => ({ ...candidate, donder: candidate.donder === null ? null : { ...candidate.donder, output: i + 1 } })));
           }} />
         </div>)}
-        <AddRow label="Add output" onAdd={() => { setPorts([...ports, newPort(ports)]); }} />
-      </>}
+        <AddRow label="Add port" onAdd={() => { setPorts([...ports, newPort(config.type, ports)]); }} />
+      </Section>
       <Button type="submit" variant="primary" disabled={checking || problem !== null} {...(problem === null ? {} : { tip: problem.message })}>{controller === undefined ? "Add controller" : "Apply"}</Button>
     </fieldset>
   </DraftProblem></form>;

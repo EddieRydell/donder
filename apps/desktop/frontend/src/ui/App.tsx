@@ -8,7 +8,6 @@ import { runSnapshotCommand, subscribeToSnapshots, useAppStore, useStaticAppSnap
 import type { WorkspaceLayoutState } from "../types";
 import { EditorPane } from "./EditorPane";
 import { NewProjectDialog } from "./NewProjectDialog";
-import { NewSequenceDialog } from "./NewSequenceDialog";
 import { PerformBar } from "./PerformBar";
 import { SettingsDialog } from "./SettingsDialog";
 import { StatusBar } from "./StatusBar";
@@ -81,7 +80,6 @@ export function App() {
       <PerformBar projectEpoch={snapshot.projectEpoch} projectRevision={snapshot.projectRevision} />
       <StatusBar snapshot={snapshot} />
       <NewProjectDialog />
-      <NewSequenceDialog />
       <SettingsDialog />
       <UnsavedChangesDialog />
       <EditConfirmationDialog />

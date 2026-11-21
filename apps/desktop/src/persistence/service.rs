@@ -328,12 +328,6 @@ impl PersistenceService {
             .iter()
             .map(|path| remap_workspace_path(path, source, destination))
             .collect();
-        session.workspace_explorer.recent_files = session
-            .workspace_explorer
-            .recent_files
-            .iter()
-            .map(|path| remap_workspace_path(path, source, destination))
-            .collect();
         inner.save_now()
     }
 

@@ -1,12 +1,13 @@
 use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortId,
-    ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
+    ControllerProtocol, DonderConfig, DonderDeviceId, DonderPort, E131Config, E131Mode,
 };
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use crate::dto::{
-    ControllerGuiDocument, GuiDocument, SetupController, SetupControllerConfig, SetupControllerPort,
+    ControllerGuiDocument, GuiDocument, SetupController, SetupControllerConfig,
+    SetupControllerPort, SetupDonderOutput,
 };
 
 pub(super) fn project_controller(
@@ -22,12 +23,19 @@ pub(super) fn project_controller(
         config: (&controller.protocol).into(),
         ports: controller
             .ports()
-            .iter()
+            .into_iter()
             .map(|port| SetupControllerPort {
                 id: port.id.0,
-                name: port.name.as_str().to_string(),
-                output: port.output,
-                slot_count: port.slot_count,
+                name: port.name.clone(),
+                description: port.description.clone(),
+                donder: controller
+                    .donder_ports()
+                    .iter()
+                    .find(|donder| donder.port.id == port.id)
+                    .map(|donder| SetupDonderOutput {
+                        output: donder.output,
+                        slot_count: donder.slot_count,
+                    }),
             })
             .collect(),
     }
@@ -69,15 +77,15 @@ pub(super) fn edit(
         .map_err(GuiMutationError::from)
 }
 
-/// `ports` are a Donder controller's outputs; E1.31 and Art-Net
-/// controllers send universes and have none.
+/// `ports` are the controller's physical outputs; a Donder controller's
+/// each name the output it drives, and other controllers' name none.
 pub(super) fn domain_controller(
     id: ControllerId,
     description: Option<String>,
     config: SetupControllerConfig,
     ports: Vec<SetupControllerPort>,
 ) -> Result<Controller, GuiMutationError> {
-    use crate::dto::{GuiField, GuiMember, GuiProblemSite};
+    use crate::dto::{GuiField, GuiProblemSite};
     let invalid_address = |field: GuiField| {
         move |_| {
             GuiMutationError::At(
@@ -86,11 +94,20 @@ pub(super) fn domain_controller(
             )
         }
     };
-    if !ports.is_empty() && !matches!(config, SetupControllerConfig::Donder { .. }) {
+    let donder = matches!(config, SetupControllerConfig::Donder { .. });
+    if ports.iter().any(|port| port.donder.is_some() != donder) {
         return Err(GuiMutationError::Invalid(
-            "An E1.31 or Art-Net controller sends universes, not outputs.".into(),
+            "Only a Donder controller's ports drive a Donder output.".into(),
         ));
     }
+    let port = |port: &SetupControllerPort| ControllerPort {
+        id: ControllerPortId(port.id),
+        name: port.name.clone(),
+        description: port
+            .description
+            .clone()
+            .filter(|text| !text.trim().is_empty()),
+    };
     let protocol = match config {
         SetupControllerConfig::E131 {
             sender_name,
@@ -113,6 +130,7 @@ pub(super) fn domain_controller(
                 None => E131Mode::Multicast,
             },
             universes: universes.into(),
+            ports: ports.iter().map(port).collect(),
         }),
         SetupControllerConfig::ArtNet {
             bind_address,
@@ -132,6 +150,7 @@ pub(super) fn domain_controller(
                 ArtNetMode::Unicast
             },
             universes: universes.into(),
+            ports: ports.iter().map(port).collect(),
         }),
         SetupControllerConfig::Donder { device } => ControllerProtocol::Donder(DonderConfig {
             device: DonderDeviceId::parse(&device).ok_or_else(|| {
@@ -141,21 +160,15 @@ pub(super) fn domain_controller(
                 )
             })?,
             ports: ports
-                .into_iter()
-                .map(|port| {
-                    Ok(ControllerPort {
-                        id: ControllerPortId(port.id),
-                        name: super::model::typed_name(&port.name).map_err(|error| {
-                            error.at(GuiProblemSite::of(
-                                GuiMember::Port { id: port.id },
-                                Some(GuiField::Name),
-                            ))
-                        })?,
-                        output: port.output,
-                        slot_count: port.slot_count,
+                .iter()
+                .filter_map(|value| {
+                    value.donder.map(|physical| DonderPort {
+                        port: port(value),
+                        output: physical.output,
+                        slot_count: physical.slot_count,
                     })
                 })
-                .collect::<Result<_, GuiMutationError>>()?,
+                .collect(),
         }),
     };
     Ok(Controller {

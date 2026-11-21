@@ -4,10 +4,12 @@ use super::*;
 #[specta::specta]
 pub(crate) fn start_output_test(
     request: GuiDocumentRequest,
-    test: donder_editor::dto::ControllerOutputTest,
+    target: donder_editor::dto::OutputTestTarget,
+    pattern: donder_editor::dto::OutputTestPattern,
+    reversed: bool,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
-    state.start_output_test(&request, test)
+    state.start_output_test(&request, target, pattern, reversed)
 }
 
 #[tauri::command]

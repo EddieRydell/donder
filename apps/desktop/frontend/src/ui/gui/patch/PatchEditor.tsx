@@ -1,10 +1,11 @@
-import { sameGuiObject } from "../../../workspace/guiIdentity";
+import { guiObjectKey, sameGuiObject } from "../../../workspace/guiIdentity";
 import { X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
 import type { GuiDocumentRequest, GuiEditCommand, GuiField, GuiPixelRoute, PatchGuiDocument } from "../../../types";
-import { AddRow, Button, Field, IconButton, NumberField, Select, Tip, Toggle } from "../../kit";
+import { AddRow, Button, ContextMenuArea, Field, IconButton, NumberField, Select, Tip, Toggle } from "../../kit";
+import { outputTestEntries, useOutputTesting } from "../outputTest";
 import { DraftProblem, useDraftCheck, useFieldProblem } from "../problems";
 import { ReferenceInput } from "../setup/PatchInputs";
 
@@ -16,6 +17,7 @@ type Place = PatchGuiDocument["placements"][number]["place"];
 const RGB_ORDER: [number, number, number] = [1, 0, 2];
 const RGBW_ORDER: [number, number, number, number] = [1, 0, 2, 3];
 const ENCODINGS = [{ value: "rgb", label: "RGB" }, { value: "rgbw", label: "RGBW" }] as const;
+const STARTS = [{ value: "next", label: "After previous" }, { value: "channel", label: "Channel" }] as const;
 const COMPONENT_LETTERS = "RGBW";
 
 const COMPONENTS = [0, 1, 2, 3];
@@ -48,11 +50,30 @@ function placeLabels(place: Place): { compact: string; full: string } {
   }
 }
 
-/** A Donder controller's routes name one of its ports; other controllers' routes name none. */
-const firstPort = (controller: Controller | undefined) => controller?.config.type === "donder" ? controller.ports[0]?.id ?? null : null;
+/** A new route's port: the controller's first; a controller without ports leaves the route on none, which its check reports. */
+const firstPort = (controller: Controller | undefined) => controller?.ports[0]?.id ?? 0;
+
+const portLabel = (port: Controller["ports"][number]) => port.donder === null ? port.name : `${port.name} (${port.donder.slotCount} ch)`;
+
+/** The routes on each controller, its ports in order and each port's routes in patch order: the order their channels follow. */
+function controllerGroups(document: PatchGuiDocument) {
+  const missing = (route: GuiPixelRoute) => ({ route, port: "Missing" });
+  const groups = document.controllers.flatMap((controller) => {
+    const routes = document.routes.filter((route) => sameGuiObject(controller.sourceRef, route.controller));
+    if (routes.length === 0) return [];
+    const onPorts = controller.ports.flatMap((port) => routes.filter((route) => route.port === port.id).map((route) => ({ route, port: port.name })));
+    const unported = routes.filter((route) => !controller.ports.some((port) => port.id === route.port)).map(missing);
+    return [{ key: guiObjectKey(controller.sourceRef), label: controller.label, routes: [...onPorts, ...unported] }];
+  });
+  const orphans = document.routes.filter((route) => !document.controllers.some((controller) => sameGuiObject(controller.sourceRef, route.controller)));
+  return orphans.length === 0 ? groups : [...groups, { key: "", label: "Missing", routes: orphans.map(missing) }];
+}
 
 export function PatchEditor({ document }: { document: PatchGuiDocument }) {
   const [draft, setDraft] = useState<Draft | null>(null);
+  /** The right-clicked route row. */
+  const [menuRoute, setMenuRoute] = useState<number | null>(null);
+  const testing = useOutputTesting();
   const request = useAppStore((state) => state.guiRequest);
   const revision = useAppStore((state) => state.guiDocumentRevision);
   const pending = useAppStore((state) => state.guiEditPending);
@@ -73,7 +94,7 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
     setDraft({ ...draft, routes: [...draft.routes, {
       id: Math.max(0, ...draft.routes.map((route) => route.id)) + 1,
       layout: layout.sourceRef, fixture: fixture.id, pixels: null,
-      controller: controller.sourceRef, port: firstPort(controller), startChannel: 0,
+      controller: controller.sourceRef, port: firstPort(controller), start: { type: "next" },
       encoding: { type: "rgb", order: [...RGB_ORDER] }, gamma: 1, brightness: 1, dither: false
     }] });
   };
@@ -81,22 +102,27 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
   const applyBlocked = stale ? "The outputs changed elsewhere" : problem?.message;
   return <main className="setup-editor">
     <header className="object-overview-header"><h2>Outputs</h2></header>
-    {draft === null ? <section className="setup-section">
-      {document.routes.map((route) => {
-        const place = document.placements.find((placement) => placement.route === route.id)?.place;
-        const fixture = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, route.layout))?.fixtures.find((candidate) => candidate.id === route.fixture)?.name ?? "Missing";
-        const controller = document.controllers.find((candidate) => sameGuiObject(candidate.sourceRef, route.controller))?.label ?? "Missing";
-        const labels = place === undefined ? null : placeLabels(place);
-        const order = orderName(route.encoding.order);
-        return <Tip key={route.id} label={`${fixture} → ${controller}${labels === null ? "" : `, ${labels.full}`} · ${order}`}>
-          <div className="patch-route-row">
-            <span>{fixture}</span><span>{controller}</span><span>{labels?.compact ?? ""}</span><span>{order}</span>
-          </div>
-        </Tip>;
-      })}
+    {draft === null ? <ContextMenuArea entries={menuRoute === null ? [] : outputTestEntries({ type: "route", route: menuRoute }, pending || request === null || revision !== request.projectRevision, testing)}><section className="setup-section" onContextMenuCapture={(event) => {
+      const row = event.target instanceof Element ? event.target.closest("[data-route]") : null;
+      setMenuRoute(row === null ? null : Number(row.getAttribute("data-route")));
+    }}>
+      {controllerGroups(document).map((group) => <Fragment key={group.key}>
+        <h3>{group.label}</h3>
+        {group.routes.map(({ route, port }) => {
+          const place = document.placements.find((placement) => placement.route === route.id)?.place;
+          const fixture = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, route.layout))?.fixtures.find((candidate) => candidate.id === route.fixture)?.name ?? "Missing";
+          const labels = place === undefined ? null : placeLabels(place);
+          const order = orderName(route.encoding.order);
+          return <Tip key={route.id} label={`${fixture} → ${group.label} port ${port}${labels === null ? "" : `, ${labels.full}`} · ${order}`}>
+            <div className="patch-route-row" data-route={route.id}>
+              <span>{fixture}</span><span>{port}</span><span>{labels?.compact ?? ""}</span><span>{order}</span>
+            </div>
+          </Tip>;
+        })}
+      </Fragment>)}
       <Button disabled={pending || request === null || revision !== request.projectRevision}
         onClick={() => { if (request !== null) setDraft({ origin: request, routes: structuredClone(document.routes) }); }}>Edit outputs</Button>
-    </section> : <form className="setup-section" onSubmit={(event) => {
+    </section></ContextMenuArea> : <form className="setup-section" onSubmit={(event) => {
       event.preventDefault();
       void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "patch", routes: draft.routes }), draft.origin)
         .then((result) => { if (result !== null) setDraft(null); });
@@ -158,15 +184,20 @@ function RouteFields({ document, route, disabled, onChange }: { document: PatchG
       onChange({ ...route, controller: reference, port: firstPort(next) });
     }} />
     <Field label="Port" error={error("port")}>
-      <Select name="Port" value={route.port === null ? "" : String(route.port)} disabled={disabled || controller?.config.type !== "donder"} invalid={error("port") !== null}
+      <Select name="Port" value={String(route.port)} disabled={disabled} invalid={error("port") !== null}
         onChange={(port) => { onChange({ ...route, port: Number(port) }); }}
         options={[
-          ...(route.port === null ? [{ value: "", label: controller?.config.type === "donder" ? "Choose" : "None", disabled: true }] : []),
-          ...(controller?.config.type === "donder" ? controller.ports : []).map((port) => ({ value: String(port.id), label: `${port.name} (${port.slotCount} ch)` }))
+          ...(controller?.ports.some((port) => port.id === route.port) === true ? [] : [{ value: String(route.port), label: "Choose", disabled: true }]),
+          ...(controller?.ports ?? []).map((port) => ({ value: String(port.id), label: portLabel(port) }))
         ]} />
     </Field>
+    <Field label="Start" tip="After the output before it on its port, or at a channel">
+      <Select name="Start" value={route.start.type} options={STARTS} disabled={disabled}
+        onChange={(type) => { onChange({ ...route, start: type === "next" ? { type } : { type, channel: 0 } }); }} />
+    </Field>
     <Field label="First channel" error={error("firstChannel")} {...(controller?.config.type === "donder" ? {} : { tip: "Counted across all the controller's universes" })}>
-      <NumberField name="First channel" value={route.startChannel + 1} step={1} min={1} integer disabled={disabled} invalid={error("firstChannel") !== null} onCommit={(value) => { onChange({ ...route, startChannel: value - 1 }); }} />
+      <NumberField name="First channel" value={route.start.type === "channel" ? route.start.channel + 1 : 1} step={1} min={1} integer disabled={disabled || route.start.type !== "channel"} invalid={error("firstChannel") !== null}
+        onCommit={(value) => { onChange({ ...route, start: { type: "channel", channel: value - 1 } }); }} />
     </Field>
     <Field label="Encoding">
       <Select name="Encoding" value={route.encoding.type} options={ENCODINGS} disabled={disabled} onChange={(type) => {

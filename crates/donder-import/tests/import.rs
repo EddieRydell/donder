@@ -167,7 +167,20 @@ fn routes_follow_the_channels() {
         .universes()
         .unwrap();
     assert_eq!(
-        universes.locate(route.start_channel),
+        universes.locate(
+            donder_model::patch_placements(
+                &session.project,
+                patch,
+                &donder_model::fixture_pixel_counts(
+                    session
+                        .project
+                        .reusable::<donder_model::FixtureDefinition>()
+                )
+                .unwrap()
+            )[&route.id]
+                .channels
+                .start
+        ),
         donder_model::UniverseChannel {
             universe: 232,
             channel: 1

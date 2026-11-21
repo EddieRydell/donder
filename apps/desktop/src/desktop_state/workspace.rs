@@ -10,7 +10,7 @@ use super::{
 };
 use crate::persistence::ProjectRestoreState;
 use crate::project::{new_project_files, write_new_project_files};
-use donder_editor::dto::{AppSnapshot, EditorViewMode, NewSequenceRequest, ViewStateUpdate};
+use donder_editor::dto::{AppSnapshot, EditorViewMode, ViewStateUpdate};
 use donder_editor::dto::{
     WorkspacePathChangeImpact, WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
@@ -114,24 +114,17 @@ impl DesktopState {
         let descriptor = self
             .project_session()
             .and_then(|project| descriptor_for_path(&project, &relative));
-        let path = {
+        {
             let mut workspace = lock_unpoisoned(&self.workspace);
             let path = workspace.documents[&relative].buffer.path.clone();
             let document_path = Utf8PathBuf::from(&path);
             if !workspace.tabs.contains(&document_path) {
                 workspace.tabs.push(document_path);
             }
-            workspace.view.active_file = Some(path.clone());
-            path
-        };
+            workspace.view.active_file = Some(path);
+        }
         self.update_snapshot(|snapshot| {
             snapshot.active_document_descriptor = descriptor;
-            snapshot
-                .workspace_explorer
-                .recent_files
-                .retain(|item| Utf8Path::new(item) != Utf8Path::new(&path));
-            snapshot.workspace_explorer.recent_files.insert(0, path);
-            snapshot.workspace_explorer.recent_files.truncate(20);
         })
     }
 
@@ -173,13 +166,6 @@ impl DesktopState {
             .filter(|buffer| path_matches_or_is_child(&buffer.path, &request.source))
             .map(|buffer| buffer.path.clone())
             .collect();
-        let recent_files = snapshot
-            .workspace_explorer
-            .recent_files
-            .iter()
-            .filter(|path| path_matches_or_is_child(path, &request.source))
-            .cloned()
-            .collect();
         let restore = snapshot
             .project_root
             .as_deref()
@@ -211,7 +197,6 @@ impl DesktopState {
                 imports: plan.impact.imports,
                 assets: plan.impact.assets,
                 open_files,
-                recent_files,
                 persisted_state,
             },
         })
@@ -313,12 +298,6 @@ impl DesktopState {
             snapshot.workspace_explorer.expanded_paths = snapshot
                 .workspace_explorer
                 .expanded_paths
-                .iter()
-                .map(|path| remap(path))
-                .collect();
-            snapshot.workspace_explorer.recent_files = snapshot
-                .workspace_explorer
-                .recent_files
                 .iter()
                 .map(|path| remap(path))
                 .collect();
@@ -510,52 +489,6 @@ impl DesktopState {
         })
     }
 
-    pub(super) fn copy_project_locked(
-        &self,
-        parent_path: &str,
-        directory_name: &str,
-        discard: bool,
-    ) -> AppSnapshot {
-        let root = match project_destination(parent_path, directory_name) {
-            Ok(root) => root,
-            Err(error) => return self.snapshot_with_error(&error),
-        };
-        let project = if discard {
-            let Some(original_root) = self.project_root_path() else {
-                return self.snapshot_with_error("No project is open");
-            };
-            match donder_project_io::check_project(
-                &original_root,
-                &Default::default(),
-                &mut Default::default(),
-            )
-            .into_session()
-            {
-                Ok(loaded) => Arc::new(loaded),
-                Err(error) => {
-                    return self.snapshot_with_error(&format!(
-                        "The saved project cannot be copied: {error:?}"
-                    ));
-                }
-            }
-        } else {
-            let Some(project) = self.project_session() else {
-                return self.snapshot_with_error(
-                    "Fix project errors before creating a standalone project copy",
-                );
-            };
-            project
-        };
-        let result = {
-            let _filesystem = lock_unpoisoned(&self.filesystem);
-            donder_project_io::export_editable_project(&project, &root)
-        };
-        if let Err(error) = result {
-            return self.snapshot_with_error(&error);
-        }
-        self.open_created_project_locked(&root)
-    }
-
     fn open_created_project_locked(&self, root: &Utf8Path) -> AppSnapshot {
         let opened = self.load_working_copy(root);
         if opened.project_root.as_deref() != Some(root.as_str()) {
@@ -570,40 +503,6 @@ impl DesktopState {
         let mut settings = self.snapshot().settings;
         settings.editor_view_mode = EditorViewMode::Gui;
         self.update_app_settings_locked(settings)
-    }
-
-    pub(crate) fn create_sequence(
-        &self,
-        request: NewSequenceRequest,
-    ) -> donder_editor::dto::NewSequenceResult {
-        use donder_editor::dto::{GuiProblem, NewSequenceResult};
-        let _authoring = self.settled_authoring();
-        let refused = |message: &str| NewSequenceResult::Refused {
-            problem: GuiProblem::without_site(message),
-        };
-        let Some(project) = self.project_session() else {
-            return refused("No project is loaded.");
-        };
-        let Some(owner) = project.source_identity(project.project.root().id.into()) else {
-            return refused("The project is missing from its files.");
-        };
-        let target = donder_editor::dto::GuiDocumentRequest {
-            owned_path: Vec::new(),
-            project_revision: self.snapshot().project_revision,
-            path: owner.document().to_string(),
-            object_key: owner.object().to_string(),
-        };
-        match self.mutate_gui_project_locked(&target, None, |session| {
-            let owner = donder_editor::resolve_request(session, &target)
-                .map_err(donder_editor::GuiMutationError::Invalid)?;
-            donder_editor::create_sequence(session, &owner, request)
-        }) {
-            Ok((result, source)) => NewSequenceResult::Created {
-                snapshot: Box::new(result.snapshot),
-                source,
-            },
-            Err(problem) => NewSequenceResult::Refused { problem },
-        }
     }
 
     /// What deleting `path` also changes in the documents that stay, a

@@ -9,8 +9,8 @@ use crate::desktop_state::DesktopState;
 use crate::persistence::{PersistedPreviewWindowState, ProjectRestoreState};
 use donder_editor::dto::{
     AppSettings, AppSnapshot, AudioTransportState, EditorViewMode, GuiDocumentChange,
-    GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, NewSequenceRequest, PlaybackRange,
-    PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse, SequenceClipRasterRequest,
+    GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, PlaybackRange, PlaybackSpeed,
+    ProjectSearchRequest, ProjectSearchResponse, SequenceClipRasterRequest,
     SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceGuiEdit, SequenceSelection,
     ViewStateUpdate, WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
@@ -48,7 +48,6 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         open_project_dialog,
         choose_new_project_parent_directory,
         choose_profile_directory,
-        create_sequence,
         open_file,
         move_tab,
         resolve_gui_source,

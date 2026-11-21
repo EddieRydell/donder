@@ -208,9 +208,7 @@ fn route_field(problem: &RouteProblem) -> Option<GuiField> {
         RouteProblem::TargetNotFixture | RouteProblem::Target(_) => GuiField::Fixture,
         RouteProblem::EmptySpan | RouteProblem::SpanExceedsTarget { .. } => GuiField::Pixels,
         RouteProblem::MissingController => GuiField::Controller,
-        RouteProblem::PortOnUniverses | RouteProblem::NeedsPort | RouteProblem::MissingPort => {
-            GuiField::Port
-        }
+        RouteProblem::MissingPort => GuiField::Port,
         RouteProblem::ChannelOverflow
         | RouteProblem::PastLastChannel { .. }
         | RouteProblem::OutputsOverlap { .. } => GuiField::FirstChannel,
@@ -225,7 +223,7 @@ fn controller_field(error: &ControllerValidationError) -> Option<GuiField> {
         ControllerValidationError::InvalidUniverseChannels(_) => GuiField::UniverseChannels,
         ControllerValidationError::E131UniversesOutOfRange(_)
         | ControllerValidationError::ArtNetUniversesOutOfRange(_) => GuiField::UniverseStart,
-        ControllerValidationError::InvalidPortName(_)
+        ControllerValidationError::EmptyPortName(_)
         | ControllerValidationError::DuplicatePortName(_) => GuiField::Name,
         ControllerValidationError::EmptyPort(_) => GuiField::Channels,
         ControllerValidationError::DuplicatePort(_)

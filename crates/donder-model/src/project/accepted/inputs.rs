@@ -18,7 +18,7 @@ pub(in crate::project) struct ProjectInputs {
     pub(super) sequences: IndexMap<SequenceId, SequenceInputs>,
     pub(super) consoles: IndexMap<crate::console::ConsoleId, super::console::ConsoleInputs>,
     pub(super) layouts: IndexMap<crate::layout::LayoutId, super::geometry::LayoutGeometry>,
-    pub(super) patches: IndexMap<crate::patch::PatchId, super::patch::PatchEncodings>,
+    pub(super) patches: IndexMap<crate::patch::PatchId, super::patch::AdmittedPatch>,
 }
 
 #[derive(Debug)]

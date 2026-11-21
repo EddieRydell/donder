@@ -1057,7 +1057,7 @@ mod tests {
         let universes = text[start..end]
             .lines()
             .filter(|line| {
-                ["start_universe:", "universes:", "channels:"]
+                ["start_universe:", "universes:", "channels:", "ports:"]
                     .iter()
                     .any(|field| line.trim_start().starts_with(field))
             })

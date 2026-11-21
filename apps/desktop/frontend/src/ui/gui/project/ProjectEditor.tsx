@@ -33,26 +33,34 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
         /><OwnershipActions declarations={document.availableDeclarations} source={document.setup} label="Setup" /></div>
       </section>
 
-      <section className="object-overview-group">
-        <div className="object-overview-heading">
-          <h3>Sequences</h3>
-          <span>{document.sequences.length}</span>
-        </div>
-        {document.sequences.map((sequence) => {
-          const name = guiObjectName(sequence) ?? sequence.objectKey;
-          return <div className="object-overview-row-with-actions" key={guiObjectKey(sequence)}><ObjectRow
-            icon={<ListVideo aria-hidden="true" />}
-            title={name}
-            onOpen={() => void navigateToGuiObject(sequence)}
-          /><IconButton icon={Play} label={`Play ${name}`} onClick={() => void playSequence(sequence)} />
-            <OwnershipActions declarations={document.availableDeclarations} source={sequence} label={name}
-              entries={[{ type: "action", label: "Play", icon: Play, onSelect: () => void playSequence(sequence) }]} /></div>;
-        })}
-      </section>
-
+      <SequenceList document={document} />
       <ConsoleList document={document} />
     </main>
   );
+}
+
+/** The project's sequences. */
+function SequenceList({ document }: { document: ProjectGuiDocument }) {
+  const pending = useAppStore((state) => state.guiEditPending);
+  const addSequence = () => void runGuiEditCommand((request) =>
+    commands.applyGuiEdit(request, { type: "project", edit: { type: "addSequence", initialColor: THEME_COLORS.defaultSequenceColor, storage: DEFAULT_OBJECT_STORAGE } }));
+  return <section className="object-overview-group">
+    <div className="object-overview-group-header">
+      <h3>Sequences</h3>
+      {document.sequences.length > 0 && <IconButton icon={Plus} label="Add sequence" disabled={pending} onClick={addSequence} />}
+    </div>
+    {document.sequences.length === 0 ? <AddRow label="Add sequence" disabled={pending} onAdd={addSequence} />
+      : document.sequences.map((sequence) => {
+        const name = guiObjectName(sequence) ?? sequence.objectKey;
+        return <div className="object-overview-row-with-actions" key={guiObjectKey(sequence)}><ObjectRow
+          icon={<ListVideo aria-hidden="true" />}
+          title={name}
+          onOpen={() => void navigateToGuiObject(sequence)}
+        /><IconButton icon={Play} label={`Play ${name}`} onClick={() => void playSequence(sequence)} />
+          <OwnershipActions declarations={document.availableDeclarations} source={sequence} label={name}
+            entries={[{ type: "action", label: "Play", icon: Play, onSelect: () => void playSequence(sequence) }]} /></div>;
+      })}
+  </section>;
 }
 
 /** The project's consoles, which Perform plays live. */

@@ -36,8 +36,8 @@ fn inline_fields() -> String {
           target: main.setup.layout.test_strip,
           pixels: none,
           controller: main.setup.controllers.controller_3,
-          port: none,
-          start_channel: 0,
+          port: "1",
+          start: Next,
           encoding: Rgb {{ order: (0, 1, 2) }},
           gamma: 1.0,
           brightness: 1.0,
@@ -49,7 +49,7 @@ fn inline_fields() -> String {
       {CONTROLLER},
       Controller spare_8 {{
         description: none,
-        protocol: E131 {{ sender_name: "Spare", bind_address: "0.0.0.0", priority: 100, mode: Multicast, start_universe: 2, universes: 1, channels: 512 }},
+        protocol: E131 {{ sender_name: "Spare", bind_address: "0.0.0.0", priority: 100, mode: Multicast, start_universe: 2, universes: 1, channels: 512, ports: [] }},
       }},
     ],
     input_devices: [
@@ -77,6 +77,7 @@ const CONTROLLER: &str = r#"Controller controller_3 {
           start_universe: 1,
           universes: 1,
           channels: 512,
+          ports: [Port { name: "1", description: none }],
         },
       }"#;
 
@@ -211,7 +212,10 @@ fn ownership_rejects_duplicate_names_malformed_types_and_dangling_addresses() {
             fields.replace("frame_rate: 30,", "frame_rate: 30,\n      typo: true,"),
             "typo",
         ),
-        (fields.replace("port: none", "port: port_9"), "port_9"),
+        (
+            fields.replace("port: \"1\"", "port: \"9\""),
+            "no port \"9\"",
+        ),
     ] {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(temporary.path()).unwrap();

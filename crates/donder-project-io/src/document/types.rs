@@ -57,6 +57,35 @@ macro_rules! model_choice {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Spelled<T>(pub T);
 
+/// A port's free-text name, with where it is written for links and
+/// diagnostics.
+#[derive(Clone, Debug)]
+pub(crate) struct PortName(pub Spanned<String>);
+
+impl PortName {
+    pub(crate) fn new(name: String) -> Self {
+        Self(Spanned::new(name, donder_language::data::NO_SPAN))
+    }
+}
+
+impl PartialEq for PortName {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.value == other.0.value
+    }
+}
+
+impl Data for PortName {
+    fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
+        String::decode(value, decoder).map(|name| Self(Spanned::new(name, value.span)))
+    }
+    fn encode(&self) -> DataValue {
+        self.0.value.encode()
+    }
+    fn shape(schema: &mut Schema) -> donder_language::data::Shape {
+        String::shape(schema)
+    }
+}
+
 /// A value with a canonical string spelling.
 pub(crate) trait Spelling: std::str::FromStr + std::fmt::Display {
     /// What a string of this type is, for diagnostics.
@@ -131,6 +160,8 @@ pub(crate) enum Protocol {
         start_universe: u16,
         universes: u16,
         channels: u16,
+        /// Its physical outputs, in the order its channels fill them.
+        ports: Vec<Port>,
     },
     ArtNet {
         bind_address: Spelled<SocketAddr>,
@@ -140,10 +171,12 @@ pub(crate) enum Protocol {
         start_universe: u16,
         universes: u16,
         channels: u16,
+        /// Its physical outputs, in the order its channels fill them.
+        ports: Vec<Port>,
     },
     Donder {
         device: String,
-        ports: Vec<Port>,
+        ports: Vec<DonderPort>,
     },
 }
 
@@ -155,9 +188,19 @@ pub(crate) enum E131Mode {
 
 model_choice!(ArtNetMode(donder_model::ArtNetMode) { Unicast, Broadcast });
 
+/// A physical output, named as its controller names it.
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Port {
-    pub name: Name,
+    pub name: PortName,
+    pub description: Option<String>,
+}
+
+/// A Donder controller's port, its own channel stream.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) struct DonderPort {
+    pub name: PortName,
+    pub description: Option<String>,
+    /// The controller's physical output, from 1.
     pub output: u8,
     pub slots: u16,
 }
@@ -366,15 +409,22 @@ pub(crate) struct Route {
     pub pixels: Option<PixelSpan>,
     #[refers(Declaration("Controller"))]
     pub controller: Reference,
-    /// A port of a Donder `controller`; none for an E1.31 or Art-Net one.
-    pub port: Option<Name>,
-    /// From 0: across an E1.31 or Art-Net controller's universes, or in the
-    /// Donder port.
-    pub start_channel: u32,
+    /// The name of one of the `controller`'s ports.
+    pub port: PortName,
+    pub start: RouteStart,
     pub encoding: Encoding,
     pub gamma: f32,
     pub brightness: f32,
     pub dither: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) enum RouteStart {
+    /// Right after the route before it on its port.
+    Next,
+    /// From 0: across an E1.31 or Art-Net controller's universes, or in the
+    /// Donder port.
+    Channel { channel: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

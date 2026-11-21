@@ -15,7 +15,6 @@ export const commands = {
 	chooseNewProjectParentDirectory: () => __TAURI_INVOKE<string | null>("choose_new_project_parent_directory"),
 	/**  The folder of an xLights or Vixen profile. */
 	chooseProfileDirectory: () => __TAURI_INVOKE<string | null>("choose_profile_directory"),
-	createSequence: (request: NewSequenceRequest) => __TAURI_INVOKE<NewSequenceResult>("create_sequence", { request }),
 	openFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("open_file", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	moveTab: (path: string, index: number) => __TAURI_INVOKE<AppSnapshot>("move_tab", { path, index }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	resolveGuiSource: (path: string, objectKey: string) => typedError<GuiDocumentRequest, string>(__TAURI_INVOKE("resolve_gui_source", { path, objectKey })),
@@ -108,7 +107,7 @@ export const commands = {
 	audioSetLooping: (looping: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_set_looping", { looping })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setPreviewAppearance: (appearance: PreviewAppearance) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_preview_appearance", { appearance })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setLiveOutputActive: (active: boolean) => __TAURI_INVOKE<AppSnapshot>("set_live_output_active", { active }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	startOutputTest: (request: GuiDocumentRequest, target: OutputTestTarget, pattern: OutputTestPattern, reversed: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, target, pattern, reversed })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getPerformSnapshot: () => __TAURI_INVOKE<PerformSnapshot>("get_perform_snapshot").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
 	startPerforming: (projectRevision: number, console: number) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("start_performing", { projectRevision, console })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:v.data.session}) } : v) as typeof v)),
@@ -143,7 +142,7 @@ export const ACCESS_POINT_PASSWORD = "12345678" as const;
 
 /* Types */
 /**  Commands the workbench runs, whatever editor is open. */
-export type AppCommandId = "file.newProject" | "file.copyProject" | "file.importProfile" | "file.newSequence" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.quickOpen" | "workbench.commandPalette" | "project.reload" | "perform.stop";
+export type AppCommandId = "file.newProject" | "file.importProfile" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.commandPalette" | "project.reload" | "perform.stop";
 
 export type AppSettings = {
 	reopenLastProject: boolean,
@@ -456,16 +455,6 @@ export type ControllerGuiDocument = {
 	path: string,
 	objectKey: string,
 	controller: SetupController,
-};
-
-/**
- *  Channels of an E1.31 or Art-Net controller, from 0 across all its
- *  universes, to send at one value.
- */
-export type ControllerOutputTest = {
-	startChannel: number,
-	channelCount: number,
-	value: number,
 };
 
 export type CurveGuiDocument = {
@@ -826,13 +815,9 @@ export type GuiPixelRoute = {
 	fixture: number,
 	pixels: GuiPixelSpan | null,
 	controller: GuiObjectRef,
-	/**  A Donder controller's port; none for an E1.31 or Art-Net controller. */
-	port: number | null,
-	/**
-	 *  From 0: across an E1.31 or Art-Net controller's universes, or in the
-	 *  Donder port.
-	 */
-	startChannel: number,
+	/**  One of the controller's ports, by id. */
+	port: number,
+	start: GuiRouteStart,
 	encoding: GuiPixelEncoding,
 	gamma: number,
 	brightness: number,
@@ -866,6 +851,16 @@ export type GuiRoutePlacement = {
 	route: number,
 	place: GuiChannelPlace,
 };
+
+/**  Where a route's channels begin. */
+export type GuiRouteStart = 
+/**  Right after the route before it on its port. */
+{ type: "next" } | 
+/**
+ *  From 0: across an E1.31 or Art-Net controller's universes, or in the
+ *  Donder port.
+ */
+{ type: "channel"; channel: number };
 
 /**  An E1.31 or Art-Net controller's consecutive universes. */
 export type GuiUniverses = {
@@ -1025,19 +1020,18 @@ export type NewMarkCollection = {
  */
 export type NewObjectStorage = "inline" | "sameFile" | "newFile";
 
-export type NewSequenceRequest = {
-	/**  The declaration's name, when `storage` declares one. */
-	name: string,
-	storage: NewObjectStorage,
-	initialColor: string,
-	durationSeconds: number,
-	frameRate: number,
-};
-
-/**  A created sequence and the project with it, or why it was refused. */
-export type NewSequenceResult = { type: "created"; snapshot: AppSnapshot; source: GuiObjectRef } | { type: "refused"; problem: GuiProblem };
-
 export type ObjectKind = "project" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "sequence" | "console" | "curve" | "gradient" | "effect" | "operator";
+
+export type OutputTestPattern = { type: "solid"; red: number; green: number; blue: number } | { type: "count" } | { type: "order" } | { type: "chase" } | { type: "rise" };
+
+/**  What an output test lights, in the open document. */
+export type OutputTestTarget = 
+/**  The open controller's channels, from 0 across all its universes. */
+{ type: "channels"; startChannel: number; channelCount: number } | 
+/**  The open layout's fixture, or a group's fixtures. */
+{ type: "layoutItem"; item: number } | 
+/**  One of the open patch's routes. */
+{ type: "route"; route: number };
 
 /**  A stable ownership slot: owned members are named, never addressed by position. */
 export type OwnedObjectSlot = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
@@ -1240,6 +1234,11 @@ export type ProjectGuiDocument = {
 };
 
 export type ProjectGuiEdit = 
+/**
+ *  A new sequence of the project, stored where `storage` says, with the
+ *  default layer drawn to the output.
+ */
+{ type: "addSequence"; initialColor: string; storage: NewObjectStorage } | 
 /**
  *  A new console of the project, stored where `storage` says, with the
  *  default layer drawn to the output.
@@ -1792,9 +1791,20 @@ export type SetupControllerConfig = { type: "e131"; senderName: string; bindAddr
 
 export type SetupControllerPort = {
 	id: number,
-	/**  Unique within the controller; patch routes refer to it. */
+	/**  Free text, unique within the controller; patch routes refer to it. */
 	name: string,
-	/**  The Donder controller's physical output, from 1. */
+	/**  Empty text means none. */
+	description: string | null,
+	/**
+	 *  A Donder controller's port's physical output; none on an E1.31 or
+	 *  Art-Net controller.
+	 */
+	donder: SetupDonderOutput | null,
+};
+
+/**  The physical output a Donder controller's port drives. */
+export type SetupDonderOutput = {
+	/**  From 1. */
 	output: number,
 	slotCount: number,
 };
@@ -1926,7 +1936,6 @@ export type WorkspaceEntryRole = ObjectKind | WorkspaceEntryPlainRole;
 
 export type WorkspaceExplorerState = {
 	expandedPaths: string[],
-	recentFiles: string[],
 };
 
 export type WorkspaceLayoutState = {
@@ -1944,7 +1953,6 @@ export type WorkspacePathChangeImpact = {
 	imports: string[],
 	assets: string[],
 	openFiles: string[],
-	recentFiles: string[],
 	persistedState: string[],
 };
 
@@ -1960,7 +1968,7 @@ export type WorkspacePathChangeRequest = {
 	projectRevision: number,
 };
 
-export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string; initialColor: string } | { type: "copyProject"; parentPath: string; directoryName: string } | 
+export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string; initialColor: string } | 
 /**
  *  A new project holding the layout, controllers and patch of the
  *  xLights or Vixen profile in `profile_path`.

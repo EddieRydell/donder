@@ -8,11 +8,11 @@ use crate::report::{
 };
 use camino::Utf8PathBuf;
 use donder_model::{
-    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerOutput, ControllerProtocol,
-    ControllerValidationError, E131Config, E131Mode, FixtureDefinition, FixtureInstanceId,
-    FixtureTarget, FixtureTransform, Layout, LayoutFixture, LayoutFixtureKind, LayoutId, ObjectId,
-    Owned, OwnedMember, OwnershipSite, Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan,
-    ProjectEdit, Setup, Universes,
+    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortId,
+    ControllerProtocol, ControllerValidationError, E131Config, E131Mode, FixtureDefinition,
+    FixtureInstanceId, FixtureTarget, FixtureTransform, Layout, LayoutFixture, LayoutFixtureKind,
+    LayoutId, ObjectId, Owned, OwnedMember, OwnershipSite, Patch, PatchId, PixelRoute,
+    PixelRouteId, PixelSpan, ProjectEdit, RouteStart, Setup, Universes,
 };
 use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::{Identifier, PixelEncoding};
@@ -267,13 +267,27 @@ fn protocol(protocol: &ProfileProtocol, universes: Universes) -> ControllerProto
             priority: *priority,
             mode: mode.clone(),
             universes,
+            ports: vec![import_port()],
         }),
         ProfileProtocol::ArtNet(destination) => ControllerProtocol::ArtNet(ArtNetConfig {
             bind_address: SocketAddr::new(unspecified, ARTNET_PORT),
             destination: SocketAddr::new(*destination, ARTNET_PORT),
             mode: ArtNetMode::Unicast,
             universes,
+            ports: vec![import_port()],
         }),
+    }
+}
+
+/// The one port an imported controller has; profiles do not say which
+/// physical output carries which channels.
+const IMPORT_PORT: ControllerPortId = ControllerPortId(1);
+
+fn import_port() -> ControllerPort {
+    ControllerPort {
+        id: IMPORT_PORT,
+        name: "1".to_string(),
+        description: None,
     }
 }
 
@@ -295,7 +309,7 @@ fn refusal(error: ControllerValidationError) -> Result<ControllerSkip, ImportErr
         | Invalid::NoUniverses
         | Invalid::InvalidUniverseChannels(_)
         | Invalid::DuplicatePort(_)
-        | Invalid::InvalidPortName(_)
+        | Invalid::EmptyPortName(_)
         | Invalid::DuplicatePortName(_)
         | Invalid::EmptyPort(_)
         | Invalid::InvalidDonderOutput { .. }
@@ -501,6 +515,8 @@ pub(crate) fn build(
     let mut claimed: HashMap<ControllerId, Vec<Claim>> = HashMap::new();
     let mut fixtures = Vec::new();
     let mut route_list = Vec::new();
+    // Where each controller's last route ends, for routes that follow on.
+    let mut ends: HashMap<ControllerId, u32> = HashMap::new();
     let mut by_name: HashMap<String, FixtureInstanceId> = HashMap::new();
     let mut taken: HashSet<String> = HashSet::new();
     for fixture in profile_fixtures {
@@ -551,6 +567,8 @@ pub(crate) fn build(
             .dimming
             .map_or((1.0, 1.0), |dimming| (dimming.brightness, dimming.gamma));
         for (place, start, count) in runs {
+            let previous_end = ends.insert(place.controller, place.channel + count * per_pixel);
+            let follows = previous_end.unwrap_or(0) == place.channel;
             route_list.push(PixelRoute {
                 id: PixelRouteId(route_list.len() as u32 + 1),
                 target: FixtureTarget {
@@ -559,8 +577,12 @@ pub(crate) fn build(
                 },
                 pixels: (count != pixel_count).then_some(PixelSpan { start, count }),
                 controller: place.controller,
-                output: ControllerOutput::Universes,
-                start_channel: place.channel,
+                port: IMPORT_PORT,
+                start: if follows {
+                    RouteStart::Next
+                } else {
+                    RouteStart::Channel(place.channel)
+                },
                 encoding: fixture.encoding,
                 gamma,
                 brightness,

@@ -57,12 +57,11 @@ pub use path_refactor::{
     PathChangeImpact, PathChangePlan, PathChangeSourceKind, apply_path_change, plan_path_change,
 };
 pub use project_edit::{
-    DocumentTextCache, export_project, save_project, source_document_text, source_document_texts,
+    DocumentTextCache, save_project, source_document_text, source_document_texts,
 };
 pub use project_loading::{SourceOverrides, check_project, project_source_texts};
 pub use serialization::{SourceTextWrite, write_source_texts};
 pub use source::{
-    AssetError, ExportReport, ImportEdge, ProjectSession, ReferencedAsset, SourceDocument,
-    SourceDocumentFormat, SourceProject, reference_asset, source_document_format,
+    AssetError, ImportEdge, ProjectSession, ReferencedAsset, SourceDocument, SourceDocumentFormat,
+    SourceProject, reference_asset, source_document_format,
 };
-pub use source_copy::export_editable_project;

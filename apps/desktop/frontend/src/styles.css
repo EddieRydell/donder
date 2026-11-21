@@ -2697,16 +2697,10 @@ fieldset.sequence-layer-row {
   color: var(--donder-text-muted);
 }
 
-
-.object-overview-header,
-.object-overview-heading {
+.object-overview-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
   gap: var(--donder-space-12);
-}
-
-.object-overview-header {
   align-items: flex-end;
   padding-bottom: var(--donder-space-12);
   border-bottom: var(--donder-border-width) solid var(--donder-border);

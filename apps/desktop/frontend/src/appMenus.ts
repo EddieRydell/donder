@@ -11,12 +11,9 @@ const separator: AppMenuEntry = { type: "separator" };
 
 export const FILE_MENU: AppMenuEntry[] = [
   item("file.newProject"),
-  item("file.newSequence"),
-  item("file.copyProject"),
   item("file.importProfile"),
   separator,
   item("file.openProject"),
-  item("workbench.quickOpen"),
   separator,
   item("file.save"),
   item("file.reloadFromDisk"),

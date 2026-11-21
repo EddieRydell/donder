@@ -42,7 +42,6 @@ use edit::edit_sequence;
 use fixture::edit_fixture;
 use layout::edit_layout;
 pub use problem::{check_edit, edit_site, refusal};
-pub use project::create_sequence;
 use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};
 pub use repairs::repair_changes;

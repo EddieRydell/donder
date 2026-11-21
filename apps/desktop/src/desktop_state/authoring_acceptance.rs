@@ -9,8 +9,8 @@ use donder_editor::dto::{
     GuiFixtureShape, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiItem,
     GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, GuiOwnershipEdit,
     GuiPixelEncoding, GuiPixelRoute, GuiUniverses, LayoutGuiDocument, LayoutGuiEdit,
-    NewObjectStorage, NewSequenceRequest, ObjectKind, OwnedObjectSlot, OwnershipMember,
-    Point3Meters, ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, Rotation3Degrees, Scale3,
+    NewObjectStorage, ObjectKind, OwnedObjectSlot, OwnershipMember, Point3Meters,
+    ProjectGuiDocument, ProjectGuiEdit, ReusableStorage, Rotation3Degrees, Scale3,
     SequenceClipScope, SequenceEffectReference, SequenceGraphEdge, SequenceGraphNodeKind,
     SequenceGraphOperator, SequenceGuiEdit, SequenceParamValue, SetupControllerConfig,
     SetupGuiDocument, SetupGuiEdit, Transform,
@@ -424,7 +424,12 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
                     channels: 21,
                 },
             },
-            ports: Vec::new(),
+            ports: vec![donder_editor::dto::SetupControllerPort {
+                id: 1,
+                name: "1".into(),
+                description: None,
+                donder: None,
+            }],
         },
     );
     let routes = vec![
@@ -434,8 +439,8 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             fixture: 1,
             pixels: None,
             controller: setup.controllers[0].source_ref.clone(),
-            port: None,
-            start_channel: 0,
+            port: 1,
+            start: donder_editor::dto::GuiRouteStart::Channel { channel: 0 },
             encoding: GuiPixelEncoding::Rgbw {
                 order: [1, 0, 2, 3],
             },
@@ -449,8 +454,8 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             fixture: 2,
             pixels: None,
             controller: setup.controllers[0].source_ref.clone(),
-            port: None,
-            start_channel: 12,
+            port: 1,
+            start: donder_editor::dto::GuiRouteStart::Channel { channel: 12 },
             encoding: GuiPixelEncoding::Rgb { order: [1, 0, 2] },
             gamma: 1.0,
             brightness: 1.0,
@@ -1284,6 +1289,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
           start_universe: 1,
           universes: 1,
           channels: 512,
+          ports: [],
         },
       },
     ],
@@ -1477,244 +1483,134 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     let initial = state.project_session().unwrap();
-    let initial_id = *initial.project.root().sequences[0].id();
+    let id = *initial.project.root().sequences[0].id();
     let color = initial
         .project
-        .get::<donder_model::Sequence>(initial_id)
+        .get::<donder_model::Sequence>(id)
         .unwrap()
         .layers[0]
         .color
         .to_hex();
-    let created = state.create_sequence(NewSequenceRequest {
-        name: "Imported operators".into(),
-        storage: NewObjectStorage::NewFile,
-        initial_color: color.clone(),
-        duration_seconds: 30.0,
-        frame_rate: 60,
-    });
-    assert!(matches!(
-        created,
-        donder_editor::dto::NewSequenceResult::Created { .. }
-    ));
-    let new_id = *state
-        .project_session()
-        .unwrap()
-        .project
-        .root()
-        .sequences
-        .last()
-        .unwrap()
-        .id();
-    for id in [initial_id, new_id] {
-        state.open_file_path(address(&state, id).document().as_str());
-        let request = || GuiDocumentRequest {
-            owned_path: address(&state, id)
-                .owned_path()
-                .iter()
-                .map(Into::into)
-                .collect(),
-            project_revision: state.snapshot().project_revision,
-            path: address(&state, id).document().to_string(),
-            object_key: address(&state, id).root_source().object().to_string(),
-        };
-        let GuiDocument::Sequence { document } = state.get_gui_document(request()).document else {
-            panic!("sequence projection missing");
-        };
-        let hue_shift = document.composition_graph.operator_catalog.iter().find(|entry| {
+    state.open_file_path(address(&state, id).document().as_str());
+    let request = || GuiDocumentRequest {
+        owned_path: address(&state, id)
+            .owned_path()
+            .iter()
+            .map(Into::into)
+            .collect(),
+        project_revision: state.snapshot().project_revision,
+        path: address(&state, id).document().to_string(),
+        object_key: address(&state, id).root_source().object().to_string(),
+    };
+    let GuiDocument::Sequence { document } = state.get_gui_document(request()).document else {
+        panic!("sequence projection missing");
+    };
+    let hue_shift = document.composition_graph.operator_catalog.iter().find(|entry| {
             matches!(&entry.operator, SequenceGraphOperator { object_key, .. } if object_key == "HueShift")
         }).expect("new project catalog includes HueShift");
-        assert_eq!(hue_shift.operator.path, "operators/standard.donder");
-        let edit = |edit| {
-            state.apply_gui_edit(
-                request(),
-                GuiEditCommand::Sequence {
-                    edit: SequenceGuiEdit::Composition { edit },
-                },
-            )
-        };
-        let connection = document.composition_graph.edges[0].clone();
-        let inserted = edit(CompositionGuiEdit::AddGraphOperatorNode {
-            operator: hue_shift.operator.clone(),
-            initial_color: color.clone(),
-            x: 240.0,
-            y: 80.0,
-        })
-        .document;
-        let GuiDocument::Sequence { document } = inserted else {
-            panic!("HueShift insertion rejected: {inserted:?}");
-        };
-        let node = document
-            .composition_graph
-            .nodes
-            .iter()
-            .find(|node| matches!(node.kind, SequenceGraphNodeKind::Operator { .. }))
-            .unwrap();
-        let SequenceGraphNodeKind::Operator { params, .. } = &node.kind else {
-            unreachable!()
-        };
-        let shift = params.iter().find(|param| param.name == "shift").unwrap();
-        assert!(shift.editable);
-        assert!(shift.supports_automation);
-        let disconnected = state.project_session().unwrap();
-        state.undo_active_edit();
-        assert!(
-            state
-                .project_session()
-                .unwrap()
-                .project
-                .get::<donder_model::Sequence>(id)
-                .unwrap()
-                .composition_graph
-                .nodes
-                .iter()
-                .all(|candidate| !matches!(
-                    candidate.kind,
-                    donder_model::CompositionGraphNodeKind::Operator(_)
-                ))
-        );
-        state.redo_active_edit();
-        assert_eq!(
-            state.project_session().unwrap().project,
-            disconnected.project
-        );
-        let GuiDocument::Sequence { document } =
-            edit(CompositionGuiEdit::UpdateGraphOperatorParam {
-                node_id: node.id,
-                name: "shift".into(),
-                value: SequenceParamValue::Float { value: 0.25 },
-            })
-            .document
-        else {
-            panic!("HueShift parameter edit rejected");
-        };
-        let edited = document
-            .composition_graph
-            .nodes
-            .iter()
-            .find(|candidate| candidate.id == node.id)
-            .unwrap();
-        let SequenceGraphNodeKind::Operator { params, .. } = &edited.kind else {
-            unreachable!()
-        };
-        assert!(
-            matches!(params.iter().find(|param| param.name == "shift").unwrap().value, SequenceParamValue::Float { value } if value == 0.25)
-        );
-        let accepted = state.project_session().unwrap();
-        state.save_all().unwrap();
-        crate::desktop_foundation_tests::tests::assert_reloads(&root, &accepted);
-        let authored = std::fs::read_to_string(root.join(address(&state, id).document())).unwrap();
-        assert!(authored.contains("operators/standard.donder"));
-        assert!(authored.contains("operators.HueShift"));
-        assert!(matches!(
-            edit(CompositionGuiEdit::ConnectGraphNodes {
-                connection: SequenceGraphEdge {
-                    from_node: connection.from_node,
-                    to_node: node.id,
-                    input: Some("source".into()),
-                },
-            })
-            .document,
-            GuiDocument::Sequence { .. }
-        ));
-        assert!(matches!(
-            edit(CompositionGuiEdit::ReconnectGraphEdge {
-                previous: connection.clone(),
-                connection: SequenceGraphEdge {
-                    from_node: node.id,
-                    to_node: connection.to_node,
-                    input: connection.input,
-                },
-            })
-            .document,
-            GuiDocument::Sequence { .. }
-        ));
-    }
-}
-
-#[test]
-fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-    write_new_project_files(&root, &new_test_project_files("Sequences").unwrap()).unwrap();
-    let state = DesktopState::new(|_| {});
-    state.open_project_path(root.as_str());
-    state.open_file_path("project.data.donder");
-    let mut settings = state.snapshot().settings;
-    settings.autosave_project_edits = false;
-    state.update_app_settings(settings);
-    for storage in [
-        NewObjectStorage::Inline,
-        NewObjectStorage::SameFile,
-        NewObjectStorage::NewFile,
-    ] {
-        let before = state.project_session().unwrap();
-        let color = before
-            .project
-            .get::<donder_model::Sequence>(*before.project.root().sequences[0].id())
+    assert_eq!(hue_shift.operator.path, "operators/standard.donder");
+    let edit = |edit| {
+        state.apply_gui_edit(
+            request(),
+            GuiEditCommand::Sequence {
+                edit: SequenceGuiEdit::Composition { edit },
+            },
+        )
+    };
+    let connection = document.composition_graph.edges[0].clone();
+    let inserted = edit(CompositionGuiEdit::AddGraphOperatorNode {
+        operator: hue_shift.operator.clone(),
+        initial_color: color.clone(),
+        x: 240.0,
+        y: 80.0,
+    })
+    .document;
+    let GuiDocument::Sequence { document } = inserted else {
+        panic!("HueShift insertion rejected: {inserted:?}");
+    };
+    let node = document
+        .composition_graph
+        .nodes
+        .iter()
+        .find(|node| matches!(node.kind, SequenceGraphNodeKind::Operator { .. }))
+        .unwrap();
+    let SequenceGraphNodeKind::Operator { params, .. } = &node.kind else {
+        unreachable!()
+    };
+    let shift = params.iter().find(|param| param.name == "shift").unwrap();
+    assert!(shift.editable);
+    assert!(shift.supports_automation);
+    let disconnected = state.project_session().unwrap();
+    state.undo_active_edit();
+    assert!(
+        state
+            .project_session()
             .unwrap()
-            .layers[0]
-            .color
-            .to_hex();
-        let inline = matches!(storage, NewObjectStorage::Inline);
-        let new_file = matches!(storage, NewObjectStorage::NewFile);
-        let donder_editor::dto::NewSequenceResult::Created {
-            source: created, ..
-        } = state.create_sequence(NewSequenceRequest {
-            name: "Opening Cue".into(),
-            storage,
-            initial_color: color,
-            duration_seconds: 30.0,
-            frame_rate: 40,
-        })
-        else {
-            panic!("the sequence was refused");
-        };
-        let after = state.project_session().unwrap();
-        assert_eq!(
-            after.project.root().sequences.len(),
-            before.project.root().sequences.len() + 1
-        );
-        let source = after.project.root().sequences.last().unwrap();
-        assert_eq!(
-            matches!(source, donder_model::OwnedMember::Inline { .. }),
-            inline
-        );
-        assert_eq!(created.owned_path.is_empty(), !inline);
-        assert_eq!(created.path != "project.data.donder", new_file);
-        let sequence = after
             .project
-            .get::<donder_model::Sequence>(*source.id())
-            .unwrap();
-        assert_eq!(sequence.duration.as_seconds_f64(), 30.0);
-        assert_eq!(sequence.frame_rate, 40);
-        state.undo_active_edit();
-        assert_eq!(*state.project_session().unwrap(), *before);
-        state.redo_active_edit();
-        assert_eq!(*state.project_session().unwrap(), *after);
-        state.save_all().unwrap();
-        crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
-    }
-    let before = state.project_session().unwrap();
-    let color = before
-        .project
-        .get::<donder_model::Sequence>(*before.project.root().sequences[0].id())
-        .unwrap()
-        .layers[0]
-        .color
-        .to_hex();
+            .get::<donder_model::Sequence>(id)
+            .unwrap()
+            .composition_graph
+            .nodes
+            .iter()
+            .all(|candidate| !matches!(
+                candidate.kind,
+                donder_model::CompositionGraphNodeKind::Operator(_)
+            ))
+    );
+    state.redo_active_edit();
+    assert_eq!(
+        state.project_session().unwrap().project,
+        disconnected.project
+    );
+    let GuiDocument::Sequence { document } = edit(CompositionGuiEdit::UpdateGraphOperatorParam {
+        node_id: node.id,
+        name: "shift".into(),
+        value: SequenceParamValue::Float { value: 0.25 },
+    })
+    .document
+    else {
+        panic!("HueShift parameter edit rejected");
+    };
+    let edited = document
+        .composition_graph
+        .nodes
+        .iter()
+        .find(|candidate| candidate.id == node.id)
+        .unwrap();
+    let SequenceGraphNodeKind::Operator { params, .. } = &edited.kind else {
+        unreachable!()
+    };
+    assert!(
+        matches!(params.iter().find(|param| param.name == "shift").unwrap().value, SequenceParamValue::Float { value } if value == 0.25)
+    );
+    let accepted = state.project_session().unwrap();
+    state.save_all().unwrap();
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &accepted);
+    let authored = std::fs::read_to_string(root.join(address(&state, id).document())).unwrap();
+    assert!(authored.contains("operators/standard.donder"));
+    assert!(authored.contains("operators.HueShift"));
     assert!(matches!(
-        state.create_sequence(NewSequenceRequest {
-            name: "Sequence".into(),
-            storage: NewObjectStorage::Inline,
-            initial_color: color,
-            duration_seconds: 0.0,
-            frame_rate: 40,
-        }),
-        donder_editor::dto::NewSequenceResult::Refused { .. }
+        edit(CompositionGuiEdit::ConnectGraphNodes {
+            connection: SequenceGraphEdge {
+                from_node: connection.from_node,
+                to_node: node.id,
+                input: Some("source".into()),
+            },
+        })
+        .document,
+        GuiDocument::Sequence { .. }
     ));
-    assert!(std::sync::Arc::ptr_eq(
-        &before,
-        &state.project_session().unwrap()
+    assert!(matches!(
+        edit(CompositionGuiEdit::ReconnectGraphEdge {
+            previous: connection.clone(),
+            connection: SequenceGraphEdge {
+                from_node: node.id,
+                to_node: connection.to_node,
+                input: connection.input,
+            },
+        })
+        .document,
+        GuiDocument::Sequence { .. }
     ));
 }
 

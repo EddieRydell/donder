@@ -7,9 +7,11 @@ prepare(&DonderProject, &SequenceId, Retain) -> Option<PreparedShow>
 ```
 
 The project supplies its active setup. `Retain::All` retains every output
-and logical preview fixture; `Controllers(&[ControllerId])` selects all ports of
-the requested controllers; `Ports(&[(ControllerId, ControllerPortId)])` selects
-individual ports. Explicit lists preserve first-occurrence order and ignore
+and logical preview fixture; `Controllers(&[ControllerId])` selects all outputs
+of the requested controllers; `Outputs(&[(ControllerId, ControllerOutput)])`
+selects individual outputs. An output is one channel stream: all of an E1.31 or
+Art-Net controller's universes, which its ports share, or one Donder port.
+Explicit lists preserve first-occurrence order and ignore
 duplicates. Select a controller's independent playback fragment with:
 
 ```rust,ignore
@@ -23,7 +25,7 @@ if let Some(sequence) = prepare(
     let mut playback = sequence.into_playback();
     let frame = playback.evaluate(time);
     for output in frame.outputs() {
-        // Send output.bytes to output.output's controller and port.
+        // Send output.bytes to output.output's controller and stream.
     }
 }
 ```
@@ -109,7 +111,8 @@ These details are internal rather than independently callable preparation stages
 
 ## What gets retained
 
-Preparation retains LED routes for the selected ports. Their pixel spans
+Preparation retains LED routes for the selected outputs, each at the channels
+its port and start resolve to. Their pixel spans
 determine which fixture pixels to keep. Storage addresses become dense, including
 disjoint wiring ranges of one instance. Packing uses those compact addresses
 directly; there are no generic patch sources, filters, or intermediate values.
@@ -118,7 +121,7 @@ Reachable spatial signal queries widen that retained domain: reads of other
 pixels of a fixture (by index, by offset, or along it in a scan) keep each
 selected fixture instance in full. Unpatched pixels of those instances may
 therefore remain as signal dependencies. Packing still writes only selected
-ports; retained upstream pixels increase evaluation and memory costs.
+outputs; retained upstream pixels increase evaluation and memory costs.
 
 Effects targeting no retained pixels are removed, as are effects in disabled or
 unreachable layers. A console keeps such an effect's voices, so commands still

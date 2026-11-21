@@ -116,6 +116,7 @@ mod tests {
                 count: 1,
                 channels: 3,
             },
+            ports: Vec::new(),
         };
         let mut sender = ArtNetSender::open(id, &config).unwrap();
         let frame = OutputFrame {

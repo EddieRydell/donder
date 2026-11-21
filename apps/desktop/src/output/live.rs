@@ -16,18 +16,14 @@ use donder_runtime_types::ConsoleEvent;
 
 const INITIAL_TICK_INTERVAL: Duration = Duration::from_millis(20);
 const HOLDING_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
-#[cfg(not(test))]
-const OUTPUT_TEST_DURATION: Duration = Duration::from_secs(10);
-/// Tests wait for an output test to expire, so it expires sooner there.
-#[cfg(test)]
-const OUTPUT_TEST_DURATION: Duration = Duration::from_millis(500);
 
 enum LiveFeed {
     Sequence,
     /// A performance, rendered on its own session clock.
     Console(Box<ConsoleOutput>),
+    /// A test pattern, until output stops.
     Test {
-        frames: Vec<donder_output::OutputFrame>,
+        test: donder_output::OutputTest,
         started: Instant,
     },
 }
@@ -128,17 +124,15 @@ impl LiveOutputService {
         }
     }
 
-    pub(crate) fn test(
-        &mut self,
-        id: ControllerId,
-        controller: Controller,
-        frame: donder_output::OutputFrame,
-    ) -> LiveOutputSnapshot {
+    /// Stream a test pattern in place of live output until output stops.
+    pub(crate) fn test(&mut self, test: donder_output::OutputTest) -> LiveOutputSnapshot {
+        let controllers = test.controllers().clone();
+        let active = controllers.keys().copied().collect();
         self.start(
-            IndexMap::from([(id, controller)]),
-            vec![id],
+            controllers,
+            active,
             LiveFeed::Test {
-                frames: vec![frame],
+                test,
                 started: Instant::now(),
             },
         )
@@ -359,15 +353,9 @@ fn worker(
             continue;
         };
         tick_started = Instant::now();
-        if let LiveFeed::Test { frames, started } = feed {
+        if let LiveFeed::Test { test, started } = feed {
             let generation = *generation;
-            if started.elapsed() >= OUTPUT_TEST_DURATION {
-                let snapshot = stop_output(&mut active, &mut stop_error, generation, None);
-                let _ = updates.send(Update {
-                    generation,
-                    snapshot,
-                });
-            } else if let Err(error) = transports.send(frames) {
+            if let Err(error) = transports.send(&test.frames(started.elapsed())) {
                 let failed = stop_output(
                     &mut active,
                     &mut stop_error,
@@ -567,6 +555,7 @@ mod tests {
                     count: 1,
                     channels: 6,
                 },
+                ports: Vec::new(),
             }),
         };
         let controllers = IndexMap::from([(id, controller)]);

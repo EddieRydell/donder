@@ -16,6 +16,7 @@ import { layoutAddEntries } from "./LayoutAddMenu";
 import { Copy, FolderInput, FolderMinus, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button, ContextMenuArea, Dialog, Field, IconButton, MenuButton, Problem, Section, TextField, type MenuEntry } from "../../kit";
 import { OBJECT, useFieldProblem } from "../problems";
+import { outputTestEntries, useOutputTesting } from "../outputTest";
 import { descendants, layoutIndex, membersOf, membershipCount, nextLayoutId, withMember } from "./layoutGraph";
 
 type Document = Extract<GuiDocument, { type: "fixture" | "layout" }>;
@@ -44,6 +45,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const revision = useAppStore((state) => state.guiDocumentRevision);
   const inline = useAppStore((state) => state.guiParents.length > 0);
   const pending = useAppStore((state) => state.guiEditPending);
+  const testing = useOutputTesting();
   const ready = request !== null && revision === request.projectRevision;
   const editable = ready && !pending;
   const { fixtures: layoutFixtures, root } = gui.document;
@@ -150,6 +152,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const menuEntries: MenuEntry[] = [
     ...(target === null || target.kind.type === "group" ? addEntries(target?.id ?? null) : []),
     ...(target?.kind.type === "fixture" ? [{ type: "action", label: "Edit fixture", icon: Pencil, onSelect: () => { openFixture(target.id); } }] satisfies MenuEntry[] : []),
+    ...(target === null ? [] : outputTestEntries({ type: "layoutItem", item: target.id }, !ready || pending, testing)),
     ...(target === null ? [] : [
       { type: "submenu", label: "Add to group", icon: FolderInput, disabled: !editable || destinations.length === 0, entries: destinations.map((group): MenuEntry => ({ type: "action", label: group.name, disabled: !editable, onSelect: () => { membershipEdit({ type: "addMember", id: target.id, to: group.id, before: null }); } })) },
       ...(targetParent !== null || membershipCount(layoutFixtures, root, target.id) > 1 ? [{ type: "action", label: targetParent === null ? "Remove from top level" : `Remove from ${layout.get(targetParent)?.name ?? "group"}`, icon: FolderMinus, disabled: !editable, onSelect: () => { membershipEdit({ type: "removeMember", id: target.id, from: targetParent }); } }] satisfies MenuEntry[] : []),

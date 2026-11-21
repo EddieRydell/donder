@@ -13,6 +13,7 @@
 mod artnet;
 mod e131;
 mod fseq;
+mod test_pattern;
 
 use std::collections::HashMap;
 
@@ -21,6 +22,7 @@ use donder_model::{Controller, ControllerId, ControllerProtocol};
 pub use artnet::ArtNetSender;
 pub use e131::E131Sender;
 pub use fseq::{FseqError, FseqStep, encode_fseq};
+pub use test_pattern::{OutputTest, TestError, TestPattern, TestSelection};
 
 /// An E1.31 or Art-Net controller's channels across all its universes,
 /// ready for network transport, which sends each universe's share.

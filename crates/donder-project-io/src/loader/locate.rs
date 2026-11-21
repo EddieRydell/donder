@@ -180,10 +180,10 @@ pub(super) fn site_span(
             nth(&device.controls, id.0).map(|control| name_span(control.name()))
         }
         (Located::Controller(controller), Member::Port(id)) => match &controller.protocol {
-            types::Protocol::Donder { ports, .. } => {
-                nth(ports, id.0).map(|port| name_span(&port.name))
+            types::Protocol::Donder { ports, .. } => nth(ports, id.0).map(|port| port.name.0.span),
+            types::Protocol::E131 { ports, .. } | types::Protocol::ArtNet { ports, .. } => {
+                nth(ports, id.0).map(|port| port.name.0.span)
             }
-            types::Protocol::E131 { .. } | types::Protocol::ArtNet { .. } => None,
         },
         (Located::Layout(layout), Member::LayoutItem(id)) => {
             let item = nth(&layout.items, id.0)?;

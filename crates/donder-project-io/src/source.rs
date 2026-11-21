@@ -283,12 +283,6 @@ pub fn reference_asset(
     Ok(id)
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExportReport {
-    pub written_files: Vec<Utf8PathBuf>,
-    pub copied_assets: Vec<Utf8PathBuf>,
-}
-
 impl ProjectSession {
     /// The asset a sequence's audio names.
     pub fn audio_asset(&self, audio: &donder_model::SequenceAudio) -> Option<&ReferencedAsset> {

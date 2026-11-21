@@ -1,25 +1,18 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
-import { useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
 import { commandRegistry, runCommand, shortcutLabel } from "../commandRegistry";
 import { listenUiEvent } from "../ui/uiEvents";
 import type { CommandId } from "../types";
-import { runSnapshotCommand, useAppStore } from "../store";
-import { commands } from "../api";
 import { OverlayPortal } from "../ui/OverlayPortal";
-import { matchesCommand, rankQuickOpenFiles } from "./helpers";
+import { matchesCommand } from "./helpers";
 
 export function CommandOverlays() {
-  const snapshot = useAppStore((state) => state.snapshot);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
-  const [fileQuery, setFileQuery] = useState("");
 
   useEffect(() => {
-    const stopPalette = listenUiEvent("openCommandPalette", () => { setPaletteOpen(true); });
-    const stopFiles = listenUiEvent("openQuickOpen", () => { setQuickOpen(true); });
-    return () => { stopPalette(); stopFiles(); };
+    return listenUiEvent("openCommandPalette", () => { setPaletteOpen(true); });
   }, []);
 
   const availableCommands = (
@@ -29,11 +22,6 @@ export function CommandOverlays() {
     .filter(([, command]) =>
       matchesCommand(command.label, command.category, command.keywords, paletteQuery)
     );
-  const files = useMemo(() => {
-    if (snapshot === null) return [];
-    const query = fileQuery.trim().toLowerCase();
-    return rankQuickOpenFiles(snapshot).filter((path) => path.toLowerCase().includes(query));
-  }, [fileQuery, snapshot]);
 
   return (
     <>
@@ -62,27 +50,6 @@ export function CommandOverlays() {
             {keys !== undefined && <kbd>{keys}</kbd>}
           </Command.Item>;
         })}
-      </CommandDialog>
-      <CommandDialog
-        open={quickOpen}
-        onOpenChange={setQuickOpen}
-        label="Quick Open"
-        query={fileQuery}
-        onQueryChange={setFileQuery}
-        placeholder="File"
-      >
-        {files.map((path) => (
-          <Command.Item
-            key={path}
-            value={path}
-            onSelect={() => {
-              setQuickOpen(false);
-              void runSnapshotCommand(() => commands.openFile(path));
-            }}
-          >
-            <span>{path}</span>
-          </Command.Item>
-        ))}
       </CommandDialog>
     </>
   );

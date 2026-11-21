@@ -26,6 +26,6 @@ Controller dig_quad {
   description: none,
   protocol: Donder {
     device: "b0cbd8030790",
-    ports: [Port { name: port_1, output: 1, slots: 450 }],
+    ports: [DonderPort { name: "port_1", description: none, output: 1, slots: 450 }],
   },
 }

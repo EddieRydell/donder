@@ -286,9 +286,20 @@ pub struct ControllerGuiDocument {
 #[serde(rename_all = "camelCase")]
 pub struct SetupControllerPort {
     pub id: u32,
-    /// Unique within the controller; patch routes refer to it.
+    /// Free text, unique within the controller; patch routes refer to it.
     pub name: String,
-    /// The Donder controller's physical output, from 1.
+    /// Empty text means none.
+    pub description: Option<String>,
+    /// A Donder controller's port's physical output; none on an E1.31 or
+    /// Art-Net controller.
+    pub donder: Option<SetupDonderOutput>,
+}
+
+/// The physical output a Donder controller's port drives.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SetupDonderOutput {
+    /// From 1.
     pub output: u8,
     pub slot_count: u16,
 }

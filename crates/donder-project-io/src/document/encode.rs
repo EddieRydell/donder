@@ -18,7 +18,7 @@ use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver,
     SequenceCompositionGraph, SequenceLayer,
 };
-use donder_model::{Controller, ControllerOutput, ControllerProtocol, E131Mode};
+use donder_model::{Controller, ControllerProtocol, E131Mode, RouteStart};
 use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform, OwnedFixture};
 use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
 use donder_model::{ObjectId, OwnedMember};
@@ -312,16 +312,9 @@ impl Encoder<'_> {
                         .project
                         .get::<donder_model::Controller>(route.controller)
                         .ok_or_else(|| self.error("", "a route's controller is missing"))?;
-                    let port = match route.output {
-                        ControllerOutput::Universes => None,
-                        ControllerOutput::Port(id) => Some(
-                            controller
-                                .ports()
-                                .iter()
-                                .find(|port| port.id == id)
-                                .ok_or_else(|| self.error("", "a route's port is missing"))?,
-                        ),
-                    };
+                    let port = controller
+                        .port(route.port)
+                        .ok_or_else(|| self.error("", "a route's port is missing"))?;
                     Ok(types::Route {
                         target: self.fixture_target(&route.target)?,
                         pixels: route.pixels.map(|span| types::PixelSpan {
@@ -330,8 +323,11 @@ impl Encoder<'_> {
                         }),
                         controller: self
                             .object_reference(ObjectKind::Controller, route.controller)?,
-                        port: port.map(|port| name(&port.name)),
-                        start_channel: route.start_channel,
+                        port: types::PortName::new(port.name.clone()),
+                        start: match route.start {
+                            RouteStart::Next => types::RouteStart::Next,
+                            RouteStart::Channel(channel) => types::RouteStart::Channel { channel },
+                        },
                         encoding: match route.encoding {
                             PixelEncoding::Rgb { order } => types::Encoding::Rgb {
                                 order: (order[0], order[1], order[2]),
@@ -924,6 +920,7 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
                 start_universe: config.universes.start,
                 universes: config.universes.count,
                 channels: config.universes.channels,
+                ports: port_documents(&config.ports),
             },
             ControllerProtocol::ArtNet(config) => types::Protocol::ArtNet {
                 bind_address: types::Spelled(config.bind_address),
@@ -932,14 +929,16 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
                 start_universe: config.universes.start,
                 universes: config.universes.count,
                 channels: config.universes.channels,
+                ports: port_documents(&config.ports),
             },
             ControllerProtocol::Donder(config) => types::Protocol::Donder {
                 device: config.device.as_str().to_string(),
                 ports: config
                     .ports
                     .iter()
-                    .map(|port| types::Port {
-                        name: name(&port.name),
+                    .map(|port| types::DonderPort {
+                        name: types::PortName::new(port.port.name.clone()),
+                        description: port.port.description.clone(),
                         output: port.output,
                         slots: port.slot_count,
                     })
@@ -947,6 +946,16 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
             },
         },
     }
+}
+
+fn port_documents(ports: &[donder_model::ControllerPort]) -> Vec<types::Port> {
+    ports
+        .iter()
+        .map(|port| types::Port {
+            name: types::PortName::new(port.name.clone()),
+            description: port.description.clone(),
+        })
+        .collect()
 }
 
 pub(crate) fn fixture_definition_document(

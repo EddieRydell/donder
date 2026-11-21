@@ -1,9 +1,7 @@
 use crate::common;
 use crate::common::starter_copy as starter;
 use camino::Utf8Path;
-use donder_project_io::{
-    PROJECT_ROOT_FILE, check_project, export_editable_project, plan_path_change,
-};
+use donder_project_io::{PROJECT_ROOT_FILE, check_project, plan_path_change};
 use std::fs;
 
 #[test]
@@ -50,12 +48,11 @@ fn unused_broken_download_does_not_invalidate_the_show() {
 }
 
 #[test]
-fn root_stays_fixed_and_copy_preserves_workspace_identity() {
+fn root_stays_fixed() {
     let (_temp, root) = starter();
     let session = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap();
-    let root_text = fs::read_to_string(root.join(PROJECT_ROOT_FILE)).unwrap();
     let error = plan_path_change(
         &session,
         Utf8Path::new("project.data.donder"),
@@ -63,17 +60,4 @@ fn root_stays_fixed_and_copy_preserves_workspace_identity() {
     )
     .unwrap_err();
     assert!(error.contains("must remain at the project root"));
-    let destination = root.parent().unwrap().join("copy");
-    export_editable_project(&session, &destination).unwrap();
-    assert_eq!(
-        check_project(&destination, &Default::default(), &mut Default::default())
-            .into_session()
-            .unwrap()
-            .project,
-        session.project
-    );
-    assert_eq!(
-        fs::read_to_string(destination.join(PROJECT_ROOT_FILE)).unwrap(),
-        root_text
-    );
 }

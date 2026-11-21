@@ -4,7 +4,6 @@ import test from "node:test";
 import {
   buildSemanticTree,
   matchesCommand,
-  rankQuickOpenFiles,
   remapWorkspacePath,
   sameWorkspacePath
 } from "./helpers.ts";
@@ -45,19 +44,6 @@ test("diagnostic paths resolve from absolute project paths", () => {
   );
   assert.equal(tree[0].errorCount, 1);
   assert.equal(sameWorkspacePath("C:\\project\\a.donder", "a.donder", "C:\\project"), true);
-});
-
-test("quick open ranks open files then recent files then the remaining project files", () => {
-  const snapshot = {
-    tabs: [{ path: "open.donder" }],
-    workspaceExplorer: { recentFiles: ["recent.donder", "open.donder"] },
-    projectEntries: [
-      entry("other.donder", "file"),
-      entry("open.donder", "file"),
-      entry("recent.donder", "file")
-    ]
-  };
-  assert.deepEqual(rankQuickOpenFiles(snapshot), ["open.donder", "recent.donder", "other.donder"]);
 });
 
 test("command filtering and path remapping are deterministic", () => {

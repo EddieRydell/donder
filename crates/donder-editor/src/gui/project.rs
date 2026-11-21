@@ -4,8 +4,10 @@ use donder_project_io::ProjectSession;
 use super::{ResolvedGuiObject, blocked};
 use crate::dto::{GuiDocument, ProjectGuiDocument, ProjectGuiEdit};
 
-/// A new console's frame rate: Perform's target rate.
-const NEW_CONSOLE_FRAME_RATE: u32 = 100;
+/// A new sequence's or console's frame rate: Perform's target rate.
+const NEW_FRAME_RATE: u32 = 100;
+/// A new sequence's length.
+const NEW_SEQUENCE_SECONDS: f64 = 60.0;
 
 pub(super) fn edit_project(
     session: &mut ProjectSession,
@@ -17,36 +19,42 @@ pub(super) fn edit_project(
             "The requested project is not the active project.".into(),
         ));
     }
-    match edit {
+    let (id, name, storage) = match edit {
+        ProjectGuiEdit::AddSequence {
+            initial_color,
+            storage,
+        } => {
+            let color = super::model::parse_color(&initial_color)?;
+            let duration = super::checked_gui_duration(NEW_SEQUENCE_SECONDS)?;
+            let id =
+                donder_model::add_sequence(&mut session.project, duration, NEW_FRAME_RATE, color)
+                    .map_err(super::GuiMutationError::from)?;
+            // `add_sequence` appends the sequence inline under a fresh name.
+            let name = new_member_name(session.project.root().sequences.last())?;
+            (id.into(), name, storage)
+        }
         ProjectGuiEdit::AddConsole {
             initial_color,
             storage,
         } => {
             let color = super::model::parse_color(&initial_color)?;
-            let id = donder_model::add_console(&mut session.project, NEW_CONSOLE_FRAME_RATE, color)
+            let id = donder_model::add_console(&mut session.project, NEW_FRAME_RATE, color)
                 .map_err(super::GuiMutationError::from)?;
             // `add_console` appends the console inline under a fresh name.
-            let name = session
-                .project
-                .root()
-                .consoles
-                .last()
-                .and_then(donder_model::OwnedMember::name)
-                .map(|name| name.as_str().to_string())
-                .ok_or_else(|| {
-                    super::GuiMutationError::Invalid("The new console is missing.".into())
-                })?;
-            super::ownership::store_new_member(
-                session,
-                resolved,
-                resolved.object,
-                id.into(),
-                &name,
-                storage,
-            )?;
+            let name = new_member_name(session.project.root().consoles.last())?;
+            (id.into(), name, storage)
         }
-    }
-    Ok(())
+    };
+    super::ownership::store_new_member(session, resolved, resolved.object, id, &name, storage)
+}
+
+fn new_member_name<T, I>(
+    member: Option<&donder_model::OwnedMember<T, I>>,
+) -> Result<String, super::GuiMutationError> {
+    member
+        .and_then(donder_model::OwnedMember::name)
+        .map(|name| name.as_str().to_string())
+        .ok_or_else(|| super::GuiMutationError::Invalid("The new member is missing.".into()))
 }
 
 pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
@@ -84,29 +92,4 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
                 .collect(),
         },
     }
-}
-
-pub fn create_sequence(
-    session: &mut ProjectSession,
-    owner: &super::ResolvedGuiObject,
-    request: crate::dto::NewSequenceRequest,
-) -> Result<crate::dto::GuiObjectRef, super::GuiMutationError> {
-    use super::GuiMutationError;
-    use crate::dto::{GuiField, GuiProblemSite};
-    let duration = super::checked_gui_duration(request.duration_seconds)
-        .map_err(|error| error.at(GuiProblemSite::object(GuiField::Duration)))?;
-    let color = super::model::parse_color(&request.initial_color)?;
-    let id = donder_model::add_sequence(&mut session.project, duration, request.frame_rate, color)
-        .map_err(GuiMutationError::from)?;
-    let project = session.project.root().id.into();
-    super::ownership::store_new_member(
-        session,
-        owner,
-        project,
-        id.into(),
-        &request.name,
-        request.storage,
-    )
-    .map_err(|error| error.at(GuiProblemSite::object(GuiField::Name)))?;
-    Ok(object_ref(session, id))
 }

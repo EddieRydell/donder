@@ -4,12 +4,13 @@ use clap::{Parser, Subcommand};
 use core::time::Duration;
 
 mod render;
+mod test;
 
 #[derive(Debug, Parser)]
 #[command(
     name = "donder",
     version,
-    about = "Check, copy, render and export local Donder projects, and generate language references"
+    about = "Check, render and export local Donder projects, and generate language references"
 )]
 pub struct Cli {
     #[arg(short, long, default_value = ".")]
@@ -27,8 +28,6 @@ impl Cli {
 enum Command {
     /// Validate the project's local imports, definitions, targets, and assets.
     Check,
-    /// Copy the loaded project and referenced assets into a new folder.
-    Copy { destination: Utf8PathBuf },
     /// Render a sequence for every output of the active setup into an FSEQ v2 file for FPP.
     ExportFseq {
         /// The sequence's declared name.
@@ -72,6 +71,10 @@ enum Command {
     },
     /// Write the generated effect-language builtin reference.
     Builtins { output: Utf8PathBuf },
+    /// Stream test patterns to the setup's E1.31 and Art-Net controllers,
+    /// reading one per line from standard input until it ends.
+    #[command(after_help = test::HELP)]
+    Test,
     /// Run the language server over standard input and output.
     Lsp,
 }
@@ -112,17 +115,6 @@ pub fn run(cli: Cli) -> Result<(), String> {
             );
             Ok(())
         }
-        Command::Copy { destination } => {
-            let session = load(&cli.path)?;
-            let report = donder_project_io::export_editable_project(&session, &destination)?;
-            println!(
-                "Copied {} documents and {} assets to {}",
-                report.written_files.len(),
-                report.copied_assets.len(),
-                destination
-            );
-            Ok(())
-        }
         Command::ExportFseq {
             sequence,
             output,
@@ -148,6 +140,7 @@ pub fn run(cli: Cli) -> Result<(), String> {
             print!("{}", render::render(&session, &id, times, &target)?);
             Ok(())
         }
+        Command::Test => test::run(&load(&cli.path)?),
         Command::Lsp => lsp(),
         Command::Import {
             profile,

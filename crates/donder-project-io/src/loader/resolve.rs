@@ -22,8 +22,8 @@ use donder_model::{
     LiveMarks, On, OnId, Play, PlayLength,
 };
 use donder_model::{
-    ArtNetConfig, Controller, ControllerId, ControllerOutput, ControllerPort, ControllerPortId,
-    ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode, Universes,
+    ArtNetConfig, Controller, ControllerId, ControllerPort, ControllerPortId, ControllerProtocol,
+    DonderConfig, DonderDeviceId, DonderPort, E131Config, E131Mode, RouteStart, Universes,
 };
 use donder_model::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
@@ -385,17 +385,24 @@ impl DomainResolver<'_> {
         &self,
         document: &DocumentId,
         controller: &ControllerId,
-        port: &Name,
+        port: &types::PortName,
     ) -> Result<ControllerPortId, LoadError> {
         let address = self.loader.address(*controller);
         self.with_owned(&address, |owned| match owned {
-            Located::Controller(types::Controller {
-                protocol: types::Protocol::Donder { ports, .. },
-                ..
-            }) => ports
-                .iter()
-                .position(|candidate| candidate.name == *port)
-                .map(|index| (index, ports[index].name.0.span)),
+            Located::Controller(types::Controller { protocol, .. }) => {
+                let names = match protocol {
+                    types::Protocol::E131 { ports, .. } | types::Protocol::ArtNet { ports, .. } => {
+                        ports.iter().map(|port| &port.name).collect::<Vec<_>>()
+                    }
+                    types::Protocol::Donder { ports, .. } => {
+                        ports.iter().map(|port| &port.name).collect()
+                    }
+                };
+                names
+                    .iter()
+                    .position(|candidate| **candidate == *port)
+                    .map(|index| (index, names[index].0.span))
+            }
             _ => None,
         })
         .map(|(index, span)| {
@@ -413,7 +420,7 @@ impl DomainResolver<'_> {
             self.invalid(
                 document,
                 port.0.span,
-                format!("the controller has no port `{}`", port.as_str()),
+                format!("the controller has no port \"{}\"", port.0.value),
             )
         })
     }
@@ -622,6 +629,7 @@ impl DomainResolver<'_> {
                 start_universe,
                 universes,
                 channels,
+                ports,
             } => ControllerProtocol::E131(E131Config {
                 sender_name: sender_name.clone(),
                 bind_address: bind_address.0,
@@ -637,6 +645,7 @@ impl DomainResolver<'_> {
                     count: *universes,
                     channels: *channels,
                 },
+                ports: controller_ports(ports.iter().map(|port| (&port.name, &port.description))),
             }),
             types::Protocol::ArtNet {
                 bind_address,
@@ -645,6 +654,7 @@ impl DomainResolver<'_> {
                 start_universe,
                 universes,
                 channels,
+                ports,
             } => ControllerProtocol::ArtNet(ArtNetConfig {
                 bind_address: bind_address.0,
                 destination: destination.0,
@@ -654,19 +664,19 @@ impl DomainResolver<'_> {
                     count: *universes,
                     channels: *channels,
                 },
+                ports: controller_ports(ports.iter().map(|port| (&port.name, &port.description))),
             }),
             types::Protocol::Donder { device, ports } => ControllerProtocol::Donder(DonderConfig {
                 device: DonderDeviceId::parse(device).ok_or_else(|| {
                     self.invalid(document, span, "a Donder device is 12 lowercase hex digits")
                 })?,
-                ports: ports
-                    .iter()
-                    .zip(1..)
-                    .map(|(port, index)| ControllerPort {
-                        id: ControllerPortId(index),
-                        name: name(&port.name),
-                        output: port.output,
-                        slot_count: port.slots,
+                ports: controller_ports(ports.iter().map(|port| (&port.name, &port.description)))
+                    .into_iter()
+                    .zip(ports)
+                    .map(|(port, document)| DonderPort {
+                        port,
+                        output: document.output,
+                        slot_count: document.slots,
                     })
                     .collect(),
             }),
@@ -924,14 +934,12 @@ impl DomainResolver<'_> {
                         start: span.start,
                         count: span.count,
                     }),
-                    output: match &route.port {
-                        Some(port) => {
-                            ControllerOutput::Port(self.port(document, &controller, port)?)
-                        }
-                        None => ControllerOutput::Universes,
-                    },
+                    port: self.port(document, &controller, &route.port)?,
                     controller,
-                    start_channel: route.start_channel,
+                    start: match route.start {
+                        types::RouteStart::Next => RouteStart::Next,
+                        types::RouteStart::Channel { channel } => RouteStart::Channel(channel),
+                    },
                     encoding: match route.encoding {
                         types::Encoding::Rgb { order: (r, g, b) } => {
                             PixelEncoding::Rgb { order: [r, g, b] }
@@ -1861,4 +1869,18 @@ fn describe(
         Type::Array(item) => format!("a list of {}", describe(item, &[], marks)),
         Type::Void => "no value".into(),
     }
+}
+
+/// A controller's ports, numbered from 1 in authored order.
+fn controller_ports<'a>(
+    ports: impl Iterator<Item = (&'a types::PortName, &'a Option<String>)>,
+) -> Vec<ControllerPort> {
+    ports
+        .zip(1..)
+        .map(|((name, description), index)| ControllerPort {
+            id: ControllerPortId(index),
+            name: name.0.value.clone(),
+            description: description.clone(),
+        })
+        .collect()
 }

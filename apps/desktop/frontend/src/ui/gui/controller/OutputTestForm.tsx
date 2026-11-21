@@ -1,43 +1,29 @@
 import { useState } from "react";
 
-import { commands, errorMessage } from "../../../api";
-import { runSnapshotCommand, useAppStore } from "../../../store";
+import { useAppStore } from "../../../store";
 import type { SetupController } from "../../../types";
-import { Button, Field, NumberField, Section } from "../../kit";
-
-const TEST_SECONDS = 10;
-const MAX_VALUE = 255;
+import { Button, Field, MenuButton, NumberField, Section } from "../../kit";
+import { patternEntries, stopOutputTest, useOutputTesting } from "../outputTest";
 
 type Universes = Extract<SetupController["config"], { type: "e131" | "artNet" }>["universes"];
 
-/** Send one value to a range of an E1.31 or Art-Net controller's channels, counted across its universes. */
+/** Stream a test pattern on a range of an E1.31 or Art-Net controller's channels, counted across its universes, as RGB pixels. */
 export function OutputTestForm({ universes }: { universes: Universes }) {
   const [channel, setChannel] = useState(1);
-  const [count, setCount] = useState(1);
-  const [value, setValue] = useState(32);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [count, setCount] = useState(universes.count * universes.channels);
   const output = useAppStore((state) => state.snapshot?.liveOutput);
   const guiPending = useAppStore((state) => state.guiEditPending);
+  const testing = useOutputTesting();
   const channels = universes.count * universes.channels;
-  const active = output !== undefined && output.state !== "disabled" && output.state !== "error";
-  const disabled = pending || guiPending || active;
-  const shownError = error ?? output?.lastError ?? null;
-  const start = () => {
-    const request = useAppStore.getState().guiRequest;
-    if (request === null) return;
-    setPending(true);
-    void runSnapshotCommand(() => commands.startOutputTest(request, { startChannel: channel - 1, channelCount: count, value }))
-      .then(() => { setError(null); }).catch((testError: unknown) => { setError(errorMessage(testError)); })
-      .finally(() => { setPending(false); });
-  };
+  const stopping = output?.state === "stopping";
+  const disabled = guiPending || stopping;
 
   return <Section title="Test outputs" defaultOpen={false}>
     <Field label="First channel" tip="Counted across all the controller's universes"><NumberField name="Test first channel" value={channel} step={1} min={1} max={channels} integer disabled={disabled} onCommit={setChannel} /></Field>
     <Field label="Count"><NumberField name="Test channel count" value={count} step={1} min={1} max={Math.max(1, channels - channel + 1)} integer disabled={disabled} onCommit={setCount} /></Field>
-    <Field label="Value"><NumberField name="Test channel value" value={value} step={1} min={0} max={MAX_VALUE} integer disabled={disabled} onCommit={setValue} /></Field>
-    {active
-      ? <Button disabled={output.state === "stopping"} onClick={() => { void runSnapshotCommand(() => commands.setLiveOutputActive(false)).catch((testError: unknown) => { setError(errorMessage(testError)); }); }}>{output.state === "stopping" ? "Stopping…" : "Stop output"}</Button>
-      : <Button disabled={disabled} failed={shownError !== null} tip={shownError ?? `Sends the value to these channels and zero to the rest of the controller, replacing live output for ${TEST_SECONDS} seconds`} onClick={start}>Test</Button>}
+    <MenuButton entries={patternEntries({ type: "channels", startChannel: channel - 1, channelCount: Math.min(count, channels - channel + 1) }, disabled)}>
+      <Button disabled={disabled} tip="Lights these channels as RGB pixels and zero the rest of the controller, in place of live output until stopped">Test</Button>
+    </MenuButton>
+    {testing && <Button disabled={stopping} onClick={stopOutputTest}>{stopping ? "Stopping…" : "Stop test"}</Button>}
   </Section>;
 }

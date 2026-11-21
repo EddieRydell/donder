@@ -647,7 +647,7 @@ mod tests {
     use crate::desktop_foundation_tests::tests::starter_copy;
     use donder_editor::dto::{EditorViewMode, SidebarView};
     use donder_editor::dto::{
-        GuiDocument, GuiDocumentRequest, GuiEditCommand, NewSequenceRequest, SequenceGuiEdit,
+        GuiDocument, GuiDocumentRequest, GuiEditCommand, ProjectGuiEdit, SequenceGuiEdit,
         TransitionDecision, TransitionRequest, TransitionResult, WorkspaceTransition,
     };
     const SEQUENCE: &str = "sequences/layer_test.data.donder";
@@ -802,28 +802,35 @@ mod tests {
     #[test]
     fn new_gui_documents_remain_unsaved_and_are_available_to_text_analysis() {
         let (_temporary, root, state) = project();
-        let path = "sequences/new_sequence.data.donder";
-        let created = state.create_sequence(NewSequenceRequest {
-            name: "New Sequence".into(),
-            storage: donder_editor::dto::NewObjectStorage::NewFile,
-            initial_color: state
-                .project_session()
-                .unwrap()
-                .project
-                .reusable::<donder_model::Sequence>()
-                .values()
-                .next()
-                .unwrap()
-                .layers[0]
-                .color
-                .to_hex(),
-            duration_seconds: 60.0,
-            frame_rate: 60,
-        });
-        assert!(matches!(
-            created,
-            donder_editor::dto::NewSequenceResult::Created { .. }
-        ));
+        let session = state.project_session().unwrap();
+        let owner = session
+            .source_identity(session.project.root().id.into())
+            .unwrap();
+        let project = GuiDocumentRequest {
+            owned_path: Vec::new(),
+            project_revision: state.snapshot().project_revision,
+            path: owner.document().to_string(),
+            object_key: owner.object().to_string(),
+        };
+        state.open_file_path(owner.document().as_str());
+        let created = state.apply_gui_edit(
+            project,
+            GuiEditCommand::Project {
+                edit: ProjectGuiEdit::AddConsole {
+                    initial_color: "#38bdf8".into(),
+                    storage: donder_editor::dto::NewObjectStorage::NewFile,
+                },
+            },
+        );
+        assert!(matches!(created.document, GuiDocument::Project { .. }));
+        let session = state.project_session().unwrap();
+        let console = *session.project.root().consoles.last().unwrap().id();
+        let path = session
+            .source_identity(console.into())
+            .unwrap()
+            .document()
+            .to_string();
+        let path = path.as_str();
         state.open_file_path(path);
         state.working_copy.finish_pending();
         let snapshot = state.snapshot();
@@ -845,7 +852,7 @@ mod tests {
                 changes: whole_text(
                     state
                         .active_working_text()
-                        .replace("frame_rate: 60", "frame_rate: 30"),
+                        .replace("frame_rate: 100", "frame_rate: 30"),
                 ),
             })
             .unwrap();

@@ -28,7 +28,7 @@ fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
     patch.routes[0].pixels = Some(PixelSpan { start: 0, count: 1 });
     let mut second = patch.routes[0].clone();
     second.id = PixelRouteId(1000);
-    second.start_channel = 2;
+    second.start = donder_model::RouteStart::Channel(2);
     patch.routes.push(second);
     assert!(matches!(
         project.put(patch.clone()).unwrap_err(),
@@ -40,7 +40,7 @@ fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
             ..
         })
     ));
-    patch.routes[1].start_channel = 3;
+    patch.routes[1].start = donder_model::RouteStart::Channel(3);
     project.put(patch.clone()).unwrap();
     patch.routes[1].pixels = Some(PixelSpan {
         start: 113,

@@ -65,6 +65,7 @@ Controller nativity {
     start_universe: 64,
     universes: 8,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -78,6 +79,7 @@ Controller pauls_balls {
     start_universe: 110,
     universes: 59,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -91,6 +93,7 @@ Controller tiny_tree_loft {
     start_universe: 63,
     universes: 1,
     channels: 300,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -104,6 +107,7 @@ Controller front_door_1 {
     start_universe: 9,
     universes: 6,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -117,6 +121,7 @@ Controller neighbor_trees {
     start_universe: 90,
     universes: 4,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -130,6 +135,7 @@ Controller neighbor_trees_2 {
     start_universe: 232,
     universes: 2,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -143,6 +149,7 @@ Controller fran_roof_roofs {
     start_universe: 3,
     universes: 2,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -156,6 +163,7 @@ Controller fran_roof_windows {
     start_universe: 1,
     universes: 2,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -165,10 +173,11 @@ Controller megatree {
     sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
-    mode: Unicast { destination: "192.168.168.159" },
+    mode: Unicast { destination: "192.168.168.162" },
     start_universe: 23,
     universes: 5,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -178,10 +187,11 @@ Controller megatree_2 {
     sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
-    mode: Unicast { destination: "192.168.168.159" },
+    mode: Unicast { destination: "192.168.168.162" },
     start_universe: 102,
     universes: 5,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -195,6 +205,7 @@ Controller peacock {
     start_universe: 33,
     universes: 2,
     channels: 498,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -208,6 +219,7 @@ Controller peacock_2 {
     start_universe: 73,
     universes: 2,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -221,6 +233,7 @@ Controller arch_tunnel {
     start_universe: 201,
     universes: 24,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -234,6 +247,7 @@ Controller right_pilaster_stairs {
     start_universe: 60,
     universes: 2,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -247,6 +261,7 @@ Controller garage {
     start_universe: 6,
     universes: 3,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -260,6 +275,7 @@ Controller left_meteors {
     start_universe: 31,
     universes: 2,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -273,6 +289,7 @@ Controller left_meteors_2 {
     start_universe: 101,
     universes: 1,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -286,6 +303,7 @@ Controller right_meteors {
     start_universe: 28,
     universes: 3,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -299,6 +317,7 @@ Controller right_pilaster_bush_arch {
     start_universe: 55,
     universes: 5,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -312,6 +331,7 @@ Controller right_magnolia {
     start_universe: 49,
     universes: 3,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -323,8 +343,21 @@ Controller front_door_2 {
     priority: 100,
     mode: Unicast { destination: "192.168.168.186" },
     start_universe: 15,
-    universes: 8,
+    universes: 9,
     channels: 510,
+    ports: [
+      Port { name: "1", description: none },
+      Port { name: "2", description: none },
+      Port { name: "3", description: none },
+      Port { name: "4", description: none },
+      Port { name: "5", description: none },
+      Port { name: "6", description: none },
+      Port { name: "7", description: none },
+      Port { name: "8", description: none },
+      Port { name: "9", description: none },
+      Port { name: "10", description: none },
+      Port { name: "14", description: none },
+    ],
   },
 }
 
@@ -338,6 +371,7 @@ Controller front_door_2_2 {
     start_universe: 62,
     universes: 1,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -351,6 +385,7 @@ Controller left_wall {
     start_universe: 42,
     universes: 3,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -364,6 +399,7 @@ Controller left_pilaster {
     start_universe: 52,
     universes: 3,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -377,6 +413,7 @@ Controller garage_door_matrix {
     start_universe: 5,
     universes: 1,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -390,6 +427,7 @@ Controller left_magnolia {
     start_universe: 45,
     universes: 4,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }
 
@@ -403,5 +441,6 @@ Controller left_magnolia_2 {
     start_universe: 72,
     universes: 1,
     channels: 510,
+    ports: [Port { name: "1", description: none }],
   },
 }

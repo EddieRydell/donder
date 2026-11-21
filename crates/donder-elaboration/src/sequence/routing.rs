@@ -16,8 +16,9 @@ pub(crate) fn targets<S>(
         .routes
         .iter()
         .filter(|route| {
+            let placed = &selected.routes[&route.id].placement;
             selected.outputs.iter().any(|output| {
-                &route.controller == output.controller && route.output == output.output
+                &route.controller == output.controller && placed.output == output.output
             })
         })
         .map(|route| {
@@ -59,23 +60,29 @@ pub(crate) fn prepare<S>(
             .iter()
             .filter(|route| {
                 &route.controller == selected_output.controller
-                    && route.output == selected_output.output
+                    && selected.routes[&route.id].placement.output == selected_output.output
             })
             .collect::<Vec<_>>();
-        routes.sort_by_key(|route| route.start_channel);
+        routes.sort_by_key(|route| selected.routes[&route.id].placement.channels.start);
         let mut cursor = 0;
         for route in routes {
             let target = builder.target(&stage.routes[&route.id]);
-            let encoding = selected.encodings[&route.id];
+            let played = &selected.routes[&route.id];
+            let encoding = played.encoding;
             let lookup = (route.gamma != 1.0 || route.brightness != 1.0).then(|| {
                 std::array::from_fn(|index| {
-                    ((index as f32 / 255.0).powf(route.gamma) * route.brightness * 255.0 * 256.0)
+                    (donder_model::patched_level(
+                        index as f32 / 255.0,
+                        route.gamma,
+                        route.brightness,
+                    ) * 255.0
+                        * 256.0)
                         .round()
                         .clamp(0.0, 255.0 * 256.0) as u16
                 })
             });
             // Admission checked non-overlap and the complete output width.
-            let start = route.start_channel as usize;
+            let start = played.placement.channels.start as usize;
             builder.padding(output, start - cursor);
             let count = builder.route(output, target, encoding, lookup, route.dither);
             cursor = start + count * encoding.channel_count();

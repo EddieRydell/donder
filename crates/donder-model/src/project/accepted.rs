@@ -12,6 +12,7 @@ use crate::console::{ClipUse, Console, ConsoleClip, ConsoleId};
 pub use console::{CONSOLE_SESSION, ConsoleBinding};
 use donder_language::compiler::Invocation;
 pub(super) use inputs::ProjectInputs;
+pub use patch::PlaybackRoute;
 
 /// A sequence borrowed from the same accepted project as all its dependencies.
 #[derive(Clone, Copy)]
@@ -35,13 +36,13 @@ pub struct AcceptedOperatorInputs<'a> {
 }
 
 impl DonderProject {
-    /// Encodings belong to this accepted patch snapshot. Once selection resolves
-    /// the patch, its authored route IDs index this cache without readmission.
-    pub fn playback_patch_encodings(
+    /// Encodings and placements belong to this accepted patch snapshot. Once
+    /// selection resolves the patch, its authored route IDs index this cache
+    /// without readmission.
+    pub fn playback_patch_routes(
         &self,
         patch: &crate::patch::PatchId,
-    ) -> Option<&indexmap::IndexMap<crate::patch::PixelRouteId, donder_runtime_types::OutputEncoding>>
-    {
+    ) -> Option<&indexmap::IndexMap<crate::patch::PixelRouteId, PlaybackRoute>> {
         self.accepted_inputs
             .patches
             .get(patch)

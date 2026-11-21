@@ -190,6 +190,14 @@ struct Claim<'a> {
     fixture: &'a Identifier,
 }
 
+/// A route that passed its own checks: the fixture it drives, its pixels and
+/// its channel count.
+struct CheckedRoute<'a> {
+    fixture: Option<&'a Identifier>,
+    pixels: std::ops::Range<u32>,
+    width: u32,
+}
+
 /// Each route that breaks a rule, once.
 fn validate_patch(
     project: &DonderProject,
@@ -198,29 +206,64 @@ fn validate_patch(
     problems: &mut Vec<ValidationProblem>,
 ) {
     let mut ids = HashSet::new();
+    let mut checked = HashMap::new();
+    let mut failed = HashMap::new();
+    for route in &patch.routes {
+        match check_route(project, route, counts, &mut ids) {
+            Ok(route_check) => {
+                checked.insert(route.id, route_check);
+            }
+            Err(problem) => {
+                failed.insert(route.id, problem);
+            }
+        }
+    }
+    let placements = crate::patch::place_routes(
+        &patch.routes,
+        |id| project.get::<crate::Controller>(id),
+        |route| {
+            checked
+                .get(&route.id)
+                .map(|route: &CheckedRoute<'_>| route.width)
+        },
+    );
     let mut occupied = HashMap::new();
     for route in &patch.routes {
-        if let Err(problem) = validate_route(project, route, counts, &mut ids, &mut occupied) {
+        let result = match (failed.remove(&route.id), checked.get(&route.id)) {
+            (Some(problem), _) => Err(problem),
+            (None, Some(route_check)) => {
+                place_route(project, route, route_check, &placements, &mut occupied)
+            }
+            // A second route with a repeated id.
+            (None, None) => Ok(()),
+        };
+        if let Err(problem) = result {
             problems.push(problem);
         }
     }
 }
 
-/// A route, after the routes before it in its patch claimed their channels in
-/// `occupied`.
-fn validate_route<'a>(
+fn route_problem(
+    route: &crate::patch::PixelRoute,
+    fixture: Option<&Identifier>,
+    problem: RouteProblem,
+) -> ValidationProblem {
+    ValidationProblem::Route {
+        route: route.id,
+        fixture: fixture.cloned(),
+        problem,
+    }
+}
+
+/// A route's own rules, apart from where its channels land.
+fn check_route<'a>(
     project: &'a DonderProject,
     route: &crate::patch::PixelRoute,
     counts: &IndexMap<FixtureDefinitionId, u32>,
     ids: &mut HashSet<crate::patch::PixelRouteId>,
-    occupied: &mut HashMap<(crate::controller::ControllerId, ControllerOutput), Vec<Claim<'a>>>,
-) -> Result<(), ValidationProblem> {
+) -> Result<CheckedRoute<'a>, ValidationProblem> {
     let mut fixture = None;
-    let fail = |fixture: Option<&Identifier>, problem| ValidationProblem::Route {
-        route: route.id,
-        fixture: fixture.cloned(),
-        problem,
-    };
+    let fail = |fixture: Option<&Identifier>, problem| route_problem(route, fixture, problem);
     if !ids.insert(route.id) {
         return Err(fail(None, RouteProblem::DuplicateId));
     }
@@ -272,57 +315,76 @@ fn validate_route<'a>(
     let controller = project
         .get::<crate::Controller>(route.controller)
         .ok_or_else(|| fail(fixture, RouteProblem::MissingController))?;
-    let available = controller.output_width(route.output).ok_or_else(|| {
-        fail(
-            fixture,
-            match (controller.universes(), route.output) {
-                (Some(_), _) => RouteProblem::PortOnUniverses,
-                (None, ControllerOutput::Universes) => RouteProblem::NeedsPort,
-                (None, ControllerOutput::Port(_)) => RouteProblem::MissingPort,
-            },
-        )
-    })?;
-    let width = pixels
-        .len()
-        .try_into()
-        .ok()
-        .and_then(|count: u32| count.checked_mul(route.encoding.channel_order().len() as u32))
+    if controller.port(route.port).is_none() {
+        return Err(fail(fixture, RouteProblem::MissingPort));
+    }
+    let width = route
+        .channel_count(target_count)
         .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
-    let start = route.start_channel;
-    let end = start
-        .checked_add(width)
-        .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
+    Ok(CheckedRoute {
+        fixture,
+        pixels,
+        width,
+    })
+}
+
+/// A checked route's channels, after the routes before it in its patch
+/// claimed theirs in `occupied`. A route whose start follows a route that
+/// broke a rule is not placed, and that route reports the problem.
+fn place_route<'a>(
+    project: &DonderProject,
+    route: &crate::patch::PixelRoute,
+    checked: &CheckedRoute<'a>,
+    placements: &HashMap<crate::patch::PixelRouteId, crate::patch::RoutePlacement>,
+    occupied: &mut HashMap<(crate::controller::ControllerId, ControllerOutput), Vec<Claim<'a>>>,
+) -> Result<(), ValidationProblem> {
+    let CheckedRoute {
+        fixture,
+        pixels,
+        width,
+    } = checked;
+    let (fixture, width) = (*fixture, *width);
+    let fail = |problem| route_problem(route, fixture, problem);
+    let Some(placement) = placements.get(&route.id) else {
+        return match route.start {
+            crate::patch::RouteStart::Channel(start) if start.checked_add(width).is_none() => {
+                Err(fail(RouteProblem::ChannelOverflow))
+            }
+            _ => Ok(()),
+        };
+    };
+    let Some(controller) = project.get::<crate::Controller>(route.controller) else {
+        return Err(fail(RouteProblem::MissingController));
+    };
+    let output = placement.output;
+    let (start, end) = (placement.channels.start, placement.channels.end);
+    let available = controller
+        .output_width(output)
+        .ok_or_else(|| fail(RouteProblem::MissingPort))?;
+    let pixels = pixels.clone();
     if end > available {
-        return Err(fail(
-            fixture,
-            RouteProblem::PastLastChannel {
-                channels: start..end,
-                available,
-                output: route.output,
-            },
-        ));
+        return Err(fail(RouteProblem::PastLastChannel {
+            channels: start..end,
+            available,
+            output,
+        }));
     }
     if width == 0 {
         return Ok(());
     }
-    let claims = occupied
-        .entry((route.controller, route.output))
-        .or_default();
+    let claims = occupied.entry((route.controller, output)).or_default();
     if let Some(other) = claims
         .iter()
         .find(|claim| start < claim.channels.end && claim.channels.start < end)
     {
         let shared = start.max(other.channels.start)..end.min(other.channels.end);
-        return Err(fail(
-            fixture,
-            RouteProblem::OutputsOverlap {
-                pixels,
-                other: other.fixture.clone(),
-                place: controller
-                    .place(route.output, shared)
-                    .ok_or_else(|| fail(fixture, RouteProblem::MissingPort))?,
-            },
-        ));
+        return Err(fail(RouteProblem::OutputsOverlap {
+            pixels,
+            other: other.fixture.clone(),
+            place: controller
+                .place(output, shared)
+                .ok_or_else(|| fail(RouteProblem::MissingPort))?,
+        }));
     }
     if let Some(fixture) = fixture {
         claims.push(Claim {

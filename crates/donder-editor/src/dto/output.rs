@@ -118,14 +118,30 @@ pub struct DonderDeviceNetworkRequest {
     pub password: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-/// Channels of an E1.31 or Art-Net controller, from 0 across all its
-/// universes, to send at one value.
-pub struct ControllerOutputTest {
-    pub start_channel: u32,
-    pub channel_count: u32,
-    pub value: u8,
+/// What an output test lights, in the open document.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum OutputTestTarget {
+    /// The open controller's channels, from 0 across all its universes.
+    #[serde(rename_all = "camelCase")]
+    Channels {
+        start_channel: u32,
+        channel_count: u32,
+    },
+    /// The open layout's fixture, or a group's fixtures.
+    LayoutItem { item: u32 },
+    /// One of the open patch's routes.
+    Route { route: u32 },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum OutputTestPattern {
+    Solid { red: u8, green: u8, blue: u8 },
+    Count,
+    Order,
+    Chase,
+    Rise,
 }
 
 /// Progress of a sequence video export, sent while it runs.

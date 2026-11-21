@@ -1,5 +1,3 @@
-use super::*;
-
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn open_project_dialog() -> Option<String> {
@@ -26,13 +24,4 @@ pub(crate) fn choose_profile_directory() -> Option<String> {
         .set_title("Choose the xLights show folder or Vixen profile folder")
         .pick_folder()
         .and_then(|path| path.to_str().map(ToString::to_string))
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) fn create_sequence(
-    request: NewSequenceRequest,
-    state: State<'_, DesktopState>,
-) -> donder_editor::dto::NewSequenceResult {
-    state.create_sequence(request)
 }

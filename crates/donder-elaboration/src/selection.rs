@@ -26,8 +26,8 @@ pub(crate) struct Selection<'a, S = AcceptedSequence<'a>> {
         donder_runtime_types::FixtureGeometry,
     )],
     pub(crate) patch: &'a Patch,
-    pub(crate) encodings:
-        &'a indexmap::IndexMap<donder_model::PixelRouteId, donder_runtime_types::OutputEncoding>,
+    pub(crate) routes:
+        &'a indexmap::IndexMap<donder_model::PixelRouteId, donder_model::PlaybackRoute>,
     pub(crate) outputs: Vec<SelectedOutput<'a>>,
 }
 
@@ -79,7 +79,7 @@ fn resolve_show<'a, S>(
     let layout = project.get::<donder_model::Layout>(*setup.layout.id())?;
     let geometry = project.playback_geometry(&layout.id)?;
     let patch = project.get::<donder_model::Patch>(*setup.patch.id())?;
-    let encodings = project.playback_patch_encodings(&patch.id)?;
+    let routes = project.playback_patch_routes(&patch.id)?;
     if !targets_only(&layout.id) {
         return None;
     }
@@ -149,7 +149,7 @@ fn resolve_show<'a, S>(
         layout,
         geometry,
         patch,
-        encodings,
+        routes,
         outputs,
     })
 }

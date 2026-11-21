@@ -23,7 +23,7 @@ mod accepted;
 pub(crate) mod references;
 pub use accepted::{
     AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
-    AcceptedSequence, CONSOLE_SESSION, ConsoleBinding,
+    AcceptedSequence, CONSOLE_SESSION, ConsoleBinding, PlaybackRoute,
 };
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;

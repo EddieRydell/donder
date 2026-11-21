@@ -46,17 +46,6 @@ export function buildSemanticTree(
   return roots;
 }
 
-export function rankQuickOpenFiles(snapshot: AppSnapshot): string[] {
-  const files = snapshot.projectEntries
-    .filter((entry) => entry.kind === "file")
-    .map((entry) => entry.path);
-  return unique([
-    ...snapshot.tabs.map((tab) => tab.path),
-    ...snapshot.workspaceExplorer.recentFiles,
-    ...files
-  ]);
-}
-
 export function matchesCommand(
   label: string,
   category: string,
@@ -97,15 +86,6 @@ function sortNodes(nodes: WorkspaceTreeNode[]) {
   for (const node of nodes) {
     if (node.children !== undefined) sortNodes(node.children);
   }
-}
-
-function unique(values: string[]): string[] {
-  const seen = new Set<string>();
-  return values.filter((value) => {
-    if (seen.has(value)) return false;
-    seen.add(value);
-    return true;
-  });
 }
 
 function normalizePath(path: string): string {

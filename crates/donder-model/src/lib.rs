@@ -38,7 +38,7 @@ pub use console::{
 pub use controller::{
     ArtNetConfig, ArtNetMode, ChannelPlace, Controller, ControllerOutput, ControllerPort,
     ControllerPortId, ControllerProtocol, ControllerValidationError, DonderConfig, DonderDeviceId,
-    E131Config, E131Mode, OwnedController, UniverseChannel, Universes,
+    DonderPort, E131Config, E131Mode, OwnedController, UniverseChannel, Universes,
 };
 pub use effect::{
     Clip, ClipId, ClipScope, CurveDefinition, EffectDefinition, GradientDefinition, OwnedCurve,
@@ -78,11 +78,14 @@ pub use ownership::edit::{
     make_reusable, use_existing,
 };
 pub use ownership::{Identified, Owned, OwnedMember};
-pub use patch::{OwnedPatch, Patch, PixelRoute, PixelRouteId, PixelSpan};
+pub use patch::{
+    OwnedPatch, Patch, PixelRoute, PixelRouteId, PixelSpan, RoutePlacement, RouteStart,
+    patch_placements, patched_level, place_routes,
+};
 pub use project::{
     AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
     AcceptedSequence, CONSOLE_SESSION, ConsoleBinding, DonderProject, EditError, EditRejection,
-    Object, ProjectData, ProjectEdit, ProjectObject, ProjectRoot, Reusable,
+    Object, PlaybackRoute, ProjectData, ProjectEdit, ProjectObject, ProjectRoot, Reusable,
 };
 pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationEnvelope,

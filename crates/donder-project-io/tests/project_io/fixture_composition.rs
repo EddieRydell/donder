@@ -3,7 +3,7 @@ use crate::common;
 use camino::Utf8Path;
 use donder_model::FixtureElementId;
 use donder_model::{FixtureInstanceId, LayoutFixtureKind};
-use donder_project_io::{check_project, export_project, save_project};
+use donder_project_io::{check_project, save_project};
 
 const ASSEMBLY: &str = r#"
 FixtureDefinition assembly {
@@ -97,7 +97,8 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
 #[test]
 fn all_shape_parameters_round_trip_in_authored_order() {
     use donder_model::{FixtureShape, GridAxis, GridCorner};
-    let mut session = common::load_project(&common::starter_root());
+    let (_temporary, root) = common::starter_copy();
+    let mut session = common::load_project(&root);
     let (id, mut fixture) = session
         .project
         .reusable::<donder_model::FixtureDefinition>()
@@ -165,11 +166,9 @@ fn all_shape_parameters_round_trip_in_authored_order() {
             donder_model::Object::FixtureDefinition(id, fixture),
         )])
         .unwrap();
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8Path::from_path(temporary.path()).unwrap();
-    export_project(&session, root).unwrap();
+    save_project(&session).unwrap();
     assert_eq!(
-        check_project(root, &Default::default(), &mut Default::default())
+        check_project(&root, &Default::default(), &mut Default::default())
             .into_session()
             .unwrap()
             .project,
