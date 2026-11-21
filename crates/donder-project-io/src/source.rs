@@ -125,24 +125,6 @@ impl SourceProject {
         let document = DocumentId::new(path.to_owned());
         self.documents.contains_key(&document).then_some(document)
     }
-    pub fn is_structural_workspace_path(&self, path: &Utf8Path) -> bool {
-        self.entrypoint
-            .iter()
-            .chain(
-                self.documents
-                    .values()
-                    .flat_map(|document| document.imports().iter())
-                    .flat_map(|edge| edge.targets().iter()),
-            )
-            .map(DocumentId::path)
-            .any(|document_path| {
-                document_path == path
-                    || document_path
-                        .strip_prefix(path)
-                        .is_ok_and(|suffix| !suffix.as_str().is_empty())
-            })
-    }
-
     pub fn project_document(&self, path: Utf8PathBuf) -> DocumentId {
         DocumentId::new(path)
     }

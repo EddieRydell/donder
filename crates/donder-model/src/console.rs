@@ -288,13 +288,6 @@ impl Console {
         );
     }
 
-    /// Forget every `Set` of a deleted graph node's parameters.
-    pub fn forget_node(&mut self, node: &crate::sequence::CompositionGraphNodeId) {
-        self.forget_sets(|target| {
-            matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if node_id == node)
-        });
-    }
-
     fn forget_sets(&mut self, matches: impl Fn(&ConsoleAutomationTarget) -> bool) {
         for on in &mut self.events {
             on.actions

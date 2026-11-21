@@ -1,10 +1,12 @@
 use std::fs;
+use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
 use super::{
     DesktopState, LoadedProject, absolute_project_path, absolute_root_path, descriptor_for_path,
-    lock_unpoisoned, path_matches_or_is_child, remap_workspace_path, valid_child_name,
+    generated_source_texts, lock_unpoisoned, path_matches_or_is_child, remap_workspace_path,
+    valid_child_name,
 };
 use crate::persistence::ProjectRestoreState;
 use crate::project::{new_project_files, write_new_project_files};
@@ -140,7 +142,7 @@ impl DesktopState {
         request: &WorkspacePathChangeRequest,
     ) -> Result<
         (
-            std::sync::Arc<donder_project_io::ProjectSession>,
+            Arc<donder_project_io::ProjectSession>,
             donder_project_io::PathChangePlan,
         ),
         String,
@@ -238,7 +240,7 @@ impl DesktopState {
             donder_project_io::apply_path_change(&project, &plan)?
         };
         let root = candidate.source.project_root().to_string();
-        let candidate = std::sync::Arc::new(candidate);
+        let candidate = Arc::new(candidate);
         lock_unpoisoned(&self.gui_history).clear();
         let entries = super::workspace_entries(&candidate);
         let remap = |path: &str| remap_workspace_path(path, &request.source, &request.destination);
@@ -290,7 +292,7 @@ impl DesktopState {
             workspace.view.state_revision += 1;
             if refresh_errors.is_empty() {
                 workspace.typed_revision = Some(workspace.view.project_revision);
-                workspace.project = LoadedProject::Ready(std::sync::Arc::clone(&candidate));
+                workspace.project = LoadedProject::Ready(Arc::clone(&candidate));
             } else {
                 workspace.typed_revision = None;
                 workspace.project = LoadedProject::Invalid;
@@ -529,7 +531,7 @@ impl DesktopState {
             )
             .into_session()
             {
-                Ok(loaded) => std::sync::Arc::new(loaded),
+                Ok(loaded) => Arc::new(loaded),
                 Err(error) => {
                     return self.snapshot_with_error(&format!(
                         "The saved project cannot be copied: {error:?}"
@@ -604,6 +606,23 @@ impl DesktopState {
         }
     }
 
+    /// What deleting `path` also changes in the documents that stay, a
+    /// sentence each, for the person to confirm; why it cannot be deleted.
+    pub(crate) fn plan_delete_path(&self, path: &str) -> Result<Vec<String>, String> {
+        let _authoring = self.settled_authoring();
+        let project = self.project_session().ok_or("No project is loaded.")?;
+        let (before, edited) = self.deleted_documents(&project, path)?;
+        Ok(match edited {
+            Some(mut edited) => {
+                donder_editor::repair_changes(&before, &edited.project.take_repairs())
+            }
+            None => Vec::new(),
+        })
+    }
+
+    /// Delete `path` from disk. The objects its documents declare go from the
+    /// project, and what the documents that stay held that referred to them
+    /// gives way.
     pub(crate) fn delete_path(&self, path: &str) -> AppSnapshot {
         let _authoring = self.settled_authoring();
         if lock_unpoisoned(&self.workspace)
@@ -618,13 +637,31 @@ impl DesktopState {
         let Some(project) = self.project_session() else {
             return self.snapshot();
         };
-        let relative_path = Utf8PathBuf::from(path);
-        if project.source.is_structural_workspace_path(&relative_path) {
-            return self.snapshot_with_error("Imported documents and the project entrypoint cannot be deleted from the workspace.",
-            );
-        }
-        let Some(absolute_path) = absolute_project_path(&project, &relative_path) else {
+        let Some(absolute_path) = absolute_project_path(&project, Utf8Path::new(path)) else {
             return self.snapshot_with_error("Path is outside the loaded project");
+        };
+        let edited = match self.deleted_documents(&project, path) {
+            Ok((_, edited)) => edited,
+            Err(message) => return self.snapshot_with_error(&message),
+        };
+        let texts = match &edited {
+            Some(edited) => {
+                let paths = edited
+                    .source
+                    .documents
+                    .keys()
+                    .map(|document| document.path().to_string())
+                    .collect();
+                match generated_source_texts(
+                    edited,
+                    &paths,
+                    &mut lock_unpoisoned(&self.document_texts),
+                ) {
+                    Ok(texts) => Some(texts),
+                    Err(message) => return self.snapshot_with_error(&message),
+                }
+            }
+            None => None,
         };
         let result = {
             let _filesystem = lock_unpoisoned(&self.filesystem);
@@ -634,10 +671,61 @@ impl DesktopState {
                 fs::remove_file(&absolute_path)
             }
         };
-        match result {
-            Ok(()) => self.after_workspace_changed(Some(path), None),
-            Err(error) => self.snapshot_with_error(&error.to_string()),
+        if let Err(error) = result {
+            return self.snapshot_with_error(&error.to_string());
         }
+        if let (Some(mut edited), Some(texts)) = (edited, texts) {
+            edited.project.take_repairs();
+            // Undo cannot bring the deleted files back.
+            lock_unpoisoned(&self.gui_history).clear();
+            if let Err(message) = self.accept_gui_sources(Arc::new(edited), texts, "Deleted") {
+                return self.snapshot_with_error(&message);
+            }
+        }
+        self.after_workspace_changed(Some(path), None)
+    }
+
+    /// The project before and after the documents at or below `path` are
+    /// removed; none after when no project document is there.
+    fn deleted_documents(
+        &self,
+        project: &Arc<donder_project_io::ProjectSession>,
+        path: &str,
+    ) -> Result<
+        (
+            Arc<donder_project_io::ProjectSession>,
+            Option<donder_project_io::ProjectSession>,
+        ),
+        String,
+    > {
+        if project
+            .source
+            .entrypoint
+            .as_ref()
+            .is_some_and(|entrypoint| path_matches_or_is_child(entrypoint.path().as_str(), path))
+        {
+            return Err("The project entrypoint cannot be deleted.".into());
+        }
+        let documents = project
+            .source
+            .documents
+            .keys()
+            .filter(|document| path_matches_or_is_child(document.path().as_str(), path))
+            .cloned()
+            .collect::<Vec<_>>();
+        if documents.is_empty() {
+            return Ok((Arc::clone(project), None));
+        }
+        let mut edited = (**project).clone();
+        donder_project_io::remove_documents(&mut edited, &documents).map_err(
+            |error| match error {
+                donder_model::EditError::Invalid(error) => {
+                    donder_project_io::validation_message(project, &error)
+                }
+                donder_model::EditError::Rejected(rejection) => rejection.to_string(),
+            },
+        )?;
+        Ok((Arc::clone(project), Some(edited)))
     }
 }
 

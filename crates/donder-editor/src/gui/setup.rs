@@ -120,12 +120,9 @@ pub(super) fn edit_setup(
             donder_project_io::link_declaration(session, resolved.document_id(), id.into())
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
-        SetupGuiEdit::DetachController {
-            controller,
-            remove_outputs,
-        } => {
+        SetupGuiEdit::DetachController { controller } => {
             let id: ControllerId = object_id_from_gui(session, &controller)?;
-            donder_model::detach_controller(&mut session.project, &setup.id, &id, remove_outputs)
+            donder_model::detach_controller(&mut session.project, &setup.id, &id)
                 .map_err(GuiMutationError::from)?;
         }
         SetupGuiEdit::AttachInputDevice { device } => {

@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use donder_editor::GuiMutationError;
@@ -123,7 +124,8 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_clip_raster).pixels_rgba_for_token(token)
     }
 
-    /// Apply one GUI edit.
+    /// Apply one GUI edit. An edit that also changes objects it left alone
+    /// waits for [`Self::confirm_gui_edit`].
     pub(crate) fn edit_gui_document(
         &self,
         request: GuiDocumentRequest,
@@ -131,11 +133,43 @@ impl DesktopState {
     ) -> GuiEditUpdate {
         let _authoring = lock_unpoisoned(&self.authoring);
         let site = donder_editor::edit_site(&edit);
-        match self.mutate_gui_project_locked(&request, site, |session| {
+        let prepared = self.prepare_gui_edit(&request, site, |session| {
             donder_editor::apply_edit(session, &request, edit)
-        }) {
-            Ok((update, outcome)) => with_outcome(update, outcome),
-            Err(error) => self.gui_edit_error(error),
+        });
+        let (prepared, outcome) = match prepared {
+            Ok(prepared) => prepared,
+            Err(problem) => return self.gui_edit_error(problem),
+        };
+        if !prepared.changes.is_empty() {
+            let changes = prepared.changes.clone();
+            *lock_unpoisoned(&self.pending_gui_edit) = Some(PendingGuiEdit { prepared, outcome });
+            return gui_update(
+                self.snapshot(),
+                GuiDocumentChange::NeedsConfirmation { changes },
+            );
+        }
+        match self.commit_gui_edit(prepared) {
+            Ok(update) => with_outcome(update, outcome),
+            Err(problem) => self.gui_edit_error(problem),
+        }
+    }
+
+    /// Apply the edit of `request` that waits for confirmation, unless the
+    /// project changed since.
+    pub(crate) fn confirm_gui_edit(&self, request: GuiDocumentRequest) -> GuiEditUpdate {
+        let _authoring = lock_unpoisoned(&self.authoring);
+        let pending = lock_unpoisoned(&self.pending_gui_edit).take();
+        let Some(PendingGuiEdit { prepared, outcome }) = pending.filter(|pending| {
+            pending.prepared.request == request
+                && self.snapshot().project_revision == request.project_revision
+        }) else {
+            return self.gui_edit_error(GuiProblem::without_site(
+                "The project changed before the edit was confirmed.",
+            ));
+        };
+        match self.commit_gui_edit(prepared) {
+            Ok(update) => with_outcome(update, outcome),
+            Err(problem) => self.gui_edit_error(problem),
         }
     }
 
@@ -248,19 +282,43 @@ impl DesktopState {
             GuiDocumentChange::Refused { problem } => {
                 donder_editor::blocked(problem.message(), Vec::new())
             }
+            GuiDocumentChange::NeedsConfirmation { changes } => {
+                donder_editor::blocked(changes.join(". "), Vec::new())
+            }
         };
         GuiEditResult { document }
     }
 
     /// Apply `mutate`, an edit of the object `request` opens that sets the
     /// field `edit_site` when it names one, as one undo step; a refused edit
-    /// changes nothing.
+    /// changes nothing. An edit that would also change objects it left alone
+    /// is refused: only [`Self::edit_gui_document`] asks to confirm one.
     pub(super) fn mutate_gui_project_locked<T>(
         &self,
         request: &GuiDocumentRequest,
         edit_site: Option<GuiProblemSite>,
         mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
     ) -> Result<(GuiEditUpdate, T), GuiProblem> {
+        let (prepared, value) = self.prepare_gui_edit(request, edit_site, mutate)?;
+        if !prepared.changes.is_empty() {
+            return Err(GuiProblem::without_site(format!(
+                "This edit would also change other objects. {}.",
+                prepared.changes.join(". ")
+            )));
+        }
+        Ok((self.commit_gui_edit(prepared)?, value))
+    }
+
+    /// Make an edit on a copy of the project, as
+    /// [`Self::mutate_gui_project_locked`], without applying it. A new edit
+    /// drops the one waiting for confirmation.
+    fn prepare_gui_edit<T>(
+        &self,
+        request: &GuiDocumentRequest,
+        edit_site: Option<GuiProblemSite>,
+        mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
+    ) -> Result<(PreparedGuiEdit, T), GuiProblem> {
+        lock_unpoisoned(&self.pending_gui_edit).take();
         if self.snapshot().project_revision != request.project_revision {
             return Err(GuiProblem::without_site(
                 "The project changed before the edit arrived.",
@@ -280,23 +338,51 @@ impl DesktopState {
             donder_editor::affected_paths(&edited, request)
                 .map_err(|error| refused(&edited, error))?,
         );
+        let repairs = edited.project.take_repairs();
+        let changes = donder_editor::repair_changes(&before, &repairs);
+        Ok((
+            PreparedGuiEdit {
+                request: request.clone(),
+                before,
+                edited,
+                affected_paths,
+                changes,
+            },
+            value,
+        ))
+    }
+
+    /// Apply a prepared edit as one undo step.
+    fn commit_gui_edit(&self, prepared: PreparedGuiEdit) -> Result<GuiEditUpdate, GuiProblem> {
+        let PreparedGuiEdit {
+            request,
+            before,
+            edited,
+            affected_paths,
+            changes,
+        } = prepared;
         let generated_text = generated_source_texts(
             &edited,
             &affected_paths,
             &mut lock_unpoisoned(&self.document_texts),
         )
         .map_err(GuiProblem::without_site)?;
+        let status = if changes.is_empty() {
+            "GUI edit applied".to_string()
+        } else {
+            format!("GUI edit applied. {}.", changes.join(". "))
+        };
         let edited = Arc::new(edited);
         let snapshot = self
-            .accept_gui_sources(Arc::clone(&edited), generated_text, "GUI edit applied")
+            .accept_gui_sources(Arc::clone(&edited), generated_text, &status)
             .map_err(GuiProblem::without_site)?;
-        let change = donder_editor::project_gui_document_change(&before, &edited, request);
+        let change = donder_editor::project_gui_document_change(&before, &edited, &request);
         lock_unpoisoned(&self.gui_history).push_undo(GuiHistoryEntry {
             before,
             after: Arc::clone(&edited),
-            affected_paths: affected_paths.clone(),
+            affected_paths,
         });
-        Ok((gui_update(snapshot, change), value))
+        Ok(gui_update(snapshot, change))
     }
 
     fn gui_edit_error(&self, problem: GuiProblem) -> GuiEditUpdate {
@@ -412,6 +498,23 @@ impl DesktopState {
         self.accept_gui_sources(entry.after, generated_text, "GUI edit redone")
             .unwrap_or_else(|error| self.snapshot_with_error(&error))
     }
+}
+
+/// An edit made on a copy of the project, not yet applied.
+pub(super) struct PreparedGuiEdit {
+    request: GuiDocumentRequest,
+    before: Arc<ProjectSession>,
+    edited: ProjectSession,
+    affected_paths: BTreeSet<String>,
+    /// The changes to objects the edit left alone that need confirmation, a
+    /// sentence each.
+    changes: Vec<String>,
+}
+
+/// An edit that waits for the person to confirm its changes to other objects.
+pub(super) struct PendingGuiEdit {
+    prepared: PreparedGuiEdit,
+    outcome: donder_editor::GuiEditOutcome,
 }
 
 /// An edit's update before its outcome is known.

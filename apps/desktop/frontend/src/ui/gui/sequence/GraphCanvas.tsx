@@ -241,7 +241,7 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
               if (!editable || state.toHandle !== null) return;
               const previous = graph.edges.find((item) => graphEdgeId(item) === edge.id);
               if (previous === undefined) return;
-              void composition.apply({ type: "deleteGraphItems", nodeIds: [], layerIds: [], edges: [previous], migrateToLayerId: null }, connectionOrigin.current);
+              void composition.apply({ type: "deleteGraphItems", nodeIds: [], layerIds: [], edges: [previous] }, connectionOrigin.current);
             }}
             onConnect={(connection) => {
               if (!editable) return;

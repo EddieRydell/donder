@@ -19,6 +19,7 @@ import { CommandOverlays } from "../workspace/CommandOverlays";
 import { WorkspaceSidebar } from "../workspace/WorkspaceSidebar";
 import { runWorkspaceTransition, useTransitionStore } from "../workspaceTransitions";
 import { UnsavedChangesDialog } from "./UnsavedChangesDialog";
+import { EditConfirmationDialog } from "./EditConfirmationDialog";
 import { Button, TipProvider } from "./kit";
 import { scheduleViewStateSave } from "../viewStatePersistence";
 
@@ -83,6 +84,7 @@ export function App() {
       <NewSequenceDialog />
       <SettingsDialog />
       <UnsavedChangesDialog />
+      <EditConfirmationDialog />
       <CommandOverlays />
       {snapshot.projectRoot === null && (
         <div className="empty-project">

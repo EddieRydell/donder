@@ -1,4 +1,5 @@
 mod problem;
+mod repair;
 
 use std::collections::{HashMap, HashSet};
 
@@ -30,237 +31,304 @@ pub use problem::{
     PlayedProblem, ProblemSite, ProjectValidationError, RegionProblem, RouteProblem,
     SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
 };
+pub(crate) use repair::repair;
+pub use repair::{GraphOwner, ParamOwner, Repair};
 
 pub(crate) const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
 pub(crate) const MAX_SEQUENCE_FRAME_RATE: u32 = 1_000;
 
-/// Validate `project` as an edit of `previous`, a project that already passed
-/// validation. When only sequences changed, only sequences are revalidated, and
-/// a clip that is still the allocation `previous` held skips the checks that
-/// depend on nothing else that could have changed.
-pub(crate) fn validate_project_edit(
-    project: &DonderProject,
-    previous: &DonderProject,
-) -> Result<(), ProjectValidationError> {
-    if !project.only_sequences_differ_from(previous) {
-        return validate_project(project);
-    }
-    crate::ownership::validate_ownership(project)?;
-    for sequence in project.objects::<crate::Sequence>() {
-        validate_sequence_since(
-            project,
-            sequence,
-            previous.get::<crate::Sequence>(sequence.id),
-        )
-        .map_err(|error| at(sequence.id)(ValidationProblem::Sequence(error)))?;
-    }
-    Ok(())
+pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidationError> {
+    first(project_problems(project, None))
 }
 
-pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidationError> {
-    crate::ownership::validate_ownership(project)?;
+/// Every problem of `project`, in the order [`validate_project`] meets them:
+/// one for each member that breaks a rule, or the one that stops an object's
+/// checks. Objects that depend on definitions, layouts and controllers are
+/// checked only when those pass. With `previous`, a project that already
+/// passed validation, `project` is checked as an edit of it: when only
+/// sequences changed, only sequences are checked, and a clip that is still the
+/// allocation `previous` held skips the checks that depend on nothing else that
+/// could have changed.
+pub(crate) fn project_problems(
+    project: &DonderProject,
+    previous: Option<&DonderProject>,
+) -> Vec<ProjectValidationError> {
+    let mut problems = Vec::new();
+    if let Err(problem) = crate::ownership::validate_ownership(project) {
+        problems.push(problem);
+        return problems;
+    }
+    if let Some(previous) = previous
+        && project.only_sequences_differ_from(previous)
+    {
+        for sequence in project.objects::<crate::Sequence>() {
+            sequence_problems(
+                project,
+                sequence,
+                previous.get::<crate::Sequence>(sequence.id),
+                &mut problems,
+            );
+        }
+        return problems;
+    }
     for (id, definition) in project.reusable::<crate::EffectDefinition>() {
         if definition.id != *id {
-            return Err(at(*id)(ValidationProblem::DefinitionMismatch));
+            problems.push(at(*id)(ValidationProblem::DefinitionMismatch));
         }
     }
     for (id, definition) in project.reusable::<crate::OperatorDefinition>() {
         if definition.id != *id {
-            return Err(at(*id)(ValidationProblem::DefinitionMismatch));
+            problems.push(at(*id)(ValidationProblem::DefinitionMismatch));
         }
     }
     for (id, definition) in project.reusable::<crate::CurveDefinition>() {
-        definition
-            .curve
-            .validate()
-            .map_err(|error| at(*id)(ValidationProblem::Curve(error)))?;
+        if let Err(error) = definition.curve.validate() {
+            problems.push(at(*id)(ValidationProblem::Curve(error)));
+        }
     }
     for (id, definition) in project.reusable::<crate::GradientDefinition>() {
-        definition
-            .gradient
-            .validate()
-            .map_err(|error| at(*id)(ValidationProblem::Gradient(error)))?;
+        if let Err(error) = definition.gradient.validate() {
+            problems.push(at(*id)(ValidationProblem::Gradient(error)));
+        }
     }
     if project
         .get::<crate::Setup>(*project.root.setup.id())
         .is_none()
     {
-        return Err(at(project.root.id)(ValidationProblem::MissingSetup));
+        problems.push(at(project.root.id)(ValidationProblem::MissingSetup));
     }
     let mut counts = IndexMap::new();
     for (id, definition) in project.reusable::<crate::FixtureDefinition>() {
-        let count = definition
-            .validate(id)
-            .map_err(|error| at(*id)(ValidationProblem::Fixture(error)))?;
-        counts.insert(*id, count);
+        match definition.validate(id) {
+            Ok(count) => {
+                counts.insert(*id, count);
+            }
+            Err(error) => problems.push(at(*id)(ValidationProblem::Fixture(error))),
+        }
     }
     for controller in project.objects::<crate::Controller>() {
-        controller
-            .validate()
-            .map_err(|error| at(controller.id)(ValidationProblem::Controller(error)))?;
+        if let Err(error) = controller.validate() {
+            problems.push(at(controller.id)(ValidationProblem::Controller(error)));
+        }
     }
     for device in project.objects::<crate::InputDevice>() {
-        device
-            .validate()
-            .map_err(|error| at(device.id)(ValidationProblem::InputDevice(error)))?;
+        if let Err(error) = device.validate() {
+            problems.push(at(device.id)(ValidationProblem::InputDevice(error)));
+        }
     }
     for layout in project.objects::<crate::Layout>() {
-        layout
-            .validate(project.reusable::<crate::FixtureDefinition>())
-            .map_err(|error| at(layout.id)(ValidationProblem::Layout(error)))?;
+        if let Err(error) = layout.validate(project.reusable::<crate::FixtureDefinition>()) {
+            problems.push(at(layout.id)(ValidationProblem::Layout(error)));
+        }
+    }
+    if !problems.is_empty() {
+        return problems;
     }
     for patch in project.objects::<crate::Patch>() {
-        validate_patch(project, patch, &counts).map_err(at(patch.id))?;
+        let mut found = Vec::new();
+        validate_patch(project, patch, &counts, &mut found);
+        problems.extend(found.into_iter().map(at(patch.id)));
     }
     for setup in project.objects::<crate::Setup>() {
-        validate_setup(project, setup).map_err(at(setup.id))?;
+        let mut found = Vec::new();
+        if let Err(problem) = validate_setup(project, setup, &mut found) {
+            found.push(problem);
+        }
+        problems.extend(found.into_iter().map(at(setup.id)));
     }
     for sequence in project.objects::<crate::Sequence>() {
-        validate_sequence(project, sequence)
-            .map_err(|error| at(sequence.id)(ValidationProblem::Sequence(error)))?;
+        sequence_problems(project, sequence, None, &mut problems);
     }
     for console in project.objects::<crate::Console>() {
-        validate_console(project, console)
-            .map_err(|error| at(console.id)(ValidationProblem::Console(error)))?;
+        let mut found = Vec::new();
+        if let Err(problem) = console_problems(project, console, &mut found) {
+            found.push(problem);
+        }
+        problems.extend(
+            found
+                .into_iter()
+                .map(|problem| at(console.id)(ValidationProblem::Console(problem))),
+        );
     }
-    Ok(())
+    problems
+}
+
+/// The problems of one sequence, attached to it.
+fn sequence_problems(
+    project: &DonderProject,
+    sequence: &Sequence,
+    previous: Option<&Sequence>,
+    problems: &mut Vec<ProjectValidationError>,
+) {
+    let mut found = Vec::new();
+    if let Err(problem) = validate_sequence_since(project, sequence, previous, &mut found) {
+        found.push(problem);
+    }
+    problems.extend(
+        found
+            .into_iter()
+            .map(|problem| at(sequence.id)(ValidationProblem::Sequence(problem))),
+    );
+}
+
+/// The first of `problems`, the one a single-problem check reports.
+fn first<E>(problems: Vec<E>) -> Result<(), E> {
+    problems.into_iter().next().map_or(Ok(()), Err)
 }
 
 /// Attach the object a problem belongs to.
 pub(crate) fn at(
     object: impl Into<ObjectId>,
-) -> impl FnOnce(ValidationProblem) -> ProjectValidationError {
+) -> impl Fn(ValidationProblem) -> ProjectValidationError {
     let object = object.into();
     move |problem| ProjectValidationError { object, problem }
 }
 
+/// The channels a route of a patch claims on a controller output.
+struct Claim<'a> {
+    channels: std::ops::Range<u32>,
+    fixture: &'a Identifier,
+}
+
+/// Each route that breaks a rule, once.
 fn validate_patch(
     project: &DonderProject,
     patch: &crate::patch::Patch,
     counts: &IndexMap<FixtureDefinitionId, u32>,
-) -> Result<(), ValidationProblem> {
-    struct Claim<'a> {
-        channels: std::ops::Range<u32>,
-        fixture: &'a Identifier,
-    }
+    problems: &mut Vec<ValidationProblem>,
+) {
     let mut ids = HashSet::new();
-    let mut occupied = HashMap::<_, Vec<Claim<'_>>>::new();
+    let mut occupied = HashMap::new();
     for route in &patch.routes {
-        let mut fixture = None;
-        let fail = |fixture: Option<&Identifier>, problem| ValidationProblem::Route {
-            route: route.id,
-            fixture: fixture.cloned(),
-            problem,
-        };
-        if !ids.insert(route.id) {
-            return Err(fail(None, RouteProblem::DuplicateId));
+        if let Err(problem) = validate_route(project, route, counts, &mut ids, &mut occupied) {
+            problems.push(problem);
         }
-        let layout = project
-            .get::<crate::Layout>(route.target.layout)
-            .ok_or_else(|| fail(None, RouteProblem::MissingLayout))?;
-        let target = layout.fixture(route.target.fixture);
-        if let Some(target) = target {
-            fixture = Some(&target.name);
-        }
-        if !matches!(
-            target.map(|target| &target.kind),
-            Some(crate::layout::LayoutFixtureKind::Fixture { .. })
-        ) {
-            return Err(fail(fixture, RouteProblem::TargetNotFixture));
-        }
-        if !route.encoding.is_valid() {
-            return Err(fail(fixture, RouteProblem::InvalidColorOrder));
-        }
-        if !route.gamma.is_finite() || route.gamma <= 0.0 {
-            return Err(fail(fixture, RouteProblem::InvalidGamma));
-        }
-        if !route.brightness.is_finite() || !(0.0..=1.0).contains(&route.brightness) {
-            return Err(fail(fixture, RouteProblem::InvalidBrightness));
-        }
-        let target_count = layout
-            .target_pixel_count(&route.target, counts)
-            .map_err(|error| fail(fixture, RouteProblem::Target(error)))?;
-        let pixels = match route.pixels {
-            Some(span) if span.count == 0 => return Err(fail(fixture, RouteProblem::EmptySpan)),
-            Some(span) => {
-                if span
-                    .start
-                    .checked_add(span.count)
-                    .is_none_or(|end| end > target_count)
-                {
-                    return Err(fail(
-                        fixture,
-                        RouteProblem::SpanExceedsTarget {
-                            span,
-                            pixels: target_count,
-                        },
-                    ));
-                }
-                span.start..span.start + span.count
+    }
+}
+
+/// A route, after the routes before it in its patch claimed their channels in
+/// `occupied`.
+fn validate_route<'a>(
+    project: &'a DonderProject,
+    route: &crate::patch::PixelRoute,
+    counts: &IndexMap<FixtureDefinitionId, u32>,
+    ids: &mut HashSet<crate::patch::PixelRouteId>,
+    occupied: &mut HashMap<(crate::controller::ControllerId, ControllerOutput), Vec<Claim<'a>>>,
+) -> Result<(), ValidationProblem> {
+    let mut fixture = None;
+    let fail = |fixture: Option<&Identifier>, problem| ValidationProblem::Route {
+        route: route.id,
+        fixture: fixture.cloned(),
+        problem,
+    };
+    if !ids.insert(route.id) {
+        return Err(fail(None, RouteProblem::DuplicateId));
+    }
+    let layout = project
+        .get::<crate::Layout>(route.target.layout)
+        .ok_or_else(|| fail(None, RouteProblem::MissingLayout))?;
+    let target = layout.fixture(route.target.fixture);
+    if let Some(target) = target {
+        fixture = Some(&target.name);
+    }
+    if !matches!(
+        target.map(|target| &target.kind),
+        Some(crate::layout::LayoutFixtureKind::Fixture { .. })
+    ) {
+        return Err(fail(fixture, RouteProblem::TargetNotFixture));
+    }
+    if !route.encoding.is_valid() {
+        return Err(fail(fixture, RouteProblem::InvalidColorOrder));
+    }
+    if !route.gamma.is_finite() || route.gamma <= 0.0 {
+        return Err(fail(fixture, RouteProblem::InvalidGamma));
+    }
+    if !route.brightness.is_finite() || !(0.0..=1.0).contains(&route.brightness) {
+        return Err(fail(fixture, RouteProblem::InvalidBrightness));
+    }
+    let target_count = layout
+        .target_pixel_count(&route.target, counts)
+        .map_err(|error| fail(fixture, RouteProblem::Target(error)))?;
+    let pixels = match route.pixels {
+        Some(span) if span.count == 0 => return Err(fail(fixture, RouteProblem::EmptySpan)),
+        Some(span) => {
+            if span
+                .start
+                .checked_add(span.count)
+                .is_none_or(|end| end > target_count)
+            {
+                return Err(fail(
+                    fixture,
+                    RouteProblem::SpanExceedsTarget {
+                        span,
+                        pixels: target_count,
+                    },
+                ));
             }
-            None => 0..target_count,
-        };
-        let controller = project
-            .get::<crate::Controller>(route.controller)
-            .ok_or_else(|| fail(fixture, RouteProblem::MissingController))?;
-        let available = controller.output_width(route.output).ok_or_else(|| {
-            fail(
-                fixture,
-                match (controller.universes(), route.output) {
-                    (Some(_), _) => RouteProblem::PortOnUniverses,
-                    (None, ControllerOutput::Universes) => RouteProblem::NeedsPort,
-                    (None, ControllerOutput::Port(_)) => RouteProblem::MissingPort,
-                },
-            )
-        })?;
-        let width = pixels
-            .len()
-            .try_into()
-            .ok()
-            .and_then(|count: u32| count.checked_mul(route.encoding.channel_order().len() as u32))
-            .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
-        let start = route.start_channel;
-        let end = start
-            .checked_add(width)
-            .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
-        if end > available {
-            return Err(fail(
-                fixture,
-                RouteProblem::PastLastChannel {
-                    channels: start..end,
-                    available,
-                    output: route.output,
-                },
-            ));
+            span.start..span.start + span.count
         }
-        if width == 0 {
-            continue;
-        }
-        let claims = occupied
-            .entry((route.controller, route.output))
-            .or_default();
-        if let Some(other) = claims
-            .iter()
-            .find(|claim| start < claim.channels.end && claim.channels.start < end)
-        {
-            let shared = start.max(other.channels.start)..end.min(other.channels.end);
-            return Err(fail(
-                fixture,
-                RouteProblem::OutputsOverlap {
-                    pixels,
-                    other: other.fixture.clone(),
-                    place: controller
-                        .place(route.output, shared)
-                        .ok_or_else(|| fail(fixture, RouteProblem::MissingPort))?,
-                },
-            ));
-        }
-        if let Some(fixture) = fixture {
-            claims.push(Claim {
+        None => 0..target_count,
+    };
+    let controller = project
+        .get::<crate::Controller>(route.controller)
+        .ok_or_else(|| fail(fixture, RouteProblem::MissingController))?;
+    let available = controller.output_width(route.output).ok_or_else(|| {
+        fail(
+            fixture,
+            match (controller.universes(), route.output) {
+                (Some(_), _) => RouteProblem::PortOnUniverses,
+                (None, ControllerOutput::Universes) => RouteProblem::NeedsPort,
+                (None, ControllerOutput::Port(_)) => RouteProblem::MissingPort,
+            },
+        )
+    })?;
+    let width = pixels
+        .len()
+        .try_into()
+        .ok()
+        .and_then(|count: u32| count.checked_mul(route.encoding.channel_order().len() as u32))
+        .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
+    let start = route.start_channel;
+    let end = start
+        .checked_add(width)
+        .ok_or_else(|| fail(fixture, RouteProblem::ChannelOverflow))?;
+    if end > available {
+        return Err(fail(
+            fixture,
+            RouteProblem::PastLastChannel {
                 channels: start..end,
-                fixture,
-            });
-        }
+                available,
+                output: route.output,
+            },
+        ));
+    }
+    if width == 0 {
+        return Ok(());
+    }
+    let claims = occupied
+        .entry((route.controller, route.output))
+        .or_default();
+    if let Some(other) = claims
+        .iter()
+        .find(|claim| start < claim.channels.end && claim.channels.start < end)
+    {
+        let shared = start.max(other.channels.start)..end.min(other.channels.end);
+        return Err(fail(
+            fixture,
+            RouteProblem::OutputsOverlap {
+                pixels,
+                other: other.fixture.clone(),
+                place: controller
+                    .place(route.output, shared)
+                    .ok_or_else(|| fail(fixture, RouteProblem::MissingPort))?,
+            },
+        ));
+    }
+    if let Some(fixture) = fixture {
+        claims.push(Claim {
+            channels: start..end,
+            fixture,
+        });
     }
     Ok(())
 }
@@ -273,10 +341,13 @@ fn route_fixture(project: &DonderProject, route: &crate::patch::PixelRoute) -> O
         .map(|fixture| fixture.name.clone())
 }
 
-/// The setup's members exist and are distinct by ownership validation.
+/// The setup's members exist and are distinct by ownership validation. A
+/// missing member stops the checks; each other problem is pushed to
+/// `problems`.
 fn validate_setup(
     project: &DonderProject,
     setup: &crate::setup::Setup,
+    problems: &mut Vec<ValidationProblem>,
 ) -> Result<(), ValidationProblem> {
     if setup.controllers.len() as u128 > u128::from(u32::MAX) + 1 {
         return Err(ValidationProblem::Setup(SetupProblem::TooManyControllers));
@@ -302,18 +373,17 @@ fn validate_setup(
         if let crate::InputDriver::Osc { port } = input_device.driver
             && !osc_ports.insert(port)
         {
-            return Err(ValidationProblem::Setup(SetupProblem::SharedOscPort(port)));
+            problems.push(ValidationProblem::Setup(SetupProblem::SharedOscPort(port)));
         }
     }
     for route in &patch.routes {
         if &route.target.layout != setup.layout.id() {
-            return Err(ValidationProblem::Setup(SetupProblem::RouteOnOtherLayout {
+            problems.push(ValidationProblem::Setup(SetupProblem::RouteOnOtherLayout {
                 route: route.id,
                 fixture: route_fixture(project, route),
             }));
-        }
-        if !controllers.contains(&route.controller) {
-            return Err(ValidationProblem::Setup(
+        } else if !controllers.contains(&route.controller) {
+            problems.push(ValidationProblem::Setup(
                 SetupProblem::RouteControllerInactive {
                     route: route.id,
                     fixture: route_fixture(project, route),
@@ -328,17 +398,22 @@ pub fn validate_sequence(
     project: &DonderProject,
     sequence: &Sequence,
 ) -> Result<(), SequenceValidationError> {
-    validate_sequence_since(project, sequence, None)
+    let mut problems = Vec::new();
+    validate_sequence_since(project, sequence, None, &mut problems)?;
+    first(problems)
 }
 
 /// [`validate_sequence`], where `previous` is this sequence in a validated
 /// project whose layouts and definitions are the same allocations as
 /// `project`'s. A clip still shared with `previous` keeps its target and
 /// parameter checks when the layers and mark collections are unchanged too.
+/// A problem of the whole sequence stops the checks; each mark collection,
+/// clip and automation clip that breaks a rule is pushed to `problems`.
 fn validate_sequence_since(
     project: &DonderProject,
     sequence: &Sequence,
     previous: Option<&Sequence>,
+    problems: &mut Vec<SequenceValidationError>,
 ) -> Result<(), SequenceValidationError> {
     use SequenceValidationError as Error;
     let unchanged = previous
@@ -410,14 +485,13 @@ fn validate_sequence_since(
             .iter()
             .any(|mark| mark.time.0 > sequence.duration.0)
         {
-            return Err(Error::MarkOutsideDuration(name()));
-        }
-        if collection.marks.iter().any(|mark| {
+            problems.push(Error::MarkOutsideDuration(name()));
+        } else if collection.marks.iter().any(|mark| {
             mark.label.as_deref().is_some_and(|label| {
                 label.is_empty() || label.trim() != label || label.contains(['\n', '\r'])
             })
         }) {
-            return Err(Error::InvalidMarkLabel(name()));
+            problems.push(Error::InvalidMarkLabel(name()));
         }
     }
 
@@ -429,49 +503,47 @@ fn validate_sequence_since(
     // An unchanged clip compared against an unchanged first clip in an unchanged
     // context only needs the checks that involve the sequence's own duration.
     let first_unchanged = sequence.clips.first().is_none_or(is_unchanged);
-    for clip in &sequence.clips {
-        let fail = |problem| Error::Clip {
-            clip: clip.id.clone(),
-            name: clip.name.clone(),
-            problem,
-        };
-        let region = |region| fail(ClipProblem::Region(region));
-        if first_unchanged && is_unchanged(clip) {
-            validate_timed_region(
-                clip.start.0,
-                clip.duration.0,
-                sequence.duration.0,
-                sampled_sequence_duration,
-            )
-            .map_err(region)?;
-            continue;
-        }
-        if !layer_ids.contains(&clip.layer_id) {
-            return Err(fail(ClipProblem::MissingLayer));
-        }
+    let region = |clip: &crate::effect::Clip| {
         validate_timed_region(
             clip.start.0,
             clip.duration.0,
             sequence.duration.0,
             sampled_sequence_duration,
         )
-        .map_err(region)?;
-        if active && &clip.target.layout != active_layout {
-            return Err(fail(ClipProblem::NotInActiveLayout));
+        .map_err(ClipProblem::Region)
+    };
+    for clip in &sequence.clips {
+        let check = || {
+            if first_unchanged && is_unchanged(clip) {
+                return region(clip);
+            }
+            if !layer_ids.contains(&clip.layer_id) {
+                return Err(ClipProblem::MissingLayer);
+            }
+            region(clip)?;
+            if active && &clip.target.layout != active_layout {
+                return Err(ClipProblem::NotInActiveLayout);
+            }
+            if sequence
+                .clips
+                .first()
+                .is_some_and(|first| first.target.layout != clip.target.layout)
+            {
+                return Err(ClipProblem::MixedLayouts);
+            }
+            if is_unchanged(clip) {
+                return Ok(());
+            }
+            validate_target(project, &clip.target)?;
+            validate_params(project, &clip.definition, &clip.param_overrides, &mark_keys)
+        };
+        if let Err(problem) = check() {
+            problems.push(Error::Clip {
+                clip: clip.id.clone(),
+                name: clip.name.clone(),
+                problem,
+            });
         }
-        if sequence
-            .clips
-            .first()
-            .is_some_and(|first| first.target.layout != clip.target.layout)
-        {
-            return Err(fail(ClipProblem::MixedLayouts));
-        }
-        if is_unchanged(clip) {
-            continue;
-        }
-        validate_target(project, &clip.target).map_err(fail)?;
-        validate_params(project, &clip.definition, &clip.param_overrides, &mark_keys)
-            .map_err(fail)?;
     }
     let mut automation_targets = HashMap::<_, Vec<_>>::new();
     let sequence_layout = sequence
@@ -485,63 +557,65 @@ fn validate_sequence_since(
                 .map(|clip| &clip.row_target.layout)
         });
     for clip in &sequence.automation_clips {
-        let fail = |problem| Error::Automation {
-            clip: clip.id.clone(),
-            problem,
+        let mut check = || {
+            if sequence_layout.is_some_and(|layout| layout != &clip.row_target.layout) {
+                return Err(AutomationProblem::MixedLayouts);
+            }
+            if active && &clip.row_target.layout != active_layout {
+                return Err(AutomationProblem::NotInActiveLayout);
+            }
+            if project
+                .get::<crate::Layout>(clip.row_target.layout)
+                .and_then(|layout| layout.fixture(clip.row_target.fixture))
+                .is_none()
+            {
+                return Err(AutomationProblem::MissingRow);
+            }
+            validate_timed_region(
+                clip.start.0,
+                clip.duration.0,
+                sequence.duration.0,
+                sampled_sequence_duration,
+            )
+            .map_err(AutomationProblem::Region)?;
+            clip.curve
+                .validate()
+                .map_err(AutomationProblem::InvalidCurve)?;
+            if !automation_curve_is_normalized(&clip.curve) {
+                return Err(AutomationProblem::CurveOutOfRange);
+            }
+            let mut clip_targets = HashSet::new();
+            for target in clip.targets() {
+                if !clip_targets.insert(target) {
+                    return Err(AutomationProblem::BindsTwice);
+                }
+                automation_targets
+                    .entry(target)
+                    .or_insert_with(Vec::new)
+                    .push(clip);
+            }
+            for binding in &clip.bindings {
+                if !binding.window.is_normalized() {
+                    return Err(AutomationProblem::WindowOutOfRange);
+                }
+                let declaration = automation_target_param(project, sequence, &binding.target)?;
+                if declaration.automation_mapping().is_none() {
+                    return Err(AutomationProblem::NotAutomatable(declaration.name.clone()));
+                }
+            }
+            Ok(())
         };
-        if sequence_layout.is_some_and(|layout| layout != &clip.row_target.layout) {
-            return Err(fail(AutomationProblem::MixedLayouts));
-        }
-        if active && &clip.row_target.layout != active_layout {
-            return Err(fail(AutomationProblem::NotInActiveLayout));
-        }
-        if project
-            .get::<crate::Layout>(clip.row_target.layout)
-            .and_then(|layout| layout.fixture(clip.row_target.fixture))
-            .is_none()
-        {
-            return Err(fail(AutomationProblem::MissingRow));
-        }
-        validate_timed_region(
-            clip.start.0,
-            clip.duration.0,
-            sequence.duration.0,
-            sampled_sequence_duration,
-        )
-        .map_err(|problem| fail(AutomationProblem::Region(problem)))?;
-        clip.curve
-            .validate()
-            .map_err(|error| fail(AutomationProblem::InvalidCurve(error)))?;
-        if !automation_curve_is_normalized(&clip.curve) {
-            return Err(fail(AutomationProblem::CurveOutOfRange));
-        }
-        let mut clip_targets = HashSet::new();
-        for target in clip.targets() {
-            if !clip_targets.insert(target) {
-                return Err(fail(AutomationProblem::BindsTwice));
-            }
-            automation_targets
-                .entry(target)
-                .or_insert_with(Vec::new)
-                .push(clip);
-        }
-        for binding in &clip.bindings {
-            if !binding.window.is_normalized() {
-                return Err(fail(AutomationProblem::WindowOutOfRange));
-            }
-            let declaration =
-                automation_target_param(project, sequence, &binding.target).map_err(fail)?;
-            if declaration.automation_mapping().is_none() {
-                return Err(fail(AutomationProblem::NotAutomatable(
-                    declaration.name.clone(),
-                )));
-            }
+        if let Err(problem) = check() {
+            problems.push(Error::Automation {
+                clip: clip.id.clone(),
+                problem,
+            });
         }
     }
     for clips in automation_targets.values() {
         for (index, clip) in clips.iter().enumerate() {
             if let Some(other) = clips[index + 1..].iter().find(|other| clip.overlaps(other)) {
-                return Err(Error::Automation {
+                problems.push(Error::Automation {
                     clip: other.id.clone(),
                     problem: AutomationProblem::Overlap,
                 });
@@ -753,6 +827,19 @@ pub fn validate_console(
     project: &DonderProject,
     console: &Console,
 ) -> Result<(), ConsoleValidationError> {
+    let mut problems = Vec::new();
+    console_problems(project, console, &mut problems)?;
+    first(problems)
+}
+
+/// [`validate_console`]: a problem of the whole console stops the checks; each
+/// clip, `always` entry, event and played value that breaks a rule is pushed
+/// to `problems`.
+fn console_problems(
+    project: &DonderProject,
+    console: &Console,
+    problems: &mut Vec<ConsoleValidationError>,
+) -> Result<(), ConsoleValidationError> {
     use ConsoleValidationError as Error;
     let setup = project
         .get::<crate::Setup>(*project.root.setup.id())
@@ -799,34 +886,39 @@ pub fn validate_console(
     let console_layout = console.clips.first().map(|clip| &clip.target.layout);
     let active_layout = active.then(|| setup.layout.id());
     for clip in &console.clips {
-        validate_console_clip(
+        if let Err(problem) = validate_console_clip(
             project,
             clip,
             &layer_ids,
             &mark_keys,
             active_layout,
             console_layout,
-        )
-        .map_err(|problem| Error::Clip {
-            clip: clip.id,
-            name: clip.name.clone(),
-            problem,
-        })?;
+        ) {
+            problems.push(Error::Clip {
+                clip: clip.id,
+                name: clip.name.clone(),
+                problem,
+            });
+        }
     }
     let mut always = HashSet::new();
     for entry in &console.always {
-        let clip = console.clip(entry.clip).ok_or(Error::MissingAlwaysClip)?;
+        let Some(clip) = console.clip(entry.clip) else {
+            problems.push(Error::MissingAlwaysClip);
+            continue;
+        };
         if !always.insert(entry.clip) {
-            return Err(Error::RepeatedAlwaysClip {
+            problems.push(Error::RepeatedAlwaysClip {
                 clip: clip.id,
                 name: clip.name.clone(),
             });
+        } else if let Err(problem) = length(&entry.length) {
+            problems.push(Error::AlwaysLength {
+                clip: clip.id,
+                name: clip.name.clone(),
+                problem,
+            });
         }
-        length(&entry.length).map_err(|problem| Error::AlwaysLength {
-            clip: clip.id,
-            name: clip.name.clone(),
-            problem,
-        })?;
     }
     for clip in &console.clips {
         let played = console
@@ -837,7 +929,7 @@ pub fn validate_console(
                 matches!(action, Action::Start { clip: id, .. } | Action::Toggle { clip: id, .. } if *id == clip.id)
             });
         if played && held {
-            return Err(Error::PlayedAndHeld {
+            problems.push(Error::PlayedAndHeld {
                 clip: clip.id,
                 name: clip.name.clone(),
             });
@@ -861,22 +953,22 @@ pub fn validate_console(
         Ok(&control.kind)
     };
     for on in &console.events {
-        validate_event(project, console, on, &mark_keys, &control).map_err(|problem| {
-            Error::Event {
+        if let Err(problem) = validate_event(project, console, on, &mark_keys, &control) {
+            problems.push(Error::Event {
                 event: on.id,
                 problem,
-            }
-        })?;
+            });
+        }
     }
     for clip in &console.clips {
-        validate_played(project, console, clip, &control).map_err(|(param, problem)| {
-            Error::Played {
+        validate_played(project, console, clip, &control, &mut |param, problem| {
+            problems.push(Error::Played {
                 clip: clip.id,
                 name: clip.name.clone(),
                 param,
                 problem,
-            }
-        })?;
+            });
+        });
     }
     Ok(())
 }
@@ -994,13 +1086,15 @@ fn length(length: &DonderDuration) -> Result<(), EventProblem> {
 
 /// A clip's played values: each an automatable parameter of its effect, once,
 /// that no `Set` writes, on a clip only presses start, and from a note only
-/// when every control that starts it reads notes.
+/// when every control that starts it reads notes. Each value that breaks a
+/// rule is reported once, to `report`.
 fn validate_played<'a>(
     project: &'a DonderProject,
     console: &Console,
     clip: &ConsoleClip,
     control: &impl Fn(&ControlRef) -> Result<&'a InputControlKind, InputProblem>,
-) -> Result<(), (Identifier, PlayedProblem)> {
+    report: &mut dyn FnMut(Identifier, PlayedProblem),
+) {
     let starts = console
         .events
         .iter()
@@ -1020,33 +1114,37 @@ fn validate_played<'a>(
     let set = console.set_targets();
     let mut played = HashSet::new();
     for value in &clip.played {
-        let fail = |problem| Err((value.param.clone(), problem));
-        match param_mapping(project, &clip.definition, &value.param) {
-            None => return fail(PlayedProblem::UnknownParam),
-            Some(None) => return fail(PlayedProblem::NotAutomatable),
-            Some(Some(_)) => {}
-        }
-        if !played.insert(&value.param) {
-            return fail(PlayedProblem::Twice);
-        }
-        if !value.window.is_normalized() {
-            return fail(PlayedProblem::WindowOutOfRange);
-        }
-        if !pressed {
-            return fail(PlayedProblem::WithoutPress);
-        }
-        if value.from.needs_note() && !notes {
-            return fail(PlayedProblem::WithoutNotes);
-        }
-        let target = AutomationTarget::ClipParam {
-            clip_id: clip.id,
-            param: value.param.clone(),
+        let mut check = || {
+            match param_mapping(project, &clip.definition, &value.param) {
+                None => return Err(PlayedProblem::UnknownParam),
+                Some(None) => return Err(PlayedProblem::NotAutomatable),
+                Some(Some(_)) => {}
+            }
+            if !played.insert(&value.param) {
+                return Err(PlayedProblem::Twice);
+            }
+            if !value.window.is_normalized() {
+                return Err(PlayedProblem::WindowOutOfRange);
+            }
+            if !pressed {
+                return Err(PlayedProblem::WithoutPress);
+            }
+            if value.from.needs_note() && !notes {
+                return Err(PlayedProblem::WithoutNotes);
+            }
+            let target = AutomationTarget::ClipParam {
+                clip_id: clip.id,
+                param: value.param.clone(),
+            };
+            if set.contains(&&target) {
+                return Err(PlayedProblem::AlsoSet);
+            }
+            Ok(())
         };
-        if set.contains(&&target) {
-            return fail(PlayedProblem::AlsoSet);
+        if let Err(problem) = check() {
+            report(value.param.clone(), problem);
         }
     }
-    Ok(())
 }
 
 /// Names others refer to are `snake_case`.

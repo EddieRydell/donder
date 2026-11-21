@@ -190,6 +190,17 @@ pub(crate) fn apply_gui_edit(
     state.edit_gui_document(request, edit)
 }
 
+/// Apply the edit that waits for the person to confirm its changes to other
+/// objects.
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn confirm_gui_edit(
+    request: GuiDocumentRequest,
+    state: State<'_, DesktopState>,
+) -> GuiEditUpdate {
+    state.confirm_gui_edit(request)
+}
+
 /// What would refuse `edit` of the open object, a draft form's edit; none
 /// when it would be accepted. Nothing changes.
 #[tauri::command(async)]
@@ -279,7 +290,7 @@ pub(crate) fn choose_sequence_audio(
     state: State<'_, DesktopState>,
 ) -> GuiEditUpdate {
     let Some(path) = rfd::FileDialog::new()
-        .add_filter("Audio", &["mp3", "wav", "ogg", "flac"])
+        .add_filter("Audio", crate::audio::AUDIO_EXTENSIONS)
         .pick_file()
     else {
         return crate::desktop_state::gui_update(

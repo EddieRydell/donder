@@ -32,6 +32,8 @@ type AppStore = {
   refusedEdit: GuiProblem | null;
   /** How many fields show the refused edit; the status bar shows it when none does. */
   refusedEditClaims: number;
+  /** The changes to other objects the pending GUI edit waits to have confirmed, and the answer. */
+  editConfirmation: { changes: string[]; decide: (confirmed: boolean) => void } | null;
   failedDocumentSync: { epoch: number; path: string } | null;
   /** Whether a text editor has edits the backend has not acknowledged. */
   documentEditsPending: boolean;
@@ -64,6 +66,7 @@ export const useAppStore = create<AppStore>((set) => ({
   failures: {},
   refusedEdit: null,
   refusedEditClaims: 0,
+  editConfirmation: null,
   failedDocumentSync: null,
   documentEditsPending: false,
   textReload: 0,
@@ -251,7 +254,12 @@ export async function runGuiEditCommand(command: (request: GuiDocumentRequest) =
   if (origin !== undefined && origin !== request) return editNotApplied("the GUI document changed during the gesture");
   useAppStore.setState({ guiEditPending: true, refusedEdit: null });
   try {
-    const result = await command(request);
+    let result = await command(request);
+    if (result.change.type === "needsConfirmation") {
+      if (!await confirmEdit(result.change.changes)) return null;
+      result = await commands.confirmGuiEdit(request);
+    }
+    if (result.change.type === "needsConfirmation") return editNotApplied("the confirmed edit asked again");
     if (result.change.type === "refused") {
       if (useAppStore.getState().guiRequest === request) showRefusedEdit(result.change.problem);
       return null;
@@ -265,6 +273,21 @@ export async function runGuiEditCommand(command: (request: GuiDocumentRequest) =
   } finally {
     useAppStore.setState({ guiEditPending: false });
   }
+}
+
+/** Ask the person to confirm an edit's `changes` to other objects; resolves with the answer. */
+function confirmEdit(changes: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    useAppStore.setState({
+      editConfirmation: {
+        changes,
+        decide: (confirmed) => {
+          useAppStore.setState({ editConfirmation: null });
+          resolve(confirmed);
+        }
+      }
+    });
+  });
 }
 
 /** Show why an edit was refused, at its field or in the status bar; null clears it. */

@@ -3958,6 +3958,7 @@ button.status-chip:hover {
 .kit-status-warning { color: var(--donder-warning); font-size: var(--donder-font-size-sm); }
 
 .kit-path-list { display: grid; gap: var(--donder-space-2); margin: 0; padding: 0; color: var(--donder-text-muted); font-family: var(--donder-font-code); font-size: var(--donder-font-size-sm); list-style: none; }
+.kit-change-list { display: grid; gap: var(--donder-space-2); margin: 0; padding: 0; list-style: none; }
 
 .kit-dialog-full { width: min(var(--donder-graph-dialog-max-width), calc(100vw - var(--donder-toolbar-height))); height: calc(100vh - var(--donder-titlebar-height) * 2); }
 .kit-dialog-full > .kit-dialog-body { flex: 1; grid-template-rows: minmax(0, 1fr); min-height: 0; padding: 0; overflow: hidden; }

@@ -27,7 +27,7 @@ mod inclusion;
 mod index;
 mod loader;
 mod ownership_edit;
-pub use ownership_edit::maintain_ownership_sources;
+pub use ownership_edit::{maintain_ownership_sources, remove_documents};
 mod project_config;
 mod project_loading;
 pub use project_config::{

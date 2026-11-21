@@ -32,7 +32,7 @@ export function GraphEditorModal({
       if (chooser !== null) onClose();
     } }
   }, [composition, automation, onClose]);
-  const { requestDelete, dialog } = useGraphDeletion(editing, clearSelection);
+  const requestDelete = useGraphDeletion(editing, clearSelection);
   return <Dialog
     ref={contentRef}
     open
@@ -59,6 +59,5 @@ export function GraphEditorModal({
         <GraphCanvas composition={editing} setSelectedItem={setSelectedItem} requestDelete={requestDelete} />
       </div>
     </div></OverlayPortal>
-    {dialog}
   </Dialog>;
 }

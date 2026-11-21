@@ -62,7 +62,9 @@ pub enum ProjectEdit {
     /// Write an object under its id: in place of the object with that id,
     /// reusable or owned, or as a new reusable object.
     Put(Object),
-    /// Remove a reusable object. An owned object goes with its owner's edit.
+    /// Remove a reusable object, and its place among the project's sequences
+    /// and consoles or a setup's controllers and input devices. An owned
+    /// object goes with its owner's edit.
     Remove(ObjectId),
 }
 
@@ -80,6 +82,70 @@ fn remove<T: Stored>(project: &mut DonderProject, id: T::Id) -> Result<(), EditR
         .shift_remove(&id)
         .map(drop)
         .ok_or(EditRejection::NotReusable)
+}
+
+/// Drop removed object `id` from the members that list it.
+fn forget_member(project: &mut DonderProject, id: ObjectId) {
+    match id {
+        ObjectId::Sequence(id) => {
+            if project
+                .root
+                .sequences
+                .iter()
+                .any(|member| member.id() == &id)
+            {
+                project.root.sequences.retain(|member| member.id() != &id);
+            }
+        }
+        ObjectId::Console(id) => {
+            if project
+                .root
+                .consoles
+                .iter()
+                .any(|member| member.id() == &id)
+            {
+                project.root.consoles.retain(|member| member.id() != &id);
+            }
+        }
+        ObjectId::Controller(_) | ObjectId::InputDevice(_) => {
+            let setups = project
+                .objects::<Setup>()
+                .filter(|setup| {
+                    setup
+                        .controllers
+                        .iter()
+                        .map(|member| ObjectId::from(*member.id()))
+                        .chain(
+                            setup
+                                .input_devices
+                                .iter()
+                                .map(|member| ObjectId::from(*member.id())),
+                        )
+                        .any(|member| member == id)
+                })
+                .map(|setup| setup.id)
+                .collect::<Vec<_>>();
+            for setup in setups {
+                if let Some(setup) = Setup::find_mut(project, setup) {
+                    setup
+                        .controllers
+                        .retain(|member| ObjectId::from(*member.id()) != id);
+                    setup
+                        .input_devices
+                        .retain(|member| ObjectId::from(*member.id()) != id);
+                }
+            }
+        }
+        ObjectId::Project(_)
+        | ObjectId::Setup(_)
+        | ObjectId::Layout(_)
+        | ObjectId::Patch(_)
+        | ObjectId::FixtureDefinition(_)
+        | ObjectId::Curve(_)
+        | ObjectId::Gradient(_)
+        | ObjectId::EffectDefinition(_)
+        | ObjectId::OperatorDefinition(_) => {}
+    }
 }
 
 impl DonderProject {
@@ -110,27 +176,32 @@ impl DonderProject {
                         Object::EffectDefinition(value) => put(project, *value.id(), value),
                         Object::OperatorDefinition(value) => put(project, *value.id(), value),
                     },
-                    ProjectEdit::Remove(id) => match id {
-                        ObjectId::Project(_) => {
-                            return Err(EditRejection::ProjectRemoval);
+                    ProjectEdit::Remove(id) => {
+                        forget_member(project, id);
+                        match id {
+                            ObjectId::Project(_) => {
+                                return Err(EditRejection::ProjectRemoval);
+                            }
+                            ObjectId::Setup(id) => remove::<Setup>(project, id)?,
+                            ObjectId::Layout(id) => remove::<Layout>(project, id)?,
+                            ObjectId::Patch(id) => remove::<Patch>(project, id)?,
+                            ObjectId::Controller(id) => remove::<Controller>(project, id)?,
+                            ObjectId::InputDevice(id) => remove::<InputDevice>(project, id)?,
+                            ObjectId::Sequence(id) => remove::<Sequence>(project, id)?,
+                            ObjectId::Console(id) => remove::<Console>(project, id)?,
+                            ObjectId::FixtureDefinition(id) => {
+                                remove::<FixtureDefinition>(project, id)?
+                            }
+                            ObjectId::Curve(id) => remove::<CurveDefinition>(project, id)?,
+                            ObjectId::Gradient(id) => remove::<GradientDefinition>(project, id)?,
+                            ObjectId::EffectDefinition(id) => {
+                                remove::<EffectDefinition>(project, id)?
+                            }
+                            ObjectId::OperatorDefinition(id) => {
+                                remove::<OperatorDefinition>(project, id)?
+                            }
                         }
-                        ObjectId::Setup(id) => remove::<Setup>(project, id)?,
-                        ObjectId::Layout(id) => remove::<Layout>(project, id)?,
-                        ObjectId::Patch(id) => remove::<Patch>(project, id)?,
-                        ObjectId::Controller(id) => remove::<Controller>(project, id)?,
-                        ObjectId::InputDevice(id) => remove::<InputDevice>(project, id)?,
-                        ObjectId::Sequence(id) => remove::<Sequence>(project, id)?,
-                        ObjectId::Console(id) => remove::<Console>(project, id)?,
-                        ObjectId::FixtureDefinition(id) => {
-                            remove::<FixtureDefinition>(project, id)?
-                        }
-                        ObjectId::Curve(id) => remove::<CurveDefinition>(project, id)?,
-                        ObjectId::Gradient(id) => remove::<GradientDefinition>(project, id)?,
-                        ObjectId::EffectDefinition(id) => remove::<EffectDefinition>(project, id)?,
-                        ObjectId::OperatorDefinition(id) => {
-                            remove::<OperatorDefinition>(project, id)?
-                        }
-                    },
+                    }
                 }
             }
             Ok(())

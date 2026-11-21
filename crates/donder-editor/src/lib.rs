@@ -19,6 +19,6 @@ pub use gui::{
     GuiEditOutcome, GuiMutationError, ResolvedGuiObject, affected_paths, apply_edit, blocked,
     check_edit, copy_selection, create_sequence, cut_selection, edit_site, gui_editor_order,
     matching_sequence_clips, paste, project_gui_document, project_gui_document_change, refusal,
-    resolve_request, sequence_clip_details,
+    repair_changes, resolve_request, sequence_clip_details,
 };
 pub use source_documents::document_for_editor_path;

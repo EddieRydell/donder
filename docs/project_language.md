@@ -543,7 +543,8 @@ Sequence layer_test {
   time and a one-line label, `(4s, "chorus")`, for lyric lines, singers or section names; the editor shows and
   edits labels on the timeline.
 - `Layer`: `name`, `description`, `color`, `enabled`. The first layer is the
-  default layer, which new clips use and which cannot be deleted.
+  default layer, which new clips use and which cannot be deleted. Deleting
+  another layer deletes its clips.
 - `Clip`: `name`, `description`, `layer`, `start`, `duration`, `target` (a
   fixture or group), `scope` (`PerFixture` or `WholeTarget`), `effect`, `params`.
 - **Parameters are overrides.** A parameter absent from `params` follows the

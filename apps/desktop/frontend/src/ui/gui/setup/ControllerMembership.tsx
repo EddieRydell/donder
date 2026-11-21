@@ -13,11 +13,9 @@ export function AvailableControllers({ document }: { document: SetupGuiDocument 
   </Section>;
 }
 
-/** Removing a controller from the setup, alone or with the outputs routed to it. */
+/** Removing a controller from the setup, with the outputs routed to it. */
 export function controllerEntries(controller: SetupGuiDocument["controllers"][number]): MenuEntry[] {
-  const detach = (removeOutputs: boolean) => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "detachController", controller: controller.sourceRef, removeOutputs } }));
   return [
-    { type: "action", label: "Remove from setup", danger: true, onSelect: () => { detach(false); } },
-    { type: "action", label: "Remove with outputs", danger: true, onSelect: () => { detach(true); } }
+    { type: "action", label: "Remove from setup", danger: true, onSelect: () => { void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setup", edit: { type: "detachController", controller: controller.sourceRef } })); } }
   ];
 }

@@ -61,6 +61,11 @@ export const commands = {
 	takeSequenceClipRasterResults: (request: GuiDocumentRequest, sinceRevision: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, sinceRevision }),
 	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditUpdate>("apply_gui_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	/**
+	 *  Apply the edit that waits for the person to confirm its changes to other
+	 *  objects.
+	 */
+	confirmGuiEdit: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditUpdate>("confirm_gui_edit", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	/**
 	 *  What would refuse `edit` of the open object, a draft form's edit; none
 	 *  when it would be accepted. Nothing changes.
 	 */
@@ -81,6 +86,11 @@ export const commands = {
 	createFile: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_file", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	createDirectory: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_directory", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	deletePath: (path: string) => __TAURI_INVOKE<AppSnapshot>("delete_path", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	/**
+	 *  What deleting `path` also changes in the documents that stay, to confirm
+	 *  first; why it cannot be deleted.
+	 */
+	planDeletePath: (path: string) => typedError<string[], string>(__TAURI_INVOKE("plan_delete_path", { path })),
 	toggleProjectTree: () => __TAURI_INVOKE<AppSnapshot>("toggle_project_tree").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	loadSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<AppSnapshot>("load_sequence_audio", { request }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	unloadAudio: () => __TAURI_INVOKE<AppSnapshot>("unload_audio").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
@@ -224,7 +234,7 @@ export type CloseRequested = null;
 export type CommandId = AppCommandId | EditorCommandId;
 
 /**  Edits to the layers and composition graph that sequences and consoles share. */
-export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: number[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; connection: SequenceGraphEdge } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: number; name: string; value: SequenceParamValue };
+export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: number[]; layerIds: number[]; edges: SequenceGraphEdge[] } | { type: "connectGraphNodes"; connection: SequenceGraphEdge } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: number; name: string; value: SequenceParamValue };
 
 export type ConsoleAction = 
 /**  Play a copy of a clip for its length, on top of the copies playing. */
@@ -649,7 +659,13 @@ export type GuiDocumentChange =
  */
 { type: "sequenceClips"; document: SequenceGuiDocument; clipIds: number[] } | 
 /**  The edit was refused and the document did not change. */
-{ type: "refused"; problem: GuiProblem };
+{ type: "refused"; problem: GuiProblem } | 
+/**
+ *  The edit also changes objects it left alone, which the person confirms
+ *  first; until then the document does not change. `changes` says what
+ *  changes, a sentence each.
+ */
+{ type: "needsConfirmation"; changes: string[] };
 
 /**
  *  An object a GUI editor opens: a declared object, or an object owned beneath
@@ -1799,7 +1815,7 @@ export type SetupGuiDocument = {
 	inputLimits: GuiInputLimits,
 };
 
-export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[]; storage: NewObjectStorage } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[]; storage: NewObjectStorage } | { type: "attachInputDevice"; device: GuiObjectRef } | { type: "detachInputDevice"; device: GuiObjectRef };
+export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[]; storage: NewObjectStorage } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[]; storage: NewObjectStorage } | { type: "attachInputDevice"; device: GuiObjectRef } | { type: "detachInputDevice"; device: GuiObjectRef };
 
 /**  An input device as a setup lists it and its editor edits it. */
 export type SetupInputDevice = {
@@ -1900,7 +1916,7 @@ export type WorkspaceEntry = {
 
 export type WorkspaceEntryKind = "directory" | "file";
 
-export type WorkspaceEntryPlainRole = "directory" | "entrypoint" | "asset" | "file";
+export type WorkspaceEntryPlainRole = "directory" | "entrypoint" | "audio" | "file";
 
 /**
  *  What an explorer entry is: an object's document, by the kind of its first

@@ -97,11 +97,6 @@ pub(super) fn delete_sequence_selection(
             sequence
                 .automation_clips
                 .retain(|clip| !automation_ids.contains(&clip.id.0));
-            for clip in &mut sequence.automation_clips {
-                clip.remove_bindings(|target| {
-                    matches!(target, AutomationTarget::ClipParam { clip_id, .. } if ids.contains(&clip_id.0))
-                });
-            }
         }
         SequenceSelection::Marks { marks } => {
             for (collection_key, indexes) in mark_indexes_by_collection(marks) {

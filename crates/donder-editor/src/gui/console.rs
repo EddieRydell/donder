@@ -650,14 +650,9 @@ fn push_action(
     Ok(())
 }
 
-/// Remove a clip, the actions that play it and the bindings to it.
+/// Remove a clip; what played or set it goes as repairs.
 pub(super) fn delete_clip(console: &mut Console, id: ConsoleClipId) {
     console.clips.retain(|clip| clip.id != id);
-    console.always.retain(|always| always.clip != id);
-    for on in &mut console.events {
-        on.actions.retain(|action| action.clip() != Some(id));
-    }
-    console.forget_clip(id);
 }
 
 fn input_event(kind: ConsoleEventKind, control: ControlRef) -> InputEvent {

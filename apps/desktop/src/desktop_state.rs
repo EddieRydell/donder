@@ -44,6 +44,8 @@ pub(crate) struct DesktopServices {
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
     weak: std::sync::Weak<DesktopServices>,
     gui_history: Mutex<GuiHistory>,
+    /// The GUI edit that waits for confirmation, until the next edit.
+    pending_gui_edit: Mutex<Option<gui_editing::PendingGuiEdit>>,
     /// Printed clips reused between the texts of successive GUI edits.
     document_texts: Mutex<donder_project_io::DocumentTextCache>,
     /// Documents read by earlier project checks, reused by later ones.
@@ -108,6 +110,7 @@ impl DesktopState {
                     watcher: Mutex::new(None),
                     weak: weak.clone(),
                     gui_history: Mutex::new(GuiHistory::new(100)),
+                    pending_gui_edit: Mutex::new(None),
                     document_texts: Mutex::new(donder_project_io::DocumentTextCache::default()),
                     check_cache: Mutex::new(donder_project_io::ProjectCheckCache::default()),
                     project_check: Mutex::new(None),

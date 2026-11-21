@@ -141,7 +141,7 @@ Every common pattern has exactly one component in `apps/desktop/frontend/src/ui/
 ## 8. Interaction Rules
 
 1. **Numbers.** Drag to scrub, Shift for fine, double-click to reset to default, click to type, Enter commits, Escape reverts.
-2. **Delete.** Delete or Backspace removes the selection. Anything undoable is never confirmed; confirm only what undo cannot restore.
+2. **Delete.** Delete or Backspace removes the selection. Anything undoable is never confirmed; confirm only what undo cannot restore, and an edit that also removes or changes objects the user did not act on, listing those changes.
 3. **Undo is visible.** Undo and Redo buttons in the title bar show whether a step exists and name it in their tooltip. A focused text field keeps its own history, made visible by its focus ring.
 4. **Escape** backs out one level: cancel the drag, close the popover, clear the selection.
 5. **Modifiers.** Shift constrains or extends. Alt bypasses snapping. Space-drag or middle-drag pans. Ctrl or Cmd with the wheel zooms; Shift with the wheel scrolls sideways.

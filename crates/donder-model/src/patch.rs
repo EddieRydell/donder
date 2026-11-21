@@ -1,5 +1,4 @@
 //! LED output routing. Pixel ranges describe physical wiring, not effect targets.
-use crate::project::EditRejection;
 use donder_runtime_types::PixelEncoding;
 
 use crate::controller::{ControllerId, ControllerOutput};
@@ -40,18 +39,6 @@ pub struct PixelRoute {
     /// Vary each byte over frames so it averages to the exact level, for
     /// outputs that receive every frame.
     pub dither: bool,
-}
-
-impl Patch {
-    pub(crate) fn remove_output(&mut self, id: PixelRouteId) -> Result<(), EditRejection> {
-        let index = self
-            .routes
-            .iter()
-            .position(|route| route.id == id)
-            .ok_or(EditRejection::MissingOutput)?;
-        self.routes.remove(index);
-        Ok(())
-    }
 }
 
 impl crate::ownership::Identified for Patch {

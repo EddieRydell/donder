@@ -32,6 +32,7 @@ mod patch;
 mod problem;
 mod project;
 mod projection;
+mod repairs;
 mod selection;
 mod setup;
 
@@ -44,6 +45,7 @@ pub use problem::{check_edit, edit_site, refusal};
 pub use project::create_sequence;
 use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};
+pub use repairs::repair_changes;
 use selection::copy_sequence_selection;
 use selection::{
     delete_sequence_selection, edit_clip_selection, move_clip_selection, move_mark_selection,

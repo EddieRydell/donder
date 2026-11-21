@@ -301,7 +301,6 @@ pub enum CompositionGuiEdit {
         node_ids: Vec<u32>,
         layer_ids: Vec<u32>,
         edges: Vec<SequenceGraphEdge>,
-        migrate_to_layer_id: Option<u32>,
     },
     ConnectGraphNodes {
         connection: SequenceGraphEdge,

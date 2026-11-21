@@ -184,6 +184,10 @@ pub enum GuiDocumentChange {
     },
     /// The edit was refused and the document did not change.
     Refused { problem: GuiProblem },
+    /// The edit also changes objects it left alone, which the person confirms
+    /// first; until then the document does not change. `changes` says what
+    /// changes, a sentence each.
+    NeedsConfirmation { changes: Vec<String> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -317,7 +321,6 @@ pub enum SetupGuiEdit {
     },
     DetachController {
         controller: GuiObjectRef,
-        remove_outputs: bool,
     },
     AddInputDevice {
         driver: GuiInputDriver,

@@ -75,7 +75,6 @@ fn role(
     path: &Utf8Path,
     kind: WorkspaceEntryKind,
     document: Option<DocumentRole>,
-    asset: bool,
 ) -> WorkspaceEntryRole {
     let plain = WorkspaceEntryRole::Entry;
     if kind == WorkspaceEntryKind::Directory {
@@ -94,7 +93,14 @@ fn role(
             ..
         }) => WorkspaceEntryRole::Object(ObjectKind::Effect),
         Some(_) => plain(WorkspaceEntryPlainRole::File),
-        None if asset => plain(WorkspaceEntryPlainRole::Asset),
+        None if path.extension().is_some_and(|extension| {
+            crate::audio::AUDIO_EXTENSIONS
+                .iter()
+                .any(|audio| extension.eq_ignore_ascii_case(audio))
+        }) =>
+        {
+            plain(WorkspaceEntryPlainRole::Audio)
+        }
         None => plain(WorkspaceEntryPlainRole::File),
     }
 }
@@ -133,36 +139,25 @@ pub(crate) fn workspace_entries(session: &ProjectSession) -> Vec<WorkspaceEntry>
                 .get(&donder_project_io::DocumentId::new(path.clone()))
                 .map(|document| DocumentRole {
                     format: document.format(),
-                    first_object: document.objects().first().map(|object| object.kind().into()),
+                    first_object: document
+                        .objects()
+                        .first()
+                        .map(|object| object.kind().into()),
                 });
-            let asset = session
-                .source
-                .referenced_assets
-                .iter()
-                .any(|asset| asset.relative_path == path);
-            let role = role(&path, kind, document, asset);
+            let role = role(&path, kind, document);
             let fixed = role == WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
-            let structural = session.source.is_structural_workspace_path(&path);
             let mut operations = vec![match kind {
                 WorkspaceEntryKind::Directory => WorkspaceOperation::Create,
                 WorkspaceEntryKind::File => WorkspaceOperation::Open,
             }];
             if !fixed {
-                operations.extend([WorkspaceOperation::Rename, WorkspaceOperation::Move]);
-                if !structural {
-                    operations.push(WorkspaceOperation::Delete);
-                }
+                operations.extend([
+                    WorkspaceOperation::Rename,
+                    WorkspaceOperation::Move,
+                    WorkspaceOperation::Delete,
+                ]);
             }
-            let explanation = if fixed {
-                Some(ROOT_FIXED.to_string())
-            } else if structural {
-                Some(
-                    "Imported documents cannot be deleted; rename or move them through the typed path workflow."
-                        .to_string(),
-                )
-            } else {
-                None
-            };
+            let explanation = fixed.then(|| ROOT_FIXED.to_string());
             entry(path, kind, role, operations, explanation)
         })
         .collect()
@@ -177,7 +172,7 @@ pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<Work
                 format: document.format,
                 first_object: document.objects.first().map(|object| object.kind.into()),
             });
-            let role = role(&path, kind, document, false);
+            let role = role(&path, kind, document);
             let fixed = role == WorkspaceEntryRole::Entry(WorkspaceEntryPlainRole::Entrypoint);
             let operations = match kind {
                 WorkspaceEntryKind::File => vec![WorkspaceOperation::Open],

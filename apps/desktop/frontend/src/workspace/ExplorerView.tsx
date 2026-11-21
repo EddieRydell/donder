@@ -36,8 +36,8 @@ import {
 import type { NodeApi, TreeApi } from "react-arborist";
 import { Tree } from "react-arborist";
 import { useResizeObserver } from "use-resize-observer";
-import { commands } from "../api";
-import { runSnapshotCommand } from "../store";
+import { commands, errorMessage } from "../api";
+import { runSnapshotCommand, useAppStore } from "../store";
 import { THEME_METRICS } from "../theme";
 import type {
   WorkspaceEntryRole,
@@ -278,11 +278,19 @@ function InlineInput({
   );
 }
 
-/** Deleting from disk cannot be undone, so it asks first. */
+/** Deleting from disk cannot be undone, so it asks first, listing what the documents that stay lose. */
 async function deletePath(node: WorkspaceTreeNode, confirm: Confirm) {
+  let changes: string[];
+  try {
+    changes = await commands.planDeletePath(node.path);
+  } catch (error) {
+    useAppStore.getState().reportFailure("command", errorMessage(error));
+    return;
+  }
   const confirmed = await confirm({
     title: `Delete ${node.name}`,
     description: node.kind === "directory" ? "Deletes the folder and its contents from disk." : "Deletes the file from disk.",
+    details: changes,
     confirmLabel: "Delete",
     danger: true
   });
@@ -304,7 +312,7 @@ function validateName(value: string): string | null {
 /** Each entry role's icon and the row tint of an object document; plain entries are untinted. */
 const ROLE_STYLES: Record<WorkspaceEntryRole, { icon: LucideIcon; tint: string | undefined }> = {
   directory: { icon: Folder, tint: undefined },
-  asset: { icon: AudioLines, tint: undefined },
+  audio: { icon: AudioLines, tint: undefined },
   file: { icon: File, tint: undefined },
   entrypoint: { icon: Workflow, tint: "var(--donder-project-file-project)" },
   project: { icon: Workflow, tint: "var(--donder-project-file-project)" },

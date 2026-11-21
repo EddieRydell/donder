@@ -1,12 +1,12 @@
 import { useAppStore } from "../../../store";
 import { Plus, Trash2, Workflow } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import { useFieldProblem } from "../problems";
 import { THEME_COLORS } from "../../../theme";
-import type { GuiDocumentRequest, SequenceGraphEdge, SequenceLayer } from "../../../types";
+import type { SequenceLayer } from "../../../types";
 import type { CompositionDocument, CompositionEditing } from "./composition";
 import { ColorPicker } from "../../ColorPicker";
-import { Button, Dialog, Field, IconButton, Problem, Select, TextField, Toggle } from "../../kit";
+import { Button, IconButton, Problem, TextField, Toggle } from "../../kit";
 import { requestOpenLayerGraph } from "../../uiEvents";
 import { graphEdgeId } from "./graphEdge";
 
@@ -54,33 +54,13 @@ export function LayerProperties({ layer, composition, onDelete }: { layer: Seque
   </fieldset>;
 }
 
-type Deletion = {
-  nodeIds: number[];
-  edges: SequenceGraphEdge[];
-  layerIds: number[];
-  clipCount: number;
-  origin: GuiDocumentRequest;
-};
-
 /**
- * Deletes graph items at once, except layers that clips use: those open a dialog that picks the
- * layer their clips move to.
+ * Deletes graph items at once. Clips on deleted layers go with them, which the edit's confirmation
+ * lists.
  */
 export function useGraphDeletion(composition: CompositionEditing, onDeleted?: () => void) {
   const { document } = composition;
-  const returnFocus = useRef<HTMLElement | null>(null);
-  const [pending, setPending] = useState<Deletion | null>(null);
-  const [destination, setDestination] = useState<number | null>(null);
   const editable = useSequenceEditable();
-  const busy = useAppStore((state) => state.guiEditPending);
-  const commit = useCallback(async (deletion: Deletion, migrateToLayerId: number | null) => {
-    const result = await composition.apply({
-      type: "deleteGraphItems", nodeIds: deletion.nodeIds, layerIds: deletion.layerIds, edges: deletion.edges, migrateToLayerId
-    }, deletion.origin);
-    if (result === null) return;
-    setPending(null);
-    onDeleted?.();
-  }, [composition, onDeleted]);
   const requestDelete = useCallback((nodeIds: number[], edgeIds: string[] = [], explicitLayerIds: number[] = []) => {
     if (!editable) return;
     const origin = useAppStore.getState().guiRequest;
@@ -92,55 +72,18 @@ export function useGraphDeletion(composition: CompositionEditing, onDeleted?: ()
       ...nodes.flatMap((node) => node.kind.type === "layer" ? [node.kind.layerId] : [])
     ])];
     if (nodes.length === 0 && edges.length === 0 && layerIds.length === 0) return;
-    const survivor = document.layers.find((layer) => !layerIds.includes(layer.id));
-    const deletion: Deletion = {
-      nodeIds: nodes.map((node) => node.id), edges, layerIds, origin,
-      clipCount: layerIds.reduce((count, layerId) => count + composition.layerUses(layerId), 0)
-    };
-    if (deletion.clipCount === 0) {
-      void commit(deletion, layerIds.length === 0 ? null : survivor?.id ?? null);
-    } else {
-      const active = window.document.activeElement;
-      returnFocus.current = active instanceof HTMLElement ? active : null;
-      setDestination(survivor?.id ?? null);
-      setPending(deletion);
-    }
-  }, [commit, composition, document, editable]);
-  const destinations = document.layers
-    .filter((layer) => pending?.layerIds.includes(layer.id) !== true)
-    .map((layer) => ({ value: String(layer.id), label: layer.name }));
-  const dialog = <Dialog
-    open={pending !== null}
-    onOpenChange={(open) => { if (!open && !busy) setPending(null); }}
-    title="Delete layers"
-    focus={{
-      onCloseAutoFocus: (event) => {
-        if (returnFocus.current?.isConnected === true) {
-          event.preventDefault();
-          returnFocus.current.focus();
-        }
-      }
-    }}
-    actions={<>
-      <Button disabled={busy} onClick={() => { setPending(null); }}>Cancel</Button>
-      <Button variant="danger" disabled={!editable || destination === null} onClick={() => {
-        if (pending !== null) void commit(pending, destination);
-      }}>Delete</Button>
-    </>}
-  >
-    <Field label="Move clips" tip={`${pending?.clipCount ?? 0} clips use these layers; selected operators and connections are deleted too`}>
-      <Select name="Move clips to" disabled={!editable} value={destination === null ? "" : String(destination)} options={destinations}
-        onChange={(value) => { setDestination(Number(value)); }} />
-    </Field>
-  </Dialog>;
-  return { requestDelete, dialog };
+    void composition.apply({ type: "deleteGraphItems", nodeIds: nodes.map((node) => node.id), layerIds, edges }, origin).then((result) => {
+      if (result !== null) onDeleted?.();
+    });
+  }, [composition, document, editable, onDeleted]);
+  return requestDelete;
 }
 
 /** A sequence's or console's layers, with adding, editing and deleting, and its layer graph. */
 export function LayerList({ composition }: { composition: CompositionEditing }) {
   const { document } = composition;
   const editable = useSequenceEditable();
-  const { requestDelete, dialog } = useGraphDeletion(composition);
+  const requestDelete = useGraphDeletion(composition);
   return <>
     <h2>Layers</h2>
     <Button icon={Workflow} tip="Open layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph}>Layer graph</Button>
@@ -154,6 +97,5 @@ export function LayerList({ composition }: { composition: CompositionEditing }) 
         requestDelete([], [], [layer.id]);
       }} />)}
     </div>
-    {dialog}
   </>;
 }

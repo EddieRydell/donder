@@ -68,6 +68,17 @@ pub(crate) fn delete_path(path: String, state: State<'_, DesktopState>) -> AppSn
     state.delete_path(&path)
 }
 
+/// What deleting `path` also changes in the documents that stay, to confirm
+/// first; why it cannot be deleted.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn plan_delete_path(
+    path: String,
+    state: State<'_, DesktopState>,
+) -> Result<Vec<String>, String> {
+    state.plan_delete_path(&path)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn toggle_project_tree(state: State<'_, DesktopState>) -> AppSnapshot {

@@ -3,10 +3,9 @@
 use std::collections::BTreeSet;
 
 use donder_model::{
-    Action, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
-    CompositionGraphNodeKind, Console, EffectDefinitionId, EffectGraphEdge, GraphNodePosition,
-    GraphOperatorNode, MarkCollectionKey, ParamValue, Sequence, SequenceCompositionGraph,
-    SequenceLayer, SequenceLayerId,
+    Action, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, Console,
+    EffectDefinitionId, EffectGraphEdge, GraphNodePosition, GraphOperatorNode, MarkCollectionKey,
+    ParamValue, Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId,
 };
 use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
 use donder_runtime_types::Identifier;
@@ -45,10 +44,6 @@ pub(super) trait Composition {
         key: &str,
         to: Option<&MarkCollectionKey>,
     ) -> Result<MarkCollectionKey, GuiMutationError>;
-    /// Move what plays on the `removed` layers to `destination`.
-    fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId);
-    /// Forget what refers to the removed graph nodes.
-    fn forget_nodes(&mut self, removed: &BTreeSet<CompositionGraphNodeId>);
 }
 
 impl Composition for Sequence {
@@ -93,20 +88,6 @@ impl Composition for Sequence {
             Some(to) => std::mem::replace(&mut self.mark_collections[index].key, to.clone()),
             None => self.mark_collections.remove(index).key,
         })
-    }
-    fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
-        for clip in &mut self.clips {
-            if removed.contains(&clip.layer_id.0) {
-                std::sync::Arc::make_mut(clip).layer_id = destination.clone();
-            }
-        }
-    }
-    fn forget_nodes(&mut self, removed: &BTreeSet<CompositionGraphNodeId>) {
-        for clip in &mut self.automation_clips {
-            clip.remove_bindings(|target| {
-                matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if removed.contains(node_id))
-            });
-        }
     }
 }
 
@@ -165,18 +146,6 @@ impl Composition for Console {
             });
         }
         Ok(from)
-    }
-    fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
-        for clip in &mut self.clips {
-            if removed.contains(&clip.layer_id.0) {
-                clip.layer_id = destination.clone();
-            }
-        }
-    }
-    fn forget_nodes(&mut self, removed: &BTreeSet<CompositionGraphNodeId>) {
-        for node in removed {
-            self.forget_node(node);
-        }
     }
 }
 
@@ -304,9 +273,8 @@ pub(super) fn edit_composition(
             node_ids,
             layer_ids,
             edges,
-            migrate_to_layer_id,
         } => {
-            delete_items(composition, node_ids, layer_ids, edges, migrate_to_layer_id)?;
+            delete_items(composition, node_ids, layer_ids, edges)?;
         }
         CompositionGuiEdit::ConnectGraphNodes { connection } => {
             connect_nodes(composition, connection, None)?;
@@ -495,12 +463,12 @@ fn move_nodes(
 }
 
 // The caller owns the candidate session and commits the whole selection as one history entry.
+// What played on deleted layers and what referred to deleted nodes go as repairs.
 fn delete_items(
     composition: &mut impl Composition,
     node_ids: Vec<u32>,
     layer_ids: Vec<u32>,
     edges: Vec<SequenceGraphEdge>,
-    migrate_to_layer_id: Option<u32>,
 ) -> Result<(), GuiMutationError> {
     let mut ids = node_ids
         .iter()
@@ -541,15 +509,6 @@ fn delete_items(
                     _ => None,
                 }),
         );
-        let destination = migrate_to_layer_id
-            .filter(|id| {
-                !layer_ids.contains(id)
-                    && composition.layers().iter().any(|layer| layer.id.0 == *id)
-            })
-            .ok_or_else(|| {
-                GuiMutationError::Invalid("Choose a surviving layer for the clips.".into())
-            })?;
-        composition.move_layer_contents(&layer_ids, SequenceLayerId(destination));
         composition
             .layers_mut()
             .retain(|layer| !layer_ids.contains(&layer.id.0));
@@ -563,7 +522,6 @@ fn delete_items(
     graph.edges.retain(|edge| {
         !ids.contains(&edge.from) && !ids.contains(&edge.to) && !removed_edges.contains(edge)
     });
-    composition.forget_nodes(&ids);
     Ok(())
 }
 

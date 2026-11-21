@@ -65,3 +65,42 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
     }
     Ok(())
 }
+
+/// Remove `documents` and every object they declare. What other documents
+/// held that referred to those objects gives way as the model repairs it, and
+/// the other documents stop importing them; the repairs are left in the
+/// project for [`donder_model::DonderProject::take_repairs`]. The caller owns
+/// the candidate session, and the files.
+pub fn remove_documents(
+    session: &mut ProjectSession,
+    documents: &[DocumentId],
+) -> Result<(), donder_model::EditError> {
+    let objects = documents
+        .iter()
+        .filter_map(|document| session.source.documents.get(document))
+        .flat_map(|document| document.objects().iter().map(|object| object.id()))
+        .collect::<Vec<_>>();
+    session
+        .project
+        .apply_edits(objects.into_iter().map(donder_model::ProjectEdit::Remove))?;
+    session
+        .source
+        .documents
+        .retain(|document, _| !documents.contains(document));
+    for source in session.source.documents.values_mut() {
+        for edge in &mut source.imports {
+            edge.targets.retain(|target| !documents.contains(target));
+        }
+        source.imports.retain(|edge| !edge.targets.is_empty());
+    }
+    for asset in &mut session.source.referenced_assets {
+        asset
+            .referenced_by
+            .retain(|document| !documents.contains(document));
+    }
+    session
+        .source
+        .referenced_assets
+        .retain(|asset| !asset.referenced_by.is_empty());
+    Ok(())
+}

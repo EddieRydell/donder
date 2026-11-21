@@ -60,8 +60,9 @@ Loaded and historical states are immutable `Arc<ProjectSession>` snapshots. A
 GUI edit:
 1. deep-clones the current session once;
 2. mutates that candidate's typed state;
-3. validates the edit;
-4. publishes the accepted snapshot to state, history, save and render work.
+3. validates the edit, repairing what it left broken;
+4. asks the person to confirm repairs that remove or change what they made;
+5. publishes the accepted snapshot to state, history, save and render work.
 
 The model has one store per kind of reusable object, keyed by id; owned
 objects live in their owner. `DonderProject::get::<T>(id)` finds an object of
@@ -69,12 +70,30 @@ kind `T` wherever it is written and `objects::<T>()` lists every one, so there
 is one lookup for every kind. Every model edit is a batch of `ProjectEdit`s:
 `Put(Object)` writes an object under the id it carries, in place of the object
 with that id or as a new reusable object, and `Remove(ObjectId)` removes a
-reusable one; the batch is validated as one change. Every domain rule lives once
+reusable one and its place in the project's and setups' member lists; the batch
+is validated as one change. Every domain rule lives once
 in the model's validation. A broken rule is a `ProjectValidationError`: the
 object it concerns and a typed `ValidationProblem` that names the member
 (a clip, layer, voice, control, port, layout item, ...) and the parameter or
 input where the problem lies; its sentence is written once, in `Display`. The
-model refuses an edit it cannot apply with an `EditRejection`. Ownership edits (make
+model refuses an edit it cannot apply with an `EditRejection`.
+
+An edit never fails because of what it leaves broken elsewhere. Each
+`ValidationProblem` has one `Repair` (`validation/repair.rs`), matched
+exhaustively, so a new rule must say how its members give way: a member the
+edit left alone is removed, trimmed, reset to its default or cut loose from
+what it lost, until the project is valid. A member the edit added or changed
+never gives way; when it breaks a rule, or no repair answers a problem, the
+edit is refused. In a conflict, such as overlapping outputs or two envelopes
+on one parameter, the untouched side gives way. Repairs only remove or shrink,
+so they end. `DonderProject::take_repairs` returns what an edit repaired; a
+repair that removes or changes something the person made needs confirmation,
+one that only forgets what pointed at something gone does not. The desktop
+holds an edit that needs confirmation until the person confirms it, and
+`repair_changes` says what it changes. Deleting a document from the
+workspace removes the objects it declares the same way (`remove_documents`).
+
+Ownership edits (make
 reusable, make independent, use an existing declaration) name a slot by its owner and
 the member it holds and keep references consistent through
 `DonderProject::for_each_reference`, the one listing of every reference from one

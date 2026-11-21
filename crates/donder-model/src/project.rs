@@ -94,6 +94,9 @@ pub struct DonderProject {
     operators: Shared<IndexMap<OperatorDefinitionId, OperatorDefinition>>,
     next_id: u32,
     accepted_inputs: Arc<accepted::ProjectInputs>,
+    /// The repairs edits made since [`DonderProject::take_repairs`]; not
+    /// part of the project.
+    repairs: Vec<crate::validation::Repair>,
 }
 
 impl PartialEq for DonderProject {
@@ -148,7 +151,6 @@ pub enum EditRejection {
     NotReusable,
     Missing(ObjectKind),
     MissingItem,
-    MissingOutput,
     MemberNotInOwner,
     NoMembers,
     Unnamed,
@@ -159,8 +161,6 @@ pub enum EditRejection {
     ChooseMatchingKind,
     AlreadyInSetup(ObjectKind),
     NotInSetup(ObjectKind),
-    ControllerHasOutputs(usize),
-    SharedPatch,
     NotAGroup,
     NotInSourceGroup,
     NotInGroup,
@@ -178,7 +178,6 @@ impl std::fmt::Display for EditRejection {
             Self::NotReusable => f.write_str("Only a reusable object can be removed."),
             Self::Missing(kind) => write!(f, "The {kind} was not found."),
             Self::MissingItem => f.write_str("The fixture or group was not found."),
-            Self::MissingOutput => f.write_str("The output assignment was not found."),
             Self::MemberNotInOwner => f.write_str("The member was not found in its owner."),
             Self::NoMembers => f.write_str("This object owns no members."),
             Self::Unnamed => f.write_str("The reusable value has no name."),
@@ -188,16 +187,11 @@ impl std::fmt::Display for EditRejection {
                 f.write_str("Sequence duration and frame rate must be positive.")
             }
             Self::ChooseReusable(kind) => write!(f, "Choose a reusable {kind}."),
-            Self::ChooseMatchingKind => f.write_str("Choose a reusable declaration of the matching kind."),
+            Self::ChooseMatchingKind => {
+                f.write_str("Choose a reusable declaration of the matching kind.")
+            }
             Self::AlreadyInSetup(kind) => write!(f, "This {kind} is already in the setup."),
             Self::NotInSetup(kind) => write!(f, "Choose a {kind} in this setup."),
-            Self::ControllerHasOutputs(count) => write!(
-                f,
-                "This controller has {count} outputs. Remove them first, or choose Remove with outputs."
-            ),
-            Self::SharedPatch => f.write_str(
-                "Another setup uses this patch. Make the patch independent first so output changes stay in this setup.",
-            ),
             Self::NotAGroup => f.write_str("Items can only be placed in groups."),
             Self::NotInSourceGroup => f.write_str("The item is not in the source group."),
             Self::NotInGroup => f.write_str("The item is not in that group."),
@@ -231,6 +225,7 @@ impl DonderProject {
             operators: data.operators.into(),
             next_id: data.next_id,
             accepted_inputs: Arc::default(),
+            repairs: Vec::new(),
         };
         crate::validation::validate_project(&project)?;
         project.accepted_inputs = Arc::new(accepted::ProjectInputs::admit(&project, None)?);
@@ -242,6 +237,11 @@ impl DonderProject {
         let id = self.next_id;
         self.next_id += 1;
         id
+    }
+
+    /// The repairs edits made since the last call, oldest first.
+    pub fn take_repairs(&mut self) -> Vec<crate::validation::Repair> {
+        std::mem::take(&mut self.repairs)
     }
 
     pub fn root(&self) -> &ProjectRoot {
@@ -293,13 +293,17 @@ impl DonderProject {
 
     /// A private transaction boundary for domain operations. Only changed stores
     /// detach from the original; rejection drops the candidate without mutation.
+    /// Members the edit left alone give way to it by [`crate::Repair`]s, which
+    /// collect until [`Self::take_repairs`].
     pub(crate) fn checked_edit<T>(
         &mut self,
         edit: impl FnOnce(&mut Self) -> Result<T, EditRejection>,
     ) -> Result<T, EditError> {
         let mut candidate = self.clone();
         let result = edit(&mut candidate).map_err(EditError::Rejected)?;
-        crate::validation::validate_project_edit(&candidate, self).map_err(EditError::Invalid)?;
+        let repairs =
+            crate::validation::repair(&mut candidate, self).map_err(EditError::Invalid)?;
+        candidate.repairs.extend(repairs);
         candidate.accepted_inputs = Arc::new(
             accepted::ProjectInputs::admit(&candidate, Some(self)).map_err(EditError::Invalid)?,
         );

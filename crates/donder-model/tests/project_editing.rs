@@ -191,11 +191,15 @@ fn rejected_sequence_edits_preserve_the_accepted_project() {
         .marks
         .push(donder_model::Mark::at(DonderTime(Duration::from_secs(2))));
     project.put(sequence).unwrap();
-    let before = project.clone();
+    // A shorter sequence drops the marks past its end.
     let mut shortened = project.get::<donder_model::Sequence>(id).unwrap().clone();
     shortened.duration = DonderDuration(Duration::from_secs(1));
-    assert!(project.put(shortened).is_err());
-    assert_eq!(project, before);
+    project.put(shortened).unwrap();
+    assert!(matches!(
+        project.take_repairs().as_slice(),
+        [donder_model::Repair::TrimMarks { .. }]
+    ));
+    let before = project.clone();
     assert!(
         add_sequence(
             &mut project,

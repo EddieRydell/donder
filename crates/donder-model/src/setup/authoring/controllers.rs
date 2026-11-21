@@ -35,66 +35,25 @@ fn attach_controller_candidate(
     Ok(())
 }
 
-/// Remove setup membership, retaining the reusable authored controller definition.
-/// Rejected requests leave both setup membership and patch outputs unchanged.
+/// Remove setup membership, retaining the reusable authored controller
+/// definition. The outputs routed to it are removed as repairs.
 pub fn detach_controller(
     project: &mut DonderProject,
     setup_id: &SetupId,
     controller: &ControllerId,
-    remove_outputs: bool,
 ) -> Result<(), crate::EditError> {
     project.checked_edit(|project| {
-        detach_controller_candidate(project, setup_id, controller, remove_outputs)
-    })
-}
-
-fn detach_controller_candidate(
-    project: &mut DonderProject,
-    setup_id: &SetupId,
-    controller: &ControllerId,
-    remove_outputs: bool,
-) -> Result<(), EditRejection> {
-    let setup = project
-        .get::<crate::Setup>(*setup_id)
-        .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
-    if !setup
-        .controllers
-        .iter()
-        .any(|source| source.id() == controller)
-    {
-        return Err(EditRejection::NotInSetup(ObjectKind::Controller));
-    }
-    let patch_id = *setup.patch.id();
-    let patch = project
-        .get::<crate::Patch>(patch_id)
-        .ok_or(EditRejection::Missing(ObjectKind::Patch))?;
-    let sinks: Vec<_> = patch
-        .routes
-        .iter()
-        .filter(|route| &route.controller == controller)
-        .map(|route| route.id)
-        .collect();
-    if !sinks.is_empty() {
-        if !remove_outputs {
-            return Err(EditRejection::ControllerHasOutputs(sinks.len()));
-        }
-        if project
-            .objects::<crate::Setup>()
-            .any(|other| &other.id != setup_id && other.patch.id() == &patch_id)
+        let setup = project
+            .find_mut::<crate::Setup>(*setup_id)
+            .ok_or(EditRejection::Missing(ObjectKind::Setup))?;
+        if !setup
+            .controllers
+            .iter()
+            .any(|source| source.id() == controller)
         {
-            return Err(EditRejection::SharedPatch);
+            return Err(EditRejection::NotInSetup(ObjectKind::Controller));
         }
-        let patch = project
-            .find_mut::<crate::Patch>(patch_id)
-            .ok_or(EditRejection::Missing(ObjectKind::Patch))?;
-        for sink in sinks {
-            patch.remove_output(sink)?;
-        }
-    }
-    project
-        .find_mut::<crate::Setup>(*setup_id)
-        .ok_or(EditRejection::Missing(ObjectKind::Setup))?
-        .controllers
-        .retain(|source| source.id() != controller);
-    Ok(())
+        setup.controllers.retain(|source| source.id() != controller);
+        Ok(())
+    })
 }

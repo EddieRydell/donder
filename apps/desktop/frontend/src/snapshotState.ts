@@ -21,7 +21,7 @@ export function reconcileGuiRequest(previous: GuiDocumentRequest | null, next: G
  *  apply to `document`, which must then be fetched again. */
 export function applyGuiDocumentChange(document: GuiDocument | null, change: GuiDocumentChange): GuiDocument | null {
   if (change.type === "document") return change.document;
-  if (change.type === "refused") return document;
+  if (change.type === "refused" || change.type === "needsConfirmation") return document;
   if (document?.type !== "sequence") return null;
   const clips = new Map(document.document.clips.map((clip) => [clip.id, clip]));
   for (const clip of change.document.clips) clips.set(clip.id, clip);

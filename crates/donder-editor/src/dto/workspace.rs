@@ -359,7 +359,7 @@ pub enum WorkspaceEntryRole {
 pub enum WorkspaceEntryPlainRole {
     Directory,
     Entrypoint,
-    Asset,
+    Audio,
     File,
 }
 

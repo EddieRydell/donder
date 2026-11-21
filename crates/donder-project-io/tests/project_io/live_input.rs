@@ -5,7 +5,7 @@ use crate::common;
 use camino::Utf8PathBuf;
 use donder_model::{
     Action, AutomationTarget, CompositionGraphNodeId, ConsoleValidationError, EditError,
-    EventProblem, InputControlKind, InputEvent, InputProblem, Member, NameProblem, PlayLength,
+    EventProblem, InputControlKind, InputEvent, Member, NameProblem, PlayLength,
     ProjectValidationError, ValidationProblem,
 };
 use donder_project_io::{check_project, project_source_texts};
@@ -329,7 +329,7 @@ fn console_edits_are_validated_like_loading() {
         },
     );
     // A console of the project reads only the input devices of the project's
-    // setup.
+    // setup: removing them removes the events that read them.
     let setup_id = *session.project.root().setup.id();
     let mut setup = session
         .project
@@ -337,18 +337,13 @@ fn console_edits_are_validated_like_loading() {
         .unwrap()
         .clone();
     setup.input_devices.clear();
-    let error = session.project.put(setup).unwrap_err();
+    session.project.put(setup).unwrap();
+    let repairs = session.project.take_repairs();
     assert!(
-        matches!(
-            error,
-            EditError::Invalid(ProjectValidationError {
-                problem: ValidationProblem::Console(ConsoleValidationError::Event {
-                    problem: EventProblem::Input(InputProblem::NotInSetup),
-                    ..
-                }),
-                ..
-            })
-        ),
-        "{error:?}"
+        !repairs.is_empty()
+            && repairs
+                .iter()
+                .all(|repair| matches!(repair, donder_model::Repair::RemoveEvent { .. })),
+        "{repairs:?}"
     );
 }
