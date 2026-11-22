@@ -1,7 +1,7 @@
 //! A string of lights along a path of points. Vixen: `PreviewPolyLine`.
 
 use super::single::own_pixels;
-use super::{Laid, ShapePixel, ShapeSkip, position, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, position};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -9,7 +9,6 @@ use glam::DVec2;
 /// Vixen: `PreviewPolyLine.Layout`, `LineLength`, `SegmentLength`,
 /// `PixelSpacing`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let nodes = own_pixels(shape)?;
     let points: Vec<DVec2> = contract::points(shape, "_points")?
         .into_iter()

@@ -55,7 +55,7 @@ test("endpoint and guide priority preserve constraints and bypass", () => {
 });
 const transform = (x, y = 0) => ({ position: p(x, y), rotation: { xDegrees: 0, yDegrees: 0, zDegrees: 0 }, scale: { x: 1, y: 1, z: 1 } });
 const fixture = (id, x) => ({ id, name: `Fixture ${id}`, kind: { type: "fixture", transform: transform(x), definition: { type: "inline", elements: [] } } });
-const group = (id, members) => ({ id, name: `Group ${id}`, kind: { type: "group", members } });
+const group = (id, members) => ({ id, name: `Group ${id}`, kind: { type: "group", members: members.map((member) => ({ type: "item", id: member })) } });
 const position = (fixtures, id) => fixtures.find((item) => item.id === id).kind.transform.position;
 test("nested group selection moves each descendant once and preserves source geometry", () => {
   const fixtures = [group(10, [1, 11]), fixture(1, 1), group(11, [2]), fixture(2, 3), fixture(3, 8)];

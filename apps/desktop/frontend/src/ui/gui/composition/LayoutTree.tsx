@@ -1,11 +1,11 @@
 import { useState, type DragEvent } from "react";
 import { isSecondaryClick } from "../../../platform";
-import { ChevronDown, ChevronRight, Link2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Link2, Scissors } from "lucide-react";
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
-import type { GuiDocumentRequest, GuiLayoutFixture } from "../../../types";
-import { descendants, layoutIndex, memberFixtures, membersOf, membershipCount, type LayoutItems } from "./layoutGraph";
+import type { GuiDocumentRequest, GuiGroupMember, GuiLayoutFixture } from "../../../types";
+import { descendants, layoutIndex, memberFixtures, memberPixelCount, membersOf, membershipCount, ownedPixelCounts, type GroupSlice, type LayoutItems } from "./layoutGraph";
 import { AddRow, Badge, type MenuEntry } from "../../kit";
 
 type Location = { parent: number | null; before: number | null; row: number | null; position: "before" | "after" | "inside" | "root" };
@@ -72,24 +72,37 @@ export function LayoutTree({ fixtures, root, pixels, selected, onSelect, onOpen,
     },
     end
   };
-  const pixelCounts = new Map<number, number>();
-  for (const pixel of pixels) pixelCounts.set(pixel.owner, (pixelCounts.get(pixel.owner) ?? 0) + 1);
+  const pixelCounts = ownedPixelCounts(pixels);
   const context: TreeContext = { items, pixelCounts, shared: (id) => membershipCount(fixtures, root, id), controls };
   const top: Location = { parent: null, before: null, row: null, position: "root" };
   return <div className="composition-tree" data-dragging={drag !== null}
     onDragOver={(event) => { controls.over(top, event); }} onDrop={(event) => { controls.drop(top, event); }}
     onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setHover(null); }}>
     {root.length === 0 && <AddRow label="Add" disabled={!enabled} entries={addEntries} />}
-    <LayoutTreeRows members={root} parent={null} context={context} selected={selected} onSelect={onSelect} onOpen={onOpen} />
+    <LayoutTreeRows members={root.map((id): GuiGroupMember => ({ type: "item", id }))} parent={null} context={context} selected={selected} onSelect={onSelect} onOpen={onOpen} />
     {drag !== null && <div className="layout-tree-root-drop" data-drop={hover?.position === "root"}>Top level</div>}
   </div>;
 }
 
-function LayoutTreeRows({ members, parent, context, ...props }: TreeProps & { members: number[]; parent: number | null; context: TreeContext }) {
-  return members.map((id, index) => {
-    const item = context.items.get(id);
-    return item === undefined ? null : <LayoutTreeItem key={id} item={item} parent={parent} next={members[index + 1] ?? null} context={context} {...props} />;
+/** A group's members in order: items as rows of their own, slices as rows of their fixture's pixels. */
+function LayoutTreeRows({ members, parent, context, ...props }: TreeProps & { members: GuiGroupMember[]; parent: number | null; context: TreeContext }) {
+  const items = members.flatMap((member) => member.type === "item" ? [member.id] : []);
+  return members.map((member) => {
+    if (member.type === "slice") return <LayoutTreeSlice key={`${member.fixture}:${member.start}:${member.count}`} slice={member} context={context} {...props} />;
+    const item = context.items.get(member.id);
+    return item === undefined ? null : <LayoutTreeItem key={member.id} item={item} parent={parent} next={items[items.indexOf(member.id) + 1] ?? null} context={context} {...props} />;
   });
+}
+
+/** A run of a fixture's pixels a group lists; selecting it selects the fixture. */
+function LayoutTreeSlice({ slice, context, selected, onSelect }: TreeProps & { slice: GroupSlice; context: TreeContext }) {
+  const fixture = context.items.get(slice.fixture);
+  return <div className={`composition-tree-slice${selected.includes(slice.fixture) ? " selected" : ""}`}
+    onClick={(event) => { if (!isSecondaryClick(event)) onSelect(slice.fixture, event.shiftKey || event.ctrlKey || event.metaKey); }}>
+    <span className="composition-tree-icon" aria-hidden="true"><Scissors size={THEME_METRICS.iconSizeExtraSmall} /></span>
+    <span className="composition-tree-name">{fixture?.name ?? "Missing"}</span>
+    <span className="composition-tree-meta">{`${slice.start + 1}–${slice.start + slice.count} · ${slice.count} px`}</span>
+  </div>;
 }
 
 function LayoutTreeItem({ item, parent, next, context, selected, onSelect, onOpen }: TreeProps & {
@@ -99,7 +112,7 @@ function LayoutTreeItem({ item, parent, next, context, selected, onSelect, onOpe
   const isGroup = item.kind.type === "group";
   const [open, setOpen] = useState(isGroup);
   const fixtures = memberFixtures(context.items, item.id);
-  const pixelCount = fixtures.reduce((total, fixture) => total + (context.pixelCounts.get(fixture) ?? 0), 0);
+  const pixelCount = memberPixelCount(context.items, item.id, context.pixelCounts);
   const shared = context.shared(item.id);
   const metadata = item.kind.type === "group" ? `${fixtures.length} fixtures · ${pixelCount} px` : `${pixelCount} px`;
   const linked = item.kind.type === "fixture" && item.kind.definition.type === "reference";

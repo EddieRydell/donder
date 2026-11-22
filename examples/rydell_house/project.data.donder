@@ -23,7 +23,7 @@ import trans_siberian_mix from <sequences/trans_siberian_mix.data.donder>;
 import consoles from <consoles/mpk_mini.data.donder>;
 import consoles_2 from <consoles/console.data.donder>;
 import sequences_2 from <sequences/hero.data.donder>;
-import sequences_3 from <sequences/sequence.data.donder>;
+import sequences_3 from <sequences/oklahoma.data.donder>;
 
 Project rydell_house {
   format: 2,
@@ -49,7 +49,7 @@ Project rydell_house {
     tiny_tree.tiny_tree,
     trans_siberian_mix.trans_siberian_mix,
     sequences_2.hero,
-    sequences_3.sequence,
+    sequences_3.oklahoma,
   ],
   consoles: [consoles.mpk_mini, consoles_2.console],
 }

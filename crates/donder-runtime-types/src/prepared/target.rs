@@ -2,6 +2,7 @@
 //! These descriptions contain geometry only, never executable graph references.
 use super::{FixtureGeometry, SpatialContext, TargetScope};
 use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
+use core::ops::Range;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TargetPixel {
@@ -44,55 +45,79 @@ pub struct TargetGeometry {
 }
 
 impl TargetGeometry {
-    /// The first occurrence of each fixture determines whole-target ordering.
+    /// Whole fixtures; the first occurrence of each fixture determines
+    /// whole-target ordering.
     pub fn new<'a>(
         fixtures: impl IntoIterator<Item = (usize, &'a FixtureGeometry)>,
         scope: TargetScope,
     ) -> Self {
+        Self::parts(
+            fixtures.into_iter().map(|(fixture, geometry)| {
+                (fixture, geometry, 0..geometry.positions().len() as u32)
+            }),
+            scope,
+        )
+    }
+
+    /// Runs of fixtures' cells in order. A cell reached more than once keeps
+    /// its first position; per fixture, each part counts as its own fixture.
+    pub fn parts<'a>(
+        parts: impl IntoIterator<Item = (usize, &'a FixtureGeometry, Range<u32>)>,
+        scope: TargetScope,
+    ) -> Self {
         let mut seen = BTreeSet::new();
-        let fixtures: Vec<_> = fixtures
+        let parts: Vec<(usize, &FixtureGeometry, Vec<u32>)> = parts
             .into_iter()
-            .filter(|(fixture, _)| seen.insert(*fixture))
+            .map(|(fixture, geometry, cells)| {
+                let end = cells.end.min(geometry.positions().len() as u32);
+                let cells = (cells.start..end)
+                    .filter(|&cell| seen.insert((fixture, cell)))
+                    .collect();
+                (fixture, geometry, cells)
+            })
+            .filter(|(_, _, cells): &(usize, &FixtureGeometry, Vec<u32>)| !cells.is_empty())
             .collect();
-        let total = fixtures
-            .iter()
-            .map(|(_, geometry)| geometry.positions().len())
-            .sum();
-        let whole = bounds(
-            fixtures
-                .iter()
-                .flat_map(|(_, geometry)| geometry.positions().iter().copied()),
-        );
+        let total = parts.iter().map(|(_, _, cells)| cells.len()).sum();
+        let position = |geometry: &FixtureGeometry, cell: u32| geometry.positions()[cell as usize];
+        let whole =
+            bounds(parts.iter().flat_map(|(_, geometry, cells)| {
+                cells.iter().map(|&cell| position(geometry, cell))
+            }));
         let mut pixels = Vec::with_capacity(total);
         let mut selection = Vec::with_capacity(total);
         let mut logical_offset = 0;
-        for (fixture, geometry) in fixtures {
-            let positions = geometry.positions();
+        for (fixture, geometry, cells) in parts {
             let extent = match scope {
-                TargetScope::PerFixture => bounds(positions.iter().copied()),
+                TargetScope::PerFixture => {
+                    bounds(cells.iter().map(|&cell| position(geometry, cell)))
+                }
                 TargetScope::WholeTarget => whole,
             };
             if let Some((min, max)) = extent {
-                for (cell, &position) in positions.iter().enumerate() {
-                    selection.push((fixture, cell as u32));
-                    let Ok(storage_cell) = geometry.cells().binary_search(&(cell as u32)) else {
+                for (offset, &cell) in cells.iter().enumerate() {
+                    selection.push((fixture, cell));
+                    let Ok(storage_cell) = geometry.cells().binary_search(&cell) else {
                         continue;
                     };
                     let (index, count) = match scope {
-                        TargetScope::PerFixture => (cell, positions.len()),
-                        TargetScope::WholeTarget => (logical_offset + cell, total),
+                        TargetScope::PerFixture => (offset, cells.len()),
+                        TargetScope::WholeTarget => (logical_offset + offset, total),
                     };
                     pixels.push(TargetPixel {
                         fixture,
                         cell: storage_cell as u32,
-                        source_cell: cell as u32,
+                        source_cell: cell,
                         index,
                         count,
-                        spatial: SpatialContext { position, min, max },
+                        spatial: SpatialContext {
+                            position: position(geometry, cell),
+                            min,
+                            max,
+                        },
                     });
                 }
             }
-            logical_offset += positions.len();
+            logical_offset += cells.len();
         }
         pixels.sort_by_key(|pixel| (pixel.fixture, pixel.cell));
         Self {

@@ -80,7 +80,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                 .unwrap()
                 .members(authored.target.fixture)
                 .into_iter()
-                .map(|fixture| fixture.0)
+                .map(|part| part.fixture.0)
                 .collect::<Vec<_>>();
             let clip = decoded.clip(authored.id.0).unwrap();
             let target_count = clip.target_pixel_count();

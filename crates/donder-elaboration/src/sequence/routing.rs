@@ -5,11 +5,12 @@ use donder_model::PixelRouteId;
 use donder_runtime::ShowBuilder;
 use donder_runtime_types::{FixtureGeometry, TargetGeometry, TargetScope};
 use indexmap::IndexMap;
+use std::ops::Range;
 
 pub(crate) fn targets<S>(
     selected: &Selection<'_, S>,
     geometry: &[FixtureGeometry],
-    members: &IndexMap<FixtureInstanceId, Vec<usize>>,
+    members: &IndexMap<FixtureInstanceId, Vec<(usize, Range<u32>)>>,
 ) -> IndexMap<PixelRouteId, TargetGeometry> {
     selected
         .patch
@@ -22,10 +23,10 @@ pub(crate) fn targets<S>(
             })
         })
         .map(|route| {
-            let target = TargetGeometry::new(
+            let target = TargetGeometry::parts(
                 members[&route.target.fixture]
                     .iter()
-                    .map(|&index| (index, &geometry[index])),
+                    .map(|(index, cells)| (*index, &geometry[*index], cells.clone())),
                 TargetScope::PerFixture,
             );
             let target = match route.pixels {

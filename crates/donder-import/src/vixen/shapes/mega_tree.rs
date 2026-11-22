@@ -2,7 +2,7 @@
 //! points around a smaller top ellipse. Vixen: `PreviewMegaTree`.
 
 use super::multi_string::{add_line, child_line};
-use super::{Laid, ShapeSkip, strings, unrotated};
+use super::{Laid, ShapeSkip, strings};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -65,7 +65,6 @@ fn ellipse_points(
 /// `PreviewMegaTree.OnDeserialized`, `Layout`, `Pixels`;
 /// `PreviewTools.TransformPreviewPoint`; `PreviewLine.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let (left, top) = contract::point(shape, "_topLeft")?;
     let (right, bottom) = contract::point(shape, "_bottomRight")?;
     let string_count = contract::int(shape, "_stringCount", 0)?;

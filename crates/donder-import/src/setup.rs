@@ -10,9 +10,9 @@ use camino::Utf8PathBuf;
 use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortId,
     ControllerProtocol, ControllerValidationError, E131Config, E131Mode, FixtureDefinition,
-    FixtureInstanceId, FixtureTarget, FixtureTransform, Layout, LayoutFixture, LayoutFixtureKind,
-    LayoutId, ObjectId, Owned, OwnedMember, OwnershipSite, Patch, PatchId, PixelRoute,
-    PixelRouteId, PixelSpan, ProjectEdit, RouteStart, Setup, Universes,
+    FixtureInstanceId, FixtureTarget, FixtureTransform, GroupMember, Layout, LayoutFixture,
+    LayoutFixtureKind, LayoutId, ObjectId, Owned, OwnedMember, OwnershipSite, Patch, PatchId,
+    PixelRoute, PixelRouteId, PixelSpan, ProjectEdit, RouteStart, Setup, Universes,
 };
 use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::{Identifier, PixelEncoding};
@@ -202,8 +202,19 @@ pub(crate) struct ProfileController {
 
 pub(crate) struct ProfileGroup {
     pub(crate) name: String,
-    /// Fixtures and other groups, by their names in the profile.
-    pub(crate) members: Vec<String>,
+    pub(crate) members: Vec<ProfileMember>,
+}
+
+/// A group member: a fixture or another group by its name in the profile, or
+/// a run of a fixture's pixels in its pixel order.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum ProfileMember {
+    Named(String),
+    Slice {
+        fixture: String,
+        start: u32,
+        count: u32,
+    },
 }
 
 /// What a reader makes of a profile.
@@ -650,20 +661,44 @@ fn groups(
         .collect();
     enum Member {
         Fixture(FixtureInstanceId),
+        Slice(FixtureInstanceId, PixelSpan),
         Group(usize),
     }
     let mut members: Vec<Vec<Member>> = Vec::new();
     for group in profile {
         let mut list = Vec::new();
         for entry in &group.members {
-            let member = if let Some(&fixture) = fixtures.get(entry) {
-                Member::Fixture(fixture)
-            } else if let Some(&index) = group_index.get(entry.as_str()) {
-                Member::Group(index)
-            } else {
+            let member = match entry {
+                ProfileMember::Named(name) => {
+                    if let Some(&fixture) = fixtures.get(name) {
+                        Some(Member::Fixture(fixture))
+                    } else {
+                        group_index
+                            .get(name.as_str())
+                            .map(|&index| Member::Group(index))
+                    }
+                }
+                ProfileMember::Slice {
+                    fixture,
+                    start,
+                    count,
+                } => fixtures.get(fixture).map(|&fixture| {
+                    Member::Slice(
+                        fixture,
+                        PixelSpan {
+                            start: *start,
+                            count: *count,
+                        },
+                    )
+                }),
+            };
+            let Some(member) = member else {
                 report.dropped_members.push(DroppedMember {
                     group: group.name.clone(),
-                    member: entry.clone(),
+                    member: match entry {
+                        ProfileMember::Named(name) => name.clone(),
+                        ProfileMember::Slice { fixture, .. } => fixture.clone(),
+                    },
                     reason: DropReason::Missing,
                 });
                 continue;
@@ -678,7 +713,7 @@ fn groups(
             || (seen.insert(from)
                 && members[from].iter().any(|member| match member {
                     Member::Group(next) => reaches(members, *next, to, seen),
-                    Member::Fixture(_) => false,
+                    Member::Fixture(_) | Member::Slice(..) => false,
                 }))
     }
     for group in 0..members.len() {
@@ -707,7 +742,7 @@ fn groups(
             if !empty[group]
                 && members[group].iter().all(|member| match member {
                     Member::Group(inner) => empty[*inner],
-                    Member::Fixture(_) => false,
+                    Member::Fixture(_) | Member::Slice(..) => false,
                 })
             {
                 empty[group] = true;
@@ -732,19 +767,23 @@ fn groups(
     let mut items = Vec::new();
     for (group, list) in members.iter().enumerate() {
         let Some(&id) = ids.get(&group) else { continue };
-        let list: Vec<FixtureInstanceId> = list
+        let list: Vec<GroupMember> = list
             .iter()
             .filter_map(|member| match member {
                 Member::Fixture(fixture) => {
                     grouped.insert(*fixture);
-                    Some(*fixture)
+                    Some(GroupMember::Item(*fixture))
                 }
+                Member::Slice(fixture, pixels) => Some(GroupMember::Slice {
+                    fixture: *fixture,
+                    pixels: *pixels,
+                }),
                 Member::Group(inner) => ids
                     .get(inner)
                     .inspect(|inner| {
                         nested.insert(**inner);
                     })
-                    .copied(),
+                    .map(|inner| GroupMember::Item(*inner)),
             })
             .collect();
         let name = donder_language::unique_name(

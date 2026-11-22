@@ -1,7 +1,7 @@
 //! Strings of lights end to end through a list of points, one string
 //! between each pair. Vixen: `PreviewMultiString`.
 
-use super::{Laid, ShapePixel, ShapeSkip, line, pixel_nodes, position, strings, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, line, pixel_nodes, position, strings};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -15,7 +15,6 @@ pub(super) fn child_line(child: &Element) -> Result<Vec<Option<String>>, ShapeSk
         return Err(ShapeSkip::Setting("strings that are not lines"));
     }
     // The line's own rotation turns its lights as it lays them out.
-    unrotated(child)?;
     if !strings(child).is_empty() {
         return Err(ShapeSkip::Setting("strings within strings"));
     }
@@ -69,7 +68,6 @@ pub(super) fn counted_strings(shape: &Element) -> Result<Vec<&Element>, ShapeSki
 
 /// Vixen: `PreviewMultiString.OnDeserialized`, `PreviewMultiString.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let points = contract::points(shape, "_points")?;
     if points.is_empty() {
         // Vixen's load indexes the first point.

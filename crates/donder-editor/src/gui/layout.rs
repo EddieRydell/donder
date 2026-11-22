@@ -100,8 +100,13 @@ pub(super) fn edit_layout(
                         .get::<donder_model::Layout>(id)
                         .cloned()
                         .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
-                    for member in layout.members(copy) {
-                        let fixture = layout.fixture_mut(member).ok_or_else(|| {
+                    let mut moved = Vec::new();
+                    for part in layout.members(copy) {
+                        if moved.contains(&part.fixture) {
+                            continue;
+                        }
+                        moved.push(part.fixture);
+                        let fixture = layout.fixture_mut(part.fixture).ok_or_else(|| {
                             GuiMutationError::Invalid("Copied fixture was not found.".into())
                         })?;
                         translate_fixture(fixture, &offset)?;
@@ -232,7 +237,22 @@ fn domain_fixture(
             transform: checked_transform(transform)?,
         },
         GuiLayoutFixtureKind::Group { members } => LayoutFixtureKind::Group {
-            members: members.into_iter().map(FixtureInstanceId).collect(),
+            members: members
+                .into_iter()
+                .map(|member| match member {
+                    crate::dto::GuiGroupMember::Item { id } => {
+                        donder_model::GroupMember::Item(FixtureInstanceId(id))
+                    }
+                    crate::dto::GuiGroupMember::Slice {
+                        fixture,
+                        start,
+                        count,
+                    } => donder_model::GroupMember::Slice {
+                        fixture: FixtureInstanceId(fixture),
+                        pixels: donder_model::PixelSpan { start, count },
+                    },
+                })
+                .collect(),
         },
     };
     Ok(LayoutFixture {

@@ -1,6 +1,6 @@
 //! One light at a point. Vixen: `PreviewSingle`.
 
-use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings};
 use crate::vixen::contract;
 use crate::xml::Element;
 
@@ -28,7 +28,6 @@ pub(super) fn own_pixels(shape: &Element) -> Result<Vec<Option<String>>, ShapeSk
 
 /// Vixen: `PreviewSingle.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let nodes = own_pixels(shape)?;
     let position = point(shape, "p1")?;
     if nodes.len() > 1 {

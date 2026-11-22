@@ -52,7 +52,14 @@ impl Copier<'_> {
             LayoutFixtureKind::Group { members } => {
                 *members = members
                     .iter()
-                    .map(|&member| self.own(member))
+                    .map(|&member| match member {
+                        crate::GroupMember::Item(item) => {
+                            self.own(item).map(crate::GroupMember::Item)
+                        }
+                        crate::GroupMember::Slice { fixture, pixels } => self
+                            .own(fixture)
+                            .map(|fixture| crate::GroupMember::Slice { fixture, pixels }),
+                    })
                     .collect::<Result<_, _>>()?;
             }
         }

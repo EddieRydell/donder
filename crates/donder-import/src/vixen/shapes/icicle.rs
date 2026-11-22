@@ -2,7 +2,7 @@
 //! between two points. Vixen: `PreviewIcicle`.
 
 use super::multi_string::{add_line, child_line, counted_strings};
-use super::{Laid, ShapeSkip, line, pixel_nodes, strings, unrotated};
+use super::{Laid, ShapeSkip, line, pixel_nodes, strings};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -10,7 +10,6 @@ use glam::DVec2;
 /// Vixen: `PreviewIcicle.OnDeserialized`, `PreviewIcicle.Layout`,
 /// `PreviewIcicle.Strings`, `PreviewIcicle.VerticalSpacing`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let (first, last) = line::ends(shape)?;
     if strings(shape).is_empty() && !pixel_nodes(shape)?.is_empty() {
         // Vixen's `Pixels` are then its own, which its layout does not

@@ -1,6 +1,6 @@
 //! A straight string of lights between two points. Vixen: `PreviewLine`.
 
-use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, position, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, position};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -39,7 +39,6 @@ pub(super) fn ends(shape: &Element) -> Result<(DVec2, DVec2), ShapeSkip> {
 }
 
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let (start, end) = ends(shape)?;
     let nodes = pixel_nodes(shape)?;
     let positions = spaced(start, end, nodes.len(), false, false)?;

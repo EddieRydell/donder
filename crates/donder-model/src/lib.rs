@@ -66,8 +66,8 @@ pub use input_device::{
     OwnedInputDevice,
 };
 pub use layout::{
-    FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
-    OwnedLayout,
+    FixtureInstanceId, FixtureTarget, GroupMember, Layout, LayoutError, LayoutFixture,
+    LayoutFixtureKind, OwnedLayout, TargetPart,
 };
 pub use operator::{
     GraphOperatorNode, GraphValidationError, OperatorDefinition,

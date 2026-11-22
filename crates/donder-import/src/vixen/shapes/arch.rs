@@ -1,7 +1,7 @@
 //! A half ellipse of lights standing on a box's bottom edge. Vixen:
 //! `PreviewArch`.
 
-use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings, unrotated};
+use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings};
 use crate::xml::Element;
 use glam::DVec2;
 
@@ -39,7 +39,6 @@ pub(super) fn arc(
 
 /// Vixen: `PreviewArch.OnDeserialized`, `PreviewArch.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     if !strings(shape).is_empty() {
         // Vixen's `Pixels` would then be the strings' pixels, which the
         // arch's layout does not place.

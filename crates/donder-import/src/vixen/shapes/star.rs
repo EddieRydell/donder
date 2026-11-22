@@ -3,7 +3,7 @@
 
 use super::ellipse::{at, inscribed, turn_degrees};
 use super::single::own_pixels;
-use super::{Laid, ShapePixel, ShapeSkip, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip};
 use crate::vixen::contract::{self, FieldError};
 use crate::xml::Element;
 use glam::DVec2;
@@ -23,7 +23,6 @@ fn counter_clockwise(shape: &Element) -> Result<bool, ShapeSkip> {
 
 /// Vixen: `PreviewStar.Layout`, `RecalcPoints`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let mut nodes = own_pixels(shape)?;
     let (left, top) = contract::point(shape, "_topLeftPoint")?;
     let (right, bottom) = contract::point(shape, "_bottomRightPoint")?;

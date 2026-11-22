@@ -27,9 +27,9 @@ use camino::Utf8Path;
 use donder_project_io::ProjectSession;
 
 pub use report::{
-    ControllerSkip, DropReason, DroppedMember, ElementPatch, FieldError, GroupSkip, ImportOptions,
-    ImportReport, Scale, ShapeSkip, SkipReason, Skipped, SkippedController, SkippedGroup,
-    TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
+    ControllerSkip, DropReason, DroppedMember, ElementPatch, FieldError, FittedDimming, GroupSkip,
+    ImportOptions, ImportReport, Scale, ShapeSkip, SkipReason, Skipped, SkippedController,
+    SkippedGroup, TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
 };
 pub use setup::ImportError;
 

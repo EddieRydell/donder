@@ -6,7 +6,7 @@ use core::time::Duration;
 use donder_model::{
     Controller, ControllerId, ControllerOutput, ControllerPortId, DonderProject, FixtureDefinition,
     FixtureInstanceId, FixtureTarget, Layout, LayoutId, Patch, PatchId, PixelRoute, PixelRouteId,
-    PreparedFixtureDefinitions, Setup,
+    PixelSpan, PreparedFixtureDefinitions, Setup,
 };
 use donder_runtime_types::PixelEncoding;
 use indexmap::IndexMap;
@@ -153,7 +153,8 @@ impl OutputTest {
         let setup = project
             .get::<Setup>(*project.root().setup.id())
             .ok_or(TestError::MissingSetup)?;
-        let (patch, routes): (&Patch, Vec<&PixelRoute>) = match selection {
+        // Each route to light, and the fixture pixels a slice limits it to.
+        let (patch, routes): (&Patch, Vec<(&PixelRoute, Option<PixelSpan>)>) = match selection {
             TestSelection::Channels {
                 controller,
                 start_channel,
@@ -190,22 +191,26 @@ impl OutputTest {
                     .iter()
                     .find(|candidate| candidate.id == route)
                     .ok_or(TestError::MissingRoute(route))?;
-                (patch, vec![route])
+                (patch, vec![(route, None)])
             }
             TestSelection::LayoutItem { layout, item } => {
                 let patch = setup_patch(project, setup)?;
-                let routes = project
+                let parts = project
                     .get::<Layout>(layout)
-                    .map_or_else(Vec::new, |value| {
+                    .map_or_else(Vec::new, |value| value.members(item));
+                let routes = parts
+                    .iter()
+                    .flat_map(|part| {
                         patch
                             .routes
                             .iter()
-                            .filter(|route| {
+                            .filter(move |route| {
                                 route.target.layout == layout
-                                    && value.contains(item, route.target.fixture)
+                                    && route.target.fixture == part.fixture
                             })
-                            .collect()
-                    });
+                            .map(move |route| (route, part.pixels))
+                    })
+                    .collect();
                 (patch, routes)
             }
             TestSelection::Port { controller, port } => {
@@ -214,6 +219,7 @@ impl OutputTest {
                     .routes
                     .iter()
                     .filter(|route| route.controller == controller && route.port == port)
+                    .map(|route| (route, None))
                     .collect();
                 (patch, routes)
             }
@@ -228,7 +234,7 @@ impl OutputTest {
             .iter()
             .map(|controller| *controller.id())
             .collect::<Vec<_>>();
-        for route in routes {
+        for (route, only) in routes {
             let placement = placements
                 .get(&route.id)
                 .filter(|placement| placement.output == ControllerOutput::Universes);
@@ -247,10 +253,27 @@ impl OutputTest {
                     &counts,
                 )
                 .map_err(|error| TestError::PixelCount(format!("{error:?}")))?;
-            let span = route.pixels.unwrap_or(donder_model::PixelSpan {
+            let routed = route.pixels.unwrap_or(PixelSpan {
                 start: 0,
                 count: fixture_pixels,
             });
+            // The routed pixels a slice selects; a route outside it lights none.
+            let span = match only {
+                None => routed,
+                Some(only) => {
+                    let start = routed.start.max(only.start);
+                    let end = (routed.start + routed.count).min(only.start + only.count);
+                    if end <= start {
+                        continue;
+                    }
+                    PixelSpan {
+                        start,
+                        count: end - start,
+                    }
+                }
+            };
+            let width = route.encoding.channel_order().len() as u32;
+            let start_channel = placement.channels.start + (span.start - routed.start) * width;
             let prepared = layouts
                 .entry(route.target.layout)
                 .or_insert_with(|| geometry.prepare_layout(layout));
@@ -271,8 +294,8 @@ impl OutputTest {
             test.add_controller(project, route.controller)?;
             test.regions.push(Region {
                 controller: route.controller,
-                start_channel: placement.channels.start,
-                end_channel: placement.channels.end,
+                start_channel,
+                end_channel: start_channel + span.count * width,
                 first_pixel: span.start,
                 fixture_pixels,
                 pixels: span.count,

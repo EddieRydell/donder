@@ -1,7 +1,8 @@
 //! Layout fixtures are effect targets. Parts inside a definition are not layout targets.
 //!
 //! Each fixture is placed once. Groups are ordered member lists that may share
-//! members, so membership forms an acyclic graph rooted at `Layout::root`.
+//! members, so membership forms an acyclic graph rooted at `Layout::root`. A
+//! group member may also be a slice: a run of one placed fixture's pixels.
 
 mod editing;
 
@@ -9,6 +10,7 @@ use std::collections::HashSet;
 
 use crate::fixture::{FixtureDefinitionId, FixtureGeometryError, FixtureTransform, OwnedFixture};
 pub(crate) use crate::identity::LayoutId;
+use crate::patch::PixelSpan;
 use indexmap::IndexMap;
 
 /// Stable across renames, reordering and membership changes; unique in a layout.
@@ -41,11 +43,46 @@ pub enum LayoutFixtureKind {
         transform: FixtureTransform,
     },
     Group {
-        members: Vec<FixtureInstanceId>,
+        members: Vec<GroupMember>,
     },
 }
 
-/// Select an entire fixture or group. There is no effect pixel-range selector.
+/// A group member: a fixture or group of the layout, or a run of a placed
+/// fixture's pixels in fixture order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum GroupMember {
+    Item(FixtureInstanceId),
+    Slice {
+        fixture: FixtureInstanceId,
+        pixels: PixelSpan,
+    },
+}
+
+impl GroupMember {
+    /// The layout item the member names: the item, or the sliced fixture.
+    pub fn item(&self) -> FixtureInstanceId {
+        match *self {
+            Self::Item(item) | Self::Slice { fixture: item, .. } => item,
+        }
+    }
+
+    /// The listed item, unless the member is a slice.
+    pub fn listed(&self) -> Option<FixtureInstanceId> {
+        match *self {
+            Self::Item(item) => Some(item),
+            Self::Slice { .. } => None,
+        }
+    }
+}
+
+/// Pixels a target denotes in one placed fixture: all of them, or a span.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct TargetPart {
+    pub fixture: FixtureInstanceId,
+    pub pixels: Option<PixelSpan>,
+}
+
+/// Select an entire fixture or group; a group may list slices of fixtures.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct FixtureTarget {
     pub layout: LayoutId,
@@ -72,14 +109,30 @@ pub enum LayoutError {
     Cycle(FixtureInstanceId, donder_runtime_types::Identifier),
     /// An item is not reachable from the root.
     Unreachable(FixtureInstanceId, donder_runtime_types::Identifier),
+    /// A group slices a group or a missing item; slices take a placed fixture.
+    InvalidSlice {
+        group: FixtureInstanceId,
+        fixture: FixtureInstanceId,
+    },
+    /// A group's slice selects no pixels, or pixels past its fixture's last.
+    SliceOutOfRange {
+        group: FixtureInstanceId,
+        fixture: FixtureInstanceId,
+    },
 }
 
 impl LayoutFixture {
-    pub fn members(&self) -> &[FixtureInstanceId] {
+    /// A group's members; a fixture has none.
+    pub fn members(&self) -> &[GroupMember] {
         match &self.kind {
             LayoutFixtureKind::Group { members } => members,
             LayoutFixtureKind::Fixture { .. } => &[],
         }
+    }
+
+    /// The items a group lists whole, without its slices.
+    pub fn listed(&self) -> impl Iterator<Item = FixtureInstanceId> + '_ {
+        self.members().iter().filter_map(GroupMember::listed)
     }
 }
 
@@ -97,12 +150,14 @@ impl Layout {
         self.fixtures.iter_mut().find(|fixture| fixture.id == id)
     }
 
-    /// The members of a group, or the root for `None`.
-    pub fn children(&self, parent: Option<FixtureInstanceId>) -> Option<&[FixtureInstanceId]> {
+    /// The items a group lists whole, or the root for `None`.
+    pub fn children(&self, parent: Option<FixtureInstanceId>) -> Option<Vec<FixtureInstanceId>> {
         match parent {
-            None => Some(&self.root),
+            None => Some(self.root.clone()),
             Some(parent) => match &self.fixture(parent)?.kind {
-                LayoutFixtureKind::Group { members } => Some(members),
+                LayoutFixtureKind::Group { members } => {
+                    Some(members.iter().filter_map(GroupMember::listed).collect())
+                }
                 LayoutFixtureKind::Fixture { .. } => None,
             },
         }
@@ -119,40 +174,54 @@ impl Layout {
             if seen.insert(id)
                 && let Some(fixture) = self.fixture(id)
             {
-                stack.extend(fixture.members().iter().copied());
+                stack.extend(fixture.members().iter().map(GroupMember::item));
             }
         }
         false
     }
 
-    /// The placed fixtures a target denotes, depth-first in member order.
-    /// A fixture reached more than once keeps its first position.
-    pub fn members(&self, id: FixtureInstanceId) -> Vec<FixtureInstanceId> {
+    /// The placed fixtures, or runs of their pixels, a target denotes,
+    /// depth-first in member order. A whole fixture or slice reached more than
+    /// once keeps its first position; a pixel both parts select belongs to
+    /// the first.
+    pub fn members(&self, id: FixtureInstanceId) -> Vec<TargetPart> {
         fn visit(
             index: &std::collections::HashMap<FixtureInstanceId, &LayoutFixture>,
-            id: FixtureInstanceId,
-            seen: &mut HashSet<FixtureInstanceId>,
-            members: &mut Vec<FixtureInstanceId>,
+            member: GroupMember,
+            seen: &mut HashSet<GroupMember>,
+            parts: &mut Vec<TargetPart>,
         ) {
-            if !seen.insert(id) {
+            if !seen.insert(member) {
                 return;
             }
-            let Some(fixture) = index.get(&id) else {
-                return;
-            };
-            match &fixture.kind {
-                LayoutFixtureKind::Fixture { .. } => members.push(id),
-                LayoutFixtureKind::Group { members: children } => {
-                    for &child in children {
-                        visit(index, child, seen, members);
+            match member {
+                GroupMember::Slice { fixture, pixels } => parts.push(TargetPart {
+                    fixture,
+                    pixels: Some(pixels),
+                }),
+                GroupMember::Item(id) => match index.get(&id).map(|fixture| &fixture.kind) {
+                    Some(LayoutFixtureKind::Fixture { .. }) => parts.push(TargetPart {
+                        fixture: id,
+                        pixels: None,
+                    }),
+                    Some(LayoutFixtureKind::Group { members }) => {
+                        for &child in members {
+                            visit(index, child, seen, parts);
+                        }
                     }
-                }
+                    None => {}
+                },
             }
         }
         let index = self.index();
-        let mut members = Vec::new();
-        visit(&index, id, &mut HashSet::new(), &mut members);
-        members
+        let mut parts = Vec::new();
+        visit(
+            &index,
+            GroupMember::Item(id),
+            &mut HashSet::new(),
+            &mut parts,
+        );
+        parts
     }
 
     fn index(&self) -> std::collections::HashMap<FixtureInstanceId, &LayoutFixture> {
@@ -173,31 +242,86 @@ impl Layout {
         if self.fixture(target.fixture).is_none() {
             return Err(LayoutError::MissingFixture(target.fixture));
         }
-        self.members(target.fixture)
-            .into_iter()
-            .try_fold(0u32, |total, id| {
-                let fixture = self.fixture(id).ok_or(LayoutError::MissingFixture(id))?;
-                let LayoutFixtureKind::Fixture { definition, .. } = &fixture.kind else {
-                    return Ok(total);
+        // Each placed fixture's selected ranges, merged so a pixel counts once.
+        let mut selected: IndexMap<FixtureInstanceId, Vec<(u32, u32)>> = IndexMap::new();
+        for part in self.members(target.fixture) {
+            let count = self.fixture_pixel_count(part.fixture, counts)?;
+            let range = part.pixels.map_or((0, count), |span| {
+                (
+                    span.start.min(count),
+                    span.start.saturating_add(span.count).min(count),
+                )
+            });
+            selected.entry(part.fixture).or_default().push(range);
+        }
+        selected.into_values().try_fold(0u32, |total, mut ranges| {
+            ranges.sort_unstable();
+            let mut covered = 0u32;
+            let mut end = 0u32;
+            for (start, stop) in ranges {
+                let start = start.max(end);
+                if stop > start {
+                    covered += stop - start;
+                    end = stop;
+                }
+            }
+            total
+                .checked_add(covered)
+                .ok_or(LayoutError::TooManyPixels(target.fixture))
+        })
+    }
+
+    /// A placed fixture's pixel count; a group has none of its own.
+    pub fn fixture_pixel_count(
+        &self,
+        id: FixtureInstanceId,
+        counts: &IndexMap<FixtureDefinitionId, u32>,
+    ) -> Result<u32, LayoutError> {
+        let fixture = self.fixture(id).ok_or(LayoutError::MissingFixture(id))?;
+        let LayoutFixtureKind::Fixture { definition, .. } = &fixture.kind else {
+            return Ok(0);
+        };
+        match definition {
+            OwnedFixture::Inline(value) => {
+                value
+                    .validate_geometry()
+                    .map_err(|error| LayoutError::InvalidFixture {
+                        fixture: fixture.id,
+                        error,
+                    })
+            }
+            OwnedFixture::Reference(definition) => counts
+                .get(definition)
+                .copied()
+                .ok_or(LayoutError::MissingDefinition(*definition)),
+        }
+    }
+
+    /// Every slice selects pixels its fixture has, given each reusable
+    /// definition's pixel count.
+    pub fn validate_slices(
+        &self,
+        counts: &IndexMap<FixtureDefinitionId, u32>,
+    ) -> Result<(), LayoutError> {
+        for group in &self.fixtures {
+            for member in group.members() {
+                let GroupMember::Slice { fixture, pixels } = *member else {
+                    continue;
                 };
-                let count = match definition {
-                    OwnedFixture::Inline(value) => {
-                        value
-                            .validate_geometry()
-                            .map_err(|error| LayoutError::InvalidFixture {
-                                fixture: fixture.id,
-                                error,
-                            })?
-                    }
-                    OwnedFixture::Reference(id) => counts
-                        .get(id)
-                        .copied()
-                        .ok_or(LayoutError::MissingDefinition(*id))?,
-                };
-                total
-                    .checked_add(count)
-                    .ok_or(LayoutError::TooManyPixels(target.fixture))
-            })
+                let count = self.fixture_pixel_count(fixture, counts)?;
+                if pixels
+                    .start
+                    .checked_add(pixels.count)
+                    .is_none_or(|end| end > count)
+                {
+                    return Err(LayoutError::SliceOutOfRange {
+                        group: group.id,
+                        fixture,
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn validate<T>(
@@ -243,23 +367,45 @@ impl Layout {
         self.validate_membership()
     }
 
-    /// Members name existing items once per list, groups are acyclic, and
-    /// every item is reachable from the root.
+    /// Members name existing items once per list, slices name placed
+    /// fixtures and select pixels, groups are acyclic, and every item is
+    /// reachable from the root.
     fn validate_membership(&self) -> Result<(), LayoutError> {
         let index = self.index();
-        let lists =
-            std::iter::once(&self.root[..]).chain(self.fixtures.iter().map(LayoutFixture::members));
-        for list in lists {
+        let root = self
+            .root
+            .iter()
+            .copied()
+            .map(GroupMember::Item)
+            .collect::<Vec<_>>();
+        let lists = std::iter::once((None, &root[..])).chain(
+            self.fixtures
+                .iter()
+                .map(|fixture| (Some(fixture.id), fixture.members())),
+        );
+        for (group, list) in lists {
             let mut listed = HashSet::new();
             for &member in list {
-                if !index.contains_key(&member) {
-                    return Err(LayoutError::MissingFixture(member));
+                let item = member.item();
+                let Some(fixture) = index.get(&item) else {
+                    return Err(LayoutError::MissingFixture(item));
+                };
+                if let (GroupMember::Slice { pixels, .. }, Some(group)) = (member, group) {
+                    if !matches!(fixture.kind, LayoutFixtureKind::Fixture { .. }) {
+                        return Err(LayoutError::InvalidSlice {
+                            group,
+                            fixture: item,
+                        });
+                    }
+                    if pixels.count == 0 {
+                        return Err(LayoutError::SliceOutOfRange {
+                            group,
+                            fixture: item,
+                        });
+                    }
                 }
                 if !listed.insert(member) {
-                    return Err(LayoutError::DuplicateMember(
-                        member,
-                        index[&member].name.clone(),
-                    ));
+                    return Err(LayoutError::DuplicateMember(item, fixture.name.clone()));
                 }
             }
         }
@@ -283,8 +429,8 @@ impl Layout {
             }
             state.insert(id, Visit::Active);
             if let Some(fixture) = index.get(&id) {
-                for &member in fixture.members() {
-                    visit(index, member, state)?;
+                for member in fixture.members() {
+                    visit(index, member.item(), state)?;
                 }
             }
             state.insert(id, Visit::Done);

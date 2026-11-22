@@ -4,14 +4,13 @@
 use super::ellipse::{at, inscribed, turn_degrees};
 use super::line::{ends, spaced};
 use super::single::{not_custom, own_pixels};
-use super::{Laid, ShapePixel, ShapeSkip, strings, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, strings};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
 
 /// Vixen: `PreviewStarBurst.Layout`, then each spoke's `PreviewLine.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     not_custom(shape)?;
     let (left, top) = contract::point(shape, "_topLeft")?;
     let (right, bottom) = contract::point(shape, "_bottomRight")?;
@@ -32,7 +31,6 @@ pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
                 "a star burst spoke that is not a line",
             ));
         }
-        unrotated(spoke)?;
         ends(spoke)?;
         lights.push(own_pixels(spoke)?);
     }

@@ -17,8 +17,8 @@ use crate::report::{
     UnroutedReason,
 };
 use crate::setup::{
-    ImportError, Profile, ProfileController, ProfileFixture, ProfileGroup, ProfileOutput,
-    ProfileProtocol,
+    ImportError, Profile, ProfileController, ProfileFixture, ProfileGroup, ProfileMember,
+    ProfileOutput, ProfileProtocol,
 };
 use crate::xml::{self, Element};
 use camino::Utf8Path;
@@ -349,7 +349,7 @@ fn groups(root: &Element) -> Vec<ProfileGroup> {
                 .split(',')
                 .map(str::trim)
                 .filter(|entry| !entry.is_empty() && seen.insert(*entry))
-                .map(str::to_string)
+                .map(|entry| ProfileMember::Named(entry.to_string()))
                 .collect();
             ProfileGroup {
                 name: group
@@ -533,7 +533,7 @@ fn split(
     let cells = crate::setup::cells(fixture.pixels.len(), &sets);
     let alias = |name: &str, members: Vec<String>| ProfileGroup {
         name: name.to_string(),
-        members,
+        members: members.into_iter().map(ProfileMember::Named).collect(),
     };
     if let [_] = cells[..] {
         for (name, _) in &parts {

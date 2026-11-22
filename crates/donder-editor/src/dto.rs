@@ -46,9 +46,9 @@ pub use perform::{
 };
 pub use preview::{
     FixtureGuiDocument, FixtureGuiEdit, GeometryRenderBounds, GuiFixtureElement, GuiFixtureHandle,
-    GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiLayoutFixture, GuiLayoutFixtureKind,
-    GuiOwnedFixture, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance, SpatialRenderPixel,
-    SpatialRenderPlan,
+    GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiGroupMember, GuiLayoutFixture,
+    GuiLayoutFixtureKind, GuiOwnedFixture, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance,
+    SpatialRenderPixel, SpatialRenderPlan,
 };
 pub use problem::{GuiField, GuiMember, GuiProblem, GuiProblemSite};
 pub use sequence::{

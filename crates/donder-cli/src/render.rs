@@ -1,8 +1,9 @@
 //! Print a sequence's fixture colors at chosen times, so a show can be checked
 //! without the Preview.
 use core::time::Duration;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fmt::Write;
+use std::ops::Range;
 
 use donder_language::data::canonical_duration;
 use donder_model::{FixtureInstanceId, Layout, SequenceId};
@@ -62,7 +63,7 @@ pub(crate) fn render(
         .ok_or("The sequence cannot be played on the active setup.")?;
     let rate = prepared.frame_rate();
     let frame_count = prepared.frame_count();
-    // Each fixture's label, or `None` when it is not selected.
+    // Each fixture's label and selected pixels, or `None` when none are.
     let labels = prepared
         .fixtures()
         .iter()
@@ -71,13 +72,24 @@ pub(crate) fn render(
                 .fixture(FixtureInstanceId(fixture.id))
                 .map(|fixture| fixture.name.as_str())
                 .ok_or("A prepared fixture is missing from the layout.")?;
-            Ok(selected
-                .as_ref()
-                .is_none_or(|ids| ids.contains(&fixture.id))
-                .then(|| format!("{name} ({}):", fixture.pixel_count)))
+            let pixels: Vec<usize> = match &selected {
+                None => (0..fixture.pixel_count as usize).collect(),
+                Some(parts) => parts.get(&fixture.id).map_or_else(Vec::new, |spans| {
+                    (0..fixture.pixel_count)
+                        .filter(|pixel| spans.iter().any(|span| span.contains(pixel)))
+                        .map(|pixel| pixel as usize)
+                        .collect()
+                }),
+            };
+            Ok((!pixels.is_empty()).then(|| (format!("{name} ({}):", pixels.len()), pixels)))
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let width = labels.iter().flatten().map(String::len).max().unwrap_or(0);
+    let width = labels
+        .iter()
+        .flatten()
+        .map(|(label, _)| label.len())
+        .max()
+        .unwrap_or(0);
     let sequence = name((*id).into())?;
     let mut playback = prepared.into_playback();
     let mut text = String::new();
@@ -91,24 +103,30 @@ pub(crate) fn render(
         let sample_time = sample_time_from_frame(frame, rate).map_err(|_| past_end())?;
         let _ = writeln!(text, "{sequence} @ {time_text} (frame {frame})");
         for (label, fixture) in labels.iter().zip(playback.evaluate(sample_time).fixtures()) {
-            if let Some(label) = label {
-                let _ = writeln!(text, "  {label:<width$} {}", runs(fixture.pixels));
+            if let Some((label, pixels)) = label {
+                let colors: Vec<Color> =
+                    pixels.iter().map(|&pixel| fixture.pixels[pixel]).collect();
+                let _ = writeln!(text, "  {label:<width$} {}", runs(&colors));
             }
         }
     }
     Ok(text)
 }
 
-/// The placed fixtures the named fixtures and groups denote; `None` selects all.
+/// Each placed fixture's pixel spans a selection denotes, by fixture id.
+type Selected = HashMap<u32, Vec<Range<u32>>>;
+
+/// Each placed fixture's pixel spans the named fixtures and groups denote;
+/// `None` selects all.
 fn selected_fixtures(
     layout: &Layout,
     layout_name: &str,
     targets: &[String],
-) -> Result<Option<HashSet<u32>>, String> {
+) -> Result<Option<Selected>, String> {
     if targets.is_empty() {
         return Ok(None);
     }
-    let mut selected = HashSet::new();
+    let mut selected = Selected::new();
     for target in targets {
         let fixture = layout
             .iter_fixtures()
@@ -116,7 +134,12 @@ fn selected_fixtures(
             .ok_or_else(|| {
                 format!("The layout `{layout_name}` has no fixture or group named `{target}`.")
             })?;
-        selected.extend(layout.members(fixture.id).into_iter().map(|id| id.0));
+        for part in layout.members(fixture.id) {
+            let span = part.pixels.map_or(0..u32::MAX, |span| {
+                span.start..span.start.saturating_add(span.count)
+            });
+            selected.entry(part.fixture.0).or_default().push(span);
+        }
     }
     Ok(Some(selected))
 }

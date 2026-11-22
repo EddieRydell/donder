@@ -194,9 +194,10 @@ then along each shape, reversed where a shape says so.
 
 RGB/RGBW encoding, channel order, brightness, gamma, and dithering belong to
 LED routes.
-Routes can select pixel ranges. Changing counts or shape order changes those
-ranges, so review the patch when changing fixture wiring. Routes target
-fixtures; effects target whole fixtures or groups.
+Routes and group slices select pixel ranges. Changing counts or shape order
+changes those ranges, so review the patch and the layout's slices when changing
+fixture wiring. Routes target fixtures; effects target whole fixtures or
+groups, and a group may list slices of fixtures.
 
 Copying a layout preserves shared fixtures and instance names, creates its own
 patch, and retargets affected sequences. Shared fixtures remain linked through

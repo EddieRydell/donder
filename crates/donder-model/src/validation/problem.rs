@@ -1077,6 +1077,10 @@ impl fmt::Display for LayoutError {
             Self::Unreachable(_, name) => {
                 write!(f, "layout item {} is in no group", name.as_str())
             }
+            Self::InvalidSlice { .. } => f.write_str("a slice must name a placed fixture"),
+            Self::SliceOutOfRange { .. } => {
+                f.write_str("a slice must select pixels its fixture has")
+            }
         }
     }
 }
@@ -1093,7 +1097,9 @@ impl LayoutError {
             | Self::DuplicateMember(item, _)
             | Self::Cycle(item, _)
             | Self::Unreachable(item, _)
-            | Self::InvalidFixture { fixture: item, .. } => Some(*item),
+            | Self::InvalidFixture { fixture: item, .. }
+            | Self::InvalidSlice { group: item, .. }
+            | Self::SliceOutOfRange { group: item, .. } => Some(*item),
             Self::MissingDefinition(_) | Self::MissingFixture(_) | Self::WrongLayout(_) => None,
         }
     }

@@ -2,7 +2,7 @@
 //! across it. Vixen: `PreviewPixelGrid`.
 
 use super::multi_string::{add_line, child_line, counted_strings};
-use super::{Laid, ShapeSkip, point, unrotated};
+use super::{Laid, ShapeSkip, point};
 use crate::vixen::contract::{self, FieldError};
 use crate::xml::Element;
 use glam::DVec2;
@@ -31,7 +31,6 @@ fn orientation(shape: &Element) -> Result<Orientation, ShapeSkip> {
 /// Vixen: `PreviewPixelGrid.OnDeserialized`, `PreviewPixelGrid.Layout`,
 /// `PreviewPixelGrid.Pixels`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let top_left = point(shape, "_topLeft")?;
     let bottom_right = point(shape, "_bottomRight")?;
     let bottom_left = point(shape, "_bottomLeft")?;

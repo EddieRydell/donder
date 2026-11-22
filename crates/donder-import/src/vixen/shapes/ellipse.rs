@@ -1,7 +1,7 @@
 //! Lights evenly around an ellipse. Vixen: `PreviewEllipse`.
 
 use super::single::own_pixels;
-use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, point, unrotated};
+use super::{Ellipse2, Laid, ShapePixel, ShapeSkip, point};
 use crate::xml::Element;
 use glam::DVec2;
 
@@ -32,7 +32,6 @@ pub(super) fn at(ellipse: &Ellipse2, degrees: f64) -> DVec2 {
 
 /// Vixen: `PreviewEllipse.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let nodes = own_pixels(shape)?;
     let top_left = point(shape, "_topLeft")?;
     let bottom_right = point(shape, "_bottomRight")?;

@@ -154,34 +154,49 @@ each piece of the code names the Vixen code it follows.
 ### What becomes what
 
 - The profile's one enabled preview places the fixtures; with several
-  enabled, `--preview <name>` picks one. Each of its shapes becomes one
-  fixture, named after the element group whose elements are exactly the
-  shape's, else the shape's own name, else its type.
-- A shape is split along its parts: the element groups whose imported
-  elements all lie in the shape without being all of it. The shape's
-  pixels that are in the same set of parts become one fixture, so a mega
-  tree becomes its strings and concentric stars each ring's points, and
-  every part is a group of whole fixtures.
+  enabled, `--preview <name>` picks one. Each of its shapes becomes the
+  fixtures its wiring makes: a fixture is a run of the shape's pixels, in
+  channel order, on consecutive channels of one controller, running on from
+  one universe into the next, with one color order and dimming. A shape on
+  one string is one fixture; a shape whose pixels go to two controllers, or
+  that has a gap in its channels, is a fixture per run. A shape whose pixels
+  are not all patched stays one fixture in the shape's own order.
+- A fixture is named after the element group whose elements are exactly its
+  pixels', else its shape's own name (numbered when the shape makes several
+  fixtures), else the shape's type.
 - A shape's pixels sit where the shape's layout puts them when Vixen loads
   the preview, without the rounding to whole preview units Vixen does for
   drawing, so evenly spaced lights stay evenly spaced. Preview units are the
   preview background's pixels; neighbouring pixels are taken to be 7.5 cm
   apart unless `--pixel-spacing` is set.
 - A pixel is its element's channel through a color breakdown that mixes
-  red, green and blue, whose three outputs are patched to consecutive
-  channels of one universe; their order is the pixel's color order.
+  red, green and blue, or red, green, blue and white, whose outputs are
+  patched to consecutive channels of one universe; their order is the
+  pixel's color order, and a four-color breakdown makes an RGBW route.
+- Dimming curves before the breakdown or after its outputs become the
+  routes' brightness and gamma: the curve's output at full input, and the
+  power that best fits its shape. A curve that is a brightness and a gamma
+  comes across exactly, any other close to it, and the report lists each
+  fitted fixture. Colors dimmed differently take their average.
+- A rotated shape turns about the centre of its lights' bounds. Vixen turns
+  it about a centre it computes while the shape is still loading, so it
+  lands close to where Vixen draws it; a custom prop turns about its saved
+  lights as Vixen does.
 - E1.31 controllers become controllers of consecutive active universes, as
   for xLights. A universe sends the controller's outputs from its start, as
   Vixen does.
-- An element group becomes a group when its elements are exactly a set of
-  whole fixtures. It holds its imported child groups and the fixtures of its
-  other elements.
+- An element group becomes a group of its imported child groups and of its
+  other elements' pixels, in child order: a fixture all of whose pixels it
+  holds is a member, and part of one is the slices of its runs of pixels, so
+  a mega tree's strands, a star's rings and points, and groups that reach
+  across shapes all come across. A group of exactly one fixture's elements
+  is that fixture's name instead.
 
 ### What is not imported
 
 A shape is left out when:
 
-- it is a Net, a Flood or a moving head, or rotated;
+- it is a Net, a Flood or a moving head;
 - one of its settings is not reproduced: per shape, settings Vixen itself
   cannot lay out, such as a line of no length or a star no more than 10
   units across, and child strings that do not match the shape;
@@ -192,10 +207,10 @@ A shape is left out when:
   element, are left out this way.
 
 A fixture's routes are left out when one of its elements is not patched as a
-pixel: unpatched, patched straight to one channel, through a dimming curve
-or another filter, through a breakdown that does not mix colors, sends RGBW
-(Vixen mixes white another way than Donder) or 16-bit values, or whose
-colors are not consecutive channels of one active universe.
+pixel: unpatched, patched straight to one channel, through a filter other
+than a dimming curve, through a breakdown that does not mix colors or sends
+16-bit values, or whose colors are not consecutive channels of one active
+universe.
 
 Controllers that are not created: other output modules (DDP, DMX, Renard,
 serial and the like), disabled controllers, and E1.31 controllers whose
@@ -203,6 +218,8 @@ address is not an IP address, that send blind, whose priority is outside 1
 to 200, or whose universes are out of range, repeated, overlapping or of
 more than 512 slots.
 
-Groups that hold part of a shape and reach outside it are left out, since
-Donder groups hold whole fixtures, and so are groups with no imported
-elements.
+Groups with no imported elements are left out.
+
+A Vixen preview holds only where it draws each light, not the prop's real
+shape: a prop drawn as one short line, as the Rydell House penguin is (250
+lights on a line 52 preview units long), imports as that line.

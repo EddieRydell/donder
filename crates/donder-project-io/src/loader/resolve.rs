@@ -15,6 +15,7 @@ use donder_language::{
     Distance, DistanceSpan, DonderDuration, DonderTime, Point3, Rotation3, Scale3,
 };
 use donder_model::GraphOperatorNode;
+use donder_model::GroupMember;
 use donder_model::ObjectId;
 use donder_model::ProjectData;
 use donder_model::{
@@ -708,26 +709,39 @@ impl DomainResolver<'_> {
                 .map_err(|_| self.invalid(document, item_name.0.span, "too many layout items"))?;
             ids.entry(name(item_name)).or_insert(id);
         }
-        let members = |names: &[Name]| {
-            names
-                .iter()
-                .map(|member| {
-                    ids.get(&member.0.value).copied().ok_or_else(|| {
-                        self.invalid(
-                            document,
-                            member.0.span,
-                            format!("unknown layout member `{}`", member.0.value.as_str()),
-                        )
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()
+        let item = |member: &Name| {
+            ids.get(&member.0.value).copied().ok_or_else(|| {
+                self.invalid(
+                    document,
+                    member.0.span,
+                    format!("unknown layout member `{}`", member.0.value.as_str()),
+                )
+            })
         };
-        let root = members(&layout.root)?;
+        let root = layout
+            .root
+            .iter()
+            .map(item)
+            .collect::<Result<Vec<_>, _>>()?;
         let groups = layout
             .items
             .iter()
-            .map(|item| match item {
-                types::LayoutItem::Group { members: names, .. } => members(names),
+            .map(|layout_item| match layout_item {
+                types::LayoutItem::Group { members, .. } => members
+                    .iter()
+                    .map(|member| {
+                        Ok::<_, LoadError>(match member {
+                            types::GroupMember::Item(name) => GroupMember::Item(item(name)?),
+                            types::GroupMember::Slice(slice) => GroupMember::Slice {
+                                fixture: item(&slice.fixture)?,
+                                pixels: donder_model::PixelSpan {
+                                    start: slice.start,
+                                    count: slice.count,
+                                },
+                            },
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>(),
                 types::LayoutItem::Fixture { .. } => Ok(Vec::new()),
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -748,7 +762,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         id: FixtureInstanceId,
         item: &types::LayoutItem,
-        members: Vec<FixtureInstanceId>,
+        members: Vec<GroupMember>,
     ) -> Result<LayoutFixture, LoadError> {
         Ok(match item {
             types::LayoutItem::Group {

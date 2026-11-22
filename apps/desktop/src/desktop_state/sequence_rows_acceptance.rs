@@ -370,7 +370,9 @@ fn shared_members_have_a_lane_per_group_and_move_from_the_nearest_copy() {
         name: "Pair".into(),
         description: None,
         kind: donder_editor::dto::GuiLayoutFixtureKind::Group {
-            members: vec![first, second],
+            members: [first, second]
+                .map(|id| donder_editor::dto::GuiGroupMember::Item { id })
+                .to_vec(),
         },
     });
     let mut root = layout.root;

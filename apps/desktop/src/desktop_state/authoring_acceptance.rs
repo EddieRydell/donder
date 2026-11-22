@@ -363,7 +363,9 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
             name: "Both strips".into(),
             description: None,
             kind: GuiLayoutFixtureKind::Group {
-                members: vec![layout.fixtures[0].id, second.id],
+                members: [layout.fixtures[0].id, second.id]
+                    .map(|id| donder_editor::dto::GuiGroupMember::Item { id })
+                    .to_vec(),
             },
         },
         layout.fixtures[0].clone(),
@@ -691,7 +693,9 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         id: 3,
         name: "Group".into(),
         description: None,
-        kind: GuiLayoutFixtureKind::Group { members: vec![2] },
+        kind: GuiLayoutFixtureKind::Group {
+            members: vec![donder_editor::dto::GuiGroupMember::Item { id: 2 }],
+        },
     };
     layout_document(
         edit_layout(
@@ -1033,7 +1037,11 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
                 name: "Group".into(),
                 description: None,
                 kind: GuiLayoutFixtureKind::Group {
-                    members: layout.fixtures.iter().map(|fixture| fixture.id).collect(),
+                    members: layout
+                        .fixtures
+                        .iter()
+                        .map(|fixture| donder_editor::dto::GuiGroupMember::Item { id: fixture.id })
+                        .collect(),
                 },
             })
             .chain(layout.fixtures)
@@ -1058,7 +1066,10 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
     let GuiLayoutFixtureKind::Group { members } = &duplicate.fixtures[1].kind else {
         panic!("Expected copied group")
     };
-    assert_eq!(members, &[4]);
+    assert_eq!(
+        members,
+        &[donder_editor::dto::GuiGroupMember::Item { id: 4 }]
+    );
     let GuiLayoutFixtureKind::Fixture {
         definition,
         transform: placement,
@@ -1146,11 +1157,16 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
     );
     assert_eq!(layout.root, [1, 2]);
     let first_source = fixture_reference(&layout, 0);
-    let group = |id, name: &str, members| GuiLayoutFixture {
+    let group = |id, name: &str, members: Vec<u32>| GuiLayoutFixture {
         id,
         name: name.into(),
         description: None,
-        kind: GuiLayoutFixtureKind::Group { members },
+        kind: GuiLayoutFixtureKind::Group {
+            members: members
+                .into_iter()
+                .map(|id| donder_editor::dto::GuiGroupMember::Item { id })
+                .collect(),
+        },
     };
     edit_layout(
         &state,
@@ -1352,7 +1368,11 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
                 name: "Group".into(),
                 description: None,
                 kind: GuiLayoutFixtureKind::Group {
-                    members: layout.fixtures.iter().map(|fixture| fixture.id).collect(),
+                    members: layout
+                        .fixtures
+                        .iter()
+                        .map(|fixture| donder_editor::dto::GuiGroupMember::Item { id: fixture.id })
+                        .collect(),
                 },
             })
             .chain(layout.fixtures)
@@ -1395,7 +1415,7 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
         let GuiLayoutFixtureKind::Group { members } = &item(copy).kind else {
             panic!("Expected group")
         };
-        let [member] = members[..] else {
+        let [donder_editor::dto::GuiGroupMember::Item { id: member }] = members[..] else {
             panic!("Expected one copied member")
         };
         let GuiLayoutFixtureKind::Fixture {

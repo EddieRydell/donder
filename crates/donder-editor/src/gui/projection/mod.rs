@@ -239,7 +239,8 @@ pub(crate) fn lane_walk(layout: &donder_model::Layout) -> Vec<(&donder_model::La
         for &member in members {
             if let Some(fixture) = layout.fixture(member) {
                 lanes.push((fixture, depth));
-                push(layout, fixture.members(), depth + 1, lanes);
+                let listed = fixture.listed().collect::<Vec<_>>();
+                push(layout, &listed, depth + 1, lanes);
             }
         }
     }

@@ -159,7 +159,25 @@ pub enum GuiLayoutFixtureKind {
         transform: Transform,
     },
     /// Members may belong to several groups.
-    Group { members: Vec<u32> },
+    Group { members: Vec<GuiGroupMember> },
+}
+
+/// A group member: a layout item by id, or a run of a placed fixture's pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiGroupMember {
+    Item {
+        id: u32,
+    },
+    Slice {
+        fixture: u32,
+        start: u32,
+        count: u32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

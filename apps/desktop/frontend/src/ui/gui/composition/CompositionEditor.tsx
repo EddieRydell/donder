@@ -8,6 +8,7 @@ import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
 import type { GuiDocument, GuiDocumentRequest, GuiLayoutFixture, GuiObjectRef, Point3Meters, Transform } from "../../../types";
 import { FixtureEditor } from "./FixtureEditor";
+import { GroupSlices } from "./GroupSlices";
 import { Placement } from "./FixtureFields";
 import { SpatialCanvas } from "./SpatialCanvas";
 import { layoutAddEntries } from "./LayoutAddMenu";
@@ -15,7 +16,7 @@ import { Copy, FolderInput, FolderMinus, Pencil, Plus, Trash2 } from "lucide-rea
 import { Button, ContextMenuArea, Dialog, Field, IconButton, MenuButton, Problem, Section, TextField, type MenuEntry } from "../../kit";
 import { OBJECT, useFieldProblem } from "../problems";
 import { outputTestEntries, useOutputTesting } from "../outputTest";
-import { descendants, layoutIndex, membersOf, membershipCount, nextLayoutId, withMember } from "./layoutGraph";
+import { descendants, layoutIndex, membersOf, membershipCount, nextLayoutId, ownedPixelCounts, withMember } from "./layoutGraph";
 
 type Document = Extract<GuiDocument, { type: "fixture" | "layout" }>;
 const identityTransform = (position: Point3Meters = { xMeters: 0, yMeters: 0, zMeters: 0 }): Transform => ({ position, rotation: { xDegrees: 0, yDegrees: 0, zDegrees: 0 }, scale: { x: 1, y: 1, z: 1 } });
@@ -173,7 +174,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
         <fieldset className="composition-controls" disabled={!editable}>
           <LayoutTree fixtures={layoutFixtures} root={root} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} onOpen={openFixture} enabled={editable} request={request} addEntries={addEntries(null)} />
           <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
-          {instance !== null && <ItemFields key={instance.id} instance={instance} editable={editable} changeItem={changeItem} changeTransform={changeTransform} />}
+          {instance !== null && <ItemFields key={instance.id} instance={instance} fixtures={layoutFixtures} pixels={gui.document.renderPlan.pixels} editable={editable} changeItem={changeItem} changeTransform={changeTransform} />}
         </fieldset>
       </aside>
     </ContextMenuArea>
@@ -206,9 +207,11 @@ function NewFixtureName({ name, disabled, onChange }: { name: string; disabled: 
   </Field>;
 }
 
-/** The selected item's name, description and, for a fixture, placement. */
-function ItemFields({ instance, editable, changeItem, changeTransform }: {
+/** The selected item's name, description, and a fixture's placement or a group's slices. */
+function ItemFields({ instance, fixtures, pixels, editable, changeItem, changeTransform }: {
   instance: GuiLayoutFixture;
+  fixtures: GuiLayoutFixture[];
+  pixels: { owner: number }[];
   editable: boolean;
   changeItem: (id: number, update: (item: GuiLayoutFixture) => GuiLayoutFixture) => void;
   changeTransform: (transform: Transform) => void;
@@ -227,5 +230,7 @@ function ItemFields({ instance, editable, changeItem, changeTransform }: {
       </Problem>
     </Section>
     {instance.kind.type === "fixture" && <Placement value={instance.kind.transform} disabled={!editable} problem={placementProblem} onChange={changeTransform} />}
+    {instance.kind.type === "group" && <GroupSlices group={instance} fixtures={fixtures} pixelCounts={ownedPixelCounts(pixels)} editable={editable}
+      onChange={(members) => { changeItem(instance.id, (item) => item.kind.type === "group" ? { ...item, kind: { type: "group", members } } : item); }} />}
   </div>;
 }

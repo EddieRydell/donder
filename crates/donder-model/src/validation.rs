@@ -117,7 +117,10 @@ pub(crate) fn project_problems(
         }
     }
     for layout in project.objects::<crate::Layout>() {
-        if let Err(error) = layout.validate(project.reusable::<crate::FixtureDefinition>()) {
+        if let Err(error) = layout
+            .validate(project.reusable::<crate::FixtureDefinition>())
+            .and_then(|()| layout.validate_slices(&counts))
+        {
             problems.push(at(layout.id)(ValidationProblem::Layout(error)));
         }
     }

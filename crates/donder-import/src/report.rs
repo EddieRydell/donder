@@ -45,6 +45,8 @@ pub struct ImportReport {
     pub dropped_members: Vec<DroppedMember>,
     /// Vixen groups that are not imported.
     pub skipped_groups: Vec<SkippedGroup>,
+    /// Fixtures whose dimming curves are fitted as a brightness and gamma.
+    pub fitted_dimming: Vec<FittedDimming>,
 }
 
 #[derive(Clone, Debug)]
@@ -133,15 +135,11 @@ pub enum ElementPatch {
     /// Its color breakdown does not mix colors: each output lights only for
     /// its own color.
     DiscreteColors,
-    /// Its color breakdown's colors are not red, green and blue.
+    /// Its color breakdown's colors are not red, green and blue, with
+    /// white for a breakdown of four.
     Colors,
-    /// Its color breakdown sends RGBW, which Vixen mixes another way than
-    /// Donder.
-    Rgbw,
     /// Its color breakdown sends 16-bit values.
     SixteenBit,
-    /// A dimming curve shapes its output.
-    DimmingCurve,
     /// A filter the importer does not reproduce, by its Vixen type id.
     Filter(String),
     /// One output feeds several components.
@@ -155,6 +153,18 @@ pub enum ElementPatch {
     /// Its color breakdown has no settings in the module store.
     NoBreakdownSettings,
     BreakdownField(FieldError),
+    /// A dimming curve of its has no settings in the module store.
+    NoCurveSettings,
+    CurveField(FieldError),
+}
+
+/// A fixture whose Vixen dimming curves its routes take as the brightness
+/// and gamma closest to them.
+#[derive(Clone, Debug)]
+pub struct FittedDimming {
+    pub model: String,
+    pub brightness: f32,
+    pub gamma: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -165,8 +175,6 @@ pub struct SkippedGroup {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum GroupSkip {
-    /// Some of its elements are in a fixture that has others outside it.
-    PartFixture(String),
     /// None of its elements is in an imported fixture.
     Empty,
 }
@@ -345,13 +353,11 @@ impl fmt::Display for ElementPatch {
             Self::Unpatched => write!(f, "is not patched"),
             Self::SingleChannel => write!(f, "is patched straight to one channel"),
             Self::DiscreteColors => write!(f, "has a color breakdown that does not mix colors"),
-            Self::Colors => write!(f, "has a color breakdown that is not red, green and blue"),
-            Self::Rgbw => write!(
+            Self::Colors => write!(
                 f,
-                "has an RGBW color breakdown, which Vixen mixes another way than Donder"
+                "has a color breakdown that is not red, green and blue, or those and white"
             ),
             Self::SixteenBit => write!(f, "has a 16-bit color breakdown"),
-            Self::DimmingCurve => write!(f, "has a dimming curve"),
             Self::Filter(id) => write!(f, "has an output filter of type {id}"),
             Self::FanOut => write!(f, "has an output patched to several places"),
             Self::Unrouted => write!(f, "has a color that goes to no controller output"),
@@ -371,6 +377,12 @@ impl fmt::Display for ElementPatch {
                 "has a color breakdown whose {} is `{}`",
                 error.field, error.value
             ),
+            Self::NoCurveSettings => write!(f, "has a dimming curve with no settings"),
+            Self::CurveField(error) => write!(
+                f,
+                "has a dimming curve whose {} is `{}`",
+                error.field, error.value
+            ),
         }
     }
 }
@@ -378,10 +390,6 @@ impl fmt::Display for ElementPatch {
 impl fmt::Display for GroupSkip {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PartFixture(fixture) => write!(
-                f,
-                "it holds part of {fixture}, and Donder groups hold whole fixtures"
-            ),
             Self::Empty => write!(f, "none of its elements is in an imported fixture"),
         }
     }
@@ -527,6 +535,13 @@ impl fmt::Display for ImportReport {
         }
         for skipped in &self.skipped_groups {
             writeln!(f, "Left out group {}: {}.", skipped.group, skipped.reason)?;
+        }
+        for fitted in &self.fitted_dimming {
+            writeln!(
+                f,
+                "Dimmed {} as brightness {:.2} and gamma {:.2}, the closest to its dimming curve.",
+                fitted.model, fitted.brightness, fitted.gamma
+            )?;
         }
         Ok(())
     }

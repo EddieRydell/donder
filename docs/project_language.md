@@ -420,9 +420,16 @@ FixtureDefinition vertical_113 {
 - `root` and a group's `members` name items of the layout in display order. An
   item may be a member of several groups, and of the root as well. Each list
   names an item once, a group cannot contain itself through its members, and
-  every item is in `root` or some group.
-- A group targets its fixtures depth-first in member order; a fixture reached
-  more than once keeps its first position.
+  every item is in `root` or some group, whole or by a slice.
+- A group member may also be a slice, `Slice { fixture, start, count }`: the
+  `count` pixels of a placed fixture from its pixel `start` (from 0), in the
+  fixture's pixel order, such as one strand of a folded megatree string:
+  `members: [mega_tree_left, Slice { fixture: mega_tree_string_1, start: 0, count: 50 }]`.
+  A slice names a fixture, not a group, selects at least one pixel and no
+  pixel past the fixture's last. Clips and routes still target whole fixtures
+  and groups; only groups list slices.
+- A group targets its fixtures and slices depth-first in member order; a
+  pixel reached more than once keeps its first position.
 - `Transform`: `position`, an `(x, y, z)` tuple of distances within 2 km of the
   origin; `rotation` in degrees and `scale`, each a tuple of floats.
 - `FixtureDefinition`: `description`, `shapes: [Shape]`.

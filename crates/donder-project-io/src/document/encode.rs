@@ -18,7 +18,7 @@ use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver,
     SequenceCompositionGraph, SequenceLayer,
 };
-use donder_model::{Controller, ControllerProtocol, E131Mode, RouteStart};
+use donder_model::{Controller, ControllerProtocol, E131Mode, GroupMember, RouteStart};
 use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform, OwnedFixture};
 use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
 use donder_model::{ObjectId, OwnedMember};
@@ -246,18 +246,34 @@ impl Encoder<'_> {
     }
 
     pub(crate) fn layout(&self, layout: &Layout) -> Result<types::Layout, ExportProjectError> {
+        let item_name = |member: FixtureInstanceId| {
+            layout
+                .fixture(member)
+                .map(|fixture| name(&fixture.name))
+                .ok_or_else(|| self.error(&member.0.to_string(), "the layout member is missing"))
+        };
         let member_names = |members: &[FixtureInstanceId]| {
             members
                 .iter()
-                .map(|&member| {
-                    layout
-                        .fixture(member)
-                        .map(|fixture| name(&fixture.name))
-                        .ok_or_else(|| {
-                            self.error(&member.0.to_string(), "the layout member is missing")
-                        })
-                })
+                .map(|&member| item_name(member))
                 .collect::<Result<Vec<_>, _>>()
+        };
+        let group_members = |members: &[GroupMember]| {
+            members
+                .iter()
+                .map(|member| {
+                    Ok(match *member {
+                        GroupMember::Item(item) => types::GroupMember::Item(item_name(item)?),
+                        GroupMember::Slice { fixture, pixels } => {
+                            types::GroupMember::Slice(types::Slice {
+                                fixture: item_name(fixture)?,
+                                start: pixels.start,
+                                count: pixels.count,
+                            })
+                        }
+                    })
+                })
+                .collect::<Result<Vec<_>, ExportProjectError>>()
         };
         Ok(types::Layout {
             description: layout.description.clone(),
@@ -265,7 +281,7 @@ impl Encoder<'_> {
             items: layout
                 .fixtures
                 .iter()
-                .map(|fixture| self.layout_item(fixture, &member_names))
+                .map(|fixture| self.layout_item(fixture, &group_members))
                 .collect::<Result<_, _>>()?,
         })
     }
@@ -273,13 +289,13 @@ impl Encoder<'_> {
     fn layout_item(
         &self,
         fixture: &LayoutFixture,
-        member_names: &impl Fn(&[FixtureInstanceId]) -> Result<Vec<Name>, ExportProjectError>,
+        group_members: &impl Fn(&[GroupMember]) -> Result<Vec<types::GroupMember>, ExportProjectError>,
     ) -> Result<types::LayoutItem, ExportProjectError> {
         Ok(match &fixture.kind {
             LayoutFixtureKind::Group { members } => types::LayoutItem::Group {
                 name: name(&fixture.name),
                 description: fixture.description.clone(),
-                members: member_names(members)?,
+                members: group_members(members)?,
             },
             LayoutFixtureKind::Fixture {
                 definition,

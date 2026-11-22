@@ -1,9 +1,10 @@
 //! A Vixen 3 profile folder: `SystemData/SystemConfig.xml` holds the
 //! elements, controllers and patching, and `SystemData/ModuleStore.xml` each
 //! module's settings, including the preview's shapes. Each shape of the
-//! enabled preview becomes a fixture whose pixels sit where Vixen draws
-//! them, in channel order, and each pixel's element is patched to the
-//! controller outputs its color breakdown feeds.
+//! enabled preview becomes the fixtures its wiring makes, whose pixels sit
+//! where Vixen draws them, in channel order, and each pixel's element is
+//! patched to the controller outputs its color breakdown feeds. The element
+//! tree's groups become layout groups of fixtures and slices of them.
 
 mod config;
 pub(crate) mod contract;
@@ -13,16 +14,19 @@ pub(crate) mod shapes;
 
 use crate::fit::{Ellipse, Pixel};
 use crate::report::{
-    GroupSkip, ImportOptions, ImportReport, SkipReason, Skipped, SkippedGroup, Unrouted,
-    UnroutedReason,
+    FittedDimming, GroupSkip, ImportOptions, ImportReport, SkipReason, Skipped, SkippedGroup,
+    Unrouted, UnroutedReason,
 };
-use crate::setup::{ImportError, Profile, ProfileFixture, ProfileGroup, Slot, unique};
+use crate::setup::{
+    Dimming, ImportError, Profile, ProfileController, ProfileFixture, ProfileGroup, ProfileMember,
+    Slot, unique,
+};
 use crate::xml;
 use camino::Utf8Path;
 use config::Config;
 use donder_runtime_types::PixelEncoding;
 use glam::{DVec2, DVec3};
-use patching::{Breakdown, COLOR_BREAKDOWN, Patching};
+use patching::{Breakdown, COLOR_BREAKDOWN, Curve, DIMMING_CURVE, PatchedPixel, Patching};
 use shapes::Laid;
 use std::collections::{HashMap, HashSet};
 
@@ -82,7 +86,7 @@ fn modules(
         .collect())
 }
 
-/// A shape's own name, else its type; the shape's fixture takes the name
+/// A shape's own name, else its type; a fixture of the shape takes the name
 /// of the group of exactly its imported elements instead, when there is one.
 fn shape_name(shape: &xml::Element) -> String {
     if let Some(name) = contract::text(shape, "Name").filter(|name| !name.trim().is_empty()) {
@@ -154,94 +158,173 @@ fn exact_groups<'a>(
     exact
 }
 
-/// Each shape split into the fixtures its element groups need: a group
-/// whose imported elements all lie in one shape, without being all of it,
-/// is a part
-/// of that shape, and the shape's pixels that lie in the same set of parts
-/// become one fixture. Each part is then a union of whole fixtures, so it
-/// can be a Donder group: a mega tree splits into its strings, concentric
-/// stars into each ring's points.
-fn split<'a>(
+/// Whether pixel `next` takes the channels right after pixel `previous`: on
+/// the same output, or at the start of the output of the next universe
+/// once `previous` fills its own.
+fn follows(previous: Slot, next: Slot, width: u32, controllers: &[ProfileController]) -> bool {
+    if previous.controller != next.controller {
+        return false;
+    }
+    if previous.output == next.output {
+        return next.offset == previous.offset + width;
+    }
+    let outputs = &controllers[previous.controller].outputs;
+    let (Some(from), Some(to)) = (outputs.get(previous.output), outputs.get(next.output)) else {
+        return false;
+    };
+    next.offset == 0
+        && previous.offset + width == u32::from(from.channels)
+        && u32::from(to.universe) == u32::from(from.universe) + 1
+}
+
+/// A fixture before it is named: its pixels and their elements in its
+/// pixel order, its patching, and the shape it is part of.
+struct Wired<'a> {
+    shape: String,
+    laid: Laid,
+    nodes: Vec<&'a str>,
+    patch: Result<(Vec<Slot>, PixelEncoding, Option<Dimming>), UnroutedReason>,
+}
+
+/// Each shape as the fixtures its wiring makes: a fixture is a run of the
+/// shape's pixels, in channel order, that take consecutive channels of one
+/// controller with one color order and dimming, so it is one natural
+/// patching unit. A shape whose pixels are not all patched stays one
+/// fixture in its own order. The element groups within a fixture become
+/// layout groups of its slices.
+fn wire<'a>(
     placed: Vec<Placed<'a>>,
     config: &'a Config,
-    leaves: &HashMap<&'a str, HashSet<&'a str>>,
-    exact: &HashMap<Vec<&'a str>, &'a str>,
-    taken: &mut HashSet<String>,
-) -> Vec<Placed<'a>> {
-    let shape_of: HashMap<&str, usize> = placed
-        .iter()
-        .enumerate()
-        .flat_map(|(index, shape)| shape.nodes.iter().map(move |node| (*node, index)))
-        .collect();
-    // Each shape's parts, by group node, in tree order.
-    let mut parts: Vec<Vec<&HashSet<&str>>> = vec![Vec::new(); placed.len()];
-    for group in &config.node_order {
-        let Some(group_leaves) = leaves.get(group.as_str()) else {
-            continue;
+    patching: &Patching<'_>,
+    controllers: &[ProfileController],
+) -> Vec<Wired<'a>> {
+    let mut wired = Vec::new();
+    for shape in placed {
+        let patches = shape
+            .nodes
+            .iter()
+            .map(|node| {
+                let channel = config.nodes[*node].channel.as_deref().unwrap_or_default();
+                patching
+                    .pixel(channel)
+                    .map_err(|problem| UnroutedReason::Element {
+                        element: config.nodes[*node].name.clone(),
+                        problem,
+                    })
+            })
+            .collect::<Result<Vec<PatchedPixel>, _>>()
+            .and_then(|patches| {
+                if patches
+                    .windows(2)
+                    .all(|pair| pair[0].encoding == pair[1].encoding)
+                {
+                    Ok(patches)
+                } else {
+                    Err(UnroutedReason::MixedEncodings)
+                }
+            });
+        let patches = match patches {
+            Ok(patches) => patches,
+            Err(reason) => {
+                wired.push(Wired {
+                    shape: shape.name,
+                    laid: shape.laid,
+                    nodes: shape.nodes,
+                    patch: Err(reason),
+                });
+                continue;
+            }
         };
-        let mut shapes = group_leaves.iter().map(|leaf| shape_of[leaf]);
-        let Some(shape) = shapes.next() else {
-            continue;
-        };
-        if shapes.all(|other| other == shape) && group_leaves.len() < placed[shape].nodes.len() {
-            parts[shape].push(group_leaves);
+        let width = patches
+            .first()
+            .map_or(3, |patch| patch.encoding.channel_order().len() as u32);
+        let mut order: Vec<usize> = (0..patches.len()).collect();
+        order.sort_by_key(|&index| {
+            let slot = patches[index].slot;
+            (slot.controller, slot.output, slot.offset)
+        });
+        let mut runs: Vec<Vec<usize>> = Vec::new();
+        for index in order {
+            match runs.last_mut() {
+                Some(run)
+                    if run.last().is_some_and(|&last| {
+                        follows(patches[last].slot, patches[index].slot, width, controllers)
+                            && patches[last].dimming == patches[index].dimming
+                    }) =>
+                {
+                    run.push(index);
+                }
+                _ => runs.push(vec![index]),
+            }
+        }
+        for run in runs {
+            let first = patches[run[0]];
+            wired.push(Wired {
+                shape: shape.name.clone(),
+                laid: Laid {
+                    pixels: run
+                        .iter()
+                        .map(|&index| shape.laid.pixels[index].clone())
+                        .collect(),
+                    ellipses: shape.laid.ellipses.clone(),
+                },
+                nodes: run.iter().map(|&index| shape.nodes[index]).collect(),
+                patch: Ok((
+                    run.iter().map(|&index| patches[index].slot).collect(),
+                    first.encoding,
+                    first.dimming,
+                )),
+            });
         }
     }
-    // Each fixture's pixels, and the group of exactly its elements, if any.
-    let mut cells: Vec<(Placed, Option<&str>)> = Vec::new();
-    for (shape, shape_parts) in placed.into_iter().zip(parts) {
-        let part_pixels: Vec<HashSet<usize>> = shape_parts
-            .iter()
-            .map(|part| {
-                (0..shape.nodes.len())
-                    .filter(|&pixel| part.contains(shape.nodes[pixel]))
-                    .collect()
-            })
-            .collect();
-        let sets = crate::setup::cells(shape.nodes.len(), &part_pixels);
-        let count = sets.len();
-        for (index, pixels) in sets.iter().enumerate() {
-            let nodes: Vec<&str> = pixels.iter().map(|&pixel| shape.nodes[pixel]).collect();
-            let mut key = nodes.clone();
+    wired
+}
+
+/// Each fixture's name: the group of exactly its elements, else its shape's,
+/// numbered when its shape makes several fixtures. Group names are claimed
+/// first, so a shape's name never takes a group's.
+fn names(
+    wired: &[Wired<'_>],
+    config: &Config,
+    exact: &HashMap<Vec<&str>, &str>,
+    taken: &mut HashSet<String>,
+) -> Vec<String> {
+    let mut parts: HashMap<&str, usize> = HashMap::new();
+    for fixture in wired {
+        *parts.entry(fixture.shape.as_str()).or_default() += 1;
+    }
+    let groups: Vec<Option<&str>> = wired
+        .iter()
+        .map(|fixture| {
+            let mut key = fixture.nodes.clone();
             key.sort_unstable();
-            let group = exact
+            exact
                 .get(&key)
                 .and_then(|group| config.nodes.get(*group))
-                .map(|group| group.name.as_str());
-            let name = if count == 1 {
-                shape.name.clone()
-            } else {
-                format!("{} {}", shape.name, index + 1)
-            };
-            let laid = Laid {
-                pixels: pixels
-                    .iter()
-                    .map(|&pixel| shape.laid.pixels[pixel].clone())
-                    .collect(),
-                ellipses: shape.laid.ellipses.clone(),
-            };
-            cells.push((Placed { name, laid, nodes }, group));
-        }
-    }
-    // A fixture takes the name of the group of exactly its elements, else
-    // its shape's; group names are claimed first, so a shape's name never
-    // takes a group's.
-    let mut names: Vec<Option<String>> = cells
-        .iter()
-        .map(|(_, group)| group.map(|group| unique(group.to_string(), taken)))
-        .collect();
-    for ((cell, _), name) in cells.iter().zip(&mut names) {
-        if name.is_none() {
-            *name = Some(unique(cell.name.clone(), taken));
-        }
-    }
-    cells
-        .into_iter()
-        .zip(names)
-        .map(|((cell, _), name)| Placed {
-            name: name.unwrap_or(cell.name.clone()),
-            ..cell
+                .map(|group| group.name.as_str())
         })
+        .collect();
+    let mut names: Vec<Option<String>> = groups
+        .iter()
+        .map(|group| group.map(|group| unique(group.to_string(), taken)))
+        .collect();
+    let mut numbers: HashMap<&str, usize> = HashMap::new();
+    for (fixture, name) in wired.iter().zip(&mut names) {
+        let number = numbers.entry(fixture.shape.as_str()).or_default();
+        *number += 1;
+        if name.is_none() {
+            let base = if parts[fixture.shape.as_str()] == 1 {
+                fixture.shape.clone()
+            } else {
+                format!("{} {}", fixture.shape, number)
+            };
+            *name = Some(unique(base, taken));
+        }
+    }
+    names
+        .into_iter()
+        .zip(wired)
+        .map(|(name, fixture)| name.unwrap_or_else(|| fixture.shape.clone()))
         .collect()
 }
 
@@ -253,12 +336,15 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
             message,
         })?;
     let preview = preview(&config, options)?;
-    let mut wanted: HashSet<String> = config
-        .filters
-        .iter()
-        .filter(|(_, kind)| kind.as_str() == COLOR_BREAKDOWN)
-        .map(|(instance, _)| instance.clone())
-        .collect();
+    let filters_of = |kind: &'static str| {
+        config
+            .filters
+            .iter()
+            .filter(move |(_, filter)| filter.as_str() == kind)
+            .map(|(instance, _)| instance.clone())
+    };
+    let mut wanted: HashSet<String> = filters_of(COLOR_BREAKDOWN).collect();
+    wanted.extend(filters_of(DIMMING_CURVE));
     wanted.extend(
         config
             .controllers
@@ -270,15 +356,20 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
     let mut report = ImportReport::default();
 
     let controllers = controllers::read(&config.controllers, &modules, &config.disabled);
-    let breakdowns: HashMap<String, Result<Breakdown, contract::FieldError>> = config
-        .filters
-        .iter()
-        .filter(|(_, kind)| kind.as_str() == COLOR_BREAKDOWN)
-        .filter_map(|(instance, _)| {
-            Some((instance.clone(), Breakdown::read(modules.get(instance)?)))
+    let breakdowns: HashMap<String, Result<Breakdown, contract::FieldError>> =
+        filters_of(COLOR_BREAKDOWN)
+            .filter_map(|instance| {
+                let breakdown = Breakdown::read(modules.get(&instance)?);
+                Some((instance, breakdown))
+            })
+            .collect();
+    let curves: HashMap<String, Result<Curve, contract::FieldError>> = filters_of(DIMMING_CURVE)
+        .filter_map(|instance| {
+            let curve = Curve::read(modules.get(&instance)?);
+            Some((instance, curve))
         })
         .collect();
-    let patching = Patching::new(&config, &breakdowns, &controllers.slots);
+    let patching = Patching::new(&config, &breakdowns, &curves, &controllers.slots);
 
     let leaves = leaves(&config);
 
@@ -295,10 +386,9 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
 
     let mut taken = HashSet::new();
     let mut placed: Vec<Placed> = Vec::new();
-    let mut lit: HashMap<&str, usize> = HashMap::new();
+    let mut lit: HashSet<&str> = HashSet::new();
     for shape in shapes_list {
-        let laid = shapes::layout(shape);
-        let laid = match laid {
+        let laid = match shapes::layout(shape) {
             Ok(laid) => laid,
             Err(reason) => {
                 report.skipped.push(Skipped {
@@ -336,7 +426,7 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
         let mut seen = HashSet::new();
         let twice = nodes
             .iter()
-            .find(|node| lit.contains_key(*node) || !seen.insert(**node));
+            .find(|node| lit.contains(*node) || !seen.insert(**node));
         if let Some(node) = twice {
             report.skipped.push(Skipped {
                 model: name,
@@ -344,9 +434,7 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
             });
             continue;
         }
-        for node in &nodes {
-            lit.insert(node, placed.len());
-        }
+        lit.extend(nodes.iter().copied());
         placed.push(Placed {
             name,
             laid: Laid {
@@ -361,35 +449,18 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
     let leaves: HashMap<&str, HashSet<&str>> = leaves
         .into_iter()
         .map(|(group, set)| {
-            let set: HashSet<&str> = set
-                .into_iter()
-                .filter(|leaf| lit.contains_key(leaf))
-                .collect();
+            let set: HashSet<&str> = set.into_iter().filter(|leaf| lit.contains(leaf)).collect();
             (group, set)
         })
         .filter(|(_, set)| !set.is_empty())
         .collect();
     let exact = exact_groups(&config, &leaves);
-    let placed = split(placed, &config, &leaves, &exact, &mut taken);
-
-    // Each pixel's channels, in the shape's order.
-    let patched: Vec<Vec<Result<(Slot, PixelEncoding), crate::report::ElementPatch>>> = placed
-        .iter()
-        .map(|shape| {
-            shape
-                .nodes
-                .iter()
-                .map(|node| {
-                    let channel = config.nodes[*node].channel.as_deref().unwrap_or_default();
-                    patching.pixel(channel)
-                })
-                .collect()
-        })
-        .collect();
+    let wired = wire(placed, &config, &patching, &controllers.controllers);
+    let names = names(&wired, &config, &exact, &mut taken);
 
     let (meters, scale) = crate::setup::typical_scale(
-        placed.iter().map(|shape| {
-            shape
+        wired.iter().map(|fixture| {
+            fixture
                 .laid
                 .pixels
                 .iter()
@@ -405,62 +476,38 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
     let vector = |vector: DVec2| DVec3::new(vector.x, -vector.y, 0.0) * meters;
 
     let mut fixtures = Vec::new();
-    for (shape, pixel_patches) in placed.iter().zip(patched) {
-        let mut order: Vec<usize> = (0..shape.laid.pixels.len()).collect();
-        let slots = match pixel_patches
-            .iter()
-            .zip(&shape.nodes)
-            .map(|(patch, node)| {
-                patch.clone().map_err(|problem| UnroutedReason::Element {
-                    element: config.nodes[*node].name.clone(),
-                    problem,
-                })
-            })
-            .collect::<Result<Vec<(Slot, PixelEncoding)>, _>>()
-        {
-            Ok(patches) if patches.windows(2).all(|pair| pair[0].1 == pair[1].1) => {
-                // A fixture's pixels go in channel order, so its routes are
-                // runs of consecutive channels.
-                order.sort_by_key(|&index| {
-                    let slot = patches[index].0;
-                    (slot.controller, slot.output, slot.offset)
-                });
-                Ok((
-                    order
-                        .iter()
-                        .map(|&index| patches[index].0)
-                        .collect::<Vec<_>>(),
-                    patches[0].1,
-                ))
-            }
-            Ok(_) => Err(UnroutedReason::MixedEncodings),
-            Err(reason) => Err(reason),
-        };
-        let (slots, encoding) = match slots {
-            Ok((slots, encoding)) => (Some(slots), encoding),
+    for (fixture, name) in wired.iter().zip(&names) {
+        let (slots, encoding, dimming) = match &fixture.patch {
+            Ok((slots, encoding, dimming)) => (Some(slots.clone()), *encoding, *dimming),
             Err(reason) => {
                 report.unrouted.push(Unrouted {
-                    model: shape.name.clone(),
-                    reason,
+                    model: name.clone(),
+                    reason: reason.clone(),
                 });
                 // An unpatched fixture has no routes for its order to apply to.
-                (None, PixelEncoding::Rgb { order: [0, 1, 2] })
+                (None, PixelEncoding::Rgb { order: [0, 1, 2] }, None)
             }
         };
+        if let Some(dimming) = dimming {
+            report.fitted_dimming.push(FittedDimming {
+                model: name.clone(),
+                brightness: dimming.brightness,
+                gamma: dimming.gamma,
+            });
+        }
         fixtures.push(ProfileFixture {
-            name: shape.name.clone(),
+            name: name.clone(),
             description: None,
-            pixels: order
+            pixels: fixture
+                .laid
+                .pixels
                 .iter()
-                .map(|&index| {
-                    let pixel = &shape.laid.pixels[index];
-                    Pixel {
-                        position: place(pixel.position),
-                        arc: pixel.arc,
-                    }
+                .map(|pixel| Pixel {
+                    position: place(pixel.position),
+                    arc: pixel.arc,
                 })
                 .collect(),
-            ellipses: shape
+            ellipses: fixture
                 .laid
                 .ellipses
                 .iter()
@@ -471,12 +518,12 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
                 })
                 .collect(),
             encoding,
-            dimming: None,
+            dimming,
             slots,
         });
     }
 
-    let groups = groups(&config, &leaves, &placed, &mut taken, &mut report);
+    let groups = groups(&config, &leaves, &wired, &names, &mut taken, &mut report);
     Ok(Profile {
         fixtures,
         controllers: controllers.controllers,
@@ -485,31 +532,33 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
     })
 }
 
-/// The element tree's groups that hold whole fixtures, children before the
-/// groups holding them. A group holds the groups under it that are
-/// imported, and the fixtures of its other elements.
+/// The element tree's groups, children before the groups holding them. A
+/// group holds the groups under it that are imported, and the pixels of
+/// its other elements: a whole fixture as that fixture, part of one as its
+/// slices.
 struct GroupWalk<'a> {
     config: &'a Config,
     leaves: &'a HashMap<&'a str, HashSet<&'a str>>,
-    placed: &'a [Placed<'a>],
-    /// The fixture each element is in.
-    fixture_of: HashMap<&'a str, usize>,
+    names: &'a [String],
+    /// Each fixture's pixel count.
+    sizes: Vec<usize>,
+    /// The fixture each element is in, and its pixel there.
+    pixel_of: HashMap<&'a str, (usize, usize)>,
     /// Each imported group's name, by node id.
-    names: HashMap<&'a str, String>,
+    imported: HashMap<&'a str, String>,
     visited: HashSet<&'a str>,
     groups: Vec<ProfileGroup>,
 }
 
 impl<'a> GroupWalk<'a> {
-    /// The fixtures holding any of `leaves`, in fixture order.
-    fn fixtures(&self, leaves: impl IntoIterator<Item = &'a str>) -> Vec<usize> {
-        let mut fixtures: Vec<usize> = leaves
+    /// The pixels of `leaves`, in fixture and pixel order.
+    fn pixels(&self, leaves: impl IntoIterator<Item = &'a str>) -> Vec<(usize, usize)> {
+        let mut pixels: Vec<(usize, usize)> = leaves
             .into_iter()
-            .filter_map(|leaf| self.fixture_of.get(leaf).copied())
+            .filter_map(|leaf| self.pixel_of.get(leaf).copied())
             .collect();
-        fixtures.sort_unstable();
-        fixtures.dedup();
-        fixtures
+        pixels.sort_unstable();
+        pixels
     }
 
     fn child_leaves(&self, child: &'a str) -> Vec<&'a str> {
@@ -517,6 +566,50 @@ impl<'a> GroupWalk<'a> {
             Some(leaves) => leaves.iter().copied().collect(),
             None => vec![child],
         }
+    }
+
+    /// `pending` pixels as members: each fixture, in the order they come,
+    /// whole or as the runs of its pixels in fixture order.
+    fn flush(&self, pending: &mut Vec<(usize, usize)>, members: &mut Vec<ProfileMember>) {
+        let mut fixtures: Vec<usize> = Vec::new();
+        for &(fixture, _) in pending.iter() {
+            if !fixtures.contains(&fixture) {
+                fixtures.push(fixture);
+            }
+        }
+        for fixture in fixtures {
+            let mut pixels: Vec<usize> = pending
+                .iter()
+                .filter(|(owner, _)| *owner == fixture)
+                .map(|(_, pixel)| *pixel)
+                .collect();
+            pixels.sort_unstable();
+            pixels.dedup();
+            let name = &self.names[fixture];
+            let mut push = |member: ProfileMember| {
+                if !members.contains(&member) {
+                    members.push(member);
+                }
+            };
+            if pixels.len() == self.sizes[fixture] {
+                push(ProfileMember::Named(name.clone()));
+                continue;
+            }
+            let mut start = 0;
+            while start < pixels.len() {
+                let mut end = start + 1;
+                while end < pixels.len() && pixels[end] == pixels[end - 1] + 1 {
+                    end += 1;
+                }
+                push(ProfileMember::Slice {
+                    fixture: name.clone(),
+                    start: pixels[start] as u32,
+                    count: (end - start) as u32,
+                });
+                start = end;
+            }
+        }
+        pending.clear();
     }
 
     fn visit(&mut self, node: &'a str, taken: &mut HashSet<String>, report: &mut ImportReport) {
@@ -530,65 +623,50 @@ impl<'a> GroupWalk<'a> {
         for child in &entry.children {
             self.visit(child, taken, report);
         }
-        let Some(group_leaves) = self.leaves.get(node) else {
-            report.skipped_groups.push(SkippedGroup {
-                group: entry.name.clone(),
-                reason: GroupSkip::Empty,
-            });
-            return;
-        };
-        let held = self.fixtures(group_leaves.iter().copied());
         let skip = |reason| SkippedGroup {
             group: entry.name.clone(),
             reason,
         };
+        let Some(group_leaves) = self.leaves.get(node) else {
+            report.skipped_groups.push(skip(GroupSkip::Empty));
+            return;
+        };
+        let held = self.pixels(group_leaves.iter().copied());
         if held.is_empty() {
             report.skipped_groups.push(skip(GroupSkip::Empty));
             return;
         }
-        if let Some(&part) = held.iter().find(|fixture| {
-            self.placed[**fixture]
-                .nodes
-                .iter()
-                .any(|node| !group_leaves.contains(node))
-        }) {
-            let fixture = self.placed[part].name.clone();
-            report
-                .skipped_groups
-                .push(skip(GroupSkip::PartFixture(fixture)));
-            return;
-        }
         // A group of exactly one fixture's elements is another name for
         // that fixture, which already takes the first such group's name.
-        if let [only] = held[..]
-            && self.placed[only].nodes.len() == group_leaves.len()
+        if let Some(&(only, _)) = held.first()
+            && held.iter().all(|(fixture, _)| *fixture == only)
+            && held.len() == self.sizes[only]
         {
             return;
         }
         // Members in the order of the group's children: an imported child
-        // group, or the fixtures of a child's elements that no imported
-        // child group holds.
-        let covered: HashSet<usize> = entry
-            .children
-            .iter()
-            .filter(|child| self.names.contains_key(child.as_str()))
-            .flat_map(|child| self.fixtures(self.child_leaves(child)))
-            .collect();
+        // group, or the pixels of the elements of other children, each
+        // element once.
         let mut members = Vec::new();
-        let mut listed: HashSet<usize> = HashSet::new();
+        let mut pending = Vec::new();
+        let mut listed: HashSet<&str> = HashSet::new();
         for child in &entry.children {
-            if let Some(name) = self.names.get(child.as_str()) {
-                members.push(name.clone());
+            let leaves = self.child_leaves(child);
+            if let Some(name) = self.imported.get(child.as_str()) {
+                self.flush(&mut pending, &mut members);
+                members.push(ProfileMember::Named(name.clone()));
+                listed.extend(leaves);
                 continue;
             }
-            for fixture in self.fixtures(self.child_leaves(child)) {
-                if !covered.contains(&fixture) && listed.insert(fixture) {
-                    members.push(self.placed[fixture].name.clone());
-                }
-            }
+            let fresh: Vec<&str> = leaves
+                .into_iter()
+                .filter(|leaf| listed.insert(leaf))
+                .collect();
+            pending.extend(self.pixels(fresh));
         }
+        self.flush(&mut pending, &mut members);
         let name = unique(entry.name.clone(), taken);
-        self.names.insert(node, name.clone());
+        self.imported.insert(node, name.clone());
         self.groups.push(ProfileGroup { name, members });
     }
 }
@@ -596,20 +674,28 @@ impl<'a> GroupWalk<'a> {
 fn groups<'a>(
     config: &'a Config,
     leaves: &'a HashMap<&'a str, HashSet<&'a str>>,
-    placed: &'a [Placed<'a>],
+    wired: &'a [Wired<'a>],
+    names: &'a [String],
     taken: &mut HashSet<String>,
     report: &mut ImportReport,
 ) -> Vec<ProfileGroup> {
     let mut walk = GroupWalk {
         config,
         leaves,
-        placed,
-        fixture_of: placed
+        names,
+        sizes: wired.iter().map(|fixture| fixture.nodes.len()).collect(),
+        pixel_of: wired
             .iter()
             .enumerate()
-            .flat_map(|(index, shape)| shape.nodes.iter().map(move |node| (*node, index)))
+            .flat_map(|(index, fixture)| {
+                fixture
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .map(move |(pixel, node)| (*node, (index, pixel)))
+            })
             .collect(),
-        names: HashMap::new(),
+        imported: HashMap::new(),
         visited: HashSet::new(),
         groups: Vec::new(),
     };

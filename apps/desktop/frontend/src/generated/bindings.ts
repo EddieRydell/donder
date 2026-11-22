@@ -740,6 +740,9 @@ export type GuiGridAxis = "rows" | "columns";
 
 export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight";
 
+/**  A group member: a layout item by id, or a run of a placed fixture's pixels. */
+export type GuiGroupMember = { type: "item"; id: number } | { type: "slice"; fixture: number; start: number; count: number };
+
 export type GuiInputControl = {
 	/**  Kept across edits; a new control has an id no other control uses. */
 	id: number,
@@ -791,7 +794,7 @@ export type GuiLayoutFixture = {
 
 export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiOwnedFixture; transform: Transform } | 
 /**  Members may belong to several groups. */
-{ type: "group"; members: number[] };
+{ type: "group"; members: GuiGroupMember[] };
 
 /**  The open object, or a member of it a problem concerns. */
 export type GuiMember = { type: "object" } | 

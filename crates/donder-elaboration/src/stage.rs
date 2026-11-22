@@ -16,11 +16,13 @@ use donder_runtime_types::{
 };
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 
 pub(crate) struct Stage {
     geometry: Vec<FixtureGeometry>,
-    /// Every fixture and group's ordered member fixtures, by geometry index.
-    targets: IndexMap<FixtureInstanceId, Vec<usize>>,
+    /// Every fixture and group's ordered parts: a fixture's geometry index
+    /// and the run of its cells the target selects.
+    targets: IndexMap<FixtureInstanceId, Vec<(usize, Range<u32>)>>,
     /// Each selected route's pixels, in the original geometry.
     pub(crate) routes: IndexMap<PixelRouteId, TargetGeometry>,
     /// The cells of each fixture the show keeps.
@@ -147,7 +149,7 @@ impl<'id> Clips<'_, 'id> {
                 || !self.playing.contains(layer)
                 || stage.targets[&target.fixture]
                     .iter()
-                    .all(|&index| stage.cells[index].is_empty()))
+                    .all(|(index, _)| stage.cells[*index].is_empty()))
     }
 
     /// `target` in `scope`, and the pixel count its programs may assume.
@@ -167,14 +169,14 @@ impl<'id> Clips<'_, 'id> {
             .targets
             .entry((target.fixture, scope == TargetScope::PerFixture))
             .or_insert_with(|| {
-                builder.target(&TargetGeometry::new(
-                    members.iter().map(|&index| (index, &stage.geometry[index])),
+                builder.target(&TargetGeometry::parts(
+                    members
+                        .iter()
+                        .map(|(index, cells)| (*index, &stage.geometry[*index], cells.clone())),
                     scope,
                 ))
             });
-        let mut counts = members
-            .iter()
-            .map(|&index| stage.geometry[index].positions().len() as i32);
+        let mut counts = members.iter().map(|(_, cells)| cells.len() as i32);
         let pixel_count = match scope {
             TargetScope::WholeTarget => Some(counts.sum()),
             TargetScope::PerFixture => counts
@@ -217,15 +219,26 @@ impl Stage {
             .enumerate()
             .map(|(index, (id, _))| (*id, index))
             .collect::<IndexMap<_, _>>();
-        // Every group denotes its ordered member fixtures, including empty groups.
+        // Every group denotes its ordered parts, including empty groups.
         let targets = selected
             .layout
             .iter_fixtures()
             .map(|item| {
-                let members = selected.layout.members(item.id);
-                (item.id, members.iter().map(|id| indexes[id]).collect())
+                let parts = selected.layout.members(item.id);
+                let parts = parts
+                    .iter()
+                    .map(|part| {
+                        let index = indexes[&part.fixture];
+                        let count = geometry[index].positions().len() as u32;
+                        let cells = part.pixels.map_or(0..count, |span| {
+                            span.start..span.start.saturating_add(span.count)
+                        });
+                        (index, cells)
+                    })
+                    .collect();
+                (item.id, parts)
             })
-            .collect::<IndexMap<FixtureInstanceId, Vec<usize>>>();
+            .collect::<IndexMap<FixtureInstanceId, Vec<(usize, Range<u32>)>>>();
         let routes = crate::sequence::route_targets(selected, &geometry, &targets);
         let dependencies = composition_graph_root_dependencies(graph);
         let cells =

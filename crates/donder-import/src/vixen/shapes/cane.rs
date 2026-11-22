@@ -2,7 +2,7 @@
 //! over its top. Vixen: `PreviewCane`.
 
 use super::arch::arc;
-use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings, unrotated};
+use super::{Laid, ShapePixel, ShapeSkip, pixel_nodes, point, strings};
 use crate::vixen::contract;
 use crate::xml::Element;
 use glam::DVec2;
@@ -17,7 +17,6 @@ fn count(shape: &Element, name: &str) -> Result<usize, ShapeSkip> {
 
 /// Vixen: `PreviewCane.OnDeserialized`, `PreviewCane.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     if !strings(shape).is_empty() {
         // Vixen's `Pixels` would then be the strings' pixels, which the
         // cane's layout does not place.

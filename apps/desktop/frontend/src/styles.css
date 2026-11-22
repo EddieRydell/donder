@@ -3519,6 +3519,8 @@ button.status-chip:hover {
 .composition-tree-item > summary::-webkit-details-marker { display: none; }
 .composition-tree-item > summary:hover, .composition-tree-item > summary.selected { background: var(--donder-accent-subtle); color: var(--donder-text-strong); }
 .composition-tree-children { display: grid; gap: var(--donder-space-4); margin-left: var(--donder-space-8); padding-left: var(--donder-space-8); border-left: var(--donder-border-width) solid var(--donder-border-soft); }
+.composition-tree-slice { display: grid; grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr); align-items: center; gap: var(--donder-space-4); padding: var(--donder-space-4) var(--donder-space-8); border-radius: var(--donder-radius-md); }
+.composition-tree-slice:hover, .composition-tree-slice.selected { background: var(--donder-accent-subtle); color: var(--donder-text-strong); }
 .composition-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composition-tree-meta { min-width: 0; overflow: hidden; color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
 .composition-tree-icon { color: var(--donder-text-muted); width: var(--donder-icon-size-xs); display: inline-flex; align-items: center; }

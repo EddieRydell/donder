@@ -21,7 +21,7 @@ pub struct Patch {
     pub routes: Vec<PixelRoute>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct PixelSpan {
     pub start: u32,
     pub count: u32,

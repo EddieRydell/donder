@@ -43,7 +43,8 @@ pub struct PreparedFixtureInstance {
 pub struct PreparedLayout {
     pub id: LayoutId,
     pub instances: Vec<PreparedFixtureInstance>,
-    /// Each target selects its member instances in target order.
+    /// Each target's placed instances in target order, each once, whether
+    /// it selects all of an instance's pixels or a slice.
     targets: IndexMap<FixtureInstanceId, Vec<usize>>,
 }
 
@@ -88,11 +89,13 @@ impl PreparedFixtureDefinitions {
             }
         }
         for fixture in layout.iter_fixtures() {
-            let members = layout
-                .members(fixture.id)
-                .iter()
-                .map(|id| indices[id])
-                .collect();
+            let mut members = Vec::new();
+            for part in layout.members(fixture.id) {
+                let index = indices[&part.fixture];
+                if !members.contains(&index) {
+                    members.push(index);
+                }
+            }
             prepared.targets.insert(fixture.id, members);
         }
         prepared

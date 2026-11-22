@@ -172,7 +172,21 @@ fn fixture(session: &ProjectSession, fixture: &LayoutFixture) -> GuiLayoutFixtur
                 transform: crate::gui::fixture::gui_transform(value),
             },
             LayoutFixtureKind::Group { members } => GuiLayoutFixtureKind::Group {
-                members: members.iter().map(|member| member.0).collect(),
+                members: members
+                    .iter()
+                    .map(|member| match *member {
+                        donder_model::GroupMember::Item(item) => {
+                            crate::dto::GuiGroupMember::Item { id: item.0 }
+                        }
+                        donder_model::GroupMember::Slice { fixture, pixels } => {
+                            crate::dto::GuiGroupMember::Slice {
+                                fixture: fixture.0,
+                                start: pixels.start,
+                                count: pixels.count,
+                            }
+                        }
+                    })
+                    .collect(),
             },
         },
     }

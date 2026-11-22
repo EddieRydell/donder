@@ -2,7 +2,7 @@
 //! bottom left corner. Vixen: `PreviewRectangle`.
 
 use super::multi_string::{add_line, child_line};
-use super::{Laid, ShapeSkip, point, strings, unrotated};
+use super::{Laid, ShapeSkip, point, strings};
 use crate::vixen::contract::{self, FieldError};
 use crate::xml::Element;
 use glam::DVec2;
@@ -31,7 +31,6 @@ fn direction(shape: &Element) -> Result<Direction, ShapeSkip> {
 /// Vixen: `PreviewRectangle.OnDeserialized`, `PreviewRectangle.Layout`,
 /// `PreviewRectangle.Pixels`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let top_left = point(shape, "_topLeft")?;
     let top_right = point(shape, "_topRight")?;
     let bottom_left = point(shape, "_bottomLeft")?;

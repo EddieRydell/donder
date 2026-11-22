@@ -58,21 +58,6 @@ fn rotation_center(pixels: &[PropPixel]) -> DVec2 {
     min + size / 2.0
 }
 
-/// `point` turned `angle` degrees clockwise on screen about `center`, in
-/// the order WPF's `RotateTransform` computes it. Vixen:
-/// `PreviewCustomProp.Rotate`; WPF `Matrix.RotateAt`, `Matrix.Transform`.
-fn rotated(point: DVec2, angle: f64, center: DVec2) -> DVec2 {
-    let radians = (angle % 360.0) * (std::f64::consts::PI / 180.0);
-    let sin = radians.sin();
-    let cos = radians.cos();
-    let offset_x = center.x * (1.0 - cos) + center.y * sin;
-    let offset_y = center.y * (1.0 - cos) - center.x * sin;
-    DVec2::new(
-        point.x * cos + (point.y * -sin + offset_x),
-        point.y * cos + (point.x * sin + offset_y),
-    )
-}
-
 /// Each saved light at its saved location, turned by the prop's rotation
 /// about the centre of the lights' bounds, as the prop's `OnDeserialized`
 /// lays them out at zoom 1. A rotation outside ±360 degrees is one Vixen's
@@ -80,20 +65,17 @@ fn rotated(point: DVec2, angle: f64, center: DVec2) -> DVec2 {
 /// `Pixels`; `PreviewBaseShape.RotationAngle`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     let pixels = prop_pixels(shape)?;
-    let angle = match contract::int(shape, "RotationAngle", 0)? {
-        angle @ -360..=360 => angle,
-        _ => 0,
-    };
+    let angle = super::rotation(shape)?;
     let center = rotation_center(&pixels);
     Ok(Laid {
         pixels: pixels
             .into_iter()
             .map(|pixel| ShapePixel {
                 node: pixel.node,
-                position: if angle == 0 {
+                position: if angle == 0.0 {
                     pixel.location
                 } else {
-                    rotated(pixel.location, f64::from(angle), center)
+                    super::rotated(pixel.location, angle, center)
                 },
                 arc: None,
             })

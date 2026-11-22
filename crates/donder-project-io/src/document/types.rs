@@ -319,12 +319,12 @@ pub(crate) struct Layout {
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) enum LayoutItem {
-    /// Members are fixtures or groups of this layout; a member may belong to
-    /// several groups.
+    /// Members are fixtures or groups of this layout, or slices of its
+    /// fixtures; a member may belong to several groups.
     Group {
         name: Name,
         description: Option<String>,
-        members: Vec<Name>,
+        members: Vec<GroupMember>,
     },
     Fixture {
         name: Name,
@@ -332,6 +332,41 @@ pub(crate) enum LayoutItem {
         definition: OwnedRecord<FixtureDefinition>,
         transform: Transform,
     },
+}
+
+/// A group member: a fixture or group by name, `roof`, or a run of a
+/// fixture's pixels, `Slice { fixture: roof, start: 0, count: 25 }`.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum GroupMember {
+    Item(Name),
+    Slice(Slice),
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) struct Slice {
+    pub fixture: Name,
+    pub start: u32,
+    pub count: u32,
+}
+
+impl Data for GroupMember {
+    fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
+        match &value.value {
+            DataValue::Record(..) => {
+                donder_language::data::decode_record(value, decoder).map(Self::Slice)
+            }
+            _ => Name::decode(value, decoder).map(Self::Item),
+        }
+    }
+    fn encode(&self) -> DataValue {
+        match self {
+            Self::Item(name) => name.encode(),
+            Self::Slice(slice) => slice.encode(),
+        }
+    }
+    fn shape(schema: &mut Schema) -> donder_language::data::Shape {
+        donder_language::data::Shape::OneOf(vec![Name::shape(schema), Slice::shape(schema)])
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

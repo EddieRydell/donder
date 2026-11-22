@@ -290,8 +290,12 @@ fn layout_groups_share_members_and_reject_unknown_repeated_cyclic_or_orphaned_it
             .id
     };
     // `pixel` belongs to both groups and keeps its first position in `right`.
-    assert_eq!(layout.members(id("left")), [id("pixel")]);
-    assert_eq!(layout.members(id("right")), [id("pixel")]);
+    let whole = |fixture| donder_model::TargetPart {
+        fixture,
+        pixels: None,
+    };
+    assert_eq!(layout.members(id("left")), [whole(id("pixel"))]);
+    assert_eq!(layout.members(id("right")), [whole(id("pixel"))]);
     assert_eq!(
         layout.parents(id("pixel")),
         [Some(id("left")), Some(id("right"))]

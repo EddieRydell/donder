@@ -1,7 +1,7 @@
 //! A custom template: a group of shapes saved together, each laid out on
 //! its own. Vixen: `PreviewCustom`.
 
-use super::{Laid, ShapeSkip, pixel_nodes, strings, unrotated};
+use super::{Laid, ShapeSkip, pixel_nodes, strings};
 use crate::xml::Element;
 
 /// Each of the template's shapes laid out where it is saved, its lights in
@@ -12,7 +12,6 @@ use crate::xml::Element;
 /// `PreviewCustom.OnDeserialized`, `Layout`; `PreviewLightBaseShape.Pixels`,
 /// `SetPixelZoom`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     let shapes = strings(shape);
     if shapes.is_empty() {
         return if pixel_nodes(shape)?.is_empty() {

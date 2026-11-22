@@ -3,13 +3,12 @@
 
 use super::multi_string::{add_line, child_line};
 use super::single::not_custom;
-use super::{Laid, ShapeSkip, point, strings, unrotated};
+use super::{Laid, ShapeSkip, point, strings};
 use crate::vixen::contract;
 use crate::xml::Element;
 
 /// Vixen: `PreviewTriangle.Layout`, then each side's `PreviewLine.Layout`.
 pub(super) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
-    unrotated(shape)?;
     not_custom(shape)?;
     let corners = [
         point(shape, "_point1")?,

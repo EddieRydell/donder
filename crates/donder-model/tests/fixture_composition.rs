@@ -132,7 +132,10 @@ fn group(id: u32, name: &str, members: &[u32]) -> LayoutFixture {
         id: FixtureInstanceId(id),
         name: donder_language::object_name(name),
         kind: LayoutFixtureKind::Group {
-            members: members.iter().copied().map(FixtureInstanceId).collect(),
+            members: members
+                .iter()
+                .map(|&member| donder_model::GroupMember::Item(FixtureInstanceId(member)))
+                .collect(),
         },
     }
 }
@@ -162,6 +165,14 @@ fn groups_share_members_and_keep_first_positions() {
     let ids = |values: &[u32]| {
         values
             .iter()
+            .map(|&id| donder_model::TargetPart {
+                fixture: FixtureInstanceId(id),
+                pixels: None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let instances = |ids: &[u32]| {
+        ids.iter()
             .copied()
             .map(FixtureInstanceId)
             .collect::<Vec<_>>()
@@ -182,7 +193,7 @@ fn groups_share_members_and_keep_first_positions() {
             .unwrap()
             .map(|instance| instance.id)
             .collect::<Vec<_>>(),
-        ids(&[2, 1, 3])
+        instances(&[2, 1, 3])
     );
     // Placement order is the authored fixture order, independent of membership.
     assert_eq!(
@@ -191,7 +202,7 @@ fn groups_share_members_and_keep_first_positions() {
             .iter()
             .map(|instance| instance.id)
             .collect::<Vec<_>>(),
-        ids(&[1, 2, 3])
+        instances(&[1, 2, 3])
     );
 }
 

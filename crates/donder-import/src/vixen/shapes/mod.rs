@@ -95,19 +95,65 @@ pub(crate) fn strings(shape: &Element) -> Vec<&Element> {
         .unwrap_or_default()
 }
 
-/// Refuses a rotated shape: Vixen rotates about a centre it computes from
-/// the shape's laid-out bounds while the shape is still loading.
-pub(crate) fn unrotated(shape: &Element) -> Result<(), ShapeSkip> {
-    match contract::int(shape, "RotationAngle", 0)? {
-        0 => Ok(()),
-        _ => Err(ShapeSkip::Setting("rotation")),
-    }
+/// The shape's rotation in degrees clockwise on screen; Vixen's setter
+/// ignores an angle outside ±360. Vixen: `PreviewBaseShape.RotationAngle`.
+pub(crate) fn rotation(shape: &Element) -> Result<f64, ShapeSkip> {
+    Ok(match contract::int(shape, "RotationAngle", 0)? {
+        angle @ -360..=360 => f64::from(angle),
+        _ => 0.0,
+    })
 }
 
-/// The shape a `DisplayItem`'s `Shape` element holds, laid out.
+/// `point` turned `angle` degrees clockwise on screen about `center`, in
+/// the order WPF's `RotateTransform` computes it. Vixen:
+/// `PreviewCustomProp.Rotate`; WPF `Matrix.RotateAt`, `Matrix.Transform`.
+pub(crate) fn rotated(point: DVec2, angle: f64, center: DVec2) -> DVec2 {
+    let radians = (angle % 360.0) * (std::f64::consts::PI / 180.0);
+    let sin = radians.sin();
+    let cos = radians.cos();
+    let offset_x = center.x * (1.0 - cos) + center.y * sin;
+    let offset_y = center.y * (1.0 - cos) - center.x * sin;
+    DVec2::new(
+        point.x * cos + (point.y * -sin + offset_x),
+        point.y * cos + (point.x * sin + offset_y),
+    )
+}
+
+/// `laid` turned by the shape's rotation about the centre of its lights'
+/// bounds. Vixen computes that centre while the shape is still loading, so
+/// a rotated shape lands close to, not exactly at, where Vixen draws it.
+/// A shape's child strings keep the shape's rotation only.
+fn rotate(mut laid: Laid, angle: f64) -> Laid {
+    if angle == 0.0 || laid.pixels.is_empty() {
+        return laid;
+    }
+    let (min, max) = laid.pixels.iter().fold(
+        (DVec2::splat(f64::INFINITY), DVec2::splat(f64::NEG_INFINITY)),
+        |(min, max), pixel| (min.min(pixel.position), max.max(pixel.position)),
+    );
+    let center = (min + max) / 2.0;
+    for pixel in &mut laid.pixels {
+        pixel.position = rotated(pixel.position, angle, center);
+    }
+    let origin = rotated(DVec2::ZERO, angle, DVec2::ZERO);
+    let turn = |vector: DVec2| rotated(vector, angle, DVec2::ZERO) - origin;
+    for ellipse in &mut laid.ellipses {
+        ellipse.center = rotated(ellipse.center, angle, center);
+        ellipse.u = turn(ellipse.u);
+        ellipse.v = turn(ellipse.v);
+    }
+    laid
+}
+
+/// The shape a `DisplayItem`'s `Shape` element holds, laid out and rotated.
 pub(crate) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
     let kind = contract::type_name(shape).unwrap_or_default();
-    match kind {
+    if kind == "PreviewCustomProp" {
+        // A custom prop turns about its own lights' saved bounds.
+        return custom_prop::layout(shape);
+    }
+    let angle = rotation(shape)?;
+    let laid = match kind {
         "PreviewLine" => line::layout(shape),
         "PreviewPolyLine" => poly_line::layout(shape),
         "PreviewArch" => arch::layout(shape),
@@ -123,7 +169,7 @@ pub(crate) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
         "PreviewTriangle" => triangle::layout(shape),
         "PreviewSingle" => single::layout(shape),
         "PreviewCustom" => custom::layout(shape),
-        "PreviewCustomProp" => custom_prop::layout(shape),
         other => Err(ShapeSkip::Type(other.to_string())),
-    }
+    }?;
+    Ok(rotate(laid, angle))
 }
