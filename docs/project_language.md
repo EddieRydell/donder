@@ -494,7 +494,12 @@ Patch outputs {
 - `encoding` is `Rgb { order: (a, b, c) }` or `Rgbw { order: (a, b, c, d) }`:
   the color each of a pixel's channels carries, in channel order, with 0 red,
   1 green, 2 blue and 3 white. `(1, 0, 2)` is GRB, the order of WS2811 and
-  WS2812 pixels.
+  WS2812 pixels. `Channels { colors: [#ffffff] }` gives each pixel one
+  channel per color, 1 to 4 colors and none black, for lights that show one
+  color each: a gray channel is a dimmer lit at the pixel's brightness (the
+  most of its red, green and blue) scaled by the gray, and a colored channel,
+  such as one of a set of red and green strings (`[#ff0000, #00ff00]`), lights
+  at as much of its color as the pixel holds.
 
 ### Sequences
 
@@ -803,6 +808,10 @@ lists its input devices, and each input device and console has its own editor;
 a console's layers and graph use the sequence graph editor.
 
 ### Curves and gradients
+
+A curve's points are positions and values from 0 to 1. A curve parameter
+declares its range (`curve in 0.0..100.0`) and maps a curve's values onto it
+when the curve is bound, so any curve fits any curve parameter.
 
 ```text
 Curve ease_down {

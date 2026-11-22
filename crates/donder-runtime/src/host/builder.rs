@@ -916,11 +916,33 @@ impl<'id> ShowBuilder<'id> {
                 }
             }
         });
-        let (rgbw, order) = match encoding.encoding() {
-            PixelEncoding::Rgb { order } => (false, [order[0], order[1], order[2], 0]),
-            PixelEncoding::Rgbw { order } => (true, order),
+        let (code, order, palette) = match encoding.encoding() {
+            PixelEncoding::Rgb { order } => (
+                format::ENCODING_RGB,
+                [order[0], order[1], order[2], 0],
+                NONE,
+            ),
+            PixelEncoding::Rgbw { order } => (format::ENCODING_RGBW, order, NONE),
+            PixelEncoding::Channels { colors } => {
+                let mut palette = format::Palette {
+                    count: colors.as_slice().len() as u32,
+                    colors: [0; 4],
+                };
+                for (packed, [red, green, blue]) in palette.colors.iter_mut().zip(colors.as_slice())
+                {
+                    *packed = u32::from(*red) << 16 | u32::from(*green) << 8 | u32::from(*blue);
+                }
+                let index = match self.w.palettes.iter().position(|known| *known == palette) {
+                    Some(index) => index as u32,
+                    None => {
+                        self.w.palettes.push(palette);
+                        (self.w.palettes.len() - 1) as u32
+                    }
+                };
+                (format::ENCODING_CHANNELS, [0; 4], index)
+            }
         };
-        let channels = if rgbw { 4 } else { 3 };
+        let channels = encoding.channel_count();
         let pixels = &self.targets[target.index].pixels;
         let mut start_slot = self.outputs[output.index].bytes;
         self.outputs[output.index].bytes += pixels.len() * channels;
@@ -942,13 +964,10 @@ impl<'id> ShowBuilder<'id> {
                 end: end as u32,
                 output: output.index as u32,
                 start_slot: start_slot as u32,
-                encoding: if rgbw {
-                    format::ENCODING_RGBW
-                } else {
-                    format::ENCODING_RGB
-                },
+                encoding: code,
                 order,
                 lookup,
+                palette,
                 dither: u32::from(dither),
             });
             start_slot += (end - start) * channels;

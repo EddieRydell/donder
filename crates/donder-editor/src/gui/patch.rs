@@ -149,6 +149,16 @@ fn project_route(session: &ProjectSession, route: &PixelRoute) -> GuiPixelRoute 
         encoding: match route.encoding {
             PixelEncoding::Rgb { order } => GuiPixelEncoding::Rgb { order },
             PixelEncoding::Rgbw { order } => GuiPixelEncoding::Rgbw { order },
+            PixelEncoding::Channels { colors } => GuiPixelEncoding::Channels {
+                colors: colors
+                    .as_slice()
+                    .iter()
+                    .map(|bytes| {
+                        let [red, green, blue] = bytes.map(|part| f32::from(part) / 255.0);
+                        donder_runtime_types::Color { red, green, blue }.to_hex()
+                    })
+                    .collect(),
+            },
         },
         gamma: route.gamma,
         brightness: route.brightness,
@@ -197,6 +207,27 @@ pub(super) fn replace(
                 encoding: match route.encoding {
                     GuiPixelEncoding::Rgb { order } => PixelEncoding::Rgb { order },
                     GuiPixelEncoding::Rgbw { order } => PixelEncoding::Rgbw { order },
+                    GuiPixelEncoding::Channels { colors } => {
+                        let bytes = colors
+                            .iter()
+                            .map(|color| {
+                                crate::gui::model::parse_color(color).map(|color| {
+                                    [color.red, color.green, color.blue]
+                                        .map(|part| (part.clamp(0.0, 1.0) * 255.0).round() as u8)
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        PixelEncoding::Channels {
+                            colors: donder_runtime_types::ChannelColors::new(&bytes).ok_or_else(
+                                || {
+                                    GuiMutationError::Invalid(
+                                        "An output's channel colors are 1 to 4 colors, none black."
+                                            .into(),
+                                    )
+                                },
+                            )?,
+                        }
+                    }
                 },
                 gamma: route.gamma,
                 brightness: route.brightness,

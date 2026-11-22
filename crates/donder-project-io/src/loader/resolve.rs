@@ -973,15 +973,34 @@ impl DomainResolver<'_> {
                         types::RouteStart::Next => RouteStart::Next,
                         types::RouteStart::Channel { channel } => RouteStart::Channel(channel),
                     },
-                    encoding: match route.encoding {
+                    encoding: match &route.encoding {
                         types::Encoding::Rgb { order: (r, g, b) } => {
-                            PixelEncoding::Rgb { order: [r, g, b] }
+                            PixelEncoding::Rgb { order: [*r, *g, *b] }
                         }
                         types::Encoding::Rgbw {
                             order: (r, g, b, w),
                         } => PixelEncoding::Rgbw {
-                            order: [r, g, b, w],
+                            order: [*r, *g, *b, *w],
                         },
+                        types::Encoding::Channels { colors } => {
+                            let bytes: Vec<[u8; 3]> = colors
+                                .iter()
+                                .map(|color| {
+                                    [color.red, color.green, color.blue]
+                                        .map(|part| (part.clamp(0.0, 1.0) * 255.0).round() as u8)
+                                })
+                                .collect();
+                            PixelEncoding::Channels {
+                                colors: donder_runtime_types::ChannelColors::new(&bytes)
+                                    .ok_or_else(|| {
+                                        self.invalid(
+                                            document,
+                                            route.port.0.span,
+                                            "a route's channel colors are 1 to 4 colors, none black",
+                                        )
+                                    })?,
+                            }
+                        }
                     },
                     gamma: route.gamma,
                     brightness: route.brightness,

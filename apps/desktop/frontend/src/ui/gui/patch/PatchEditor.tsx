@@ -8,6 +8,7 @@ import { AddRow, Button, ContextMenuArea, Field, IconButton, NumberField, Select
 import { outputTestEntries, useOutputTesting } from "../outputTest";
 import { DraftProblem, useDraftCheck, useFieldProblem } from "../problems";
 import { ReferenceInput } from "../setup/PatchInputs";
+import { ColorPicker } from "../../ColorPicker";
 
 type Draft = { origin: GuiDocumentRequest; routes: GuiPixelRoute[] };
 type Controller = PatchGuiDocument["controllers"][number];
@@ -16,19 +17,26 @@ type Place = PatchGuiDocument["placements"][number]["place"];
 /** GRB: WS2811 and WS2812 pixels read green, red, then blue. */
 const RGB_ORDER: [number, number, number] = [1, 0, 2];
 const RGBW_ORDER: [number, number, number, number] = [1, 0, 2, 3];
-const ENCODINGS = [{ value: "rgb", label: "RGB" }, { value: "rgbw", label: "RGBW" }] as const;
+const ENCODINGS = [{ value: "rgb", label: "RGB" }, { value: "rgbw", label: "RGBW" }, { value: "channels", label: "Channels" }] as const;
+/** The most channels a pixel of a Channels output takes. */
+const MAX_CHANNEL_COLORS = 4;
+const WHITE = "#ffffff";
 const STARTS = [{ value: "next", label: "After previous" }, { value: "channel", label: "Channel" }] as const;
 const COMPONENT_LETTERS = "RGBW";
 
 const COMPONENTS = [0, 1, 2, 3];
 const distinct = (order: number[]) => new Set(order).size === order.length;
 /** Every color order, as the component each channel carries. */
-const RGB_ORDERS: GuiPixelRoute["encoding"][] = COMPONENTS.slice(0, 3).flatMap((a) => COMPONENTS.slice(0, 3).flatMap((b) => COMPONENTS.slice(0, 3)
+/** An encoding that orders red, green, blue and white across its channels. */
+type OrderedEncoding = Extract<GuiPixelRoute["encoding"], { order: readonly number[] }>;
+const RGB_ORDERS: OrderedEncoding[] = COMPONENTS.slice(0, 3).flatMap((a) => COMPONENTS.slice(0, 3).flatMap((b) => COMPONENTS.slice(0, 3)
   .filter((c) => distinct([a, b, c])).map((c) => ({ type: "rgb" as const, order: [a, b, c] as [number, number, number] }))));
-const RGBW_ORDERS: GuiPixelRoute["encoding"][] = COMPONENTS.flatMap((a) => COMPONENTS.flatMap((b) => COMPONENTS.flatMap((c) => COMPONENTS
+const RGBW_ORDERS: OrderedEncoding[] = COMPONENTS.flatMap((a) => COMPONENTS.flatMap((b) => COMPONENTS.flatMap((c) => COMPONENTS
   .filter((d) => distinct([a, b, c, d])).map((d) => ({ type: "rgbw" as const, order: [a, b, c, d] as [number, number, number, number] })))));
 
 const orderName = (order: readonly number[]) => order.map((component) => COMPONENT_LETTERS[component]).join("");
+/** A route's encoding as its rows show it: the color order, or how many channels each pixel lights. */
+const encodingName = (encoding: GuiPixelRoute["encoding"]) => encoding.type === "channels" ? `${encoding.colors.length} ch` : orderName(encoding.order);
 
 /** Where a route's channels land, as people count: `compact` for a column, `full` for its tooltip. */
 function placeLabels(place: Place): { compact: string; full: string } {
@@ -112,7 +120,7 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
           const place = document.placements.find((placement) => placement.route === route.id)?.place;
           const fixture = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, route.layout))?.fixtures.find((candidate) => candidate.id === route.fixture)?.name ?? "Missing";
           const labels = place === undefined ? null : placeLabels(place);
-          const order = orderName(route.encoding.order);
+          const order = encodingName(route.encoding);
           return <Tip key={route.id} label={`${fixture} → ${group.label} port ${port}${labels === null ? "" : `, ${labels.full}`} · ${order}`}>
             <div className="patch-route-row" data-route={route.id}>
               <span>{fixture}</span><span>{port}</span><span>{labels?.compact ?? ""}</span><span>{order}</span>
@@ -201,21 +209,36 @@ function RouteFields({ document, route, disabled, onChange }: { document: PatchG
     </Field>
     <Field label="Encoding">
       <Select name="Encoding" value={route.encoding.type} options={ENCODINGS} disabled={disabled} onChange={(type) => {
-        onChange({ ...route, encoding: type === "rgb" ? { type, order: [...RGB_ORDER] } : { type, order: [...RGBW_ORDER] } });
+        onChange({ ...route, encoding: type === "rgb" ? { type, order: [...RGB_ORDER] } : type === "rgbw" ? { type, order: [...RGBW_ORDER] } : { type, colors: [WHITE] } });
       }} />
     </Field>
-    <Field label="Color order" tip="The colors each pixel reads, in channel order; WS2811 and WS2812 pixels are GRB" error={error("colorOrder")}>
-      <Select name="Color order" value={orderName(route.encoding.order)} disabled={disabled} invalid={error("colorOrder") !== null} onChange={(name) => {
-        const encoding = route.encoding.type === "rgb"
-          ? RGB_ORDERS.find((candidate) => orderName(candidate.order) === name)
-          : RGBW_ORDERS.find((candidate) => orderName(candidate.order) === name);
-        if (encoding !== undefined) onChange({ ...route, encoding });
-      }} options={(route.encoding.type === "rgb" ? RGB_ORDERS : RGBW_ORDERS).map(({ order }) => ({ value: orderName(order), label: orderName(order) }))} />
-    </Field>
+    {route.encoding.type === "channels" ? <ChannelColors colors={route.encoding.colors} disabled={disabled} error={error("colorOrder")}
+      onChange={(colors) => { onChange({ ...route, encoding: { type: "channels", colors } }); }} />
+      : <Field label="Color order" tip="The colors each pixel reads, in channel order; WS2811 and WS2812 pixels are GRB" error={error("colorOrder")}>
+        <Select name="Color order" value={orderName(route.encoding.order)} disabled={disabled} invalid={error("colorOrder") !== null} onChange={(name) => {
+          const encoding = route.encoding.type === "rgb"
+            ? RGB_ORDERS.find((candidate) => orderName(candidate.order) === name)
+            : RGBW_ORDERS.find((candidate) => orderName(candidate.order) === name);
+          if (encoding !== undefined) onChange({ ...route, encoding });
+        }} options={(route.encoding.type === "rgb" ? RGB_ORDERS : RGBW_ORDERS).map(({ order }) => ({ value: orderName(order), label: orderName(order) }))} />
+      </Field>}
     <Field label="Gamma" error={error("gamma")}><NumberField name="Gamma" value={route.gamma} step={0.1} min={0.01} defaultValue={1} disabled={disabled} invalid={error("gamma") !== null} onCommit={(gamma) => { onChange({ ...route, gamma }); }} /></Field>
     <Field label="Brightness" error={error("brightness")}><NumberField name="Brightness" value={route.brightness} step={0.01} min={0} max={1} defaultValue={1} disabled={disabled} invalid={error("brightness") !== null} onCommit={(brightness) => { onChange({ ...route, brightness }); }} /></Field>
     <Field label="Dither" tip="Vary each channel over frames so dim levels keep their color; for outputs that receive every frame">
       <Toggle name="Dither" checked={route.dither} disabled={disabled} onChange={(dither) => { onChange({ ...route, dither }); }} />
     </Field>
   </div>;
+}
+
+/** The color each channel of a Channels output lights, in channel order: white for a dimmer, or the color of a single-color string. */
+function ChannelColors({ colors, disabled, error, onChange }: { colors: string[]; disabled: boolean; error: string | null; onChange: (colors: string[]) => void }) {
+  return <Field label="Channels" tip="The color each channel lights; white dims to the pixel's brightness, a color lights as much of it as the pixel holds" error={error}>
+    <div className="patch-channel-colors">
+      {colors.map((color, index) => <div className="patch-channel-color" key={index}>
+        <ColorPicker label={`Channel ${index + 1}`} value={color} commit={(next) => { onChange(colors.map((item, at) => at === index ? next : item)); return Promise.resolve(); }} />
+        <IconButton icon={X} label={`Remove channel ${index + 1}`} disabled={disabled || colors.length === 1} onClick={() => { onChange(colors.filter((_, at) => at !== index)); }} />
+      </div>)}
+      <AddRow label="Add channel" disabled={disabled || colors.length >= MAX_CHANNEL_COLORS} onAdd={() => { onChange([...colors, WHITE]); }} />
+    </div>
+  </Field>;
 }

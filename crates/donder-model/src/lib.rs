@@ -91,7 +91,7 @@ pub use sequence::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
     DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, Mark, MarkCollection,
     MarkCollectionKey, OwnedSequence, Sequence, SequenceAudio, SequenceCompositionGraph,
-    SequenceLayer, SequenceLayerId, Window, automation_curve_is_normalized, automation_value_at,
+    SequenceLayer, SequenceLayerId, Window, automation_value_at, curve_is_normalized,
 };
 pub use setup::authoring::{attach_controller, attach_input_device};
 pub use setup::{OwnedSetup, Setup};

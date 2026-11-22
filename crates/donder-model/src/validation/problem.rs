@@ -46,6 +46,9 @@ pub enum ValidationProblem {
     /// A script definition is stored under an id its declaration does not carry.
     DefinitionMismatch,
     Curve(CurveValidationError),
+    /// A stored curve's values are 0 to 1; a parameter maps them onto its
+    /// range when the curve is bound.
+    CurveNotNormalized,
     Gradient(GradientValidationError),
     Fixture(FixtureDefinitionError),
     Layout(LayoutError),
@@ -434,6 +437,7 @@ impl ValidationProblem {
             | Self::Ownership(_)
             | Self::DefinitionMismatch
             | Self::Curve(_)
+            | Self::CurveNotNormalized
             | Self::Gradient(_)
             | Self::Setup(_)
             | Self::Admission(_) => None,
@@ -561,6 +565,7 @@ impl fmt::Display for ValidationProblem {
             Self::Ownership(problem) => problem.fmt(f),
             Self::DefinitionMismatch => f.write_str("the definition doesn't match its script"),
             Self::Curve(error) => write!(f, "invalid curve: {}", curve_error(error)),
+            Self::CurveNotNormalized => f.write_str("a curve's values are 0 to 1"),
             Self::Gradient(error) => write!(f, "invalid gradient: {}", gradient_error(error)),
             Self::Fixture(error) => error.fmt(f),
             Self::Layout(error) => error.fmt(f),

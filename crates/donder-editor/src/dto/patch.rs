@@ -97,6 +97,14 @@ pub struct GuiPixelSpan {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum GuiPixelEncoding {
-    Rgb { order: [u8; 3] },
-    Rgbw { order: [u8; 4] },
+    Rgb {
+        order: [u8; 3],
+    },
+    Rgbw {
+        order: [u8; 4],
+    },
+    /// One channel per color, each a `#rrggbb` color it lights.
+    Channels {
+        colors: Vec<String>,
+    },
 }

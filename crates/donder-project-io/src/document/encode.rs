@@ -352,6 +352,17 @@ impl Encoder<'_> {
                             PixelEncoding::Rgbw { order } => types::Encoding::Rgbw {
                                 order: (order[0], order[1], order[2], order[3]),
                             },
+                            PixelEncoding::Channels { colors } => types::Encoding::Channels {
+                                colors: colors
+                                    .as_slice()
+                                    .iter()
+                                    .map(|&[red, green, blue]| donder_runtime_types::Color {
+                                        red: f32::from(red) / 255.0,
+                                        green: f32::from(green) / 255.0,
+                                        blue: f32::from(blue) / 255.0,
+                                    })
+                                    .collect(),
+                            },
                         },
                         gamma: route.gamma,
                         brightness: route.brightness,

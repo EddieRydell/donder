@@ -3065,6 +3065,8 @@ fieldset.sequence-layer-row {
 .setup-patch-fields { display: flex; flex-wrap: wrap; align-items: end; gap: var(--donder-space-8); padding: var(--donder-space-8) 0; }
 .setup-patch-node { border: var(--donder-border-width) solid var(--donder-border-soft); border-radius: var(--donder-radius-md); padding: var(--donder-space-8); min-width: 0; }
 .setup-patch-node header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--donder-space-8); }
+.patch-channel-colors { display: flex; flex-direction: column; gap: var(--donder-space-4); min-width: 0; }
+.patch-channel-color { display: flex; align-items: center; gap: var(--donder-space-4); }
 
 /* IDE workbench */
 .project-panel-shell {

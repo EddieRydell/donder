@@ -474,8 +474,16 @@ pub(crate) struct PixelSpan {
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) enum Encoding {
-    Rgb { order: (u8, u8, u8) },
-    Rgbw { order: (u8, u8, u8, u8) },
+    Rgb {
+        order: (u8, u8, u8),
+    },
+    Rgbw {
+        order: (u8, u8, u8, u8),
+    },
+    /// One channel per color, each lighting that color.
+    Channels {
+        colors: Vec<Color>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

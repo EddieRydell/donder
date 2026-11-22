@@ -5,6 +5,7 @@
 //! so the bytes average to the exact level.
 use crate::format::{self, NONE};
 use donder_runtime_types::Color;
+use donder_runtime_types::channel_level;
 use donder_runtime_types::sampling::min_float;
 
 use crate::view::Show;
@@ -24,8 +25,13 @@ pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8], fra
     for route in s.routes {
         let first = route.first;
         let colors = &colors[first as usize..route.end as usize];
-        let rgbw = route.encoding == format::ENCODING_RGBW;
-        let channels = if rgbw { 4 } else { 3 };
+        let palette = (route.encoding == format::ENCODING_CHANNELS)
+            .then(|| &s.palettes[route.palette as usize]);
+        let channels = match (route.encoding, palette) {
+            (format::ENCODING_RGBW, _) => 4,
+            (_, Some(palette)) => palette.count as usize,
+            _ => 3,
+        };
         let output = &s.outputs[route.output as usize];
         let start = (output.offset + route.start_slot) as usize;
         let bytes = &mut outputs[start..start + colors.len() * channels];
@@ -39,7 +45,9 @@ pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8], fra
             }
         };
         let order = route.order;
-        if rgbw {
+        if let Some(palette) = palette {
+            pack_channels(colors, bytes, palette, lookup, threshold);
+        } else if route.encoding == format::ENCODING_RGBW {
             pack(
                 colors,
                 bytes,
@@ -60,6 +68,32 @@ pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8], fra
                 threshold,
                 |c| [c.red, c.green, c.blue],
             );
+        }
+    }
+}
+
+/// Each pixel's level in each color of `palette`, one channel per color, by
+/// [`channel_level`].
+fn pack_channels(
+    colors: &[Color],
+    output: &mut [u8],
+    palette: &format::Palette,
+    lookup: Option<&[u16; 256]>,
+    threshold: impl Fn(usize) -> u32,
+) {
+    let count = palette.count as usize;
+    let targets = palette
+        .colors
+        .map(|packed| [16, 8, 0].map(|shift| ((packed >> shift) & 0xff) as f32 / 255.0));
+    for (index, (color, output)) in colors
+        .iter()
+        .zip(output.chunks_exact_mut(count))
+        .enumerate()
+    {
+        let threshold = threshold(index);
+        for (byte, target) in output.iter_mut().zip(&targets) {
+            let channel = channel_level([color.red, color.green, color.blue], *target);
+            *byte = ((level(channel, lookup) + threshold) >> 8) as u8;
         }
     }
 }

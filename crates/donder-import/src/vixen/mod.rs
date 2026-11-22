@@ -9,6 +9,7 @@
 mod config;
 pub(crate) mod contract;
 mod controllers;
+mod library;
 mod patching;
 pub(crate) mod shapes;
 
@@ -237,7 +238,7 @@ fn wire<'a>(
         };
         let width = patches
             .first()
-            .map_or(3, |patch| patch.encoding.channel_order().len() as u32);
+            .map_or(3, |patch| patch.encoding.channel_count() as u32);
         let mut order: Vec<usize> = (0..patches.len()).collect();
         order.sort_by_key(|&index| {
             let slot = patches[index].slot;
@@ -352,8 +353,23 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
             .map(|controller| controller.hardware_instance_id.clone()),
     );
     wanted.insert(preview.instance_id.clone());
+    wanted.insert(library::CURVE_LIBRARY.to_string());
+    wanted.insert(library::GRADIENT_LIBRARY.to_string());
     let modules = modules(&folder.join(MODULE_STORE_FILE), &wanted)?;
     let mut report = ImportReport::default();
+    let module_store = folder.join(MODULE_STORE_FILE);
+    let library_error = |error: contract::FieldError| ImportError::Xml {
+        path: module_store.clone(),
+        message: format!("its library has {} of {}", error.field, error.value),
+    };
+    let library_curves = match modules.get(library::CURVE_LIBRARY) {
+        Some(data) => library::curves(data).map_err(library_error)?,
+        None => Vec::new(),
+    };
+    let library_gradients = match modules.get(library::GRADIENT_LIBRARY) {
+        Some(data) => library::gradients(data).map_err(library_error)?,
+        None => Vec::new(),
+    };
 
     let controllers = controllers::read(&config.controllers, &modules, &config.disabled);
     let breakdowns: HashMap<String, Result<Breakdown, contract::FieldError>> =
@@ -528,6 +544,8 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
         fixtures,
         controllers: controllers.controllers,
         groups,
+        curves: library_curves,
+        gradients: library_gradients,
         report,
     })
 }

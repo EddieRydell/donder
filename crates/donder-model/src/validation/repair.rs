@@ -275,6 +275,7 @@ fn plan(
         | ValidationProblem::Ownership(_)
         | ValidationProblem::DefinitionMismatch
         | ValidationProblem::Curve(_)
+        | ValidationProblem::CurveNotNormalized
         | ValidationProblem::Gradient(_)
         | ValidationProblem::Fixture(_)
         | ValidationProblem::Layout(_)
@@ -357,7 +358,7 @@ impl State<'_> {
                 if !unchanged {
                     return None;
                 }
-                let per_pixel = route.encoding.channel_order().len() as u32;
+                let per_pixel = route.encoding.channel_count() as u32;
                 let span = route.pixels.unwrap_or(PixelSpan {
                     start: 0,
                     count: channels.len() as u32 / per_pixel,

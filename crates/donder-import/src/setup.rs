@@ -9,13 +9,14 @@ use crate::report::{
 use camino::Utf8PathBuf;
 use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortId,
-    ControllerProtocol, ControllerValidationError, E131Config, E131Mode, FixtureDefinition,
-    FixtureInstanceId, FixtureTarget, FixtureTransform, GroupMember, Layout, LayoutFixture,
-    LayoutFixtureKind, LayoutId, ObjectId, Owned, OwnedMember, OwnershipSite, Patch, PatchId,
-    PixelRoute, PixelRouteId, PixelSpan, ProjectEdit, RouteStart, Setup, Universes,
+    ControllerProtocol, ControllerValidationError, CurveDefinition, CurveId, E131Config, E131Mode,
+    FixtureDefinition, FixtureInstanceId, FixtureTarget, FixtureTransform, GradientDefinition,
+    GradientId, GroupMember, Layout, LayoutFixture, LayoutFixtureKind, LayoutId, Object, ObjectId,
+    Owned, OwnedMember, OwnershipSite, Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan,
+    ProjectEdit, RouteStart, Setup, Universes,
 };
 use donder_project_io::{DocumentId, ProjectSession};
-use donder_runtime_types::{Identifier, PixelEncoding};
+use donder_runtime_types::{Curve, Gradient, Identifier, PixelEncoding};
 use glam::DVec3;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -225,6 +226,10 @@ pub(crate) struct Profile {
     pub(crate) fixtures: Vec<ProfileFixture>,
     pub(crate) controllers: Vec<ProfileController>,
     pub(crate) groups: Vec<ProfileGroup>,
+    /// The profile's named curves, normalized, and gradients, by their
+    /// names in the profile.
+    pub(crate) curves: Vec<(String, Curve)>,
+    pub(crate) gradients: Vec<(String, Gradient)>,
     /// What the reader has reported: its scale, and what it left out.
     pub(crate) report: ImportReport,
 }
@@ -483,7 +488,7 @@ fn runs(
     let Some(slots) = &fixture.slots else {
         return Ok(Vec::new());
     };
-    let per_pixel = fixture.encoding.channel_order().len() as u32;
+    let per_pixel = fixture.encoding.channel_count() as u32;
     let mut runs: Vec<(Place, u32, u32)> = Vec::new();
     for (pixel, &slot) in slots.iter().enumerate() {
         let Some(&channels) = controllers.outputs.get(&(slot.controller, slot.output)) else {
@@ -525,6 +530,8 @@ pub(crate) fn build(
         fixtures: profile_fixtures,
         controllers: profile_controllers,
         groups: profile_groups,
+        curves,
+        gradients,
         mut report,
     } = profile;
     let controllers = controllers(&profile_controllers, &mut report, || {
@@ -552,7 +559,7 @@ pub(crate) fn build(
                 Vec::new()
             }
         };
-        let per_pixel = fixture.encoding.channel_order().len() as u32;
+        let per_pixel = fixture.encoding.channel_count() as u32;
         let overlap = runs.iter().find_map(|(place, _, count)| {
             let (from, to) = (place.channel, place.channel + count * per_pixel);
             claimed
@@ -653,6 +660,30 @@ pub(crate) fn build(
         routes: route_list,
     };
     insert(session, layout, patch, controllers.controllers)?;
+    let curves = curves
+        .into_iter()
+        .map(|(name, curve)| {
+            let id = CurveId(session.project.new_id());
+            let definition = CurveDefinition {
+                description: None,
+                curve,
+            };
+            (name, id.into(), Object::Curve(id, definition))
+        })
+        .collect();
+    report.curves = library(session, LIBRARY_CURVES, curves)?;
+    let gradients = gradients
+        .into_iter()
+        .map(|(name, gradient)| {
+            let id = GradientId(session.project.new_id());
+            let definition = GradientDefinition {
+                description: None,
+                gradient,
+            };
+            (name, id.into(), Object::Gradient(id, definition))
+        })
+        .collect();
+    report.gradients = library(session, LIBRARY_GRADIENTS, gradients)?;
     Ok(report)
 }
 
@@ -915,6 +946,51 @@ fn insert(
     donder_project_io::maintain_ownership_sources(session)
         .map_err(|error| ImportError::Project(error.to_string()))?;
     Ok(())
+}
+
+/// Where a profile's library curves and gradients go.
+const LIBRARY_CURVES: &str = "curves/library.data.donder";
+const LIBRARY_GRADIENTS: &str = "gradients/library.data.donder";
+
+/// Put library objects in the project, in one document at `path` that the
+/// project root imports, each under its object name, numbered on a clash.
+/// Returns how many it put.
+fn library(
+    session: &mut ProjectSession,
+    path: &str,
+    objects: Vec<(String, ObjectId, Object)>,
+) -> Result<usize, ImportError> {
+    if objects.is_empty() {
+        return Ok(0);
+    }
+    let invalid = |error: donder_model::EditError| ImportError::Project(format!("{error:?}"));
+    let mut taken = HashSet::new();
+    let mut names = Vec::new();
+    let mut edits = Vec::new();
+    for (name, id, object) in objects {
+        let name =
+            donder_language::unique_name(donder_language::object_name(&name).as_str(), |name| {
+                taken.contains(name)
+            });
+        taken.insert(name.as_str().to_string());
+        names.push((id, name));
+        edits.push(ProjectEdit::Put(object));
+    }
+    let count = names.len();
+    let first = names[0].0;
+    session.project.apply_edits(edits).map_err(invalid)?;
+    session
+        .source
+        .add_data_document(path.into(), names)
+        .map_err(ImportError::Project)?;
+    let root = session
+        .source
+        .entrypoint
+        .clone()
+        .ok_or_else(|| ImportError::Project("The project has no root document.".into()))?;
+    donder_project_io::ensure_document_can_reference_object(session, &root, first)
+        .map_err(|error| ImportError::Project(error.to_string()))?;
+    Ok(count)
 }
 
 /// A name no fixture or group of the profile has yet.

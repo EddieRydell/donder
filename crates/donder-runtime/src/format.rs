@@ -441,6 +441,8 @@ pub(crate) struct Window {
 
 pub(crate) const ENCODING_RGB: u32 = 0;
 pub(crate) const ENCODING_RGBW: u32 = 1;
+/// Each channel lights one color of the route's [`Palette`].
+pub(crate) const ENCODING_CHANNELS: u32 = 2;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
@@ -454,8 +456,19 @@ pub(crate) struct Route {
     pub(crate) order: [u8; 4],
     /// Its lookup table, or [`NONE`].
     pub(crate) lookup: u32,
+    /// The colors of an [`ENCODING_CHANNELS`] route's channels, or [`NONE`].
+    pub(crate) palette: u32,
     /// 1 when its bytes dither over frames, else 0.
     pub(crate) dither: u32,
+}
+
+/// The color each channel of an [`ENCODING_CHANNELS`] route lights, packed
+/// as `0x00rrggbb`: the first `count` are its channels.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct Palette {
+    pub(crate) count: u32,
+    pub(crate) colors: [u32; 4],
 }
 
 /// A route's gamma and brightness: the output at each input byte, in 1/256 of
@@ -677,6 +690,7 @@ sections! {
     windows: Window,
     routes: Route,
     lookups: Lookup,
+    palettes: Palette,
     outputs: Output,
     voices: u32,
     live_automations: LiveAutomation,

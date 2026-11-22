@@ -90,19 +90,85 @@ impl FixtureGeometry {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PixelEncoding {
-    Rgb { order: [u8; 3] },
-    Rgbw { order: [u8; 4] },
+    Rgb {
+        order: [u8; 3],
+    },
+    Rgbw {
+        order: [u8; 4],
+    },
+    /// Lights that each show one color, one channel each: a dimmer, a
+    /// single-color string, or one color of a set of colored strings.
+    Channels {
+        colors: ChannelColors,
+    },
+}
+
+/// The most channels a [`PixelEncoding::Channels`] route gives a pixel.
+pub const MAX_CHANNEL_COLORS: usize = 4;
+
+/// The color each channel of a pixel lights, in channel order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ChannelColors {
+    count: u8,
+    colors: [[u8; 3]; MAX_CHANNEL_COLORS],
+}
+
+impl ChannelColors {
+    /// The colors, or none for no colors, more than [`MAX_CHANNEL_COLORS`],
+    /// or black, which no channel can light.
+    pub fn new(colors: &[[u8; 3]]) -> Option<Self> {
+        if colors.is_empty() || colors.len() > MAX_CHANNEL_COLORS || colors.contains(&[0, 0, 0]) {
+            return None;
+        }
+        let mut stored = [[0; 3]; MAX_CHANNEL_COLORS];
+        stored[..colors.len()].copy_from_slice(colors);
+        Some(Self {
+            count: colors.len() as u8,
+            colors: stored,
+        })
+    }
+
+    pub fn as_slice(&self) -> &[[u8; 3]] {
+        &self.colors[..usize::from(self.count)]
+    }
+}
+
+/// A pixel's level, 0 to 1 before clamping, on a channel that lights
+/// `channel` (each part 0..1): a gray channel lights at the pixel's
+/// brightness, the most of its red, green and blue, scaled by the gray; a
+/// colored channel at as much of its color as the pixel holds, the least of
+/// the pixel's parts over the color's nonzero ones.
+#[inline(always)]
+pub fn channel_level(pixel: [f32; 3], channel: [f32; 3]) -> f32 {
+    use crate::sampling::{max_float, min_float};
+    if channel[0] == channel[1] && channel[1] == channel[2] {
+        return max_float(max_float(pixel[0], pixel[1]), pixel[2]) * channel[0];
+    }
+    let mut level = 1.0;
+    for (value, part) in pixel.iter().zip(&channel) {
+        if *part > 0.0 {
+            level = min_float(level, value / part);
+        }
+    }
+    level
 }
 
 impl PixelEncoding {
-    pub fn channel_order(&self) -> &[u8] {
+    /// The channels each pixel takes.
+    pub fn channel_count(&self) -> usize {
         match self {
-            Self::Rgb { order } => order,
-            Self::Rgbw { order } => order,
+            Self::Rgb { .. } => 3,
+            Self::Rgbw { .. } => 4,
+            Self::Channels { colors } => colors.as_slice().len(),
         }
     }
+
     pub fn is_valid(&self) -> bool {
-        let order = self.channel_order();
+        let order: &[u8] = match self {
+            Self::Rgb { order } => order,
+            Self::Rgbw { order } => order,
+            Self::Channels { .. } => return true,
+        };
         (0..order.len()).all(|channel| {
             order
                 .iter()
@@ -129,7 +195,7 @@ impl OutputEncoding {
     }
 
     pub fn channel_count(self) -> usize {
-        self.0.channel_order().len()
+        self.0.channel_count()
     }
 
     pub fn encoding(self) -> PixelEncoding {

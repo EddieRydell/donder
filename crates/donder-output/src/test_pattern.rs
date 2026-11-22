@@ -272,7 +272,7 @@ impl OutputTest {
                     }
                 }
             };
-            let width = route.encoding.channel_order().len() as u32;
+            let width = route.encoding.channel_count() as u32;
             let start_channel = placement.channels.start + (span.start - routed.start) * width;
             let prepared = layouts
                 .entry(route.target.layout)
@@ -388,8 +388,7 @@ impl OutputTest {
 
 impl Region {
     fn write(&self, pattern: TestPattern, seconds: f32, range: (f32, f32), slots: &mut [u8]) {
-        let order = self.encoding.channel_order();
-        let width = order.len();
+        let width = self.encoding.channel_count();
         for pixel in 0..self.pixels {
             let start = self.start_channel as usize + pixel as usize * width;
             let end = (start + width).min(self.end_channel as usize);
@@ -414,16 +413,30 @@ impl Region {
             };
             let [red, green, blue] = color(pattern, index, self.fixture_pixels, height, seconds)
                 .map(|channel| f32::from(channel) / 255.0);
-            let components = match self.encoding {
-                PixelEncoding::Rgb { .. } => [red, green, blue, 0.0],
-                PixelEncoding::Rgbw { .. } => {
+            let levels: [f32; 4] = match self.encoding {
+                PixelEncoding::Rgb { order } => {
+                    let parts = [red, green, blue];
+                    [0, 1, 2, 0].map(|channel| parts[usize::from(order[channel])])
+                }
+                PixelEncoding::Rgbw { order } => {
                     let white = red.min(green).min(blue);
-                    [red - white, green - white, blue - white, white]
+                    let parts = [red - white, green - white, blue - white, white];
+                    order.map(|component| parts[usize::from(component)])
+                }
+                PixelEncoding::Channels { colors } => {
+                    let mut levels = [0.0; 4];
+                    for (level, color) in levels.iter_mut().zip(colors.as_slice()) {
+                        *level = donder_runtime_types::channel_level(
+                            [red, green, blue],
+                            color.map(|part| f32::from(part) / 255.0),
+                        );
+                    }
+                    levels
                 }
             };
-            for (byte, component) in bytes.iter_mut().zip(order) {
+            for (byte, level) in bytes.iter_mut().zip(levels) {
                 *byte = (donder_model::patched_level(
-                    components[usize::from(*component)],
+                    level.clamp(0.0, 1.0),
                     self.gamma,
                     self.brightness,
                 ) * 255.0)

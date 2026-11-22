@@ -817,7 +817,9 @@ export type GuiObjectRef = {
 
 export type GuiOwnedFixture = { type: "inline"; elements: GuiFixtureElement[] } | { type: "reference"; object: GuiObjectRef };
 
-export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
+export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] } | 
+/**  One channel per color, each a `#rrggbb` color it lights. */
+{ type: "channels"; colors: string[] };
 
 export type GuiPixelRoute = {
 	id: number,

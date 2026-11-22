@@ -44,8 +44,9 @@ pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
 pub use console::{ConsoleEvent, InputEvent, InputHappening};
 pub use prepared::{
-    AutomatedQuantity, FixtureGeometry, OutputEncoding, PixelEncoding, PreparedAutomation,
-    SequenceTiming, SpatialContext, TargetGeometry, TargetPixel, TargetScope,
+    AutomatedQuantity, ChannelColors, FixtureGeometry, MAX_CHANNEL_COLORS, OutputEncoding,
+    PixelEncoding, PreparedAutomation, SequenceTiming, SpatialContext, TargetGeometry, TargetPixel,
+    TargetScope, channel_level,
 };
 pub use program::{BoundProgram, Program};
 pub use types::{Identifier, IdentifierError, Type, Value};

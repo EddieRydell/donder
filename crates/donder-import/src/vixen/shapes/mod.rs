@@ -15,6 +15,7 @@ mod icicle;
 mod line;
 mod mega_tree;
 mod multi_string;
+mod net;
 mod pixel_grid;
 mod poly_line;
 mod rectangle;
@@ -162,6 +163,7 @@ pub(crate) fn layout(shape: &Element) -> Result<Laid, ShapeSkip> {
         "PreviewRectangle" => rectangle::layout(shape),
         "PreviewMegaTree" => mega_tree::layout(shape),
         "PreviewPixelGrid" => pixel_grid::layout(shape),
+        "PreviewNet" => net::layout(shape),
         "PreviewIcicle" => icicle::layout(shape),
         "PreviewMultiString" => multi_string::layout(shape),
         "PreviewStar" => star::layout(shape),

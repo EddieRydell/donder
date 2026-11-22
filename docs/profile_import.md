@@ -4,7 +4,8 @@
 and patch of an xLights or Vixen profile. `donder -p <new project>
 import <folder>` does the same into a project whose setup is still empty;
 the folder's contents say which program it is from. Sequences, effects and
-preview backgrounds are not imported.
+preview backgrounds are not imported; a Vixen profile's curve and gradient
+libraries are.
 
 The importer is `crates/donder-import`. Each source has a reader that
 reproduces what that program loads, and one builder makes the result the
@@ -174,7 +175,11 @@ each piece of the code names the Vixen code it follows.
 - A pixel is its element's channel through a color breakdown that mixes
   red, green and blue, or red, green, blue and white, whose outputs are
   patched to consecutive channels of one universe; their order is the
-  pixel's color order, and a four-color breakdown makes an RGBW route.
+  pixel's color order, and a four-color breakdown makes an RGBW route. A
+  breakdown that does not mix colors lights each output in its own color,
+  and makes a `Channels` route of those colors (up to four). An element
+  patched straight to one controller channel is a dimmer: a `Channels`
+  route of white.
 - Dimming curves before the breakdown or after its outputs become the
   routes' brightness and gamma: the curve's output at full input, and the
   power that best fits its shape. A curve that is a brightness and a gamma
@@ -189,6 +194,16 @@ each piece of the code names the Vixen code it follows.
   Vixen does. Vixen numbers each controller's outputs on from the last
   output of the controller before it, every module included; a universe's
   absolute channel is its controller's first plus its start.
+- A Net lays its lights out as Vixen does: rows down the bounds of its four
+  corners every spacing, each row's lights every spacing, alternate rows
+  offset half a spacing, inside the corners' polygon; all of them light the
+  net's one element.
+- The curve library becomes `curves/library.data.donder` and the color
+  gradient library `gradients/library.data.donder`, which the project root
+  imports. Each takes the object name of its library name, numbered on a
+  clash. Curves are normalized: Vixen's percent positions and values become
+  0..1. Gradient colors come across in sRGB from Vixen's CIE XYZ, in linear
+  RGB; their alpha stops and the focus between stops do not.
 - An element group becomes a group of its imported child groups and of its
   other elements' pixels, in child order: a fixture all of whose pixels it
   holds is a member, and part of one is the slices of its runs of pixels, so
@@ -200,7 +215,7 @@ each piece of the code names the Vixen code it follows.
 
 A shape is left out when:
 
-- it is a Net, a Flood or a moving head;
+- it is a Flood or a moving head;
 - one of its settings is not reproduced: per shape, settings Vixen itself
   cannot lay out, such as a line of no length or a star no more than 10
   units across, and child strings that do not match the shape;
@@ -208,13 +223,12 @@ A shape is left out when:
   prop);
 - none of its pixels is linked to an element, or an element it lights is
   also lit by another pixel. Standard strings, whose lights all share one
-  element, are left out this way.
+  element, are left out this way, as is any Net with lights.
 
 A fixture's routes are left out when one of its elements is not patched as a
-pixel: unpatched, patched straight to one channel, through a filter other
-than a dimming curve, through a breakdown that does not mix colors or sends
-16-bit values, or whose colors are not consecutive channels of one active
-universe.
+pixel: unpatched, through a filter other than a dimming curve, through a
+breakdown that sends 16-bit values or lights more than four colors of its
+own, or whose colors are not consecutive channels of one active universe.
 
 Controllers that are not created: other output modules (DDP, DMX, Renard,
 serial and the like), disabled controllers, and E1.31 controllers whose

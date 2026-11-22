@@ -62,7 +62,7 @@ impl PixelRoute {
     pub fn channel_count(&self, target_pixels: u32) -> Option<u32> {
         self.pixels
             .map_or(target_pixels, |span| span.count)
-            .checked_mul(self.encoding.channel_order().len() as u32)
+            .checked_mul(self.encoding.channel_count() as u32)
     }
 }
 

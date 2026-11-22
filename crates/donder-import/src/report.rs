@@ -47,6 +47,9 @@ pub struct ImportReport {
     pub skipped_groups: Vec<SkippedGroup>,
     /// Fixtures whose dimming curves are fitted as a brightness and gamma.
     pub fitted_dimming: Vec<FittedDimming>,
+    /// Library curves and gradients imported.
+    pub curves: usize,
+    pub gradients: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -130,11 +133,6 @@ impl From<FieldError> for ShapeSkip {
 pub enum ElementPatch {
     /// Nothing takes the element's output.
     Unpatched,
-    /// It is patched straight to a controller output, one channel.
-    SingleChannel,
-    /// Its color breakdown does not mix colors: each output lights only for
-    /// its own color.
-    DiscreteColors,
     /// Its color breakdown's colors are not red, green and blue, with
     /// white for a breakdown of four.
     Colors,
@@ -351,11 +349,10 @@ impl fmt::Display for ElementPatch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unpatched => write!(f, "is not patched"),
-            Self::SingleChannel => write!(f, "is patched straight to one channel"),
-            Self::DiscreteColors => write!(f, "has a color breakdown that does not mix colors"),
             Self::Colors => write!(
                 f,
-                "has a color breakdown that is not red, green and blue, or those and white"
+                "has a color breakdown that is not red, green and blue, or those and white, \
+                 or that lights more than four colors of its own"
             ),
             Self::SixteenBit => write!(f, "has a 16-bit color breakdown"),
             Self::Filter(id) => write!(f, "has an output filter of type {id}"),
@@ -499,6 +496,13 @@ impl fmt::Display for ImportReport {
             "Imported {} fixtures ({} pixels), {} groups, {} controllers and {} routes.",
             self.fixtures, self.pixels, self.groups, self.controllers, self.routes
         )?;
+        if self.curves + self.gradients > 0 {
+            writeln!(
+                f,
+                "Imported {} library curves and {} library gradients.",
+                self.curves, self.gradients
+            )?;
+        }
         match self.scale {
             Some(Scale::Ruler) => writeln!(
                 f,

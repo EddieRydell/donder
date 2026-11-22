@@ -8,7 +8,7 @@ use super::contract;
 use crate::report::ElementPatch;
 use crate::setup::{Dimming, Slot};
 use crate::xml::Element;
-use donder_runtime_types::PixelEncoding;
+use donder_runtime_types::{ChannelColors, MAX_CHANNEL_COLORS, PixelEncoding};
 use std::collections::{HashMap, HashSet};
 
 pub(crate) const COLOR_BREAKDOWN: &str = "ab38a16f-0de1-4f6e-a8c0-ae5b20d347e0";
@@ -34,6 +34,17 @@ impl Color {
         }
     }
 
+    /// Its red, green and blue: by its ARGB value, or as a known color.
+    fn rgb(&self) -> Option<[u8; 3]> {
+        if self.state == ARGB_STATE {
+            return Some([16, 8, 0].map(|shift| ((self.value >> shift) & 0xff) as u8));
+        }
+        KNOWN
+            .iter()
+            .find(|(known, _)| *known == self.known)
+            .map(|(_, rgb)| *rgb)
+    }
+
     fn read(element: &Element) -> Result<Self, contract::FieldError> {
         Ok(Self {
             known: contract::int(element, "knownColor", 0)?,
@@ -57,6 +68,24 @@ impl Color {
 const RED: i32 = 141;
 const LIME: i32 = 104;
 const WHITE: i32 = 164;
+/// Other `KnownColor` values a breakdown of its own colors may name, with
+/// their red, green and blue.
+const KNOWN: [(i32, [u8; 3]); 5] = [
+    (37, [0, 0, 255]),
+    (79, [0, 128, 0]),
+    (LIME, [0, 255, 0]),
+    (RED, [255, 0, 0]),
+    (WHITE, [255, 255, 255]),
+];
+/// `Color.state` of a color written by its ARGB value.
+const ARGB_STATE: i32 = 2;
+
+/// What each of a breakdown's outputs sends: one of red, green, blue and
+/// white of a mixed pixel, or a color of its own.
+enum Lights {
+    Mixed(Vec<u8>),
+    Own(Vec<[u8; 3]>),
+}
 
 /// A color breakdown's settings. Vixen: `ColorBreakdownData`.
 pub(crate) struct Breakdown {
@@ -85,12 +114,20 @@ impl Breakdown {
     /// blue; a breakdown of four colors mixes RGBW, its `Color.White`
     /// output the white. Vixen's RGBW mix and Donder's both light white as
     /// the least of red, green and blue.
-    fn channels(&self) -> Result<Vec<u8>, ElementPatch> {
+    /// A breakdown that does not mix lights each output in its own color.
+    fn channels(&self) -> Result<Lights, ElementPatch> {
         if self.sixteen_bit {
             return Err(ElementPatch::SixteenBit);
         }
         if !self.mix {
-            return Err(ElementPatch::DiscreteColors);
+            return self
+                .colors
+                .iter()
+                .map(Color::rgb)
+                .collect::<Option<Vec<_>>>()
+                .filter(|colors| ChannelColors::new(colors).is_some())
+                .map(Lights::Own)
+                .ok_or(ElementPatch::Colors);
         }
         let rgbw = self.colors.len() == 4;
         let channel = |color: &Color| {
@@ -114,7 +151,7 @@ impl Breakdown {
             _ => false,
         };
         if valid {
-            Ok(order)
+            Ok(Lights::Mixed(order))
         } else {
             Err(ElementPatch::Colors)
         }
@@ -295,8 +332,20 @@ impl<'a> Patching<'a> {
     /// differently take their average dimming.
     pub(crate) fn pixel(&self, channel: &str) -> Result<PatchedPixel, ElementPatch> {
         let (component, before) = self.undimmed(self.fed(channel, 0)?)?;
+        // An element patched straight to an output is a dimmer: one channel
+        // at the pixel's brightness.
         if self.outputs.contains(component) {
-            return Err(ElementPatch::SingleChannel);
+            let slot = *self
+                .slots
+                .get(component)
+                .ok_or(ElementPatch::OutsideUniverses)?;
+            return Ok(PatchedPixel {
+                slot,
+                encoding: PixelEncoding::Channels {
+                    colors: ChannelColors::new(&[[255, 255, 255]]).ok_or(ElementPatch::Colors)?,
+                },
+                dimming: before,
+            });
         }
         let kind = self
             .config
@@ -312,10 +361,14 @@ impl<'a> Patching<'a> {
             Some(Err(error)) => return Err(ElementPatch::BreakdownField(error.clone())),
             Some(Ok(breakdown)) => breakdown,
         };
-        let colors = breakdown.channels()?;
+        let lights = breakdown.channels()?;
+        let count = match &lights {
+            Lights::Mixed(order) => order.len(),
+            Lights::Own(colors) => colors.len(),
+        };
         let mut slots = Vec::new();
         let mut after = Vec::new();
-        for (output, color) in colors.iter().enumerate() {
+        for output in 0..count {
             let fed = self
                 .fed(component, output as u32)
                 .map_err(|problem| match problem {
@@ -330,7 +383,7 @@ impl<'a> Patching<'a> {
                 });
             }
             let slot = *self.slots.get(fed).ok_or(ElementPatch::OutsideUniverses)?;
-            slots.push((slot, *color));
+            slots.push((slot, output));
             after.push(dimming);
         }
         let after = after.iter().any(Option::is_some).then(|| {
@@ -351,9 +404,10 @@ impl<'a> Patching<'a> {
             .min_by_key(|slot| slot.offset)
             .ok_or(ElementPatch::Colors)?;
         let width = slots.len();
-        let mut order = [0_u8; 4];
-        let mut taken = [false; 4];
-        for (slot, color) in &slots {
+        // Each channel's breakdown output, in channel order.
+        let mut outputs = [0_usize; MAX_CHANNEL_COLORS];
+        let mut taken = [false; MAX_CHANNEL_COLORS];
+        for (slot, output) in &slots {
             let position = slot.offset.wrapping_sub(first.offset) as usize;
             if slot.controller != first.controller
                 || slot.output != first.output
@@ -363,13 +417,30 @@ impl<'a> Patching<'a> {
                 return Err(ElementPatch::Scattered);
             }
             taken[position] = true;
-            order[position] = *color;
+            outputs[position] = *output;
         }
-        let encoding = match width {
-            3 => PixelEncoding::Rgb {
-                order: [order[0], order[1], order[2]],
+        let outputs = &outputs[..width];
+        let encoding = match &lights {
+            Lights::Own(colors) => PixelEncoding::Channels {
+                colors: ChannelColors::new(
+                    &outputs
+                        .iter()
+                        .map(|&output| colors[output])
+                        .collect::<Vec<_>>(),
+                )
+                .ok_or(ElementPatch::Colors)?,
             },
-            _ => PixelEncoding::Rgbw { order },
+            Lights::Mixed(order) => match outputs
+                .iter()
+                .map(|&output| order[output])
+                .collect::<Vec<_>>()[..]
+            {
+                [a, b, c] => PixelEncoding::Rgb { order: [a, b, c] },
+                [a, b, c, d] => PixelEncoding::Rgbw {
+                    order: [a, b, c, d],
+                },
+                _ => return Err(ElementPatch::Colors),
+            },
         };
         Ok(PatchedPixel {
             slot: first,

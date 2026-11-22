@@ -125,7 +125,7 @@ const CROP_TOLERANCE_SECONDS: f64 = 1e-4;
 
 /// Automation curves hold normalized values that parameters map onto their
 /// ranges.
-pub fn automation_curve_is_normalized(curve: &Curve) -> bool {
+pub fn curve_is_normalized(curve: &Curve) -> bool {
     curve
         .points
         .iter()

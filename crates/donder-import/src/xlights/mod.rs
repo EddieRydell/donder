@@ -490,6 +490,8 @@ pub(crate) fn read(folder: &Utf8Path, options: &ImportOptions) -> Result<Profile
         );
     }
     Ok(Profile {
+        curves: Vec::new(),
+        gradients: Vec::new(),
         fixtures,
         controllers: controllers(&networks),
         groups: groups.into_iter().chain(part_groups).collect(),

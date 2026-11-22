@@ -16,7 +16,7 @@ use crate::operator::{param_matches, validate_composition_graph};
 use crate::project::DonderProject;
 use crate::sequence::{
     AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
-    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
+    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, curve_is_normalized,
 };
 use donder_language::compiler::ParamDecl;
 use donder_language::{
@@ -84,6 +84,8 @@ pub(crate) fn project_problems(
     for (id, definition) in project.reusable::<crate::CurveDefinition>() {
         if let Err(error) = definition.curve.validate() {
             problems.push(at(*id)(ValidationProblem::Curve(error)));
+        } else if !curve_is_normalized(&definition.curve) {
+            problems.push(at(*id)(ValidationProblem::CurveNotNormalized));
         }
     }
     for (id, definition) in project.reusable::<crate::GradientDefinition>() {
@@ -646,7 +648,7 @@ fn validate_sequence_since(
             clip.curve
                 .validate()
                 .map_err(AutomationProblem::InvalidCurve)?;
-            if !automation_curve_is_normalized(&clip.curve) {
+            if !curve_is_normalized(&clip.curve) {
                 return Err(AutomationProblem::CurveOutOfRange);
             }
             let mut clip_targets = HashSet::new();
