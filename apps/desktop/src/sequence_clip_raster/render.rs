@@ -13,8 +13,7 @@ pub(super) enum RasterRenderFailure {
     Error(String),
 }
 
-/// One column per sampled frame, at most `max_columns` and at least
-/// `min_frame_stride` frames apart; one row per sampled pixel, at most
+/// One column per frame of the clip; one row per sampled pixel, at most
 /// `max_rows`. The resolution depends only on the clip, never on its size on
 /// screen.
 pub(super) fn render_clip_raster(
@@ -26,31 +25,24 @@ pub(super) fn render_clip_raster(
     let clip = sequence
         .clip(clip_id)
         .ok_or_else(|| RasterRenderFailure::Error("the clip is not prepared".into()))?;
-    let duration_seconds = donder_runtime_types::sample_duration_seconds_f32(clip.duration());
-    let duration_frames = duration_seconds * clip.frame_rate() as f32;
-    if !duration_frames.is_finite() || duration_frames <= 0.0 {
-        return Err(RasterRenderFailure::Error(
-            "clip duration frames must be positive and finite".into(),
-        ));
-    }
     let target_pixel_count = clip.target_pixel_count();
     if target_pixel_count == 0 {
         return Err(RasterRenderFailure::Error(
             "clip target has no pixels".into(),
         ));
     }
-    let min_frame_stride = settings.min_frame_stride.max(1) as f32;
-    let columns = ((duration_frames / min_frame_stride).ceil().max(1.0) as u32)
-        .clamp(1, settings.max_columns.max(1)) as usize;
+    let frames = clip
+        .raster_frames()
+        .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
+    let columns = frames.len();
     let rows = target_pixel_count.min(settings.max_rows.max(1) as usize);
     let mut raster = clip.raster(rows);
     let mut pixels_rgba = vec![0u8; rows * columns * 4];
-    for column in 0..columns {
+    for (column, frame) in frames.enumerate() {
         if !should_continue() {
             return Err(RasterRenderFailure::Cancelled);
         }
-        let time = clip
-            .raster_column_time(column, columns)
+        let time = donder_runtime_types::sample_time_from_frame(frame, clip.frame_rate())
             .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
         for (row, color) in raster.evaluate(time).iter().enumerate() {
             let offset = (row * columns + column) * 4;

@@ -110,18 +110,12 @@ pub enum SequenceFollowMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ClipRasterSettings {
-    pub max_columns: u32,
     pub max_rows: u32,
-    pub min_frame_stride: u32,
 }
 
 impl Default for ClipRasterSettings {
     fn default() -> Self {
-        Self {
-            max_columns: 1024,
-            max_rows: 50,
-            min_frame_stride: 1,
-        }
+        Self { max_rows: 50 }
     }
 }
 

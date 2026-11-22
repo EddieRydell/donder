@@ -69,15 +69,9 @@ export function SettingsDialog() {
         <Select name="Spectrogram FFT size" value={String(draft.sequenceSpectrogramFftSize)} options={FFT_OPTIONS} onChange={(size) => void update({ ...draft, sequenceSpectrogramFftSize: Number(size) })} />
       </Field>
     </Section>
-    <Section title="Raster" defaultOpen={false}>
-      <Field label="Columns" tip="Maximum clip raster columns">
-        <NumberField name="Max columns" integer min={16} max={1024} step={1} value={raster.maxColumns} onCommit={(maxColumns) => void update({ ...draft, clipRaster: { ...raster, maxColumns } })} />
-      </Field>
+    <Section title="Raster">
       <Field label="Rows" tip="Maximum clip raster rows">
         <NumberField name="Max rows" integer min={1} max={200} step={1} value={raster.maxRows} onCommit={(maxRows) => void update({ ...draft, clipRaster: { ...raster, maxRows } })} />
-      </Field>
-      <Field label="Frame stride" tip="Minimum frames between raster samples">
-        <NumberField name="Min frame stride" integer min={1} max={16} step={1} value={raster.minFrameStride} onCommit={(minFrameStride) => void update({ ...draft, clipRaster: { ...raster, minFrameStride } })} />
       </Field>
     </Section>
     <KeybindingsSettings keybindings={draft.keybindings} onChange={(keybindings) => void update({ ...draft, keybindings })} />

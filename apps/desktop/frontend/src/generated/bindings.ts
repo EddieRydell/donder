@@ -223,9 +223,7 @@ export type AudioTransportState = "unloaded" | "playing" | "paused" | "stopped" 
 export type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
 
 export type ClipRasterSettings = {
-	maxColumns: number,
 	maxRows: number,
-	minFrameStride: number,
 };
 
 /**

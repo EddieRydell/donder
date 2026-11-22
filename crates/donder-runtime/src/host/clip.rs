@@ -26,15 +26,8 @@ impl<'a> ShowClip<'a> {
         &self.show.s.clips[self.index]
     }
 
-    /// Sample the center frame of a raster column inside the authored clip.
-    pub fn raster_column_time(
-        &self,
-        column: usize,
-        columns: usize,
-    ) -> Result<SampleTime, SampleTimeError> {
-        if columns == 0 || column >= columns {
-            return Err(SampleTimeError::OutOfRange);
-        }
+    /// The show frames inside the authored clip, one raster column each.
+    pub fn raster_frames(&self) -> Result<core::ops::Range<u32>, SampleTimeError> {
         let rate = self.frame_rate();
         let micros = donder_runtime_types::MICROS_PER_SECOND;
         // The first frame starting at or after `ticks`.
@@ -46,14 +39,9 @@ impl<'a> ShowClip<'a> {
         let ticks = self.start_time().as_ticks();
         let start_frame = frame_from(ticks)?;
         let end_frame = frame_from(ticks.saturating_add(self.duration().as_ticks()))?;
-        let active_frames = end_frame.saturating_sub(start_frame).max(1);
-        // floor((column + 0.5) * active_frames / columns), exactly.
-        let (offset, _) =
-            donder_runtime_types::mul_div(2 * column as u32 + 1, active_frames, 2 * columns as u32)
-                .ok_or(SampleTimeError::OutOfRange)?;
-        let frame =
-            (start_frame + offset.min(active_frames - 1)).min(self.frame_count().saturating_sub(1));
-        donder_runtime_types::sample_time_from_frame(frame, self.frame_rate())
+        let last_frame = self.frame_count().saturating_sub(1);
+        let start_frame = start_frame.min(last_frame);
+        Ok(start_frame..end_frame.min(last_frame + 1).max(start_frame + 1))
     }
 
     pub fn start_time(&self) -> SampleTime {

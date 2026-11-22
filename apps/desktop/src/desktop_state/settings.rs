@@ -28,9 +28,7 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
         .clamp(0.5, 100.0);
     settings.sequence_spectrogram_fft_size =
         nearest_power_of_two(settings.sequence_spectrogram_fft_size.clamp(512, 16384));
-    settings.clip_raster.max_columns = settings.clip_raster.max_columns.clamp(16, 1024);
     settings.clip_raster.max_rows = settings.clip_raster.max_rows.clamp(1, 200);
-    settings.clip_raster.min_frame_stride = settings.clip_raster.min_frame_stride.clamp(1, 16);
     let clip_match = &mut settings.sequence_clip_match;
     for time in [
         &mut clip_match.start,
