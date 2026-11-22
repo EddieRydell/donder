@@ -254,7 +254,7 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
     );
     for path in [
         donder_project_io::PROJECT_ROOT_FILE,
-        "effects/scan-sweep.donder",
+        "effects/standard.donder",
         "operators/gain.donder",
         sequence.as_str(),
     ] {

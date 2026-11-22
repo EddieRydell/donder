@@ -26,8 +26,8 @@ const DONDER_OUTPUT_CHANNELS = 600;
 
 function defaultConfig(type: ControllerConfig["type"], device: string): ControllerConfig {
   switch (type) {
-    case "e131": return { type, senderName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null, universes: { start: E131_UNIVERSES.min, count: 1, channels: DEFAULT_UNIVERSE_CHANNELS } };
-    case "artNet": return { type, bindAddress: "0.0.0.0:6454", destination: "255.255.255.255:6454", broadcast: true, universes: { start: ARTNET_PORT_ADDRESSES.min, count: 1, channels: DEFAULT_UNIVERSE_CHANNELS } };
+    case "e131": return { type, senderName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null, universes: { start: E131_UNIVERSES.min, count: 1, channels: DEFAULT_UNIVERSE_CHANNELS }, fseqChannel: null };
+    case "artNet": return { type, bindAddress: "0.0.0.0:6454", destination: "255.255.255.255:6454", broadcast: true, universes: { start: ARTNET_PORT_ADDRESSES.min, count: 1, channels: DEFAULT_UNIVERSE_CHANNELS }, fseqChannel: null };
     case "donder": return { type, device };
   }
 }
@@ -67,6 +67,16 @@ function UniverseFields({ universes, addresses, onChange }: { universes: Univers
     <ConfigField label="Channels" tip="Channels per universe; 510 carries 170 RGB pixels" field={{ type: "universeChannels" }}>{(invalid) =>
       <NumberField name="Channels per universe" value={universes.channels} step={1} min={1} max={MAX_UNIVERSE_CHANNELS} defaultValue={DEFAULT_UNIVERSE_CHANNELS} integer invalid={invalid} onCommit={(channels) => { onChange({ ...universes, channels }); }} />}
     </ConfigField>
+  </>;
+}
+
+/** Where FSEQ files place the controller's first channel, as the player's channel outputs number it; off leaves it out of FSEQ files. */
+function FseqFields({ channel, onChange }: { channel: number | null; onChange: (channel: number | null) => void }) {
+  return <>
+    <Field label="In FSEQ" tip="Include this controller in FSEQ files"><Toggle name="In FSEQ" checked={channel !== null} onChange={(included) => { onChange(included ? 1 : null); }} /></Field>
+    {channel !== null && <ConfigField label="FSEQ channel" tip="Its first channel in FSEQ files, as FPP's channel outputs number it" field={{ type: "fseqChannel" }}>{(invalid) =>
+      <NumberField name="FSEQ channel" value={channel} step={1} min={1} defaultValue={1} integer invalid={invalid} onCommit={onChange} />}
+    </ConfigField>}
   </>;
 }
 
@@ -116,6 +126,7 @@ export function ControllerForm({ controller, edit, onApplied }: {
       {config.type === "e131" && <>
         <ConfigField label="Destination" tip="Empty for multicast" field={{ type: "destination" }}>{(invalid) => <TextField name="Destination" placeholder="Multicast" value={config.destination ?? ""} invalid={invalid} onCommit={(destination) => { setConfig({ ...config, destination: destination.trim() === "" ? null : destination }); }} />}</ConfigField>
         <UniverseFields universes={config.universes} addresses={E131_UNIVERSES} onChange={(universes) => { setConfig({ ...config, universes }); }} />
+        <FseqFields channel={config.fseqChannel} onChange={(fseqChannel) => { setConfig({ ...config, fseqChannel }); }} />
         <Section title="Advanced" defaultOpen={false}>
           <ConfigField label="Interface" tip="The local address to send from; 0.0.0.0 picks one" field={{ type: "interface" }}>{(invalid) => <TextField name="Local interface" value={config.bindAddress} invalid={invalid} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} />}</ConfigField>
           <ConfigField label="Sender" tip="The source name receivers show" field={{ type: "senderName" }}>{(invalid) => <TextField name="Sender name" value={config.senderName} invalid={invalid} onCommit={(senderName) => { setConfig({ ...config, senderName }); }} />}</ConfigField>
@@ -126,6 +137,7 @@ export function ControllerForm({ controller, edit, onApplied }: {
         <ConfigField label="Destination" field={{ type: "destination" }}>{(invalid) => <TextField name="Destination socket" value={config.destination} invalid={invalid} onCommit={(destination) => { setConfig({ ...config, destination }); }} />}</ConfigField>
         <Field label="Broadcast"><Toggle name="Broadcast" checked={config.broadcast} onChange={(broadcast) => { setConfig({ ...config, broadcast }); }} /></Field>
         <UniverseFields universes={config.universes} addresses={ARTNET_PORT_ADDRESSES} onChange={(universes) => { setConfig({ ...config, universes }); }} />
+        <FseqFields channel={config.fseqChannel} onChange={(fseqChannel) => { setConfig({ ...config, fseqChannel }); }} />
         <Section title="Advanced" defaultOpen={false}>
           <ConfigField label="Interface" tip="The local address and port to send from" field={{ type: "interface" }}>{(invalid) => <TextField name="Local interface" value={config.bindAddress} invalid={invalid} onCommit={(bindAddress) => { setConfig({ ...config, bindAddress }); }} />}</ConfigField>
         </Section>

@@ -23,8 +23,8 @@ pub struct ParamDecl {
     pub option_fields: Vec<Vec<ParamDecl>>,
 }
 
-/// Inclusive declared range. A curve param's range bounds its point values,
-/// and an `array<curve>` param's range bounds every item's point values.
+/// Inclusive declared range. A curve is stored normalized, its point values in
+/// 0..1, and binding maps them onto a curve or `array<curve>` param's range.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamRange {
     Int { min: i32, max: i32 },
@@ -59,13 +59,47 @@ impl ParamRange {
             (Self::Float { .. }, Value::Curve(curve)) => curve
                 .points
                 .iter()
-                .all(|point| self.contains_float(point.value)),
+                .all(|point| (0.0..=1.0).contains(&point.value)),
             (Self::Float { .. }, Value::Array(items)) => {
                 items.iter().all(|item| self.contains(item))
             }
             _ => false,
         }
     }
+}
+
+/// A stored curve's normalized points mapped onto a curve param's range,
+/// and the same for every item of an `array<curve>` param.
+pub(crate) fn map_curves(param: &ParamDecl, value: Value) -> Value {
+    let Some(ParamRange::Float { min, max }) = param.range else {
+        return value;
+    };
+    if (min, max) == (0.0, 1.0) {
+        return value;
+    }
+    fn map(value: Value, min: f32, max: f32) -> Value {
+        match value {
+            Value::Curve(curve) => Value::Curve(std::sync::Arc::new(donder_runtime_types::Curve {
+                points: curve
+                    .points
+                    .iter()
+                    .map(|point| donder_runtime_types::CurvePoint {
+                        position: point.position,
+                        value: min + point.value * (max - min),
+                    })
+                    .collect(),
+            })),
+            Value::Array(items) => Value::Array(
+                items
+                    .iter()
+                    .cloned()
+                    .map(|item| map(item, min, max))
+                    .collect(),
+            ),
+            value => value,
+        }
+    }
+    map(value, min, max)
 }
 
 impl ParamDecl {

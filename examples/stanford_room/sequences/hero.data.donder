@@ -1,7 +1,6 @@
 import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
-import effects_2 from <effects/vixen.donder>;
 
 Sequence hero {
   description: none,

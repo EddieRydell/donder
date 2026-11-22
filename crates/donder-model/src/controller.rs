@@ -1,4 +1,5 @@
 use std::net::{IpAddr, SocketAddr};
+use std::num::NonZeroU32;
 use std::ops::Range;
 
 pub(crate) use crate::identity::ControllerId;
@@ -68,6 +69,9 @@ pub struct E131Config {
     pub priority: u8,
     pub mode: E131Mode,
     pub universes: Universes,
+    /// Where FSEQ files place its first channel, from 1 as FPP's channel
+    /// outputs number them; none leaves it out of FSEQ files.
+    pub fseq_channel: Option<NonZeroU32>,
     /// Its physical outputs, in the order its channels fill them.
     pub ports: Vec<ControllerPort>,
 }
@@ -84,6 +88,9 @@ pub struct ArtNetConfig {
     pub destination: SocketAddr,
     pub mode: ArtNetMode,
     pub universes: Universes,
+    /// Where FSEQ files place its first channel, from 1 as FPP's channel
+    /// outputs number them; none leaves it out of FSEQ files.
+    pub fseq_channel: Option<NonZeroU32>,
     /// Its physical outputs, in the order its channels fill them.
     pub ports: Vec<ControllerPort>,
 }
@@ -213,6 +220,16 @@ impl Controller {
         match &self.protocol {
             ControllerProtocol::E131(config) => Some(&config.universes),
             ControllerProtocol::ArtNet(config) => Some(&config.universes),
+            ControllerProtocol::Donder(_) => None,
+        }
+    }
+
+    /// Where FSEQ files place an E1.31 or Art-Net controller's first
+    /// channel, from 1.
+    pub fn fseq_channel(&self) -> Option<NonZeroU32> {
+        match &self.protocol {
+            ControllerProtocol::E131(config) => config.fseq_channel,
+            ControllerProtocol::ArtNet(config) => config.fseq_channel,
             ControllerProtocol::Donder(_) => None,
         }
     }

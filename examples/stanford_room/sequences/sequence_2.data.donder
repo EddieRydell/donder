@@ -1,6 +1,5 @@
 import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
-import effects_2 from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
 
 Sequence sequence_2 {
@@ -193,7 +192,7 @@ Sequence sequence_2 {
       duration: 3.447484773s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.253, #ff0000)] },
@@ -213,7 +212,7 @@ Sequence sequence_2 {
       duration: 3.378744768s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.253, #ff3e00)] },
@@ -230,7 +229,7 @@ Sequence sequence_2 {
       duration: 1.703797365s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.253, #84ff00)] },
@@ -250,7 +249,7 @@ Sequence sequence_2 {
       duration: 1.703797365s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.253, #ff0089)] },
@@ -270,7 +269,7 @@ Sequence sequence_2 {
       duration: 1.703797365s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.253, #ff3600)] },
@@ -290,7 +289,7 @@ Sequence sequence_2 {
       duration: 1.703797365s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.253, #faff00)] },
@@ -310,7 +309,7 @@ Sequence sequence_2 {
       duration: 3.462239759s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.145, #00dfff)] },
@@ -331,7 +330,7 @@ Sequence sequence_2 {
       duration: 3.443223029s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.145, #5600ff)] },
@@ -352,7 +351,7 @@ Sequence sequence_2 {
       duration: 6.844611264s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenPlasma,
+      effect: effects.Plasma,
       params: {
         colors: [
           Gradient {
@@ -706,9 +705,9 @@ Sequence sequence_2 {
       duration: 9.374734524s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenButterfly,
+      effect: effects.Butterfly,
       params: {
-        color_gradient: Gradient { space: Oklab, stops: [(0.0, #9a6533), (0.39, #000000)] },
+        gradient: Gradient { space: Oklab, stops: [(0.0, #9a6533), (0.39, #000000)] },
         butterfly_type: Type5,
         color_scheme: Gradient,
       },

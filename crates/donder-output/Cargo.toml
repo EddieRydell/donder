@@ -12,6 +12,7 @@ donder-model.workspace = true
 donder-runtime.workspace = true
 donder-runtime-types.workspace = true
 indexmap.workspace = true
+power-guard.workspace = true
 sacn.workspace = true
 zstd.workspace = true
 

@@ -1,5 +1,5 @@
 import elements from <layouts/outputs.data.donder>;
-import effects from <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>, <effects/scan-sweep.donder>, <effects/shimmer-field.donder>, <effects/sparkle-comet.donder>, <effects/standard.donder>;
+import effects from <effects/standard.donder>;
 import operators from <operators/gain.donder>, <operators/standard.donder>;
 import curves from <curves/basic_curves.data.donder>;
 import gradients from <gradients/basic_gradients.data.donder>;

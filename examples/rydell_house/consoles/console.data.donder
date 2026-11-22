@@ -1,5 +1,5 @@
 import setups from <setups/setup.data.donder>;
-import effects from <effects/radial-wipe.donder>;
+import effects from <effects/standard.donder>;
 import layouts from <layouts/layout.data.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
 import devices from <input_devices/mpk_mini.data.donder>;
@@ -20,9 +20,9 @@ Console console {
       params: {
         gradient: gradients.white_blue_blue,
         shape: Circle,
-        pulse_percent: 50.0,
-        center_x: 99.95,
-        center_y: 100.0,
+        pulse_length: 0.5,
+        center_x: 0.9995,
+        center_y: 1.0,
         passes: 1,
         pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
       },

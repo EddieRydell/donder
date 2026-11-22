@@ -7,21 +7,15 @@ use donder_runtime_types::{Identifier, Value};
 use indexmap::IndexMap;
 use std::sync::Arc;
 
-const SCAN_SWEEP_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/scan-sweep.donder");
-const IMPACT_BURST_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/impact-burst.donder");
-const SPARKLE_COMET_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/sparkle-comet.donder");
-const SHIMMER_FIELD_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/shimmer-field.donder");
+const STANDARD_SOURCE: &str = include_str!("../../../../examples/starter/effects/standard.donder");
 
+/// The most used library effects of a converted show.
 pub fn cases() -> [(&'static str, &'static str, IndexMap<Identifier, Value>); 4] {
     [
-        ("ScanSweep", SCAN_SWEEP_SOURCE, scan_sweep_params()),
-        ("ImpactBurst", IMPACT_BURST_SOURCE, impact_burst_params()),
-        ("SparkleComet", SPARKLE_COMET_SOURCE, sparkle_comet_params()),
-        ("ShimmerField", SHIMMER_FIELD_SOURCE, shimmer_field_params()),
+        ("Pulse", STANDARD_SOURCE, pulse_params()),
+        ("Chase", STANDARD_SOURCE, chase_params()),
+        ("Twinkle", STANDARD_SOURCE, twinkle_params()),
+        ("Butterfly", STANDARD_SOURCE, butterfly_params()),
     ]
 }
 
@@ -88,75 +82,34 @@ pub fn uniform_resources() -> Invocation {
     )
 }
 
-fn scan_sweep_params() -> IndexMap<Identifier, Value> {
+fn pulse_params() -> IndexMap<Identifier, Value> {
     params([
         ("gradient", Value::Gradient(gradient())),
-        ("intensity", Value::Curve(curve())),
-        ("direction", enum_value("CenterOut")),
-        ("color_mode", enum_value("ScanHead")),
-        ("repeats", Value::Float(3.0)),
-        ("width", Value::Float(0.18)),
-        ("edge_width", Value::Float(0.08)),
-        ("background_level", Value::Float(0.05)),
-        ("section_width_pixels", Value::Float(6.0)),
+        ("pulse_shape", Value::Curve(curve())),
     ])
 }
 
-fn impact_burst_params() -> IndexMap<Identifier, Value> {
+fn chase_params() -> IndexMap<Identifier, Value> {
     params([
         ("gradient", Value::Gradient(gradient())),
-        ("intensity", Value::Curve(curve())),
-        ("direction", enum_value("Outward")),
-        ("color_mode", enum_value("FromEdge")),
-        ("center_position", Value::Float(0.5)),
-        ("start_radius", Value::Float(0.0)),
-        ("end_radius", Value::Float(0.75)),
-        ("edge_width", Value::Float(0.2)),
-        ("glow_width", Value::Float(0.25)),
-        ("glow_level", Value::Float(0.35)),
-        ("mirror", Value::Bool(false)),
+        ("section_width_pixels", Value::Int(6)),
+        ("chase_position", Value::Curve(ramp())),
+        ("pulse_shape", Value::Curve(curve())),
     ])
 }
 
-fn sparkle_comet_params() -> IndexMap<Identifier, Value> {
+fn twinkle_params() -> IndexMap<Identifier, Value> {
     params([
         ("gradient", Value::Gradient(gradient())),
-        ("position", Value::Curve(curve())),
-        ("intensity", Value::Curve(curve())),
-        ("color_mode", enum_value("RainbowHue")),
-        (
-            "head_color",
-            Value::Color(Color::from_bytes([255, 255, 255])),
-        ),
-        ("reverse", Value::Bool(false)),
-        ("wrap", Value::Bool(true)),
-        ("tail_width", Value::Float(0.22)),
-        ("head_width", Value::Float(0.04)),
-        ("sparkle_density", Value::Float(0.45)),
-        ("sparkle_speed", Value::Float(18.0)),
-        ("sparkle_gain", Value::Float(0.8)),
-        ("seed", Value::Float(13.0)),
+        ("average_coverage", Value::Float(0.35)),
+        ("random_seed", Value::Float(17.0)),
     ])
 }
 
-fn shimmer_field_params() -> IndexMap<Identifier, Value> {
+fn butterfly_params() -> IndexMap<Identifier, Value> {
     params([
-        ("base", Value::Color(Color::from_bytes([0, 0, 0]))),
-        ("palette", Value::Gradient(gradient())),
-        ("color_mode", enum_value("FromPalette")),
-        (
-            "sparkle_color",
-            Value::Color(Color::from_bytes([255, 255, 255])),
-        ),
-        ("density", Value::Float(0.35)),
-        ("shimmer_level", Value::Float(0.4)),
-        ("sparkle_level", Value::Float(1.0)),
-        ("wave_speed", Value::Float(5.0)),
-        ("wave_scale", Value::Float(21.0)),
-        ("sparkle_speed", Value::Float(10.0)),
-        ("sparkle_hold", Value::Float(0.35)),
-        ("section_width_pixels", Value::Float(5.0)),
-        ("seed", Value::Float(17.0)),
+        ("gradient", Value::Gradient(gradient())),
+        ("butterfly_type", enum_value("Type3")),
     ])
 }
 
@@ -197,6 +150,21 @@ fn curve() -> Arc<Curve> {
             CurvePoint {
                 position: 1.0,
                 value: 0.0,
+            },
+        ],
+    })
+}
+
+fn ramp() -> Arc<Curve> {
+    Arc::new(Curve {
+        points: vec![
+            CurvePoint {
+                position: 0.0,
+                value: 0.0,
+            },
+            CurvePoint {
+                position: 1.0,
+                value: 1.0,
             },
         ],
     })

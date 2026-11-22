@@ -54,7 +54,8 @@ pub enum ParamValue {
 impl ParamValue {
     /// Initial authored values must be valid resources inside the declared
     /// range, unlike the VM's empty storage defaults. Numbers start at zero
-    /// held inside the range, a curve falls across it, and an enum starts at
+    /// held inside the range, a curve falls across it (from 1 to 0, as curves
+    /// are stored normalized), and an enum starts at
     /// its first option. The caller supplies the user-facing initial color.
     pub fn initial_for_param(
         param: &ParamDecl,
@@ -122,11 +123,11 @@ impl ParamValue {
                 points: vec![
                     donder_runtime_types::CurvePoint {
                         position: 0.0,
-                        value: max,
+                        value: 1.0,
                     },
                     donder_runtime_types::CurvePoint {
                         position: 1.0,
-                        value: min,
+                        value: 0.0,
                     },
                 ],
             }))),

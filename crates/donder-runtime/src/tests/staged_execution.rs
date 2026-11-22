@@ -427,15 +427,27 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
             }
         }",
     );
+    // The curve the effect sees: its stored points on the declared -1..2 range.
+    let on_range = |curve: &Curve| Curve {
+        points: curve
+            .points
+            .iter()
+            .map(|point| CurvePoint {
+                position: point.position,
+                value: -1.0 + point.value * 3.0,
+            })
+            .collect(),
+    };
+    // Stored normalized: -0.5 and 2.0 on the declared -1..2 range.
     let curve = Curve {
         points: vec![
             CurvePoint {
                 position: 0.0,
-                value: -0.5,
+                value: 1.0 / 6.0,
             },
             CurvePoint {
                 position: 1.0,
-                value: 2.0,
+                value: 1.0,
             },
         ],
     };
@@ -498,7 +510,7 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
                         let progress = ticks as f32 / 8_000_000.0;
                         let fraction = pixel as f32 / (count - 1).max(1) as f32;
                         let value = crate::sampling::clamp_float(
-                            crate::sampling::sample_curve(shape, progress),
+                            crate::sampling::sample_curve(&on_range(shape), progress),
                             fraction * 3.0 - 1.0,
                             1.0,
                         );

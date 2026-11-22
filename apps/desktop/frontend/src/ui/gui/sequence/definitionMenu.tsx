@@ -16,7 +16,7 @@ export type DefinitionFolder<T> = {
 
 const SCRIPT_EXTENSION = ".donder";
 
-/** `impact-burst` → `Impact Burst`. */
+/** `field-wipe` → `Field Wipe`. */
 function title(segment: string): string {
   return segment
     .split(/[-_\s]+/)

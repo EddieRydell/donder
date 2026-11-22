@@ -3,6 +3,7 @@
 //! object (fixtures, ports) follow from that object's declaration alone, so a
 //! reference resolves without the referenced object being built first.
 use donder_model::ObjectKind;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use crate::address::{DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
@@ -614,6 +615,20 @@ impl DomainResolver<'_> {
         })
     }
 
+    fn fseq_channel(
+        &self,
+        document: &DocumentId,
+        span: TextSpan,
+        channel: Option<u32>,
+    ) -> Result<Option<NonZeroU32>, LoadError> {
+        channel
+            .map(|channel| {
+                NonZeroU32::new(channel)
+                    .ok_or_else(|| self.invalid(document, span, "FSEQ channels count from 1"))
+            })
+            .transpose()
+    }
+
     fn controller(
         &self,
         id: &ControllerId,
@@ -630,6 +645,7 @@ impl DomainResolver<'_> {
                 start_universe,
                 universes,
                 channels,
+                fseq_channel,
                 ports,
             } => ControllerProtocol::E131(E131Config {
                 sender_name: sender_name.clone(),
@@ -646,6 +662,7 @@ impl DomainResolver<'_> {
                     count: *universes,
                     channels: *channels,
                 },
+                fseq_channel: self.fseq_channel(document, span, *fseq_channel)?,
                 ports: controller_ports(ports.iter().map(|port| (&port.name, &port.description))),
             }),
             types::Protocol::ArtNet {
@@ -655,6 +672,7 @@ impl DomainResolver<'_> {
                 start_universe,
                 universes,
                 channels,
+                fseq_channel,
                 ports,
             } => ControllerProtocol::ArtNet(ArtNetConfig {
                 bind_address: bind_address.0,
@@ -665,6 +683,7 @@ impl DomainResolver<'_> {
                     count: *universes,
                     channels: *channels,
                 },
+                fseq_channel: self.fseq_channel(document, span, *fseq_channel)?,
                 ports: controller_ports(ports.iter().map(|port| (&port.name, &port.description))),
             }),
             types::Protocol::Donder { device, ports } => ControllerProtocol::Donder(DonderConfig {

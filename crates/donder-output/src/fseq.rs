@@ -1,12 +1,14 @@
 //! FSEQ v2 sequence files, the format Falcon Player (FPP) schedules and plays.
 //!
-//! Frames are rendered at whole-millisecond steps of show time, packed as the
-//! prepared outputs' bytes back to back, and compressed with zstd in blocks.
+//! Frames are rendered at whole-millisecond steps of show time, each prepared
+//! output's bytes at its controller's FSEQ channel and unused channels zero,
+//! and compressed with zstd in blocks.
 
 use core::fmt;
-use core::num::NonZeroU8;
+use core::num::{NonZeroU8, NonZeroU32};
 
-use donder_runtime::PreparedShow;
+use donder_model::{Controller, DonderProject, Setup};
+use donder_runtime::{Output, PreparedShow};
 use donder_runtime_types::SampleTime;
 
 const HEADER_BYTES: usize = 32;
@@ -52,6 +54,10 @@ impl FseqStep {
 
 #[derive(Debug)]
 pub enum FseqError {
+    /// The output at this index has no FSEQ channel.
+    Unplaced(usize),
+    /// The outputs at these indices take some of the same channels.
+    Overlap(usize, usize),
     TooManyChannels,
     TooManyFrames,
     HeaderTooLong,
@@ -61,6 +67,10 @@ pub enum FseqError {
 impl fmt::Display for FseqError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unplaced(_) => formatter.write_str("An output has no FSEQ channel."),
+            Self::Overlap(_, _) => {
+                formatter.write_str("Two outputs take some of the same FSEQ channels.")
+            }
             Self::TooManyChannels => {
                 formatter.write_str("The selected outputs have too many channels for FSEQ.")
             }
@@ -77,18 +87,39 @@ impl fmt::Display for FseqError {
     }
 }
 
-/// Render every frame of `sequence` into an FSEQ v2 file. `media_file` names
-/// the audio FPP plays with the sequence.
+/// Render every frame of `sequence` into an FSEQ v2 file, each output at its
+/// FSEQ channel from 1. `media_file` names the audio FPP plays with the
+/// sequence. `progress` hears the frames rendered and the total, before the
+/// first and after each block.
 pub fn encode_fseq(
     sequence: PreparedShow,
+    fseq_channel: impl Fn(&Output) -> Option<NonZeroU32>,
     step: FseqStep,
     media_file: Option<&str>,
+    mut progress: impl FnMut(u32, u32),
 ) -> Result<Vec<u8>, FseqError> {
-    let channels: usize = sequence
-        .outputs()
-        .iter()
-        .map(|output| output.width as usize)
-        .sum();
+    // Without it, Windows runs a render that has no foreground window as
+    // background work on efficiency cores, about four times as slowly.
+    let _full_speed = power_guard::PowerGuard::no_throttling();
+    let mut places = Vec::with_capacity(sequence.outputs().len());
+    for (index, output) in sequence.outputs().iter().enumerate() {
+        let start = fseq_channel(output)
+            .ok_or(FseqError::Unplaced(index))?
+            .get()
+            - 1;
+        let end = start
+            .checked_add(output.width)
+            .ok_or(FseqError::TooManyChannels)?;
+        places.push((index, start as usize..end as usize));
+    }
+    places.sort_by_key(|(_, range)| range.start);
+    for pair in places.windows(2) {
+        if pair[1].1.start < pair[0].1.end {
+            return Err(FseqError::Overlap(pair[0].0, pair[1].0));
+        }
+    }
+    places.sort_by_key(|(index, _)| *index);
+    let channels = places.iter().map(|(_, range)| range.end).max().unwrap_or(0);
     let channel_count = u32::try_from(channels).map_err(|_| FseqError::TooManyChannels)?;
     let step_micros = u32::from(step.millis()) * MICROS_PER_MILLI;
     let frame_count = sequence.duration().as_ticks().div_ceil(step_micros);
@@ -97,6 +128,7 @@ pub fn encode_fseq(
     let mut playback = sequence.into_playback();
     let mut blocks = Vec::new();
     let mut raw = Vec::with_capacity(frames_per_block as usize * channels);
+    progress(0, frame_count);
     for first in (0..frame_count).step_by(frames_per_block as usize) {
         raw.clear();
         for frame in first..frame_count.min(first + frames_per_block) {
@@ -104,12 +136,15 @@ pub fn encode_fseq(
                 .checked_mul(step_micros)
                 .ok_or(FseqError::TooManyFrames)?;
             let rendered = playback.evaluate(SampleTime::from_ticks(ticks));
-            for output in rendered.outputs() {
-                raw.extend_from_slice(output.bytes);
+            let offset = raw.len();
+            raw.resize(offset + channels, 0);
+            for (output, (_, range)) in rendered.outputs().zip(&places) {
+                raw[offset + range.start..offset + range.end].copy_from_slice(output.bytes);
             }
         }
         let compressed = zstd::bulk::compress(&raw, ZSTD_LEVEL).map_err(FseqError::Compression)?;
         blocks.push((first, compressed));
+        progress(frame_count.min(first + frames_per_block), frame_count);
     }
 
     let mut variables = Vec::new();
@@ -146,6 +181,16 @@ pub fn encode_fseq(
         file.extend_from_slice(block);
     }
     Ok(file)
+}
+
+/// Each prepared output's FSEQ channel from 1: its setup controller's, for
+/// an E1.31 or Art-Net controller's universes.
+pub fn setup_fseq_channel(project: &DonderProject) -> impl Fn(&Output) -> Option<NonZeroU32> + '_ {
+    let setup = project.get::<Setup>(*project.root().setup.id());
+    move |output| {
+        let source = setup?.controllers.get(output.controller_index as usize)?;
+        project.get::<Controller>(*source.id())?.fseq_channel()
+    }
 }
 
 /// A variable header: its length including this prefix, a two-letter code and

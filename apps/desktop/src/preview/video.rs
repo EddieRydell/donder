@@ -6,7 +6,7 @@ use std::io::{Seek, SeekFrom, Write};
 use std::num::NonZeroU32;
 
 use camino::Utf8Path;
-use donder_editor::dto::{PreviewAppearance, VideoExportProgress};
+use donder_editor::dto::{ExportProgress, PreviewAppearance};
 use donder_model::{DonderProject, SequenceId};
 use donder_runtime_types::sample_time_from_frame;
 use fdk_aac::enc::{AudioObjectType, BitRate, ChannelMode, Encoder, EncoderParams, Transport};
@@ -71,7 +71,7 @@ pub(crate) fn export_video(
     appearance: PreviewAppearance,
     frames_per_second: u32,
     output: &mut (impl Write + Seek),
-    mut progress: impl FnMut(VideoExportProgress),
+    mut progress: impl FnMut(ExportProgress),
 ) -> Result<(), String> {
     let video_timescale = NonZeroU32::new(frames_per_second)
         .filter(|fps| fps.get() <= MAX_FRAMES_PER_SECOND)
@@ -109,7 +109,7 @@ pub(crate) fn export_video(
         .map_err(|_| too_long())?;
     let song = song
         .map(|path| {
-            progress(VideoExportProgress::PreparingAudio);
+            progress(ExportProgress::PreparingAudio);
             encode_song(path)
         })
         .transpose()?;
@@ -144,7 +144,7 @@ pub(crate) fn export_video(
     let mut next_audio = 0usize;
     for index in 0..total {
         if index % fps == 0 {
-            progress(VideoExportProgress::Rendering {
+            progress(ExportProgress::Rendering {
                 completed: index,
                 total,
             });
@@ -219,7 +219,7 @@ pub(crate) fn export_video(
             }
         }
     }
-    progress(VideoExportProgress::Saving);
+    progress(ExportProgress::Saving);
     let finalized = muxer.finalize().map_err(mux_error)?;
     for (offset, bytes) in finalized.offset_and_bytes_pairs() {
         file.write_at(offset, bytes)?;

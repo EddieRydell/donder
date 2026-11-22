@@ -28,7 +28,7 @@ fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
             "sequences/layer_test.data.donder",
             "moved/layer_test.data.donder",
         ),
-        ("effects/impact-burst.donder", "moved/impact-burst.donder"),
+        ("effects/standard.donder", "moved/standard.donder"),
         ("operators/gain.donder", "moved/gain.donder"),
     ] {
         session = move_path(&session, source, destination);
@@ -68,7 +68,7 @@ fn moves_directories_with_documents_and_referenced_audio() {
             .source
             .documents
             .keys()
-            .any(|document| document.path() == Utf8Path::new("library/effects/scan-sweep.donder"))
+            .any(|document| document.path() == Utf8Path::new("library/effects/standard.donder"))
     );
     let reloaded = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()

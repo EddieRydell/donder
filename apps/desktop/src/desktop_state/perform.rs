@@ -1057,9 +1057,15 @@ mod tests {
         let universes = text[start..end]
             .lines()
             .filter(|line| {
-                ["start_universe:", "universes:", "channels:", "ports:"]
-                    .iter()
-                    .any(|field| line.trim_start().starts_with(field))
+                [
+                    "start_universe:",
+                    "universes:",
+                    "channels:",
+                    "fseq_channel:",
+                    "ports:",
+                ]
+                .iter()
+                .any(|field| line.trim_start().starts_with(field))
             })
             .map(|line| format!("{line}\n"))
             .collect::<String>();

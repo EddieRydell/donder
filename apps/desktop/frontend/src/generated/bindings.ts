@@ -44,8 +44,8 @@ export const commands = {
 	matchSequenceClips: (request: GuiDocumentRequest, query: SequenceClipMatchRequest) => typedError<SequenceSelection, string>(__TAURI_INVOKE("match_sequence_clips", { request, query: ({...query,params:query.params.map(i=>i)}) })),
 	sequenceExportOptions: (request: GuiDocumentRequest) => typedError<SequenceExportOptions, string>(__TAURI_INVOKE("sequence_export_options", { request })),
 	exportShowFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_show_file", { request, outputs })),
-	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
-	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, framesPerSecond: number, progress: Channel<VideoExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, framesPerSecond, progress })),
+	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number, progress: Channel<ExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis, progress })),
+	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, framesPerSecond: number, progress: Channel<ExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, framesPerSecond, progress })),
 	/**
 	 *  A view that lists Donder controllers opened (`true`) or closed (`false`);
 	 *  discovery runs while one is open.
@@ -576,6 +576,11 @@ export type EditorTab = {
 
 export type EditorViewMode = "text" | "gui";
 
+/**  Progress of a sequence's FSEQ or video export, sent while it runs. */
+export type ExportProgress = 
+/**  Preparing the show for the selected outputs. */
+{ stage: "preparing" } | { stage: "preparingAudio" } | { stage: "rendering"; completed: number; total: number } | { stage: "saving" };
+
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
 
 export type FixtureGuiDocument = {
@@ -707,7 +712,9 @@ export type GuiField = { type: "name" } | { type: "description" } | { type: "col
 /**  The control an event reads, or what a control reads. */
 { type: "input" } | { type: "copies" } | { type: "length" } | { type: "layout" } | { type: "fixture" } | { type: "pixels" } | { type: "controller" } | 
 /**  A route's controller port, or the port an input device reads. */
-{ type: "port" } | { type: "firstChannel" } | { type: "colorOrder" } | { type: "gamma" } | { type: "brightness" } | { type: "destination" } | { type: "interface" } | { type: "senderName" } | { type: "priority" } | { type: "universeStart" } | { type: "universeCount" } | { type: "universeChannels" } | { type: "device" } | 
+{ type: "port" } | { type: "firstChannel" } | { type: "colorOrder" } | { type: "gamma" } | { type: "brightness" } | { type: "destination" } | { type: "interface" } | { type: "senderName" } | { type: "priority" } | { type: "universeStart" } | { type: "universeCount" } | { type: "universeChannels" } | 
+/**  Where FSEQ files place a controller's first channel. */
+{ type: "fseqChannel" } | { type: "device" } | 
 /**  A controller port's channels. */
 { type: "channels" } | 
 /**  A layout item's position, rotation and scale. */
@@ -1569,6 +1576,8 @@ export type SequenceExportPort = {
 	index: number,
 	label: string,
 	channels: number,
+	/**  Where FSEQ files place its first channel, from 1; none leaves it out. */
+	fseqChannel: number | null,
 };
 
 /**  How the sequence view tracks the playhead during playback. */
@@ -1779,7 +1788,11 @@ export type SetupController = {
 	ports: SetupControllerPort[],
 };
 
-export type SetupControllerConfig = { type: "e131"; senderName: string; bindAddress: string; priority: number; destination: string | null; universes: GuiUniverses } | { type: "artNet"; bindAddress: string; destination: string; broadcast: boolean; universes: GuiUniverses } | { type: "donder"; device: string };
+export type SetupControllerConfig = { type: "e131"; senderName: string; bindAddress: string; priority: number; destination: string | null; universes: GuiUniverses; 
+/**  From 1; none leaves the controller out of FSEQ files. */
+fseqChannel: number | null } | { type: "artNet"; bindAddress: string; destination: string; broadcast: boolean; universes: GuiUniverses; 
+/**  From 1; none leaves the controller out of FSEQ files. */
+fseqChannel: number | null } | { type: "donder"; device: string };
 
 export type SetupControllerPort = {
 	id: number,
@@ -1905,9 +1918,6 @@ export type TransitionRequest = {
 };
 
 export type TransitionResult = { type: "applied"; snapshot: AppSnapshot; closeApplication: boolean } | { type: "needsDecision"; snapshot: AppSnapshot; dirtyPaths: string[] } | { type: "cancelled"; snapshot: AppSnapshot };
-
-/**  Progress of a sequence video export, sent while it runs. */
-export type VideoExportProgress = { stage: "preparingAudio" } | { stage: "rendering"; completed: number; total: number } | { stage: "saving" };
 
 /**  One piece of view state the workbench or an editor keeps between sessions. */
 export type ViewStateUpdate = { type: "workspaceLayout"; state: WorkspaceLayoutState } | { type: "workspaceExplorer"; state: WorkspaceExplorerState } | { type: "editor"; state: PersistedEditorViewStateUpdate } | { type: "sequenceViewport"; state: PersistedSequenceViewportStateUpdate } | { type: "graph"; state: PersistedGraphViewStateUpdate } | { type: "spatial"; state: PersistedSpatialViewStateUpdate };

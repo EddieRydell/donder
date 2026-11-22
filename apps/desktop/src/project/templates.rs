@@ -17,8 +17,7 @@ pub(crate) fn new_project_files(
         .to_hex();
     let project = project_name_from_text(project_name);
     let root = format!(
-        r#"import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>;
-import vixen from <effects/vixen.donder>;
+        r#"import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 
 Project {project} {{
@@ -70,22 +69,8 @@ Project {project} {{
             text: include_str!("../../../../examples/starter/effects/standard.donder").to_string(),
         },
         ProjectBoilerplateFile {
-            path: "effects/vixen.donder",
-            text: include_str!("../../../../examples/starter/effects/vixen.donder").to_string(),
-        },
-        ProjectBoilerplateFile {
             path: "operators/standard.donder",
             text: include_str!("../../../../examples/starter/operators/standard.donder")
-                .to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "effects/impact-burst.donder",
-            text: include_str!("../../../../examples/starter/effects/impact-burst.donder")
-                .to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "effects/mark-impact-burst.donder",
-            text: include_str!("../../../../examples/starter/effects/mark-impact-burst.donder")
                 .to_string(),
         },
     ])

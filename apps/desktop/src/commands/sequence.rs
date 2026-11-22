@@ -31,12 +31,24 @@ pub(crate) async fn export_fseq_file(
     request: GuiDocumentRequest,
     outputs: Vec<u32>,
     step_millis: u8,
+    progress: tauri::ipc::Channel<donder_editor::dto::ExportProgress>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = state.prepare_fseq_export(&request, &outputs, step_millis)?;
-        save_export_file("Export FSEQ sequence", "FSEQ sequence", "fseq", &bytes)
+        // Rendering takes a while, so the destination is chosen before it starts.
+        let Some(path) = choose_export_path("Export FSEQ sequence", "FSEQ sequence", "fseq")?
+        else {
+            return Ok(None);
+        };
+        // A closed dialog must not stop the export.
+        let send = |stage| {
+            let _ = progress.send(stage);
+        };
+        let bytes = state.prepare_fseq_export(&request, &outputs, step_millis, send)?;
+        send(donder_editor::dto::ExportProgress::Saving);
+        write_export_file(&path, &bytes)?;
+        Ok(Some(path.to_string()))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -48,7 +60,7 @@ pub(crate) async fn export_video_file(
     request: GuiDocumentRequest,
     appearance: donder_editor::dto::PreviewAppearance,
     frames_per_second: u32,
-    progress: tauri::ipc::Channel<donder_editor::dto::VideoExportProgress>,
+    progress: tauri::ipc::Channel<donder_editor::dto::ExportProgress>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
     let state = state.inner().clone();

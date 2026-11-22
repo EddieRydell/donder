@@ -19,22 +19,22 @@ fn sources() -> donder_project_io::SourceOverrides {
         .unwrap();
     *project = project
         .replace("\r\n", "\n")
-        .replace(&format!("<{EFFECT}>, "), "");
+        .replace(&format!("import effects from <{EFFECT}>;\n"), "");
     sources
 }
 
-const EFFECT: &str = "effects/impact-burst.donder";
+const EFFECT: &str = "effects/standard.donder";
 const EXTRA: &str = "effects/import-test.donder";
 
 /// A minimal project whose only imports are `imports`, with `EFFECT`
-/// defining `ImpactBurst` and `EXTRA` holding `extra`.
+/// defining `Burst` and `EXTRA` holding `extra`.
 fn tiny_project(imports: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
     std::fs::create_dir(root.join("effects")).unwrap();
     std::fs::write(
         root.join(EFFECT),
-        "effect ImpactBurst { sample { hsv(0.0, 1.0, 1.0) } }",
+        "effect Burst { sample { hsv(0.0, 1.0, 1.0) } }",
     )
     .unwrap();
     std::fs::write(root.join(EXTRA), extra).unwrap();
@@ -115,10 +115,8 @@ fn grouped_collisions_report_both_source_occurrences() {
             "duplicate exported object",
         ),
     ] {
-        let (_temporary, root) = tiny_project(
-            &imports,
-            "effect ImpactBurst { sample { hsv(0.0, 1.0, 1.0) } }",
-        );
+        let (_temporary, root) =
+            tiny_project(&imports, "effect Burst { sample { hsv(0.0, 1.0, 1.0) } }");
         let report = check_project(&root, &Default::default(), &mut Default::default());
         let diagnostic = report
             .diagnostics
@@ -255,21 +253,22 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
     let count = session.source.documents[&from].imports().len();
     ensure_document_can_reference_object(&mut session, &from, own.into()).unwrap();
     assert_eq!(session.source.documents[&from].imports().len(), count);
-    let definitions = session.project.reusable::<donder_model::EffectDefinition>();
+    let definitions = session
+        .project
+        .reusable::<donder_model::OperatorDefinition>();
     let existing = definitions
         .keys()
         .copied()
         .find(|id| {
             session.declaration((*id).into()).unwrap().0.path().as_str()
-                == "effects/standard.donder"
+                == "operators/standard.donder"
         })
         .unwrap();
     let another = definitions
         .keys()
         .copied()
         .find(|id| {
-            session.declaration((*id).into()).unwrap().0.path().as_str()
-                == "effects/mark-impact-burst.donder"
+            session.declaration((*id).into()).unwrap().0.path().as_str() == "operators/gain.donder"
         })
         .unwrap();
     ensure_document_can_reference_object(&mut session, &from, existing.into()).unwrap();
@@ -281,7 +280,7 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
             .last()
             .unwrap()
             .alias(),
-        "effects_2"
+        "operators_2"
     );
     ensure_document_can_reference_object(&mut session, &from, another.into()).unwrap();
     assert_eq!(session.source.documents[&from].imports().len(), count + 1);

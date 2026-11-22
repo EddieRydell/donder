@@ -20,6 +20,7 @@ use glam::DVec3;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::num::NonZeroU32;
 
 #[derive(Debug)]
 pub enum ImportError {
@@ -176,6 +177,8 @@ pub(crate) fn cells(count: usize, parts: &[HashSet<usize>]) -> Vec<Vec<usize>> {
 pub(crate) struct ProfileOutput {
     pub(crate) universe: u16,
     pub(crate) channels: u16,
+    /// Its first channel in the profile's FSEQ files, from 1.
+    pub(crate) fseq_channel: NonZeroU32,
 }
 
 /// How Donder sends to a controller.
@@ -269,7 +272,11 @@ struct OutputChannels {
 }
 
 /// How Donder sends to a controller's universes.
-fn protocol(protocol: &ProfileProtocol, universes: Universes) -> ControllerProtocol {
+fn protocol(
+    protocol: &ProfileProtocol,
+    universes: Universes,
+    fseq_channel: NonZeroU32,
+) -> ControllerProtocol {
     let unspecified = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
     match protocol {
         ProfileProtocol::E131 { priority, mode } => ControllerProtocol::E131(E131Config {
@@ -278,6 +285,7 @@ fn protocol(protocol: &ProfileProtocol, universes: Universes) -> ControllerProto
             priority: *priority,
             mode: mode.clone(),
             universes,
+            fseq_channel: Some(fseq_channel),
             ports: vec![import_port()],
         }),
         ProfileProtocol::ArtNet(destination) => ControllerProtocol::ArtNet(ArtNetConfig {
@@ -285,6 +293,7 @@ fn protocol(protocol: &ProfileProtocol, universes: Universes) -> ControllerProto
             destination: SocketAddr::new(*destination, ARTNET_PORT),
             mode: ArtNetMode::Unicast,
             universes,
+            fseq_channel: Some(fseq_channel),
             ports: vec![import_port()],
         }),
     }
@@ -332,9 +341,9 @@ fn refusal(error: ControllerValidationError) -> Result<ControllerSkip, ImportErr
 
 /// A profile controller's outputs as runs of consecutive universes, each a
 /// Donder controller: the outputs' indices and the universes. An output
-/// continues a run when its universe follows the last one's, which carries
-/// the run's channels per universe, and it carries no more; a shorter last
-/// universe sends its unused channels as zero.
+/// continues a run when its universe and FSEQ channels follow the last
+/// one's, which carries the run's channels per universe, and it carries no
+/// more; a shorter last universe sends its unused channels as zero.
 fn universe_runs(
     outputs: &[ProfileOutput],
 ) -> Result<Vec<(Vec<usize>, Universes)>, ControllerSkip> {
@@ -353,6 +362,8 @@ fn universe_runs(
         let continues = runs.last().is_some_and(|(members, universes)| {
             let last = &outputs[members[members.len() - 1]];
             u32::from(last.universe) + 1 == u32::from(output.universe)
+                && last.fseq_channel.checked_add(u32::from(last.channels))
+                    == Some(output.fseq_channel)
                 && last.channels == universes.channels
                 && output.channels <= universes.channels
         });
@@ -415,7 +426,7 @@ fn controllers(
             let candidate = Controller {
                 id: ControllerId(new_id()),
                 description: controller.description.clone(),
-                protocol: protocol(read, universes),
+                protocol: protocol(read, universes, controller.outputs[members[0]].fseq_channel),
             };
             if let Err(error) = candidate.validate() {
                 refused = Some(refusal(error)?);

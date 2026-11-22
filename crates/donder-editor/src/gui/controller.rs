@@ -3,6 +3,7 @@ use donder_model::{
     ControllerProtocol, DonderConfig, DonderDeviceId, DonderPort, E131Config, E131Mode,
 };
 use donder_project_io::ProjectSession;
+use std::num::NonZeroU32;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use crate::dto::{
@@ -94,6 +95,14 @@ pub(super) fn domain_controller(
             )
         }
     };
+    let nonzero_fseq_channel = |channel| {
+        NonZeroU32::new(channel).ok_or_else(|| {
+            GuiMutationError::At(
+                GuiProblemSite::object(GuiField::FseqChannel),
+                "FSEQ channels count from 1.".into(),
+            )
+        })
+    };
     let donder = matches!(config, SetupControllerConfig::Donder { .. });
     if ports.iter().any(|port| port.donder.is_some() != donder) {
         return Err(GuiMutationError::Invalid(
@@ -115,6 +124,7 @@ pub(super) fn domain_controller(
             priority,
             destination,
             universes,
+            fseq_channel,
         } => ControllerProtocol::E131(E131Config {
             sender_name,
             bind_address: bind_address
@@ -130,6 +140,7 @@ pub(super) fn domain_controller(
                 None => E131Mode::Multicast,
             },
             universes: universes.into(),
+            fseq_channel: fseq_channel.map(nonzero_fseq_channel).transpose()?,
             ports: ports.iter().map(port).collect(),
         }),
         SetupControllerConfig::ArtNet {
@@ -137,6 +148,7 @@ pub(super) fn domain_controller(
             destination,
             broadcast,
             universes,
+            fseq_channel,
         } => ControllerProtocol::ArtNet(ArtNetConfig {
             bind_address: bind_address
                 .parse()
@@ -150,6 +162,7 @@ pub(super) fn domain_controller(
                 ArtNetMode::Unicast
             },
             universes: universes.into(),
+            fseq_channel: fseq_channel.map(nonzero_fseq_channel).transpose()?,
             ports: ports.iter().map(port).collect(),
         }),
         SetupControllerConfig::Donder { device } => ControllerProtocol::Donder(DonderConfig {

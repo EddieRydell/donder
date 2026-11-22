@@ -18,6 +18,7 @@ Setup setup {
     megatree,
     megatree_2,
     peacock,
+    peacock_3,
     peacock_2,
     arch_tunnel,
     right_pilaster_stairs,
@@ -25,6 +26,7 @@ Setup setup {
     left_meteors,
     left_meteors_2,
     right_meteors,
+    right_meteors_2,
     right_pilaster_bush_arch,
     right_magnolia,
     front_door_2,
@@ -65,6 +67,7 @@ Controller nativity {
     start_universe: 64,
     universes: 8,
     channels: 510,
+    fseq_channel: 30958,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -79,6 +82,7 @@ Controller pauls_balls {
     start_universe: 110,
     universes: 59,
     channels: 510,
+    fseq_channel: 40993,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -93,6 +97,7 @@ Controller tiny_tree_loft {
     start_universe: 63,
     universes: 1,
     channels: 300,
+    fseq_channel: 30658,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -107,6 +112,7 @@ Controller front_door_1 {
     start_universe: 9,
     universes: 6,
     channels: 510,
+    fseq_channel: 4081,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -121,20 +127,22 @@ Controller neighbor_trees {
     start_universe: 90,
     universes: 4,
     channels: 510,
+    fseq_channel: 37933,
     ports: [Port { name: "1", description: none }],
   },
 }
 
 Controller neighbor_trees_2 {
-  description: "Vixen controllers: Neighbor Trees, penguin",
+  description: "Vixen controller: penguin",
   protocol: E131 {
     sender_name: "Donder",
     bind_address: "0.0.0.0",
     priority: 100,
-    mode: Unicast { destination: "192.168.168.139" },
+    mode: Unicast { destination: "192.168.168.169" },
     start_universe: 232,
     universes: 2,
     channels: 510,
+    fseq_channel: 103723,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -149,6 +157,7 @@ Controller fran_roof_roofs {
     start_universe: 3,
     universes: 2,
     channels: 510,
+    fseq_channel: 1021,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -163,6 +172,7 @@ Controller fran_roof_windows {
     start_universe: 1,
     universes: 2,
     channels: 510,
+    fseq_channel: 1,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -177,6 +187,7 @@ Controller megatree {
     start_universe: 23,
     universes: 5,
     channels: 510,
+    fseq_channel: 11731,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -191,6 +202,7 @@ Controller megatree_2 {
     start_universe: 102,
     universes: 5,
     channels: 510,
+    fseq_channel: 87913,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -203,8 +215,24 @@ Controller peacock {
     priority: 100,
     mode: Unicast { destination: "192.168.168.160" },
     start_universe: 33,
-    universes: 2,
+    universes: 1,
     channels: 498,
+    fseq_channel: 16321,
+    ports: [Port { name: "1", description: none }],
+  },
+}
+
+Controller peacock_3 {
+  description: "Vixen controller: Right Magnolia 5v",
+  protocol: E131 {
+    sender_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.160" },
+    start_universe: 34,
+    universes: 1,
+    channels: 219,
+    fseq_channel: 16819,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -219,6 +247,7 @@ Controller peacock_2 {
     start_universe: 73,
     universes: 2,
     channels: 510,
+    fseq_channel: 35038,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -233,6 +262,7 @@ Controller arch_tunnel {
     start_universe: 201,
     universes: 24,
     channels: 510,
+    fseq_channel: 90463,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -247,6 +277,7 @@ Controller right_pilaster_stairs {
     start_universe: 60,
     universes: 2,
     channels: 510,
+    fseq_channel: 29128,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -261,6 +292,7 @@ Controller garage {
     start_universe: 6,
     universes: 3,
     channels: 510,
+    fseq_channel: 2551,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -275,6 +307,7 @@ Controller left_meteors {
     start_universe: 31,
     universes: 2,
     channels: 510,
+    fseq_channel: 15301,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -289,6 +322,7 @@ Controller left_meteors_2 {
     start_universe: 101,
     universes: 1,
     channels: 510,
+    fseq_channel: 87403,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -301,8 +335,24 @@ Controller right_meteors {
     priority: 100,
     mode: Unicast { destination: "192.168.168.176" },
     start_universe: 28,
-    universes: 3,
+    universes: 2,
     channels: 510,
+    fseq_channel: 14281,
+    ports: [Port { name: "1", description: none }],
+  },
+}
+
+Controller right_meteors_2 {
+  description: "Vixen controller: RightMeteorsExtra",
+  protocol: E131 {
+    sender_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.176" },
+    start_universe: 30,
+    universes: 1,
+    channels: 510,
+    fseq_channel: 86893,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -317,6 +367,7 @@ Controller right_pilaster_bush_arch {
     start_universe: 55,
     universes: 5,
     channels: 510,
+    fseq_channel: 26578,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -331,6 +382,7 @@ Controller right_magnolia {
     start_universe: 49,
     universes: 3,
     channels: 510,
+    fseq_channel: 23518,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -345,6 +397,7 @@ Controller front_door_2 {
     start_universe: 15,
     universes: 9,
     channels: 510,
+    fseq_channel: 7141,
     ports: [
       Port { name: "1", description: none },
       Port { name: "2", description: none },
@@ -371,6 +424,7 @@ Controller front_door_2_2 {
     start_universe: 62,
     universes: 1,
     channels: 510,
+    fseq_channel: 30148,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -385,6 +439,7 @@ Controller left_wall {
     start_universe: 42,
     universes: 3,
     channels: 510,
+    fseq_channel: 19948,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -399,6 +454,7 @@ Controller left_pilaster {
     start_universe: 52,
     universes: 3,
     channels: 510,
+    fseq_channel: 25048,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -413,6 +469,7 @@ Controller garage_door_matrix {
     start_universe: 5,
     universes: 1,
     channels: 510,
+    fseq_channel: 2041,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -427,6 +484,7 @@ Controller left_magnolia {
     start_universe: 45,
     universes: 4,
     channels: 510,
+    fseq_channel: 21478,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -441,6 +499,7 @@ Controller left_magnolia_2 {
     start_universe: 72,
     universes: 1,
     channels: 510,
+    fseq_channel: none,
     ports: [Port { name: "1", description: none }],
   },
 }

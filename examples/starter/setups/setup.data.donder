@@ -20,6 +20,7 @@ Controller output_controller {
     start_universe: 1,
     universes: 30,
     channels: 339,
+    fseq_channel: 1,
     ports: [Port { name: "1", description: none }],
   },
 }

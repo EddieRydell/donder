@@ -1,5 +1,4 @@
-import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>;
-import vixen from <effects/vixen.donder>;
+import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 import setups from <setups/setup.data.donder>;
 import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;

@@ -125,6 +125,8 @@ pub enum GuiField {
     UniverseStart,
     UniverseCount,
     UniverseChannels,
+    /// Where FSEQ files place a controller's first channel.
+    FseqChannel,
     Device,
     /// A controller port's channels.
     Channels,

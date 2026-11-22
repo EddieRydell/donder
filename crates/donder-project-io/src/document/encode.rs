@@ -27,6 +27,7 @@ use donder_runtime_types::Identifier;
 use donder_runtime_types::PixelEncoding;
 use donder_runtime_types::{Curve, Gradient};
 use indexmap::IndexMap;
+use std::num::NonZeroU32;
 
 pub(crate) struct Encoder<'a> {
     pub(crate) session: &'a ProjectSession,
@@ -936,6 +937,7 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
                 start_universe: config.universes.start,
                 universes: config.universes.count,
                 channels: config.universes.channels,
+                fseq_channel: config.fseq_channel.map(NonZeroU32::get),
                 ports: port_documents(&config.ports),
             },
             ControllerProtocol::ArtNet(config) => types::Protocol::ArtNet {
@@ -945,6 +947,7 @@ pub(crate) fn controller_document(controller: &Controller) -> types::Controller 
                 start_universe: config.universes.start,
                 universes: config.universes.count,
                 channels: config.universes.channels,
+                fseq_channel: config.fseq_channel.map(NonZeroU32::get),
                 ports: port_documents(&config.ports),
             },
             ControllerProtocol::Donder(config) => types::Protocol::Donder {

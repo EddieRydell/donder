@@ -49,7 +49,7 @@ fn inline_fields() -> String {
       {CONTROLLER},
       Controller spare_8 {{
         description: none,
-        protocol: E131 {{ sender_name: "Spare", bind_address: "0.0.0.0", priority: 100, mode: Multicast, start_universe: 2, universes: 1, channels: 512, ports: [] }},
+        protocol: E131 {{ sender_name: "Spare", bind_address: "0.0.0.0", priority: 100, mode: Multicast, start_universe: 2, universes: 1, channels: 512, fseq_channel: none, ports: [] }},
       }},
     ],
     input_devices: [
@@ -77,6 +77,7 @@ const CONTROLLER: &str = r#"Controller controller_3 {
           start_universe: 1,
           universes: 1,
           channels: 512,
+          fseq_channel: none,
           ports: [Port { name: "1", description: none }],
         },
       }"#;

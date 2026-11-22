@@ -47,6 +47,8 @@ The `*_large_show*` cases in `render_bench` run Ding Dong from
 
 | Date | Workload and conditions | Result |
 | --- | --- | --- |
+| 2026-11-21 | `prepared_playback_bench` workload replaced: the library's Pulse, Chase, Twinkle and Butterfly instead of ScanSweep, ImpactBurst, SparkleComet and ShimmerField (also in `layered_600`) | Earlier `prepared_effect_suite_4x512_pixels` and `prepared_600_pixels_4_layers_3_operators` numbers are not comparable with later ones |
+| 2026-11-21 | Rydell House `all_we_are` FSEQ export, 11,119 frames at 10 ms, 104,742 channels, `donder export-fseq` release on the i9-13980HX from a background shell, unpinned | 1 min 4 s holding `PowerGuard::no_throttling` (about 5.8 ms per frame), against 4 min 21 s without it, when Windows ran the render as background work on efficiency cores |
 | 2026-11-16 | Dig-Quad in access-point mode, Stanford `main` (22.9 KB show) after splitting a clip | 2.6 KB delta applied in 26 ms, against 117–147 ms for the whole show; frames match a fresh upload |
 | 2026-11-15 | Dig-Quad in access-point mode, one Windows 11 client, picoserve 0.21.0 (no flush between reply headers and body) | HTTP request round trip about 11 ms (60 ms with the flush, which waited for the client's delayed ACK); 22.9 KB show upload 85–100 ms; UDP clock exchange 3 ms |
 | 2026-11-12 | Dig-Quad heap (129,024 B) in access-point mode, esp-alloc heap statistics, repeated 64 KB uploads with polling and clock bursts | Boot and network 43.0 KB idle, 50.9 KB peak; Stanford `main` playback 53.8 KB (show 22.9 KB, workspace 30.9 KB) |

@@ -1,5 +1,4 @@
 import effects from <effects/standard.donder>;
-import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
 import layouts from <layouts/layout.data.donder>;
 
@@ -544,9 +543,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -555,7 +554,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -566,9 +565,9 @@ Sequence ding_dong {
       duration: 1.051544s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -577,7 +576,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -616,9 +615,9 @@ Sequence ding_dong {
       duration: 0.356099s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -627,7 +626,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -638,9 +637,9 @@ Sequence ding_dong {
       duration: 0.960788s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -649,7 +648,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -660,9 +659,9 @@ Sequence ding_dong {
       duration: 1.073502s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -671,7 +670,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -682,9 +681,9 @@ Sequence ding_dong {
       duration: 1.211127s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -693,7 +692,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -704,9 +703,9 @@ Sequence ding_dong {
       duration: 1.310233s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -715,7 +714,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -726,9 +725,9 @@ Sequence ding_dong {
       duration: 1.30336s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -737,7 +736,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -748,9 +747,9 @@ Sequence ding_dong {
       duration: 1.273493s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -759,7 +758,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -770,9 +769,9 @@ Sequence ding_dong {
       duration: 1.038811s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -781,7 +780,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -792,9 +791,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -803,7 +802,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -814,9 +813,9 @@ Sequence ding_dong {
       duration: 0.356206s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -825,7 +824,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -836,9 +835,9 @@ Sequence ding_dong {
       duration: 0.949383s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -847,7 +846,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -858,9 +857,9 @@ Sequence ding_dong {
       duration: 1.062097s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -869,7 +868,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -880,9 +879,9 @@ Sequence ding_dong {
       duration: 1.275308s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -891,7 +890,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -902,9 +901,9 @@ Sequence ding_dong {
       duration: 1.27989s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -913,7 +912,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -924,9 +923,9 @@ Sequence ding_dong {
       duration: 1.273017s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -935,7 +934,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -946,9 +945,9 @@ Sequence ding_dong {
       duration: 1.224697s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -957,7 +956,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -968,9 +967,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -979,7 +978,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -990,9 +989,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -1001,7 +1000,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1012,9 +1011,9 @@ Sequence ding_dong {
       duration: 0.356313s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #d000ff), (1.0, #ffffff)],
         },
@@ -1023,7 +1022,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1034,9 +1033,9 @@ Sequence ding_dong {
       duration: 1.052029s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #d000ff), (1.0, #ffffff)],
         },
@@ -1045,7 +1044,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1056,9 +1055,9 @@ Sequence ding_dong {
       duration: 1.164744s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #d000ff), (1.0, #ffffff)],
         },
@@ -1067,7 +1066,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1078,9 +1077,9 @@ Sequence ding_dong {
       duration: 1.188124s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -1089,7 +1088,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1100,9 +1099,9 @@ Sequence ding_dong {
       duration: 1.290804s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -1111,7 +1110,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1122,9 +1121,9 @@ Sequence ding_dong {
       duration: 1.242407s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -1133,7 +1132,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1144,9 +1143,9 @@ Sequence ding_dong {
       duration: 1.268346s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -1155,7 +1154,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1166,9 +1165,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1177,7 +1176,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1188,9 +1187,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1199,7 +1198,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1210,9 +1209,9 @@ Sequence ding_dong {
       duration: 0.356206s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1221,7 +1220,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1232,9 +1231,9 @@ Sequence ding_dong {
       duration: 1.164731s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1243,7 +1242,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1254,9 +1253,9 @@ Sequence ding_dong {
       duration: 1.255985s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1265,7 +1264,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1276,9 +1275,9 @@ Sequence ding_dong {
       duration: 1.254089s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1287,7 +1286,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1298,9 +1297,9 @@ Sequence ding_dong {
       duration: 1.302011s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1309,7 +1308,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1320,9 +1319,9 @@ Sequence ding_dong {
       duration: 1.335101s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1331,7 +1330,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1342,9 +1341,9 @@ Sequence ding_dong {
       duration: 1.275308s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -1353,7 +1352,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1494,9 +1493,9 @@ Sequence ding_dong {
       duration: 1.000877s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1505,7 +1504,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1568,9 +1567,9 @@ Sequence ding_dong {
       duration: 1.082405s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1579,7 +1578,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1668,9 +1667,9 @@ Sequence ding_dong {
       duration: 0.356206s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1679,7 +1678,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1690,9 +1689,9 @@ Sequence ding_dong {
       duration: 1.13965s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1701,7 +1700,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1712,9 +1711,9 @@ Sequence ding_dong {
       duration: 1.302349s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1723,7 +1722,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1734,9 +1733,9 @@ Sequence ding_dong {
       duration: 1.254514s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1745,7 +1744,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1756,9 +1755,9 @@ Sequence ding_dong {
       duration: 1.310233s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1767,7 +1766,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1778,9 +1777,9 @@ Sequence ding_dong {
       duration: 1.294846s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1789,7 +1788,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1800,9 +1799,9 @@ Sequence ding_dong {
       duration: 1.275308s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -1811,7 +1810,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -1952,9 +1951,9 @@ Sequence ding_dong {
       duration: 1.027365s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -1963,7 +1962,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2026,9 +2025,9 @@ Sequence ding_dong {
       duration: 1.081315s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -2037,7 +2036,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2126,9 +2125,9 @@ Sequence ding_dong {
       duration: 0.356206s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -2137,7 +2136,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2148,9 +2147,9 @@ Sequence ding_dong {
       duration: 1.069s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -2159,7 +2158,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2170,9 +2169,9 @@ Sequence ding_dong {
       duration: 1.218878s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -2181,7 +2180,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2244,9 +2243,9 @@ Sequence ding_dong {
       duration: 1.249998s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -2255,7 +2254,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2344,9 +2343,9 @@ Sequence ding_dong {
       duration: 1.250463s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -2355,7 +2354,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2496,9 +2495,9 @@ Sequence ding_dong {
       duration: 1.273018s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -2507,7 +2506,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2518,9 +2517,9 @@ Sequence ding_dong {
       duration: 1.249817s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -2529,7 +2528,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2592,9 +2591,9 @@ Sequence ding_dong {
       duration: 1.01187s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2603,7 +2602,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2692,9 +2691,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2703,7 +2702,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2844,9 +2843,9 @@ Sequence ding_dong {
       duration: 0.385633s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2855,7 +2854,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2866,9 +2865,9 @@ Sequence ding_dong {
       duration: 1.234504s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2877,7 +2876,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2888,9 +2887,9 @@ Sequence ding_dong {
       duration: 1.358632s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2899,7 +2898,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2910,9 +2909,9 @@ Sequence ding_dong {
       duration: 1.343211s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2921,7 +2920,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2932,9 +2931,9 @@ Sequence ding_dong {
       duration: 1.310943s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2943,7 +2942,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2954,9 +2953,9 @@ Sequence ding_dong {
       duration: 1.284732s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2965,7 +2964,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2976,9 +2975,9 @@ Sequence ding_dong {
       duration: 1.268346s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00ff00), (1.0, #ffffff)],
         },
@@ -2987,7 +2986,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -2998,9 +2997,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3009,7 +3008,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3150,9 +3149,9 @@ Sequence ding_dong {
       duration: 0.979584s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3161,7 +3160,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3302,9 +3301,9 @@ Sequence ding_dong {
       duration: 0.378392s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3313,7 +3312,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3324,9 +3323,9 @@ Sequence ding_dong {
       duration: 0.994897s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3335,7 +3334,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3346,9 +3345,9 @@ Sequence ding_dong {
       duration: 1.086463s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3357,7 +3356,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3368,9 +3367,9 @@ Sequence ding_dong {
       duration: 0.786694s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3379,7 +3378,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3520,9 +3519,9 @@ Sequence ding_dong {
       duration: 0.767272s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3531,7 +3530,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3672,9 +3671,9 @@ Sequence ding_dong {
       duration: 0.773479s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -3683,7 +3682,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -3800,16 +3799,16 @@ Sequence ding_dong {
       duration: 0.53834s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #ffbb00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -4217,16 +4216,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #ffbb00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -4906,16 +4905,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -5453,16 +5452,16 @@ Sequence ding_dong {
       duration: 0.537999s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -5936,16 +5935,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -6405,16 +6404,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -6926,16 +6925,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #00ff00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -7343,16 +7342,16 @@ Sequence ding_dong {
       duration: 0.474626s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #00ff00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -10464,16 +10463,16 @@ Sequence ding_dong {
       duration: 0.537821s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -10933,16 +10932,16 @@ Sequence ding_dong {
       duration: 0.536562s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -11298,16 +11297,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -11793,16 +11792,16 @@ Sequence ding_dong {
       duration: 0.485392s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -12236,15 +12235,15 @@ Sequence ding_dong {
       duration: 7.718938s,
       target: layouts.layout.arch_tunnel,
       scope: WholeTarget,
-      effect: vixen.VixenPinwheel,
+      effect: effects.Pinwheel,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         ],
         levels: [
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
         ],
         color_type: Standard,
         motion: Iterations,
@@ -12254,12 +12253,12 @@ Sequence ding_dong {
         size: 23.0,
         twist: 56.0,
         rotation: 100.0,
-        x_offset: 50.0,
-        y_offset: 50.0,
+        x_offset: 0.5,
+        y_offset: 0.5,
         center_hub: 0.0,
         offset_percentage: true,
         blade_type: Fan,
-        intensity: 100.0,
+        intensity: 1.0,
         frame_interval_ms: 23.0,
       },
     },
@@ -12285,15 +12284,15 @@ Sequence ding_dong {
       duration: 7.718938s,
       target: layouts.layout.neighbor_trees,
       scope: WholeTarget,
-      effect: vixen.VixenPinwheel,
+      effect: effects.Pinwheel,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         ],
         levels: [
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
         ],
         color_type: Standard,
         motion: Iterations,
@@ -12303,12 +12302,12 @@ Sequence ding_dong {
         size: 23.0,
         twist: 56.0,
         rotation: 100.0,
-        x_offset: 50.0,
-        y_offset: 50.0,
+        x_offset: 0.5,
+        y_offset: 0.5,
         center_hub: 0.0,
         offset_percentage: true,
         blade_type: Fan,
-        intensity: 100.0,
+        intensity: 1.0,
         frame_interval_ms: 23.0,
       },
     },
@@ -12320,18 +12319,15 @@ Sequence ding_dong {
       duration: 1.607337s,
       target: layouts.layout.trees_and_trunks,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5498, #ffbb00)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5498, #ffbb00)] },
         wash_type: Outer,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -12708,18 +12704,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5006, #00ff00)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5006, #00ff00)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -12744,18 +12737,15 @@ Sequence ding_dong {
       duration: 1.273052s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5006, #00ff00)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5006, #00ff00)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -12818,15 +12808,15 @@ Sequence ding_dong {
       duration: 1.330245s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -12959,15 +12949,15 @@ Sequence ding_dong {
       duration: 1.259156s,
       target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -12978,15 +12968,15 @@ Sequence ding_dong {
       duration: 1.259156s,
       target: layouts.layout.mailbox,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13011,15 +13001,15 @@ Sequence ding_dong {
       duration: 1.259156s,
       target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13044,15 +13034,15 @@ Sequence ding_dong {
       duration: 1.259156s,
       target: layouts.layout.trunk_bl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13063,15 +13053,15 @@ Sequence ding_dong {
       duration: 1.259156s,
       target: layouts.layout.trunk_br,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13082,15 +13072,15 @@ Sequence ding_dong {
       duration: 1.259156s,
       target: layouts.layout.trunk_fl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13101,15 +13091,15 @@ Sequence ding_dong {
       duration: 1.259156s,
       target: layouts.layout.trunk_fr,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13242,15 +13232,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13369,15 +13359,15 @@ Sequence ding_dong {
       duration: 1.287032s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13388,15 +13378,15 @@ Sequence ding_dong {
       duration: 1.28908s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13473,15 +13463,15 @@ Sequence ding_dong {
       duration: 1.599076s,
       target: layouts.layout.trees_and_trunks,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00d0ff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00d0ff)] },
         wash_type: Outer,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13858,18 +13848,15 @@ Sequence ding_dong {
       duration: 1.233356s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #db00ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #db00ff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13894,18 +13881,15 @@ Sequence ding_dong {
       duration: 1.20489s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #db00ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #db00ff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -13982,18 +13966,15 @@ Sequence ding_dong {
       duration: 1.285326s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14060,18 +14041,15 @@ Sequence ding_dong {
       duration: 1.279993s,
       target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14082,18 +14060,15 @@ Sequence ding_dong {
       duration: 1.279993s,
       target: layouts.layout.mailbox,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14170,18 +14145,15 @@ Sequence ding_dong {
       duration: 1.279993s,
       target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14206,18 +14178,15 @@ Sequence ding_dong {
       duration: 1.279993s,
       target: layouts.layout.trunk_bl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14228,18 +14197,15 @@ Sequence ding_dong {
       duration: 1.279993s,
       target: layouts.layout.trunk_br,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14250,18 +14216,15 @@ Sequence ding_dong {
       duration: 1.279993s,
       target: layouts.layout.trunk_fl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14272,18 +14235,15 @@ Sequence ding_dong {
       duration: 1.279993s,
       target: layouts.layout.trunk_fr,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14430,18 +14390,15 @@ Sequence ding_dong {
       duration: 1.277033s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14546,15 +14503,15 @@ Sequence ding_dong {
       duration: 1.164588s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14565,15 +14522,15 @@ Sequence ding_dong {
       duration: 1.236311s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14702,15 +14659,15 @@ Sequence ding_dong {
       duration: 1.252648s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14773,15 +14730,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -14902,15 +14859,15 @@ Sequence ding_dong {
       duration: 1.2352s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15061,15 +15018,15 @@ Sequence ding_dong {
       duration: 1.26838s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15240,15 +15197,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15259,15 +15216,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15400,15 +15357,15 @@ Sequence ding_dong {
       duration: 1.330244s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15673,15 +15630,15 @@ Sequence ding_dong {
       duration: 1.27131s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15786,15 +15743,15 @@ Sequence ding_dong {
       duration: 1.215615s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15805,15 +15762,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -15890,15 +15847,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -16169,15 +16126,15 @@ Sequence ding_dong {
       duration: 1.204253s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -16350,15 +16307,15 @@ Sequence ding_dong {
       duration: 1.23047s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -16443,15 +16400,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -16462,15 +16419,15 @@ Sequence ding_dong {
       duration: 1.24877s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -16533,15 +16490,15 @@ Sequence ding_dong {
       duration: 1.266656s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17130,15 +17087,15 @@ Sequence ding_dong {
       duration: 0.999093s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17149,15 +17106,15 @@ Sequence ding_dong {
       duration: 0.99401s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17182,18 +17139,15 @@ Sequence ding_dong {
       duration: 0.734097s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5006, #ff0000)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5006, #ff0000)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17256,15 +17210,15 @@ Sequence ding_dong {
       duration: 0.980374s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17317,15 +17271,15 @@ Sequence ding_dong {
       duration: 1.029875s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17430,18 +17384,15 @@ Sequence ding_dong {
       duration: 0.722226s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5006, #ff0000)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5006, #ff0000)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17550,15 +17501,15 @@ Sequence ding_dong {
       duration: 1.032353s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17621,15 +17572,15 @@ Sequence ding_dong {
       duration: 0.906293s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17654,18 +17605,15 @@ Sequence ding_dong {
       duration: 0.651575s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5006, #ff0000)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5006, #ff0000)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17756,15 +17704,15 @@ Sequence ding_dong {
       duration: 0.513879s,
       target: layouts.layout.trees_and_trunks,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -17789,18 +17737,15 @@ Sequence ding_dong {
       duration: 0.452398s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5006, #ff0000)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5006, #ff0000)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18045,9 +17990,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18056,7 +18001,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18145,9 +18090,9 @@ Sequence ding_dong {
       duration: 1.082405s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18156,7 +18101,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18323,9 +18268,9 @@ Sequence ding_dong {
       duration: 0.367636s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18334,7 +18279,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18345,9 +18290,9 @@ Sequence ding_dong {
       duration: 0.960682s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18356,7 +18301,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18367,9 +18312,9 @@ Sequence ding_dong {
       duration: 1.107801s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18378,7 +18323,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18441,9 +18386,9 @@ Sequence ding_dong {
       duration: 1.275308s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18452,7 +18397,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18463,9 +18408,9 @@ Sequence ding_dong {
       duration: 1.293898s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18474,7 +18419,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18537,9 +18482,9 @@ Sequence ding_dong {
       duration: 1.322994s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18548,7 +18493,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18559,9 +18504,9 @@ Sequence ding_dong {
       duration: 1.302068s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18570,7 +18515,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18607,9 +18552,9 @@ Sequence ding_dong {
       duration: 1.000566s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18618,7 +18563,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18629,16 +18574,16 @@ Sequence ding_dong {
       duration: 7.339203s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenButterfly,
+      effect: effects.Butterfly,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #000000), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #000000), (1.0, #ffffff)] },
         butterfly_type: Type1,
         color_scheme: Gradient,
         motion: Iterations { iterations: 1, direction: Forward },
         repeat: 1,
         background_chunks: 1,
         background_skips: 2,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -18877,9 +18822,9 @@ Sequence ding_dong {
       duration: 1.042687s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -18888,7 +18833,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19153,9 +19098,9 @@ Sequence ding_dong {
       duration: 0.425337s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -19164,7 +19109,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19217,9 +19162,9 @@ Sequence ding_dong {
       duration: 0.924221s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -19228,7 +19173,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19239,9 +19184,9 @@ Sequence ding_dong {
       duration: 1.065706s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -19250,7 +19195,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19303,9 +19248,9 @@ Sequence ding_dong {
       duration: 1.263976s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -19314,7 +19259,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19579,9 +19524,9 @@ Sequence ding_dong {
       duration: 1.215142s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -19590,7 +19535,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19601,9 +19546,9 @@ Sequence ding_dong {
       duration: 1.210585s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -19612,7 +19557,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19835,9 +19780,9 @@ Sequence ding_dong {
       duration: 1.240111s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ffbb00), (1.0, #ffffff)],
         },
@@ -19846,7 +19791,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -19885,9 +19830,9 @@ Sequence ding_dong {
       duration: 1.061929s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -19896,7 +19841,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -20175,9 +20120,9 @@ Sequence ding_dong {
       duration: 1.129723s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -20186,7 +20131,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -20451,9 +20396,9 @@ Sequence ding_dong {
       duration: 0.310699s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -20462,7 +20407,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -20515,9 +20460,9 @@ Sequence ding_dong {
       duration: 0.919987s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -20526,7 +20471,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -20537,9 +20482,9 @@ Sequence ding_dong {
       duration: 1.053563s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00b1ff), (1.0, #ffffff)],
         },
@@ -20548,7 +20493,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -20559,9 +20504,9 @@ Sequence ding_dong {
       duration: 1.265311s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -20570,7 +20515,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -20835,9 +20780,9 @@ Sequence ding_dong {
       duration: 1.234071s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -20846,7 +20791,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -20857,9 +20802,9 @@ Sequence ding_dong {
       duration: 1.232961s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -20868,7 +20813,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -21133,9 +21078,9 @@ Sequence ding_dong {
       duration: 1.25574s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #00dbff), (1.0, #ffffff)],
         },
@@ -21144,7 +21089,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -21155,9 +21100,9 @@ Sequence ding_dong {
       duration: 1.001175s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -21166,7 +21111,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -21403,9 +21348,9 @@ Sequence ding_dong {
       duration: 1.078004s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -21414,7 +21359,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -21707,9 +21652,9 @@ Sequence ding_dong {
       duration: 0.349225s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #d000ff), (1.0, #ffffff)],
         },
@@ -21718,7 +21663,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -21771,9 +21716,9 @@ Sequence ding_dong {
       duration: 1.011679s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #d000ff), (1.0, #ffffff)],
         },
@@ -21782,7 +21727,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -21821,9 +21766,9 @@ Sequence ding_dong {
       duration: 1.175189s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #d000ff), (1.0, #ffffff)],
         },
@@ -21832,7 +21777,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -21857,9 +21802,9 @@ Sequence ding_dong {
       duration: 1.268787s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -21868,7 +21813,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -22133,9 +22078,9 @@ Sequence ding_dong {
       duration: 1.231257s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -22144,7 +22089,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -22155,9 +22100,9 @@ Sequence ding_dong {
       duration: 1.231927s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -22166,7 +22111,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -22389,9 +22334,9 @@ Sequence ding_dong {
       duration: 1.241838s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #e500ff), (1.0, #ffffff)],
         },
@@ -22400,7 +22345,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -22425,9 +22370,9 @@ Sequence ding_dong {
       duration: 1.057804s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -22436,7 +22381,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -22729,9 +22674,9 @@ Sequence ding_dong {
       duration: 1.061213s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -22740,7 +22685,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23005,9 +22950,9 @@ Sequence ding_dong {
       duration: 0.370465s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -23016,7 +22961,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23027,9 +22972,9 @@ Sequence ding_dong {
       duration: 1.184564s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -23038,7 +22983,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23091,9 +23036,9 @@ Sequence ding_dong {
       duration: 1.255985s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -23102,7 +23047,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23113,9 +23058,9 @@ Sequence ding_dong {
       duration: 1.253639s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -23124,7 +23069,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23389,9 +23334,9 @@ Sequence ding_dong {
       duration: 1.227835s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -23400,7 +23345,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23411,9 +23356,9 @@ Sequence ding_dong {
       duration: 1.242517s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -23422,7 +23367,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23687,15 +23632,15 @@ Sequence ding_dong {
       duration: 1.208534s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23706,15 +23651,15 @@ Sequence ding_dong {
       duration: 1.039022s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -23895,15 +23840,15 @@ Sequence ding_dong {
       duration: 1.006376s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24018,15 +23963,15 @@ Sequence ding_dong {
       duration: 0.440689s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24037,15 +23982,15 @@ Sequence ding_dong {
       duration: 1.233924s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24056,15 +24001,15 @@ Sequence ding_dong {
       duration: 1.301712s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24075,15 +24020,15 @@ Sequence ding_dong {
       duration: 1.33924s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24410,15 +24355,15 @@ Sequence ding_dong {
       duration: 1.241611s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24457,15 +24402,15 @@ Sequence ding_dong {
       duration: 1.286582s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24580,15 +24525,15 @@ Sequence ding_dong {
       duration: 1.275308s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24665,15 +24610,15 @@ Sequence ding_dong {
       duration: 1.000357s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -24914,15 +24859,15 @@ Sequence ding_dong {
       duration: 1.062049s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25051,15 +24996,15 @@ Sequence ding_dong {
       duration: 0.356949s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25070,15 +25015,15 @@ Sequence ding_dong {
       duration: 1.097544s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25199,15 +25144,15 @@ Sequence ding_dong {
       duration: 1.180696s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25246,15 +25191,15 @@ Sequence ding_dong {
       duration: 1.307554s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25383,15 +25328,15 @@ Sequence ding_dong {
       duration: 1.295251s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25402,15 +25347,15 @@ Sequence ding_dong {
       duration: 1.286629s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25539,15 +25484,15 @@ Sequence ding_dong {
       duration: 1.260524s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25646,15 +25591,15 @@ Sequence ding_dong {
       duration: 1.087244s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -25971,15 +25916,15 @@ Sequence ding_dong {
       duration: 0.994985s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26094,15 +26039,15 @@ Sequence ding_dong {
       duration: 0.330823s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26113,15 +26058,15 @@ Sequence ding_dong {
       duration: 1.290179s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26132,15 +26077,15 @@ Sequence ding_dong {
       duration: 1.325659s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26151,15 +26096,15 @@ Sequence ding_dong {
       duration: 1.213696s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26274,15 +26219,15 @@ Sequence ding_dong {
       duration: 1.322032s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26681,15 +26626,15 @@ Sequence ding_dong {
       duration: 1.299514s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26804,15 +26749,15 @@ Sequence ding_dong {
       duration: 1.256062s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -26851,9 +26796,9 @@ Sequence ding_dong {
       duration: 1.009993s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -26862,7 +26807,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27033,9 +26978,9 @@ Sequence ding_dong {
       duration: 1.009904s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -27044,7 +26989,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27285,9 +27230,9 @@ Sequence ding_dong {
       duration: 0.338044s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -27296,7 +27241,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27321,9 +27266,9 @@ Sequence ding_dong {
       duration: 0.994897s,
       target: layouts.layout.trunk_rings_1,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -27332,7 +27277,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27343,9 +27288,9 @@ Sequence ding_dong {
       duration: 1.106532s,
       target: layouts.layout.trunk_rings_2,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -27354,7 +27299,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27365,9 +27310,9 @@ Sequence ding_dong {
       duration: 0.747229s,
       target: layouts.layout.back_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -27376,7 +27321,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27519,9 +27464,9 @@ Sequence ding_dong {
       duration: 0.728814s,
       target: layouts.layout.front_trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -27530,7 +27475,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27541,9 +27486,9 @@ Sequence ding_dong {
       duration: 0.787081s,
       target: layouts.layout.trees,
       scope: PerFixture,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0022, #ffffff), (0.5011, #ff0000), (1.0, #ffffff)],
         },
@@ -27552,7 +27497,7 @@ Sequence ding_dong {
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -27775,16 +27720,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #ffbb00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -28284,16 +28229,16 @@ Sequence ding_dong {
       duration: 0.537076s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #ffbb00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -28923,16 +28868,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -29482,16 +29427,16 @@ Sequence ding_dong {
       duration: 0.537826s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -29991,16 +29936,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -30486,16 +30431,16 @@ Sequence ding_dong {
       duration: 0.537076s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -30929,16 +30874,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #00ff00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -31372,16 +31317,16 @@ Sequence ding_dong {
       duration: 0.467638s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #00ff00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -34519,16 +34464,16 @@ Sequence ding_dong {
       duration: 0.537323s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -34962,16 +34907,16 @@ Sequence ding_dong {
       duration: 0.470843s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -35353,16 +35298,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -35808,16 +35753,16 @@ Sequence ding_dong {
       duration: 0.478917s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -36239,16 +36184,16 @@ Sequence ding_dong {
       duration: 7.385414s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenButterfly,
+      effect: effects.Butterfly,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0, #000000), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0, #000000), (1.0, #ffffff)] },
         butterfly_type: Type2,
         color_scheme: Gradient,
         motion: Iterations { iterations: 4, direction: Forward },
         repeat: 1,
         background_chunks: 2,
         background_skips: 2,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -36471,18 +36416,15 @@ Sequence ding_dong {
       duration: 1.556421s,
       target: layouts.layout.trees_and_trunks,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5498, #ffbb00)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5498, #ffbb00)] },
         wash_type: Outer,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -37987,15 +37929,15 @@ Sequence ding_dong {
       duration: 1.27571s,
       target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -38006,15 +37948,15 @@ Sequence ding_dong {
       duration: 1.27571s,
       target: layouts.layout.mailbox,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -38169,15 +38111,15 @@ Sequence ding_dong {
       duration: 1.27571s,
       target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -38202,15 +38144,15 @@ Sequence ding_dong {
       duration: 1.27571s,
       target: layouts.layout.trunk_bl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -38221,15 +38163,15 @@ Sequence ding_dong {
       duration: 1.27571s,
       target: layouts.layout.trunk_br,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -38240,15 +38182,15 @@ Sequence ding_dong {
       duration: 1.27571s,
       target: layouts.layout.trunk_fl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -38259,15 +38201,15 @@ Sequence ding_dong {
       duration: 1.27571s,
       target: layouts.layout.trunk_fr,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00ff00)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -39510,15 +39452,15 @@ Sequence ding_dong {
       duration: 1.646172s,
       target: layouts.layout.trees_and_trunks,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00d0ff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.517, #00d0ff)] },
         wash_type: Outer,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: true,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -40953,18 +40895,15 @@ Sequence ding_dong {
       duration: 1.293502s,
       target: layouts.layout.left_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -40975,18 +40914,15 @@ Sequence ding_dong {
       duration: 1.293502s,
       target: layouts.layout.mailbox,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -41141,18 +41077,15 @@ Sequence ding_dong {
       duration: 1.293502s,
       target: layouts.layout.right_magnolia_truck,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -41177,18 +41110,15 @@ Sequence ding_dong {
       duration: 1.293502s,
       target: layouts.layout.trunk_bl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -41199,18 +41129,15 @@ Sequence ding_dong {
       duration: 1.293502s,
       target: layouts.layout.trunk_br,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -41221,18 +41148,15 @@ Sequence ding_dong {
       duration: 1.293502s,
       target: layouts.layout.trunk_fl,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -41243,18 +41167,15 @@ Sequence ding_dong {
       duration: 1.293502s,
       target: layouts.layout.trunk_fr,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0022, #ffffff), (0.5088, #c600ff)],
-        },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (0.5088, #c600ff)] },
         wash_type: Invert,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -47487,15 +47408,15 @@ Sequence ding_dong {
       duration: 0.499094s,
       target: layouts.layout.trees_and_trunks,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -53108,15 +53029,15 @@ Sequence ding_dong {
       duration: 0.554459s,
       target: layouts.layout.trees_and_trunks,
       scope: WholeTarget,
-      effect: vixen.VixenColorwash,
+      effect: effects.Colorwash,
       params: {
-        color_gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
+        gradient: Gradient { space: LinearRgb, stops: [(0.0022, #ffffff), (1.0, #ffffff)] },
         wash_type: Center,
         iterations: 1,
         horizontal_fade: false,
         vertical_fade: false,
         shimmer: false,
-        intensity: 100.0,
+        intensity: 1.0,
       },
     },
     Clip {
@@ -53523,16 +53444,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #ffbb00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -53716,16 +53637,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #ffbb00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -54433,16 +54354,16 @@ Sequence ding_dong {
       duration: 0.537451s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -54980,16 +54901,16 @@ Sequence ding_dong {
       duration: 0.447491s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -55475,16 +55396,16 @@ Sequence ding_dong {
       duration: 0.486919s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -55918,16 +55839,16 @@ Sequence ding_dong {
       duration: 0.471556s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.447, #00b1ff), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -56491,16 +56412,16 @@ Sequence ding_dong {
       duration: 0.452962s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #00ff00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -56856,16 +56777,16 @@ Sequence ding_dong {
       duration: 0.448438s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #00ff00), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -59977,16 +59898,16 @@ Sequence ding_dong {
       duration: 0.484752s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -60394,16 +60315,16 @@ Sequence ding_dong {
       duration: 0.452017s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -60771,16 +60692,16 @@ Sequence ding_dong {
       duration: 0.54831s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -61240,16 +61161,16 @@ Sequence ding_dong {
       duration: 0.460091s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenShockwave,
+      effect: effects.Shockwave,
       params: {
-        color_gradient: Gradient {
+        gradient: Gradient {
           space: LinearRgb,
           stops: [(0.0, #ffffff), (0.4464, #ff0000), (0.9959, #000000)],
         },
-        radius_curve: Curve { points: [(0.0, 0.2), (1.0, 1.2)] },
-        width_curve: Curve { points: [(0.0, 2.0), (1.0, 4.0)] },
-        center_x: 50.0,
-        center_y: 50.0,
+        radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.012)] },
+        width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+        center_x: 0.5,
+        center_y: 0.5,
         acceleration: Linear,
         blend_edges: true,
         scaled_radius: false,
@@ -70269,15 +70190,15 @@ Sequence ding_dong {
       duration: 3.738127s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenPinwheel,
+      effect: effects.Pinwheel,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         ],
         levels: [
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
         ],
         color_type: Standard,
         motion: Iterations,
@@ -70287,12 +70208,12 @@ Sequence ding_dong {
         size: 25.0,
         twist: 100.0,
         rotation: 0.0,
-        x_offset: 50.0,
-        y_offset: 50.0,
-        center_hub: 19.0,
+        x_offset: 0.5,
+        y_offset: 0.5,
+        center_hub: 0.19,
         offset_percentage: true,
         blade_type: Fan,
-        intensity: 100.0,
+        intensity: 1.0,
         frame_interval_ms: 23.0,
       },
     },
@@ -73732,15 +73653,15 @@ Sequence ding_dong {
       duration: 3.685599s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenPinwheel,
+      effect: effects.Pinwheel,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         ],
         levels: [
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
         ],
         color_type: Standard,
         motion: Iterations,
@@ -73750,12 +73671,12 @@ Sequence ding_dong {
         size: 25.0,
         twist: 100.0,
         rotation: 100.0,
-        x_offset: 50.0,
-        y_offset: 50.0,
-        center_hub: 19.0,
+        x_offset: 0.5,
+        y_offset: 0.5,
+        center_hub: 0.19,
         offset_percentage: true,
         blade_type: Fan,
-        intensity: 100.0,
+        intensity: 1.0,
         frame_interval_ms: 23.0,
       },
     },
@@ -76859,15 +76780,15 @@ Sequence ding_dong {
       duration: 3.737754s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenPinwheel,
+      effect: effects.Pinwheel,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #ffb100)] },
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         ],
         levels: [
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
         ],
         color_type: Standard,
         motion: Iterations,
@@ -76877,12 +76798,12 @@ Sequence ding_dong {
         size: 25.0,
         twist: 100.0,
         rotation: 0.0,
-        x_offset: 50.0,
-        y_offset: 50.0,
-        center_hub: 19.0,
+        x_offset: 0.5,
+        y_offset: 0.5,
+        center_hub: 0.19,
         offset_percentage: true,
         blade_type: Fan,
-        intensity: 100.0,
+        intensity: 1.0,
         frame_interval_ms: 23.0,
       },
     },
@@ -79660,15 +79581,15 @@ Sequence ding_dong {
       duration: 3.845208s,
       target: layouts.layout.garage_matrix,
       scope: WholeTarget,
-      effect: vixen.VixenPinwheel,
+      effect: effects.Pinwheel,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
           Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         ],
         levels: [
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
-          Curve { points: [(0.0, 100.0), (1.0, 100.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+          Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
         ],
         color_type: Standard,
         motion: Iterations,
@@ -79678,12 +79599,12 @@ Sequence ding_dong {
         size: 25.0,
         twist: 100.0,
         rotation: 100.0,
-        x_offset: 50.0,
-        y_offset: 50.0,
-        center_hub: 19.0,
+        x_offset: 0.5,
+        y_offset: 0.5,
+        center_hub: 0.19,
         offset_percentage: true,
         blade_type: Fan,
-        intensity: 100.0,
+        intensity: 1.0,
         frame_interval_ms: 23.0,
       },
     },

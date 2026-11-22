@@ -33,9 +33,9 @@ pub use live::{
 };
 pub use output::{
     DonderDeviceConnection, DonderDeviceNetwork, DonderDeviceNetworkRequest, DonderDeviceStatus,
-    LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
-    OutputTestPattern, OutputTestTarget, Point3Meters, SequenceExportOptions, SequenceExportPort,
-    VideoExportProgress,
+    ExportProgress, LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot,
+    LiveOutputState, OutputTestPattern, OutputTestTarget, Point3Meters, SequenceExportOptions,
+    SequenceExportPort,
 };
 pub use patch::{
     GuiChannelPlace, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,

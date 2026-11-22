@@ -1,17 +1,25 @@
 use super::{DesktopState, lock_unpoisoned};
 use donder_editor::dto::{
-    GuiDocumentRequest, PreviewAppearance, SequenceExportOptions, SequenceExportPort,
+    ExportProgress, GuiDocumentRequest, PreviewAppearance, SequenceExportOptions,
+    SequenceExportPort,
 };
 use donder_model::{ControllerId, ControllerOutput, SequenceId};
 use donder_project_io::ProjectSession;
 use donder_runtime::PreparedShow;
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
-/// Each output of the setup's controllers, with its label and width: an
-/// E1.31 or Art-Net controller's universes, or one Donder port.
-fn outputs(
-    session: &ProjectSession,
-) -> Result<Vec<(ControllerId, ControllerOutput, String, u32)>, String> {
+/// An output of the setup's controllers: an E1.31 or Art-Net controller's
+/// universes, or one Donder port.
+struct ExportOutput {
+    controller: ControllerId,
+    output: ControllerOutput,
+    label: String,
+    width: u32,
+    fseq_channel: Option<NonZeroU32>,
+}
+
+fn outputs(session: &ProjectSession) -> Result<Vec<ExportOutput>, String> {
     let project = &session.project;
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
@@ -29,16 +37,17 @@ fn outputs(
             let label = controller
                 .output_label(output)
                 .ok_or("A controller output is missing.")?;
-            outputs.push((
-                *id,
+            outputs.push(ExportOutput {
+                controller: *id,
                 output,
-                format!(
+                label: format!(
                     "{}#{} / {label}",
                     address.document(),
                     address.declared_name()
                 ),
                 width,
-            ));
+                fseq_channel: controller.fseq_channel(),
+            });
         }
     }
     Ok(outputs)
@@ -79,11 +88,12 @@ impl DesktopState {
         let ports = outputs(&session)?
             .into_iter()
             .enumerate()
-            .map(|(index, (_, _, label, channels))| {
+            .map(|(index, output)| {
                 Ok(SequenceExportPort {
                     index: u32::try_from(index).map_err(|_| "Too many outputs to export.")?,
-                    label,
-                    channels,
+                    label: output.label,
+                    channels: output.width,
+                    fseq_channel: output.fseq_channel.map(NonZeroU32::get),
                 })
             })
             .collect::<Result<_, String>>()?;
@@ -99,7 +109,7 @@ impl DesktopState {
         &self,
         request: &GuiDocumentRequest,
         selected: &[u32],
-    ) -> Result<(Arc<ProjectSession>, SequenceId, PreparedShow), String> {
+    ) -> Result<(Arc<ProjectSession>, SequenceId, PreparedShow, Vec<String>), String> {
         let (session, id) = self.sequence_export_session(request)?;
         if selected.is_empty() {
             return Err("Choose at least one output.".into());
@@ -107,14 +117,16 @@ impl DesktopState {
         let available = outputs(&session)?;
         let mut indices = std::collections::BTreeSet::new();
         let mut ports = Vec::new();
+        let mut labels = Vec::new();
         for index in selected {
             if !indices.insert(*index) {
                 continue;
             }
-            let (controller, output, _, _) = available
+            let output = available
                 .get(*index as usize)
                 .ok_or("Selected output is unavailable.")?;
-            ports.push((*controller, *output));
+            ports.push((output.controller, output.output));
+            labels.push(output.label.clone());
         }
         let prepared = donder_elaboration::prepare(
             &session.project,
@@ -122,7 +134,7 @@ impl DesktopState {
             donder_elaboration::Retain::Outputs(&ports),
         )
         .ok_or("The sequence or selected output is unavailable.")?;
-        Ok((session, id, prepared))
+        Ok((session, id, prepared, labels))
     }
 
     pub(crate) fn prepare_show_export(
@@ -130,7 +142,7 @@ impl DesktopState {
         request: &GuiDocumentRequest,
         selected: &[u32],
     ) -> Result<Vec<u8>, String> {
-        let (_, _, prepared) = self.prepare_selected_outputs(request, selected)?;
+        let (_, _, prepared, _) = self.prepare_selected_outputs(request, selected)?;
         Ok(prepared.encode())
     }
 
@@ -139,10 +151,12 @@ impl DesktopState {
         request: &GuiDocumentRequest,
         selected: &[u32],
         step_millis: u8,
+        mut progress: impl FnMut(ExportProgress),
     ) -> Result<Vec<u8>, String> {
         let step = donder_output::FseqStep::from_millis(step_millis)
             .ok_or("The FSEQ frame step must be at least 1 ms.")?;
-        let (session, id, prepared) = self.prepare_selected_outputs(request, selected)?;
+        progress(ExportProgress::Preparing);
+        let (session, id, prepared, labels) = self.prepare_selected_outputs(request, selected)?;
         let sequence = session
             .project
             .get::<donder_model::Sequence>(id)
@@ -150,7 +164,23 @@ impl DesktopState {
         let media = session
             .audio_asset(&sequence.audio)
             .and_then(|asset| asset.relative_path.file_name());
-        donder_output::encode_fseq(prepared, step, media).map_err(|error| error.to_string())
+        donder_output::encode_fseq(
+            prepared,
+            donder_output::setup_fseq_channel(&session.project),
+            step,
+            media,
+            |completed, total| progress(ExportProgress::Rendering { completed, total }),
+        )
+        .map_err(|error| match error {
+            donder_output::FseqError::Unplaced(index) => {
+                format!("{} has no FSEQ channel.", labels[index])
+            }
+            donder_output::FseqError::Overlap(first, second) => format!(
+                "{} and {} take some of the same FSEQ channels.",
+                labels[first], labels[second]
+            ),
+            error => error.to_string(),
+        })
     }
 
     /// Render the sequence as an MP4 of the Preview's front view with its song.
@@ -160,7 +190,7 @@ impl DesktopState {
         appearance: PreviewAppearance,
         frames_per_second: u32,
         output: &mut (impl std::io::Write + std::io::Seek),
-        progress: impl FnMut(donder_editor::dto::VideoExportProgress),
+        progress: impl FnMut(ExportProgress),
     ) -> Result<(), String> {
         let (session, id) = self.sequence_export_session(request)?;
         let sequence = session

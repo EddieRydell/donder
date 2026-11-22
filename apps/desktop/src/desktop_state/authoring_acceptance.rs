@@ -404,6 +404,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
                     count: 1,
                     channels: 21,
                 },
+                fseq_channel: None,
             },
             ports: vec![donder_editor::dto::SetupControllerPort {
                 id: 1,

@@ -130,12 +130,17 @@ such as `max(x, 0.000001)` divisors, near-zero checks or `if d > 0.0` branches
 only add work to every pixel. Branch only when a case should look different, and
 say why.
 
-`effects/vixen.donder` holds approximate ports of Vixen 3 effects for shows
-converted from Vixen. They keep Vixen's parameter names and scales, so curves
-use percentage values `0..100`, and pixel effects work on each pixel's exact
-position, stretched around the target's center by `scale_x` and `scale_y`.
-They look close to Vixen's effects, not identical. Read a definition's comment
-before using it.
+`effects/standard.donder` is the one effect library. Beside Pulse, Chase,
+Wipe, Spin, their mark-driven versions and the wipes, it holds effects ported
+from Vixen 3 (Twinkle, Butterfly, Meteors, Pinwheel and others). Their levels
+and curves run `0..1` like every other effect's; sliders Vixen sets in its own
+`0..100` units (speed, movement, size, twist) keep those units. Pixel effects
+work on each pixel's exact position, stretched around the target's center by
+`scale_x` and `scale_y`. They look close to Vixen's effects, not identical.
+Read a definition's comment before using it.
+
+A curve is stored with values in `0..1`; a `curve in a..b` parameter maps it
+onto its own range, so any curve fits any curve parameter.
 
 ## Checking the show
 

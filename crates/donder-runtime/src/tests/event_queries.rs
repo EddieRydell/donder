@@ -53,11 +53,12 @@ fn sample(params: &[Param], body: &str) -> Color {
     let selected_declarations: String = params
         .iter()
         .map(|(name, ty, _)| {
-            let item = ty.split(" in ").next().unwrap();
-            let range = if item == "curve" {
-                format!(" in {:.1}..{:.1}", -f32::MAX, f32::MAX)
-            } else {
-                String::new()
+            let mut parts = ty.split(" in ");
+            let item = parts.next().unwrap();
+            // The array maps its curves onto the same range as the param.
+            let range = match parts.next() {
+                Some(range) if item == "curve" => format!(" in {range}"),
+                _ => String::new(),
             };
             format!("param {name}_items: array<{item}>{range};")
         })

@@ -75,8 +75,8 @@ pnpm bench:effect-vm:compare   # compare against that baseline
 pnpm bench:effect-vm           # full set
 ```
 
-- **`prepared_playback_bench`** (`donder-runtime`): ScanSweep, ImpactBurst,
-  SparkleComet and ShimmerField on four 512-pixel sequences, timed through
+- **`prepared_playback_bench`** (`donder-runtime`): the library's Pulse, Chase,
+  Twinkle and Butterfly on four 512-pixel sequences, timed through
   `ShowPlayback::evaluate`. That includes scheduling, VM execution,
   composition and output encoding.
   Focused run: `cargo bench -p donder-runtime --bench prepared_playback_bench -- prepared_effect_suite_4x512_pixels`.

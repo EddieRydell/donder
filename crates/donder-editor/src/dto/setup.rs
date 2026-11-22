@@ -1,6 +1,7 @@
 use crate::dto::*;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::num::NonZeroU32;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
@@ -355,12 +356,16 @@ pub enum SetupControllerConfig {
         priority: u8,
         destination: Option<String>,
         universes: GuiUniverses,
+        /// From 1; none leaves the controller out of FSEQ files.
+        fseq_channel: Option<u32>,
     },
     ArtNet {
         bind_address: String,
         destination: String,
         broadcast: bool,
         universes: GuiUniverses,
+        /// From 1; none leaves the controller out of FSEQ files.
+        fseq_channel: Option<u32>,
     },
     Donder {
         device: String,
@@ -400,12 +405,14 @@ impl From<&donder_model::ControllerProtocol> for SetupControllerConfig {
                     E131Mode::Unicast { destination } => Some(destination.to_string()),
                 },
                 universes: config.universes.into(),
+                fseq_channel: config.fseq_channel.map(NonZeroU32::get),
             },
             ControllerProtocol::ArtNet(config) => Self::ArtNet {
                 bind_address: config.bind_address.to_string(),
                 destination: config.destination.to_string(),
                 broadcast: matches!(config.mode, ArtNetMode::Broadcast),
                 universes: config.universes.into(),
+                fseq_channel: config.fseq_channel.map(NonZeroU32::get),
             },
             ControllerProtocol::Donder(config) => Self::Donder {
                 device: config.device.as_str().to_string(),

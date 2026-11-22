@@ -451,12 +451,13 @@ function CurveValueEditor({ name, tip, value, declarations, range, commit, disab
   disabled?: boolean;
   actions?: ReactNode;
 }) {
-  const points = normalizeSequenceCurvePoints(value.points);
+  // Curves are stored normalized; the editor shows them in the param's range.
+  const points = toCurveAxis(normalizeSequenceCurvePoints(value.points), range);
   return <LibraryValueShell name={name} tip={tip} label="curve" libraryLink={value.link} declarations={declarations}
-    points={points} commit={(points) => commit({ points, link: { type: "inline" } })}
+    points={points} commit={(points) => commit({ points: fromCurveAxis(points, range), link: { type: "inline" } })}
     disabled={disabled} actions={actions}
     link={(curve) => commit({ points: curve.points, link: { type: "library", path: curve.path, objectKey: curve.objectKey, displayName: curve.displayName } })}
-    unlink={() => commit({ points, link: { type: "inline" } })}
+    unlink={() => commit({ points: fromCurveAxis(points, range), link: { type: "inline" } })}
     flipVerticalPoints={(current) => {
       const axis = curveAxis(current, range);
       return current.map((point) => ({ ...point, value: roundCurveValue(axis.min + axis.max - point.value) }));
@@ -979,6 +980,17 @@ function moveArrayItem<T>(items: T[], from: number, to: number) {
 
 function sortCurvePoints<T extends { time: number }>(points: T[]) {
   return [...points].sort((left, right) => left.time - right.time);
+}
+
+/** Stored points (values in 0..1) as shown on a param's range, and back. */
+function toCurveAxis<T extends { value: number }>(points: T[], range: SequenceParamRange | null): T[] {
+  if (range === null) return points;
+  return points.map((point) => ({ ...point, value: roundCurveValue(range.min + point.value * (range.max - range.min)) }));
+}
+
+function fromCurveAxis<T extends { value: number }>(points: T[], range: SequenceParamRange | null): T[] {
+  if (range === null || range.max <= range.min) return points;
+  return points.map((point) => ({ ...point, value: (point.value - range.min) / (range.max - range.min) }));
 }
 
 function curveAxis(points: EditedSequenceCurvePoint[], range: SequenceParamRange | null) {

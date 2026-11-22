@@ -40,7 +40,7 @@ pages with relative paths.
 - [Create your first LED show](first_show.md): a two-pixel project from scratch.
 - [Fixture authoring](fixture_authoring.md): shapes, layouts, groups and routing.
 - [Live input](live_input.md): input devices, consoles and performing live.
-- [Vixen effects](vixen_effects.md): the approximate Vixen ports and how they
-  take a Vixen effect's settings.
+- [Vixen effects](vixen_effects.md): how Vixen effects and their settings map
+  onto the effect library.
 - [Profile import](profile_import.md): a new project from an xLights or Vixen
   profile's layout, controllers and patch.

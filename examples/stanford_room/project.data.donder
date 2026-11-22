@@ -1,4 +1,4 @@
-import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/vixen.donder>;
+import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 import setups from <setups/setup.data.donder>;
 import sequences from <sequences/hero.data.donder>;

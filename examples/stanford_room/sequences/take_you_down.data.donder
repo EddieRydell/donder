@@ -1,7 +1,6 @@
 import operators from <operators/standard.donder>;
 import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
-import effects_2 from <effects/vixen.donder>;
 
 Sequence take_you_down {
   description: none,
@@ -208,14 +207,14 @@ Sequence take_you_down {
       duration: 5.92499999s,
       target: layouts.layout.desk_top,
       scope: WholeTarget,
-      effect: effects_2.VixenAlternating,
+      effect: effects.Alternating,
       params: {
         colors: [
           Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
           Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
           Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         ],
-        levels: [Curve { points: [(0.0, 0.0), (0.0, 100.0), (1.0, 100.0)] }],
+        levels: [Curve { points: [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0)] }],
         interval_ms: 2.0,
         enable_static: true,
       },

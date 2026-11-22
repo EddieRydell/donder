@@ -187,7 +187,7 @@ references, and undo and redo include document registration and imports.
 ## Imports
 
 ```text
-import effects from <effects/standard.donder>, <effects/impact-burst.donder>;
+import effects from <effects/standard.donder>, <effects/my-effects.donder>;
 import layouts from <layouts/outputs.data.donder>;
 ```
 
@@ -278,6 +278,7 @@ Controller output_controller {
     start_universe: 1,
     universes: 30,
     channels: 339,
+    fseq_channel: 1,
     ports: [Port { name: "1", description: none }],
   },
 }
@@ -296,10 +297,10 @@ Controller dig_quad {
 - `Controller`: `description`, `protocol`.
 - `protocol` is one of:
   - `E131 { sender_name, bind_address, priority, mode, start_universe,
-    universes, channels, ports: [Port] }` with `mode` either `Multicast` or
+    universes, channels, fseq_channel, ports: [Port] }` with `mode` either `Multicast` or
     `Unicast { destination }`;
   - `ArtNet { bind_address, destination, mode, start_universe, universes,
-    channels, ports: [Port] }` with socket addresses such as
+    channels, fseq_channel, ports: [Port] }` with socket addresses such as
     `"0.0.0.0:6454"`, `mode` either `Unicast` or `Broadcast`, and
     `start_universe` the 15-bit port-address of the first universe;
   - `Donder { device, ports: [DonderPort] }`, `device` the controller's twelve
@@ -309,6 +310,12 @@ Controller dig_quad {
   RGB pixels). Its channels are numbered across all of them: with 510 channels
   per universe, channel 510 from 0 is the first channel of the second universe.
   A route, and one pixel, may run on from one universe into the next.
+- `fseq_channel` is where FSEQ files place the controller's first channel,
+  from 1, as the player's channel outputs number it: FPP sends FSEQ channel
+  `n` to the universe its channel outputs start at or before `n`. Its
+  channels follow on across its universes. `none` leaves the controller out
+  of FSEQ files. Two controllers in one FSEQ file take no channel twice, and
+  channels no controller takes are zero.
 - Ports are the controller's physical outputs, in the order its channels fill
   them. A port's `name` is free text, as the controller itself names the
   output (`"7"`, `"1A"`), unique within the controller; routes name it.
@@ -568,7 +575,8 @@ Sequence layer_test {
   order, `FixedTime { revolution_time_ms: 250.0 }`), mark collections by name, curves and
   gradients by reference or as literals, and arrays as lists. A literal is a
   declaration's fields without its `description` and name, in the same form:
-  `Curve { points: [(position, value), ...] }` and
+  `Curve { points: [(position, value), ...] }` (values in 0..1, which the
+  parameter maps onto its declared range) and
   `Gradient { space: LinearRgb, stops: [(position, #color), ...] }`. A marks value may be `none`: no collection, so the
   effect sees no marks. New effects and operators start with `none`, and deleting
   a collection sets the values that named it to `none`.

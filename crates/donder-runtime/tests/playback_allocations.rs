@@ -608,15 +608,9 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
     assert_eq!(count, 0, "empty automation window allocated");
 }
 
-const STARTER_EFFECTS: [&str; 7] = [
-    include_str!("../../../examples/starter/effects/impact-burst.donder"),
-    include_str!("../../../examples/starter/effects/mark-impact-burst.donder"),
-    include_str!("../../../examples/starter/effects/scan-sweep.donder"),
-    include_str!("../../../examples/starter/effects/shimmer-field.donder"),
-    include_str!("../../../examples/starter/effects/sparkle-comet.donder"),
-    include_str!("../../../examples/starter/effects/standard.donder"),
-    include_str!("../../../examples/starter/effects/vixen.donder"),
-];
+const STARTER_EFFECTS: [&str; 1] = [include_str!(
+    "../../../examples/starter/effects/standard.donder"
+)];
 
 const OPERATOR_LIBRARIES: [&str; 3] = [
     include_str!("../../../examples/starter/operators/standard.donder"),

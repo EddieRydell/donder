@@ -1,6 +1,8 @@
 //! Vixen controllers as Donder controllers. An E1.31 controller's outputs
 //! are numbered from 0, and each active universe sends `Size` slots holding
-//! outputs `Start` on. Vixen: `E131OutputPlugin`, `UniverseEntry`.
+//! outputs `Start` on. Vixen: `E131OutputPlugin`, `UniverseEntry`. Vixen
+//! numbers every controller's outputs on from the one before it, so a
+//! universe's FSEQ channel is its controller's first plus `Start`.
 
 use super::config::ConfigController;
 use super::contract;
@@ -10,6 +12,7 @@ use crate::xml::Element;
 use donder_model::E131Mode;
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+use std::num::NonZeroU32;
 
 const E131: &str = "771d7eba-662a-48d5-aedb-445c8708e878";
 
@@ -128,7 +131,10 @@ pub(crate) fn read(
         controllers: Vec::new(),
         slots: HashMap::new(),
     };
+    let mut first_channel = NonZeroU32::MIN;
     for (index, controller) in controllers.iter().enumerate() {
+        let controller_first = first_channel;
+        first_channel = first_channel.saturating_add(controller.outputs.len() as u32);
         let read = protocol(
             controller,
             modules.get(&controller.hardware_instance_id),
@@ -156,6 +162,7 @@ pub(crate) fn read(
                     .map(|(number, entry)| ProfileOutput {
                         universe: *number,
                         channels: entry.slots,
+                        fseq_channel: controller_first.saturating_add(entry.start),
                     })
                     .collect();
                 (Ok(protocol), outputs)

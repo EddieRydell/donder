@@ -160,6 +160,8 @@ pub(crate) enum Protocol {
         start_universe: u16,
         universes: u16,
         channels: u16,
+        /// Where FSEQ files place its first channel, from 1.
+        fseq_channel: Option<u32>,
         /// Its physical outputs, in the order its channels fill them.
         ports: Vec<Port>,
     },
@@ -171,6 +173,8 @@ pub(crate) enum Protocol {
         start_universe: u16,
         universes: u16,
         channels: u16,
+        /// Where FSEQ files place its first channel, from 1.
+        fseq_channel: Option<u32>,
         /// Its physical outputs, in the order its channels fill them.
         ports: Vec<Port>,
     },

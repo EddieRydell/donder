@@ -89,7 +89,7 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
 impl Timeline {
     fn new() -> Self {
         let (temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
-        let path = root.join("effects/mark-impact-burst.donder");
+        let path = root.join("effects/standard.donder");
         let mut source = std::fs::read_to_string(&path).unwrap();
         source.push_str("\neffect RowTest { param level: float in 0.0..1.0 = 0.5; sample { rgb(level, level, level) } }\n");
         std::fs::write(path, source).unwrap();
@@ -117,7 +117,7 @@ impl Timeline {
         timeline.edit(SequenceGuiEdit::ChangeEffectDefinition {
             id: timeline.effect,
             effect: SequenceEffectReference {
-                path: "effects/mark-impact-burst.donder".into(),
+                path: "effects/standard.donder".into(),
                 effect_name: "RowTest".into(),
             },
             initial_color: sequence.layers[0].color.to_hex(),

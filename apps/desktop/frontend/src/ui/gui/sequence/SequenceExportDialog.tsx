@@ -4,7 +4,7 @@ import { useState } from "react";
 import { commands, errorMessage } from "../../../api";
 import { PREVIEW_APPEARANCE } from "../../../previewAppearance";
 import { useAppStore } from "../../../store";
-import type { GuiDocumentRequest, SequenceExportOptions, VideoExportProgress } from "../../../types";
+import type { ExportProgress, GuiDocumentRequest, SequenceExportOptions } from "../../../types";
 import { Button, Dialog, Field, IconButton, NumberField, Select, Toggle, type SelectOption } from "../../kit";
 
 /** Common FPP frame steps, offered beside the step closest to the authored rate. */
@@ -29,7 +29,7 @@ export function SequenceExportDialog() {
   const [pending, setPending] = useState<"options" | "dondershow" | "fseq" | "mp4" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [videoProgress, setVideoProgress] = useState<VideoExportProgress | null>(null);
+  const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [videoFrameRate, setVideoFrameRate] = useState(DEFAULT_VIDEO_FRAME_RATE);
   const stale = origin !== null && origin !== request;
   const ports = options?.ports ?? [];
@@ -41,11 +41,7 @@ export function SequenceExportDialog() {
     { value: CUSTOM_STEP, label: "Custom" }
   ];
   const stepValid = Number.isInteger(stepMillis) && stepMillis >= 1 && stepMillis <= FSEQ_MAX_STEP;
-  const firstChannels = new Map<number, number>();
-  selected.reduce((first, index) => {
-    firstChannels.set(index, first);
-    return first + (ports.find((port) => port.index === index)?.channels ?? 0);
-  }, 1);
+  const fseqSelected = selected.filter((index) => (ports.find((port) => port.index === index)?.fseqChannel ?? null) !== null);
   const begin = async () => {
     if (request === null || editing || request.projectRevision !== revision) return;
     setOrigin(request); setOptions(null); setSelected([]); setCustomStep(false); setError(null); setSaved(null); setPending("options");
@@ -62,18 +58,19 @@ export function SequenceExportDialog() {
     setPending(format); setError(null); setSaved(null);
     try {
       setSaved(format === "fseq"
-        ? await commands.exportFseqFile(origin, selected, stepMillis)
+        ? await commands.exportFseqFile(origin, fseqSelected, stepMillis, progressChannel())
         : format === "mp4"
           ? await exportVideo(origin)
           : await commands.exportShowFile(origin, selected));
     } catch (error: unknown) { setError(errorMessage(error)); }
-    finally { setPending(null); setVideoProgress(null); }
+    finally { setPending(null); setProgress(null); }
   };
-  const exportVideo = (target: GuiDocumentRequest) => {
-    const channel = new Channel<VideoExportProgress>();
-    channel.onmessage = setVideoProgress;
-    return commands.exportVideoFile(target, PREVIEW_APPEARANCE, videoFrameRate, channel);
+  const progressChannel = () => {
+    const channel = new Channel<ExportProgress>();
+    channel.onmessage = setProgress;
+    return channel;
   };
+  const exportVideo = (target: GuiDocumentRequest) => commands.exportVideoFile(target, PREVIEW_APPEARANCE, videoFrameRate, progressChannel());
   const busy = pending !== null;
   const locked = busy || stale;
   const problem = stale ? "Project changed; reopen export" : error ?? (options !== null && ports.length === 0 ? "No outputs in Display Setup" : null);
@@ -86,20 +83,20 @@ export function SequenceExportDialog() {
       size="md"
       actions={<>
         <Button disabled={locked} tip="The Preview with the song, ready to share" onClick={() => { void save("mp4"); }}>{pending === "mp4" ? "Exporting…" : "Save .mp4"}</Button>
-        <Button disabled={locked || selected.length === 0 || !stepValid} tip="The outputs' channels back to back, for FPP and other players" onClick={() => { void save("fseq"); }}>{pending === "fseq" ? "Preparing…" : "Save .fseq"}</Button>
+        <Button disabled={locked || fseqSelected.length === 0 || !stepValid} tip="The outputs in FSEQ, each at its FSEQ channel, for FPP and other players" onClick={() => { void save("fseq"); }}>{pending === "fseq" ? "Exporting…" : "Save .fseq"}</Button>
         <Button variant="primary" disabled={locked || selected.length === 0} tip="The show a Donder controller plays, outputs in order. Controllers in the setup receive it on Play" onClick={() => { void save("dondershow"); }}>{pending === "dondershow" ? "Preparing…" : "Save .dondershow"}</Button>
       </>}
     >
       {pending === "options" && <p role="status">Loading…</p>}
       {options !== null && ports.length > 0 && <div className="sequence-export-ports">
         {ports.map((port) => {
-          const first = firstChannels.get(port.index);
-          const placement = first === undefined ? "" : ` · #${selected.indexOf(port.index) + 1}, ch ${first}–${first + port.channels - 1}`;
+          const position = selected.indexOf(port.index);
+          const fseq = port.fseqChannel === null ? "not in FSEQ" : `FSEQ ch ${port.fseqChannel}–${port.fseqChannel + port.channels - 1}`;
           return <Toggle
             key={port.index}
             name={port.label}
-            label={`${port.label} · ${port.channels} ch${placement}`}
-            checked={first !== undefined}
+            label={`${port.label} · ${port.channels} ch${position === -1 ? "" : ` · #${position + 1}`} · ${fseq}`}
+            checked={position !== -1}
             disabled={locked}
             onChange={(checked) => { setSaved(null); setSelected(checked ? [...selected, port.index] : selected.filter((index) => index !== port.index)); }}
           />;
@@ -125,9 +122,9 @@ export function SequenceExportDialog() {
       {options !== null && <Field label="Video">
         <Select name="Video frame rate" disabled={locked} value={String(videoFrameRate)} options={VIDEO_FRAME_RATE_OPTIONS} onChange={(value) => { setSaved(null); setVideoFrameRate(Number(value)); }} />
       </Field>}
-      {videoProgress !== null && <div className="sequence-export-progress">
-        <span id="sequence-export-progress-label">{videoProgressLabel(videoProgress)}</span>
-        <progress aria-labelledby="sequence-export-progress-label" value={videoProgress.stage === "rendering" ? videoProgress.completed : undefined} max={videoProgress.stage === "rendering" ? Math.max(1, videoProgress.total) : undefined} />
+      {progress !== null && <div className="sequence-export-progress">
+        <span id="sequence-export-progress-label">{progressLabel(progress)}</span>
+        <progress aria-labelledby="sequence-export-progress-label" value={progress.stage === "rendering" ? progress.completed : undefined} max={progress.stage === "rendering" ? Math.max(1, progress.total) : undefined} />
       </div>}
       {problem !== null && <div className="kit-status-error" role="alert">{problem}</div>}
       {saved !== null && <p role="status">Saved {saved}</p>}
@@ -135,8 +132,9 @@ export function SequenceExportDialog() {
   </>;
 }
 
-function videoProgressLabel(progress: VideoExportProgress): string {
+function progressLabel(progress: ExportProgress): string {
   switch (progress.stage) {
+    case "preparing": return "Preparing show…";
     case "preparingAudio": return "Preparing song…";
     case "rendering": return `Rendering ${Math.round(100 * progress.completed / Math.max(1, progress.total))}%`;
     case "saving": return "Saving…";

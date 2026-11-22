@@ -16,7 +16,6 @@ use std::time::Duration;
 enum MarkEffect {
     Chase,
     Wipe,
-    ImpactBurst,
     Pulse,
 }
 
@@ -25,7 +24,6 @@ impl MarkEffect {
         match self {
             Self::Chase => "MarkChase",
             Self::Wipe => "MarkWipe",
-            Self::ImpactBurst => "MarkImpactBurst",
             Self::Pulse => "MarkPulse",
         }
     }
@@ -34,7 +32,6 @@ impl MarkEffect {
         match self {
             Self::Chase => "chase_seconds",
             Self::Wipe => "wipe_seconds",
-            Self::ImpactBurst => "burst_seconds",
             Self::Pulse => "decay_seconds",
         }
     }
@@ -148,14 +145,7 @@ fn configured_project(
         set("gradients", ParamValue::Array(vec![accent]));
     }
     // A nonzero endpoint distinguishes explicit pulse lifetime from endpoint holding.
-    set(
-        if matches!(effect, MarkEffect::ImpactBurst) {
-            "intensity"
-        } else {
-            "pulse_shape"
-        },
-        shape(1.0, 0.25),
-    );
+    set("pulse_shape", shape(1.0, 0.25));
     match effect {
         MarkEffect::Chase => {
             set("chase_position", chase_position);
@@ -165,9 +155,6 @@ fn configured_project(
             set("wipe_positions", ParamValue::Array(vec![shape(0.0, 1.0)]));
             set("direction_angle", shape(0.125, 0.125));
             set("pulse_width", ParamValue::Float(0.25));
-        }
-        MarkEffect::ImpactBurst => {
-            set("glow_level", ParamValue::Float(0.0));
         }
         MarkEffect::Pulse => {}
     }
@@ -204,7 +191,6 @@ fn single_pass_reference(
     let name = match effect {
         MarkEffect::Chase => "Chase",
         MarkEffect::Wipe => "Wipe",
-        MarkEffect::ImpactBurst => "ImpactBurst",
         MarkEffect::Pulse => "Pulse",
     };
     let definition = *project
@@ -412,12 +398,6 @@ fn chase_retriggers_each_pixel_only_when_the_next_chase_arrives() {
 fn wipe_obeys_lifetime_and_retriggers_without_overlap() {
     check_single_mark_lifetime(MarkEffect::Wipe);
     compare_retrigger(MarkEffect::Wipe);
-}
-
-#[test]
-fn burst_obeys_lifetime_and_retriggers_without_overlap() {
-    check_single_mark_lifetime(MarkEffect::ImpactBurst);
-    compare_retrigger(MarkEffect::ImpactBurst);
 }
 
 #[test]

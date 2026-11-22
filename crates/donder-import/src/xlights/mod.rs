@@ -32,6 +32,7 @@ use networks::{ControllerType, Networks, OutputType};
 use read::Reader;
 use std::collections::HashSet;
 use std::net::IpAddr;
+use std::num::NonZeroU32;
 
 pub(crate) const LAYOUT_FILE: &str = "xlights_rgbeffects.xml";
 pub(crate) const NETWORKS_FILE: &str = "xlights_networks.xml";
@@ -295,6 +296,8 @@ fn protocol(
                     .map_err(|_| ControllerSkip::Universe(output.universe))?,
                 channels: u16::try_from(output.channels)
                     .map_err(|_| ControllerSkip::LargeOutput(output.channels))?,
+                fseq_channel: NonZeroU32::new(output.start)
+                    .ok_or(ControllerSkip::Setting("start".into(), "0".into()))?,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;

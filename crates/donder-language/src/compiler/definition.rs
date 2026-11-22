@@ -3,7 +3,7 @@
 //! one place in the global signal graph, where preparation may substitute
 //! constant inputs and fuse sources before lowering it to a program.
 use super::check::{self, Definition};
-use super::declarations::{check_ranges, program_params};
+use super::declarations::{check_ranges, map_curves, program_params};
 use super::instance::{Instance, ProgramConstants};
 use super::ir::Op;
 use super::ir::interval::{Bounds, interval};
@@ -186,6 +186,10 @@ fn invoke(
     automation: Box<[PreparedAutomation]>,
 ) -> Result<Invocation, BindingError> {
     check_values(definition, &values, &automation)?;
+    let values = program_params(definition.params.iter())
+        .zip(values)
+        .map(|(param, value)| map_curves(param, value))
+        .collect();
     let types: Vec<_> = program_params(definition.params.iter())
         .map(|param| param.ty.clone())
         .collect();

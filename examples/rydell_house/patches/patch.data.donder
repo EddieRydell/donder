@@ -2240,7 +2240,7 @@ Patch patch {
     Route {
       target: layouts.layout.radio_m,
       pixels: none,
-      controller: setups.peacock,
+      controller: setups.peacock_3,
       port: "1",
       start: Next,
       encoding: Rgb { order: (0, 1, 2) },
@@ -3505,9 +3505,9 @@ Patch patch {
     Route {
       target: layouts.layout.rm_big_10,
       pixels: none,
-      controller: setups.right_meteors,
+      controller: setups.right_meteors_2,
       port: "1",
-      start: Channel { channel: 1020 },
+      start: Next,
       encoding: Rgb { order: (0, 1, 2) },
       gamma: 1.0,
       brightness: 1.0,
@@ -3516,7 +3516,7 @@ Patch patch {
     Route {
       target: layouts.layout.rm_big_11,
       pixels: none,
-      controller: setups.right_meteors,
+      controller: setups.right_meteors_2,
       port: "1",
       start: Next,
       encoding: Rgb { order: (0, 1, 2) },
@@ -3527,7 +3527,7 @@ Patch patch {
     Route {
       target: layouts.layout.rm_small_13,
       pixels: none,
-      controller: setups.right_meteors,
+      controller: setups.right_meteors_2,
       port: "1",
       start: Next,
       encoding: Rgb { order: (0, 1, 2) },
@@ -3538,7 +3538,7 @@ Patch patch {
     Route {
       target: layouts.layout.rm_small_14,
       pixels: none,
-      controller: setups.right_meteors,
+      controller: setups.right_meteors_2,
       port: "1",
       start: Next,
       encoding: Rgb { order: (0, 1, 2) },
@@ -3549,7 +3549,7 @@ Patch patch {
     Route {
       target: layouts.layout.rm_big_12,
       pixels: none,
-      controller: setups.right_meteors,
+      controller: setups.right_meteors_2,
       port: "1",
       start: Next,
       encoding: Rgb { order: (0, 1, 2) },
@@ -3560,7 +3560,7 @@ Patch patch {
     Route {
       target: layouts.layout.rm_big_12_2,
       pixels: none,
-      controller: setups.right_meteors,
+      controller: setups.right_meteors_2,
       port: "1",
       start: Next,
       encoding: Rgb { order: (0, 1, 2) },
@@ -3571,7 +3571,7 @@ Patch patch {
     Route {
       target: layouts.layout.rm_big_12_3,
       pixels: none,
-      controller: setups.right_meteors,
+      controller: setups.right_meteors_2,
       port: "1",
       start: Next,
       encoding: Rgb { order: (0, 1, 2) },

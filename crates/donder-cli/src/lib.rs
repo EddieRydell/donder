@@ -28,7 +28,7 @@ impl Cli {
 enum Command {
     /// Validate the project's local imports, definitions, targets, and assets.
     Check,
-    /// Render a sequence for every output of the active setup into an FSEQ v2 file for FPP.
+    /// Render a sequence for every setup controller with an FSEQ channel into an FSEQ v2 file for FPP.
     ExportFseq {
         /// The sequence's declared name.
         sequence: String,
@@ -232,13 +232,30 @@ fn export_fseq(
             donder_output::FseqStep::SMOOTH_MILLIS
         );
     }
-    let prepared = donder_elaboration::prepare(project, id, donder_elaboration::Retain::All)
-        .ok_or("The sequence cannot be played on the active setup.")?;
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
         .ok_or("Project setup is missing.")?;
-    let mut first = 1;
-    let mut channels = Vec::new();
+    let placed = setup
+        .controllers
+        .iter()
+        .map(|source| *source.id())
+        .filter(|id| {
+            project
+                .get::<donder_model::Controller>(*id)
+                .is_some_and(|controller| controller.fseq_channel().is_some())
+        })
+        .collect::<Vec<_>>();
+    if placed.is_empty() {
+        return Err("No setup controller has an FSEQ channel.".into());
+    }
+    let prepared = donder_elaboration::prepare(
+        project,
+        id,
+        donder_elaboration::Retain::Controllers(&placed),
+    )
+    .ok_or("The sequence cannot be played on the active setup.")?;
+    let fseq_channel = donder_output::setup_fseq_channel(project);
+    let mut labels = Vec::new();
     for prepared_output in prepared.outputs() {
         let controller = setup
             .controllers
@@ -248,31 +265,39 @@ fn export_fseq(
         let output = controller
             .output_label(controller.runtime_output(prepared_output.port))
             .ok_or("Controller output is missing.")?;
-        let last = first + prepared_output.width - 1;
+        let first = fseq_channel(prepared_output)
+            .ok_or("A controller has no FSEQ channel.")?
+            .get();
         let address = session
             .address_of(controller.id.into())
             .ok_or("A controller is missing from the source inventory.")?;
-        channels.push(format!(
-            "  channels {first}-{last}: {}#{} / {}",
-            address.document(),
-            address.declared_name(),
-            output
+        labels.push((
+            first,
+            format!(
+                "{}#{} / {}",
+                address.document(),
+                address.declared_name(),
+                output
+            ),
+            prepared_output.width,
         ));
-        first = last + 1;
     }
     let media = session
         .audio_asset(&sequence.audio)
         .and_then(|asset| asset.relative_path.file_name());
-    let bytes =
-        donder_output::encode_fseq(prepared, step, media).map_err(|error| error.to_string())?;
+    let bytes = donder_output::encode_fseq(prepared, fseq_channel, step, media, |_, _| {})
+        .map_err(|error| match error {
+            donder_output::FseqError::Overlap(first, second) => format!(
+                "{} and {} take some of the same FSEQ channels.",
+                labels[first].1, labels[second].1
+            ),
+            error => error.to_string(),
+        })?;
     donder_project_io::atomic_write(output, &bytes).map_err(|error| error.to_string())?;
-    println!(
-        "Wrote {output} at {} ms per frame, {} channels:",
-        step.millis(),
-        first - 1
-    );
-    for line in channels {
-        println!("{line}");
+    println!("Wrote {output} at {} ms per frame:", step.millis());
+    labels.sort_by_key(|(first, _, _)| *first);
+    for (first, label, width) in labels {
+        println!("  channels {first}-{}: {label}", first + width - 1);
     }
     Ok(())
 }

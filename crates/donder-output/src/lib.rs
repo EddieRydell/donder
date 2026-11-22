@@ -21,7 +21,7 @@ use donder_model::{Controller, ControllerId, ControllerProtocol};
 
 pub use artnet::ArtNetSender;
 pub use e131::E131Sender;
-pub use fseq::{FseqError, FseqStep, encode_fseq};
+pub use fseq::{FseqError, FseqStep, encode_fseq, setup_fseq_channel};
 pub use test_pattern::{OutputTest, TestError, TestPattern, TestSelection};
 
 /// An E1.31 or Art-Net controller's channels across all its universes,

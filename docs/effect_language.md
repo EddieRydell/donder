@@ -94,11 +94,14 @@ param speed_format: enum {
   own, so fields cost what plain parameters do.
 
 `int`, `float`, `curve` and `array<curve>` parameters declare an inclusive range
-with `in min..max`; a curve's range bounds its point values, and an
-`array<curve>`'s range bounds every item's. The editor's curve axis spans the
-range, and a new curve falls from its maximum to its minimum. Defaults, authored values and edits
-outside the range are rejected, never clamped, so code can rely on it instead of
-re-validating its inputs.
+with `in min..max`. A curve is stored normalized, its point values in 0..1, and
+binding maps them onto a curve parameter's range (every item's, for an
+`array<curve>`) before the program sees them, so one curve, a library curve
+included, fits any curve parameter. The editor's curve axis shows the range,
+and a new curve falls from the top of it to the bottom. Defaults, authored
+values and edits outside the range (outside 0..1 for curve points) are
+rejected, never clamped, so code can rely on it instead of re-validating its
+inputs.
 
 Parameters of type float, int, bool, enum (without fields) and curve can be automated. Automation
 maps its normalized curve (values in 0..1) onto the declared range, an enum's
@@ -432,10 +435,16 @@ checked once when they compile; a show is trusted when it loads.
 
 ## Standard library
 
-`effects/standard.donder` defines Pulse, Chase, Spin, Wipe, MarkPulse,
-MarkChase and MarkWipe. ImpactBurst and MarkImpactBurst are separate documents.
-New projects include all of these. The starter project also has ScanSweep,
-ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
+`effects/standard.donder` is the one effect library new projects include:
+
+- Pulse, Chase, Spin and Wipe, and the mark-driven MarkPulse, MarkChase and
+  MarkWipe.
+- RadialWipe, FieldWipe and MarkFieldWipe.
+- Effects ported from Vixen 3: SetLevel, Alternating, Strobe, Candle, Twinkle,
+  Dissolve, Pinwheel, Butterfly, Colorwash, Plasma, Bars, Border, Spiral,
+  Shockwave, Garlands, Curtain, Spirograph, Fire, Fireworks, Meteors and
+  Snowflakes. [Vixen effects](vixen_effects.md) maps Vixen's effects and
+  settings onto them.
 
 - **Spin** wraps a chase position extended by `revolutions` onto the strand.
 - **Wipe** projects pixel positions onto `direction_angle` (degrees; 0 is +X,
@@ -444,13 +453,19 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
   `passes` sweeps the pulse across that many times, one after another. `mode`
   `Pass` lights a pixel only while its pulse crosses it, `On` keeps it lit
   after the last pass, and `Off` lights it before the first.
-- **MarkPulse, MarkWipe and MarkImpactBurst** restart from the latest mark.
+- **MarkPulse and MarkWipe** restart from the latest mark.
   MarkPulse lights random clusters, placed anew on every mark. MarkWipe cycles
   its gradients and positions by mark index; its `direction_angle` curve is in
   turns, sampled at the mark's time.
 - **MarkChase** shares one chase curve across marks: a pixel's travel delay is
   where the curve first reaches it, so a new mark replaces the old pulse only when
   its chase arrives.
+- **RadialWipe** sends a pulse outward from `center_x`, `center_y` (each
+  -1..1 across the target) by Circle, Diamond or Burst distance;
+  `pulse_length` is its share of the clip. **FieldWipe** and **MarkFieldWipe**
+  light pixels by a field of arrival times over their location (linear,
+  saddle and radial terms), so a wipe's shape follows where pixels are, not
+  which fixture holds them.
 - Mark effects stop at their clip boundary and after the pulse duration. Empty
   mark or gradient collections produce black. With `overlap_marks` on, a new
   mark no longer cuts off earlier pulses: every pulse still running stays lit,

@@ -123,8 +123,8 @@ pub(crate) mod tests {
         let snapshot = state.open_project_path(root.as_str());
         let error = state
             .plan_workspace_path_change(WorkspacePathChangeRequest {
-                source: "effects/impact-burst.donder".to_string(),
-                destination: "effects/impact.donder".to_string(),
+                source: "operators/gain.donder".to_string(),
+                destination: "operators/level.donder".to_string(),
                 project_revision: snapshot.project_revision.saturating_sub(1),
             })
             .unwrap_err();
@@ -156,12 +156,12 @@ pub(crate) mod tests {
         let revision = state.snapshot().project_revision;
         let error = state
             .apply_workspace_path_change(WorkspacePathChangeRequest {
-                source: "effects/impact-burst.donder".to_string(),
-                destination: "effects/impact.donder".to_string(),
+                source: "operators/gain.donder".to_string(),
+                destination: "operators/level.donder".to_string(),
                 project_revision: revision,
             })
             .unwrap_err();
         assert!(error.contains("saved"));
-        assert!(root.join("effects/impact-burst.donder").is_file());
+        assert!(root.join("operators/gain.donder").is_file());
     }
 }

@@ -7,6 +7,8 @@ pub struct SequenceExportPort {
     pub index: u32,
     pub label: String,
     pub channels: u32,
+    /// Where FSEQ files place its first channel, from 1; none leaves it out.
+    pub fseq_channel: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -144,11 +146,16 @@ pub enum OutputTestPattern {
     Rise,
 }
 
-/// Progress of a sequence video export, sent while it runs.
+/// Progress of a sequence's FSEQ or video export, sent while it runs.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "stage", rename_all = "camelCase")]
-pub enum VideoExportProgress {
+pub enum ExportProgress {
+    /// Preparing the show for the selected outputs.
+    Preparing,
     PreparingAudio,
-    Rendering { completed: u32, total: u32 },
+    Rendering {
+        completed: u32,
+        total: u32,
+    },
     Saving,
 }

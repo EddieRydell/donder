@@ -555,6 +555,7 @@ mod tests {
                     count: 1,
                     channels: 6,
                 },
+                fseq_channel: None,
                 ports: Vec::new(),
             }),
         };

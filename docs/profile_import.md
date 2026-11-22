@@ -48,7 +48,9 @@ importer does not know refuses the model.
 - E1.31 and Art-Net controllers become a controller for each run of
   consecutive universes of one width; a shorter last universe sends its
   unused channels as zero. Universes that do not follow on, or follow a
-  shorter one, start another controller. Each has one port, `"1"`: profiles
+  shorter one, start another controller, and so do universes whose
+  absolute channels do not follow on. Each controller's `fseq_channel` is
+  its first universe's absolute channel. Each has one port, `"1"`: profiles
   do not say which physical output carries which channels.
 - Each model's channels become one route for each run of consecutive
   channels on one controller, across universe boundaries. A route that
@@ -184,7 +186,9 @@ each piece of the code names the Vixen code it follows.
   lights as Vixen does.
 - E1.31 controllers become controllers of consecutive active universes, as
   for xLights. A universe sends the controller's outputs from its start, as
-  Vixen does.
+  Vixen does. Vixen numbers each controller's outputs on from the last
+  output of the controller before it, every module included; a universe's
+  absolute channel is its controller's first plus its start.
 - An element group becomes a group of its imported child groups and of its
   other elements' pixels, in child order: a fixture all of whose pixels it
   holds is a member, and part of one is the slices of its runs of pixels, so

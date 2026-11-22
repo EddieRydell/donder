@@ -2,7 +2,6 @@ import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
 import operators from <operators/standard.donder>;
-import effects_2 from <effects/field-wipe.donder>;
 
 Sequence hero {
   description: none,
@@ -866,7 +865,7 @@ Sequence hero {
       duration: 10.143018877s,
       target: layouts.layout.house_and_trees,
       scope: WholeTarget,
-      effect: effects_2.MarkFieldWipe,
+      effect: effects.MarkFieldWipe,
       params: {
         beats: beats,
         gradients: [
@@ -897,7 +896,7 @@ Sequence hero {
       duration: 2.442170233s,
       target: layouts.layout.house_and_trees,
       scope: WholeTarget,
-      effect: effects_2.MarkFieldWipe,
+      effect: effects.MarkFieldWipe,
       params: {
         beats: beats,
         gradients: [
@@ -929,7 +928,7 @@ Sequence hero {
       duration: 27.111698471s,
       target: layouts.layout.mega_tree,
       scope: WholeTarget,
-      effect: effects_2.MarkFieldWipe,
+      effect: effects.MarkFieldWipe,
       params: {
         beats: marks,
         gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
