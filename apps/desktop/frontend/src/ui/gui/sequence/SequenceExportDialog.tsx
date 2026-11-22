@@ -1,11 +1,11 @@
 import { Channel } from "@tauri-apps/api/core";
-import { Download } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { commands, errorMessage } from "../../../api";
 import { PREVIEW_APPEARANCE } from "../../../previewAppearance";
 import { useAppStore } from "../../../store";
 import type { ExportProgress, GuiDocumentRequest, SequenceExportOptions } from "../../../types";
-import { Button, Dialog, Field, IconButton, NumberField, Select, Toggle, type SelectOption } from "../../kit";
+import { Button, Dialog, Field, NumberField, Select, Toggle, type SelectOption } from "../../kit";
+import { listenUiEvent } from "../../uiEvents";
 
 /** Common FPP frame steps, offered beside the step closest to the authored rate. */
 const FSEQ_PRESET_STEPS = [10, 20, 25, 50];
@@ -43,7 +43,7 @@ export function SequenceExportDialog() {
   const stepValid = Number.isInteger(stepMillis) && stepMillis >= 1 && stepMillis <= FSEQ_MAX_STEP;
   const fseqSelected = selected.filter((index) => (ports.find((port) => port.index === index)?.fseqChannel ?? null) !== null);
   const begin = async () => {
-    if (request === null || editing || request.projectRevision !== revision) return;
+    if (pending !== null || request === null || editing || request.projectRevision !== revision) return;
     setOrigin(request); setOptions(null); setSelected([]); setCustomStep(false); setError(null); setSaved(null); setPending("options");
     try {
       const result = await commands.sequenceExportOptions(request);
@@ -53,6 +53,9 @@ export function SequenceExportDialog() {
     } catch (error: unknown) { setError(errorMessage(error)); }
     finally { setPending(null); }
   };
+  // File > Export opens the dialog for the open sequence.
+  const openExport = useEffectEvent(() => { void begin(); });
+  useEffect(() => listenUiEvent("openExport", openExport), []);
   const save = async (format: "dondershow" | "fseq" | "mp4") => {
     if (origin === null || stale) return;
     setPending(format); setError(null); setSaved(null);
@@ -75,7 +78,6 @@ export function SequenceExportDialog() {
   const locked = busy || stale;
   const problem = stale ? "Project changed; reopen export" : error ?? (options !== null && ports.length === 0 ? "No outputs in Display Setup" : null);
   return <>
-    <IconButton icon={Download} label="Export sequence" disabled={busy || editing || request === null || request.projectRevision !== revision} onClick={() => { void begin(); }} />
     <Dialog
       open={origin !== null}
       onOpenChange={(open) => { if (!open && !busy) setOrigin(null); }}

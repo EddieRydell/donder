@@ -18,6 +18,8 @@ export const FILE_MENU: AppMenuEntry[] = [
   item("file.save"),
   item("file.reloadFromDisk"),
   separator,
+  item("file.export"),
+  separator,
   item("file.closeEditor")
 ];
 

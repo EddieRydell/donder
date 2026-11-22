@@ -7,7 +7,7 @@ import { runSnapshotCommand, useAppStore } from "./store";
 import type { AppCommandId, CommandId, EditorCommandId, KeyBinding, Shortcut, SidebarView } from "./types";
 import { editTarget, formatShortcut, isMac, matchesShortcut, shortcut } from "./platform";
 import { activeEditorCommand, editorSurfaceRoot } from "./shortcuts";
-import { dispatchUiEvent, focusSidebar, requestOpenLayerGraph } from "./ui/uiEvents";
+import { dispatchUiEvent, focusSidebar, requestOpenExport, requestOpenLayerGraph } from "./ui/uiEvents";
 import { isPerforming, stopPerforming } from "./perform";
 
 export type CommandDefinition = {
@@ -30,6 +30,7 @@ const layersOpen = () => {
   const type = useAppStore.getState().guiDocument?.type;
   return type === "sequence" || type === "console";
 };
+const sequenceOpen = () => useAppStore.getState().guiDocument?.type === "sequence";
 const settings = () => useAppStore.getState().snapshot?.settings;
 const focusingSidebar = (view: SidebarView) => () => { focusSidebar(view); };
 
@@ -51,6 +52,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
     if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "reloadFile", path });
     useAppStore.getState().resetGuiLocalState();
   }, hasProject),
+  "file.export": command("Export...", "File", ["fseq", "fpp", "video", "mp4", "dondershow"], requestOpenExport, sequenceOpen),
   "file.closeEditor": command("Close Editor", "File", ["tab", "file"], async () => {
     const path = useAppStore.getState().snapshot?.activeFile;
     if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "closeFile", path });

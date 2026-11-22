@@ -75,6 +75,18 @@ impl DesktopState {
         Ok((session, id))
     }
 
+    /// The sequence's declared name, which export files are named after.
+    pub(crate) fn sequence_export_name(
+        &self,
+        request: &GuiDocumentRequest,
+    ) -> Result<String, String> {
+        let (session, id) = self.sequence_export_session(request)?;
+        let address = session
+            .address_of(id.into())
+            .ok_or("The sequence is missing from the source inventory.")?;
+        Ok(address.declared_name().to_string())
+    }
+
     pub(crate) fn sequence_export_options(
         &self,
         request: &GuiDocumentRequest,

@@ -14,6 +14,7 @@ donder-runtime-types.workspace = true
 indexmap.workspace = true
 power-guard.workspace = true
 sacn.workspace = true
+uuid.workspace = true
 zstd.workspace = true
 
 [lints]

@@ -146,7 +146,7 @@ export const ACCESS_POINT_PASSWORD = "12345678" as const;
 
 /* Types */
 /**  Commands the workbench runs, whatever editor is open. */
-export type AppCommandId = "file.newProject" | "file.importProject" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.commandPalette" | "project.reload" | "perform.stop";
+export type AppCommandId = "file.newProject" | "file.importProject" | "file.openProject" | "file.save" | "file.reloadFromDisk" | "file.export" | "file.closeEditor" | "file.closeWindow" | "file.settings" | "edit.undo" | "edit.redo" | "view.toggleGuiMode" | "view.toggleSpectrogram" | "view.toggleMarksLaneOnly" | "view.openLayerGraph" | "view.toggleProjectTree" | "view.focusExplorer" | "view.focusSearch" | "view.focusProblems" | "workbench.commandPalette" | "project.reload" | "perform.stop";
 
 export type AppSettings = {
 	reopenLastProject: boolean,

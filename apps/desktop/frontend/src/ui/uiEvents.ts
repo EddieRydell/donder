@@ -10,6 +10,8 @@ type UiEvents = {
   focusSidebar: SidebarView;
   navigateToText: TextNavigation;
   openLayerGraph: undefined;
+  /** Asks the open sequence editor to open its export dialog. */
+  openExport: undefined;
   /** Asks the open sequence editor to drop a mark at the playhead. */
   tapMark: undefined;
   /** A GUI undo or redo replaced the document. */
@@ -37,6 +39,10 @@ export function focusSidebar(view: SidebarView) {
 
 export function requestOpenLayerGraph() {
   dispatchUiEvent("openLayerGraph");
+}
+
+export function requestOpenExport() {
+  dispatchUiEvent("openExport");
 }
 
 export function requestTapMark() {

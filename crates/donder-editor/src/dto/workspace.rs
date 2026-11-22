@@ -165,6 +165,8 @@ pub enum AppCommandId {
     FileSave,
     #[serde(rename = "file.reloadFromDisk")]
     FileReloadFromDisk,
+    #[serde(rename = "file.export")]
+    FileExport,
     #[serde(rename = "file.closeEditor")]
     FileCloseEditor,
     #[serde(rename = "file.closeWindow")]

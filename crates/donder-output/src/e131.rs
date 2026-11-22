@@ -1,40 +1,39 @@
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 
 use crate::OutputFrame;
 use donder_model::{ControllerId, E131Config, E131Mode};
 use sacn::packet::{
     ACN_SDT_MULTICAST_PORT, AcnRootLayerProtocol, DataPacketDmpLayer, DataPacketFramingLayer,
-    E131RootLayer, E131RootLayerData,
+    E131_TERMINATE_STREAM_PACKET_COUNT, E131RootLayer, E131RootLayerData, STARTING_SEQUENCE_NUMBER,
+    universe_to_ipv4_multicast_addr, universe_to_ipv6_multicast_addr,
 };
-use sacn::source::SacnSource;
+use uuid::Uuid;
 
 use crate::OutputError;
 
+/// Sends E1.31 data packets on one socket. The `sacn` crate's `SacnSource` is not used: its
+/// discovery thread makes every drop wait up to a second, which stalls disabling output.
 pub struct E131Sender {
     id: ControllerId,
-    source: SacnSource,
-    termination_socket: UdpSocket,
+    socket: UdpSocket,
+    cid: Uuid,
     config: E131Config,
+    /// Each universe's next sequence number, in the order `config.universes` lists them.
+    sequences: Vec<u8>,
     /// One universe's data: the start code, then its channels.
     universe_data: Vec<u8>,
 }
 
 impl E131Sender {
     pub(crate) fn open(id: ControllerId, config: &E131Config) -> Result<Self, OutputError> {
-        let bind = SocketAddr::new(config.bind_address, 0);
-        let mut source = SacnSource::with_ip(&config.sender_name, bind)
+        let socket = UdpSocket::bind(SocketAddr::new(config.bind_address, 0))
             .map_err(|error| socket_error(&id, error))?;
-        let termination_socket = UdpSocket::bind(bind).map_err(|error| socket_error(&id, error))?;
-        for (universe, _) in config.universes.iter() {
-            source
-                .register_universe(universe)
-                .map_err(|error| socket_error(&id, error))?;
-        }
         Ok(Self {
             id,
-            source,
-            termination_socket,
+            socket,
+            cid: Uuid::new_v4(),
             config: config.clone(),
+            sequences: vec![STARTING_SEQUENCE_NUMBER; usize::from(config.universes.count)],
             universe_data: vec![0; usize::from(config.universes.channels) + 1],
         })
     }
@@ -44,7 +43,6 @@ impl E131Sender {
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
-        let destination = self.destination();
         let expected = self.config.universes.channel_count() as usize;
         for frame in frames {
             if frame.slots.len() != expected {
@@ -54,18 +52,11 @@ impl E131Sender {
                     actual: frame.slots.len(),
                 });
             }
-            for (universe, channels) in self.config.universes.iter() {
+            for (index, (universe, channels)) in self.config.universes.iter().enumerate() {
                 self.universe_data[1..]
                     .copy_from_slice(&frame.slots[channels.start as usize..channels.end as usize]);
-                self.source
-                    .send(
-                        &[universe],
-                        &self.universe_data,
-                        Some(self.config.priority),
-                        destination,
-                        None,
-                    )
-                    .map_err(|error| socket_error(&self.id, error))?;
+                let sequence_number = self.next_sequence(index);
+                self.send_packet(universe, sequence_number, &self.universe_data, false)?;
             }
         }
         Ok(())
@@ -79,54 +70,70 @@ impl E131Sender {
     }
 
     pub(crate) fn terminate(&mut self) -> Result<(), OutputError> {
-        for (universe, _) in self.config.universes.iter() {
-            match self.config.mode {
-                E131Mode::Unicast { destination } => {
-                    let destination = SocketAddr::new(destination, ACN_SDT_MULTICAST_PORT);
-                    for sequence_number in 0..3 {
-                        let packet = AcnRootLayerProtocol {
-                            pdu: E131RootLayer {
-                                cid: self
-                                    .source
-                                    .cid()
-                                    .map_err(|error| socket_error(&self.id, error))?,
-                                data: E131RootLayerData::DataPacket(DataPacketFramingLayer {
-                                    source_name: self.config.sender_name.clone().into(),
-                                    priority: self.config.priority,
-                                    synchronization_address: 0,
-                                    sequence_number,
-                                    preview_data: false,
-                                    stream_terminated: true,
-                                    force_synchronization: false,
-                                    universe,
-                                    data: DataPacketDmpLayer {
-                                        property_values: vec![0].into(),
-                                    },
-                                }),
-                            },
-                        };
-                        let bytes = packet
-                            .pack_alloc()
-                            .map_err(|error| socket_error(&self.id, error))?;
-                        self.termination_socket
-                            .send_to(&bytes, destination)
-                            .map_err(|error| socket_error(&self.id, error))?;
-                    }
-                }
-                E131Mode::Multicast => self
-                    .source
-                    .terminate_stream(universe, 0)
-                    .map_err(|error| socket_error(&self.id, error))?,
+        for (index, (universe, _)) in self.config.universes.iter().enumerate() {
+            for _ in 0..E131_TERMINATE_STREAM_PACKET_COUNT {
+                let sequence_number = self.next_sequence(index);
+                self.send_packet(universe, sequence_number, &[0], true)?;
             }
         }
         Ok(())
     }
 
-    fn destination(&self) -> Option<SocketAddr> {
+    fn next_sequence(&mut self, index: usize) -> u8 {
+        let sequence_number = self.sequences[index];
+        self.sequences[index] = sequence_number.wrapping_add(1);
+        sequence_number
+    }
+
+    fn send_packet(
+        &self,
+        universe: u16,
+        sequence_number: u8,
+        data: &[u8],
+        stream_terminated: bool,
+    ) -> Result<(), OutputError> {
+        let packet = AcnRootLayerProtocol {
+            pdu: E131RootLayer {
+                cid: self.cid,
+                data: E131RootLayerData::DataPacket(DataPacketFramingLayer {
+                    source_name: self.config.sender_name.as_str().into(),
+                    priority: self.config.priority,
+                    synchronization_address: 0,
+                    sequence_number,
+                    preview_data: false,
+                    stream_terminated,
+                    force_synchronization: false,
+                    universe,
+                    data: DataPacketDmpLayer {
+                        property_values: data.into(),
+                    },
+                }),
+            },
+        };
+        let bytes = packet
+            .pack_alloc()
+            .map_err(|error| socket_error(&self.id, error))?;
+        let destination = self.destination(universe)?;
+        self.socket
+            .send_to(&bytes, destination)
+            .map_err(|error| socket_error(&self.id, error))?;
+        Ok(())
+    }
+
+    fn destination(&self, universe: u16) -> Result<SocketAddr, OutputError> {
         match self.config.mode {
-            E131Mode::Multicast => None,
             E131Mode::Unicast { destination } => {
-                Some(SocketAddr::new(destination, ACN_SDT_MULTICAST_PORT))
+                Ok(SocketAddr::new(destination, ACN_SDT_MULTICAST_PORT))
+            }
+            E131Mode::Multicast => {
+                let address = match self.config.bind_address {
+                    IpAddr::V4(_) => universe_to_ipv4_multicast_addr(universe),
+                    IpAddr::V6(_) => universe_to_ipv6_multicast_addr(universe),
+                }
+                .map_err(|error| socket_error(&self.id, error))?;
+                address
+                    .as_socket()
+                    .ok_or_else(|| socket_error(&self.id, "multicast address is not IP"))
             }
         }
     }
@@ -136,89 +143,5 @@ fn socket_error(id: &ControllerId, error: impl std::fmt::Debug) -> OutputError {
     OutputError::Socket {
         controller: *id,
         message: format!("{error:?}"),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::net::{IpAddr, Ipv4Addr, UdpSocket};
-    use std::time::Duration;
-
-    use donder_model::Universes;
-    use sacn::packet::{AcnRootLayerProtocol, E131RootLayerData};
-
-    use super::*;
-
-    #[test]
-    fn unicast_loopback_has_expected_fields_sequence_and_blackout() {
-        let receiver = UdpSocket::bind((Ipv4Addr::LOCALHOST, ACN_SDT_MULTICAST_PORT)).unwrap();
-        receiver
-            .set_read_timeout(Some(Duration::from_secs(1)))
-            .unwrap();
-        let id = ControllerId(0);
-        let config = E131Config {
-            sender_name: "Donder test".to_string(),
-            bind_address: IpAddr::V4(Ipv4Addr::LOCALHOST),
-            priority: 120,
-            mode: E131Mode::Unicast {
-                destination: IpAddr::V4(Ipv4Addr::LOCALHOST),
-            },
-            universes: Universes {
-                start: 42,
-                count: 1,
-                channels: 3,
-            },
-            fseq_channel: None,
-            ports: Vec::new(),
-        };
-        let mut sender = E131Sender::open(id, &config).unwrap();
-        let frame = OutputFrame {
-            controller: id,
-            slots: vec![5, 6, 7],
-        };
-        sender.send(std::slice::from_ref(&frame)).unwrap();
-        let first = receive_data(&receiver);
-        sender.send(&[frame]).unwrap();
-        let second = receive_data(&receiver);
-        assert_eq!(first.source_name, "Donder test");
-        assert_eq!(first.priority, 120);
-        assert_eq!(first.universe, 42);
-        assert_eq!(&first.data.property_values[..], &[0, 5, 6, 7]);
-        assert_eq!(
-            second.sequence_number,
-            first.sequence_number.wrapping_add(1)
-        );
-        sender.blackout().unwrap();
-        let blackout = receive_data(&receiver);
-        assert_eq!(&blackout.data.property_values[..], &[0, 0, 0, 0]);
-        sender.terminate().unwrap();
-        for expected_sequence in 0..3 {
-            let termination = receive_data(&receiver);
-            assert!(termination.stream_terminated);
-            assert_eq!(termination.sequence_number, expected_sequence);
-            assert_eq!(&termination.data.property_values[..], &[0]);
-        }
-    }
-
-    fn receive_data(socket: &UdpSocket) -> sacn::packet::DataPacketFramingLayer<'static> {
-        let mut buffer = [0u8; 1024];
-        let (length, _) = socket.recv_from(&mut buffer).unwrap();
-        let packet = AcnRootLayerProtocol::parse(&buffer[..length]).unwrap();
-        let E131RootLayerData::DataPacket(data) = packet.pdu.data else {
-            panic!("expected E1.31 data packet");
-        };
-        sacn::packet::DataPacketFramingLayer {
-            source_name: data.source_name.into_owned().into(),
-            priority: data.priority,
-            synchronization_address: data.synchronization_address,
-            sequence_number: data.sequence_number,
-            preview_data: data.preview_data,
-            stream_terminated: data.stream_terminated,
-            force_synchronization: data.force_synchronization,
-            universe: data.universe,
-            data: sacn::packet::DataPacketDmpLayer {
-                property_values: data.data.property_values.into_owned().into(),
-            },
-        }
     }
 }

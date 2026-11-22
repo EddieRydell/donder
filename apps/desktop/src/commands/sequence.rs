@@ -18,8 +18,9 @@ pub(crate) async fn export_show_file(
 ) -> Result<Option<String>, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let name = state.sequence_export_name(&request)?;
         let bytes = state.prepare_show_export(&request, &outputs)?;
-        save_export_file("Export show", "Donder show", "dondershow", &bytes)
+        save_export_file("Export show", "Donder show", &name, "dondershow", &bytes)
     })
     .await
     .map_err(|error| error.to_string())?
@@ -37,7 +38,9 @@ pub(crate) async fn export_fseq_file(
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         // Rendering takes a while, so the destination is chosen before it starts.
-        let Some(path) = choose_export_path("Export FSEQ sequence", "FSEQ sequence", "fseq")?
+        let name = state.sequence_export_name(&request)?;
+        let Some(path) =
+            choose_export_path("Export FSEQ sequence", "FSEQ sequence", &name, "fseq")?
         else {
             return Ok(None);
         };
@@ -66,7 +69,8 @@ pub(crate) async fn export_video_file(
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         // Rendering takes a while, so the destination is chosen before it starts.
-        let Some(path) = choose_export_path("Export video", "MP4 video", "mp4")? else {
+        let name = state.sequence_export_name(&request)?;
+        let Some(path) = choose_export_path("Export video", "MP4 video", &name, "mp4")? else {
             return Ok(None);
         };
         // The video streams into a sibling file that replaces the destination
@@ -108,26 +112,29 @@ pub(crate) async fn export_video_file(
 fn save_export_file(
     title: &str,
     filter: &str,
+    name: &str,
     extension: &str,
     bytes: &[u8],
 ) -> Result<Option<String>, String> {
-    let Some(path) = choose_export_path(title, filter, extension)? else {
+    let Some(path) = choose_export_path(title, filter, name, extension)? else {
         return Ok(None);
     };
     write_export_file(&path, bytes)?;
     Ok(Some(path.to_string()))
 }
 
-/// Ask for a destination with `extension`; `None` when the user cancels.
+/// Ask for a destination with `extension`, suggesting `name`; `None` when
+/// the user cancels.
 fn choose_export_path(
     title: &str,
     filter: &str,
+    name: &str,
     extension: &str,
 ) -> Result<Option<camino::Utf8PathBuf>, String> {
     let Some(path) = rfd::FileDialog::new()
         .set_title(title)
         .add_filter(filter, &[extension])
-        .set_file_name(format!("sequence.{extension}"))
+        .set_file_name(format!("{name}.{extension}"))
         .save_file()
     else {
         return Ok(None);
