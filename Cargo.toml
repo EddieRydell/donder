@@ -7,7 +7,7 @@ resolver = "2"
 edition = "2024"
 rust-version = "1.99"
 # The product version; the release workflow bumps it, and the app reads it.
-version = "0.2.2"
+version = "0.2.3"
 
 [workspace.lints.rust]
 unnameable_types = "warn"
