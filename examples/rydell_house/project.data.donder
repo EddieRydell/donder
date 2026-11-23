@@ -19,6 +19,7 @@ import rainbow from <sequences/rainbow.data.donder>;
 import joy_to_the_world from <sequences/joy_to_the_world.data.donder>;
 import tiny_tree from <sequences/tiny_tree.data.donder>;
 import trans_siberian_mix from <sequences/trans_siberian_mix.data.donder>;
+import noelodekirk from <sequences/noelodekirk.data.donder>;
 import consoles from <consoles/mpk_mini.data.donder>;
 import consoles_2 from <consoles/console.data.donder>;
 import sequences_2 from <sequences/hero.data.donder>;
@@ -47,6 +48,7 @@ Project rydell_house {
     joy_to_the_world.joy_to_the_world,
     tiny_tree.tiny_tree,
     trans_siberian_mix.trans_siberian_mix,
+    noelodekirk.noelodekirk,
     sequences_2.hero,
     sequences_3.oklahoma,
   ],
