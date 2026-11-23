@@ -83,6 +83,7 @@ impl Workload {
                 OutputEncoding::admit(PixelEncoding::Rgb { order: [1, 0, 2] }).unwrap(),
                 self.lookup,
                 false,
+                false,
             );
             Some(signal)
         })

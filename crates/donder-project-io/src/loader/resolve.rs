@@ -967,6 +967,7 @@ impl DomainResolver<'_> {
                         start: span.start,
                         count: span.count,
                     }),
+                    reverse: route.reverse,
                     port: self.port(document, &controller, &route.port)?,
                     controller,
                     start: match route.start {

@@ -894,7 +894,8 @@ impl<'id> ShowBuilder<'id> {
     /// Append the target's physical pixel order, each channel through
     /// `lookup` if there is one: the output at each input byte, in 1/256 of a
     /// byte. `dither` rounds the bytes against a threshold cycling over frames
-    /// instead of to the nearest. Returns the pixels it routes. Output width and all byte spans follow from
+    /// instead of to the nearest, and `reverse` sends the pixels last first.
+    /// Returns the pixels it routes. Output width and all byte spans follow from
     /// storage actually reserved here, never caller-supplied offsets.
     pub fn route(
         &mut self,
@@ -903,6 +904,7 @@ impl<'id> ShowBuilder<'id> {
         encoding: OutputEncoding,
         lookup: Option<[u16; 256]>,
         dither: bool,
+        reverse: bool,
     ) -> usize {
         if self.targets[target.index].pixels.is_empty() {
             return 0;
@@ -946,31 +948,45 @@ impl<'id> ShowBuilder<'id> {
         let pixels = &self.targets[target.index].pixels;
         let mut start_slot = self.outputs[output.index].bytes;
         self.outputs[output.index].bytes += pixels.len() * channels;
-        let mut indices = pixels
+        let mut indices: Vec<usize> = pixels
             .iter()
             .map(|pixel| {
                 self.fixtures[pixel.fixture_index].offset as usize
                     + pixel.fixture_pixel_index as usize
             })
-            .peekable();
-        while let Some(start) = indices.next() {
-            let mut end = start + 1;
-            while indices.peek() == Some(&end) {
-                indices.next();
-                end += 1;
+            .collect();
+        if reverse {
+            indices.reverse();
+        }
+        let flags = if dither { format::ROUTE_DITHER } else { 0 }
+            | if reverse { format::ROUTE_REVERSE } else { 0 };
+        // Runs of consecutive pixels, rising, or falling when reversed.
+        let mut indices = indices.into_iter().peekable();
+        while let Some(head) = indices.next() {
+            let (mut low, mut high) = (head, head + 1);
+            if reverse {
+                while low > 0 && indices.peek() == Some(&(low - 1)) {
+                    indices.next();
+                    low -= 1;
+                }
+            } else {
+                while indices.peek() == Some(&high) {
+                    indices.next();
+                    high += 1;
+                }
             }
             self.w.routes.push(format::Route {
-                first: start as u32,
-                end: end as u32,
+                first: low as u32,
+                end: high as u32,
                 output: output.index as u32,
                 start_slot: start_slot as u32,
                 encoding: code,
                 order,
                 lookup,
                 palette,
-                dither: u32::from(dither),
+                flags,
             });
-            start_slot += (end - start) * channels;
+            start_slot += (high - low) * channels;
         }
         pixels.len()
     }

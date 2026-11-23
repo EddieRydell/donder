@@ -89,6 +89,7 @@ fn strips_preserve_local_and_subset_target_addressing() {
                     .unwrap(),
                     None,
                     false,
+                    false,
                 );
                 let effect = builder.clip(
                     None,

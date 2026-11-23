@@ -46,6 +46,9 @@ pub struct PixelRoute {
     pub target: FixtureTarget,
     /// None routes the complete target, including future pixel-count edits.
     pub pixels: Option<PixelSpan>,
+    /// Sends its pixels last first, for wiring that runs against the
+    /// fixture's pixel order, such as the second half of a strand folded back.
+    pub reverse: bool,
     pub controller: ControllerId,
     pub port: ControllerPortId,
     pub start: RouteStart,

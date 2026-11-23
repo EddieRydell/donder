@@ -109,7 +109,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1901,
         direction_angle: 90.0,
         passes: 1,
@@ -132,7 +131,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1901,
         direction_angle: 90.0,
         passes: 1,
@@ -155,7 +153,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1901,
         direction_angle: 90.0,
         passes: 1,
@@ -178,7 +175,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1901,
         direction_angle: 90.0,
         passes: 1,
@@ -1881,14 +1877,13 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: On,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
         wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
-        extend_to_end: false,
+        extend_to_end: true,
         pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
@@ -3577,7 +3572,6 @@ Sequence rainbow {
           ],
         },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.4904,
         direction_angle: 90.0,
         passes: 1,
@@ -3606,7 +3600,6 @@ Sequence rainbow {
           ],
         },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.4904,
         direction_angle: 90.0,
         passes: 1,
@@ -3635,7 +3628,6 @@ Sequence rainbow {
           ],
         },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.4904,
         direction_angle: 90.0,
         passes: 1,
@@ -3664,7 +3656,6 @@ Sequence rainbow {
           ],
         },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2452,
         direction_angle: 90.0,
         passes: 2,
@@ -3693,7 +3684,6 @@ Sequence rainbow {
           ],
         },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2452,
         direction_angle: 90.0,
         passes: 2,
@@ -3722,7 +3712,6 @@ Sequence rainbow {
           ],
         },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2452,
         direction_angle: 90.0,
         passes: 2,
@@ -8120,7 +8109,7 @@ Sequence rainbow {
         reverse: false,
         extend_to_start: false,
         extend_to_end: true,
-        pulse_shape: Curve { points: [(0.0, 0.0), (0.0913, 1.0), (0.8972, 1.0), (1.0, 0.0)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.0913, 1.0), (1.0, 1.0)] },
       },
     },
     Clip {
@@ -8197,7 +8186,7 @@ Sequence rainbow {
         reverse: false,
         extend_to_start: false,
         extend_to_end: true,
-        pulse_shape: Curve { points: [(0.0, 0.0), (0.0913, 1.0), (0.8972, 1.0), (1.0, 0.0)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.0913, 1.0), (1.0, 1.0)] },
       },
     },
     Clip {
@@ -8218,7 +8207,7 @@ Sequence rainbow {
         reverse: false,
         extend_to_start: false,
         extend_to_end: true,
-        pulse_shape: Curve { points: [(0.0, 0.0), (0.0913, 1.0), (0.8972, 1.0), (1.0, 0.0)] },
+        pulse_shape: Curve { points: [(0.0, 0.0), (0.0913, 1.0), (1.0, 1.0)] },
       },
     },
     Clip {
@@ -11057,7 +11046,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11080,7 +11068,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11103,7 +11090,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11126,7 +11112,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11185,7 +11170,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11208,7 +11192,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11231,7 +11214,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11304,7 +11286,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11327,7 +11308,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11350,7 +11330,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11373,7 +11352,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11396,7 +11374,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11419,7 +11396,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11441,13 +11417,13 @@ Sequence rainbow {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
-        mode: On,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
         center_y: 0.0,
         reverse: false,
         passes: 4,
+        extend_to_end: true,
         pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
@@ -11463,7 +11439,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11486,7 +11461,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11509,7 +11483,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11532,7 +11505,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11555,7 +11527,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11578,7 +11549,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0889,
         direction_angle: 0.0,
         passes: 1,
@@ -11601,7 +11571,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11624,7 +11593,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11647,7 +11615,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11670,7 +11637,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11693,7 +11659,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11716,7 +11681,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -11739,7 +11703,6 @@ Sequence rainbow {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0899,
         direction_angle: 0.0,
         passes: 1,
@@ -26246,7 +26209,6 @@ Sequence rainbow {
           stops: [(0.0, #ff0000), (0.5022, #0000ff), (1.0, #00ff00)],
         },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,

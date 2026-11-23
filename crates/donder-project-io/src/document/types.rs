@@ -446,6 +446,8 @@ pub(crate) struct Route {
     #[refers(Fixture)]
     pub target: Reference,
     pub pixels: Option<PixelSpan>,
+    /// Sends the pixels last first.
+    pub reverse: bool,
     #[refers(Declaration("Controller"))]
     pub controller: Reference,
     /// The name of one of the `controller`'s ports.

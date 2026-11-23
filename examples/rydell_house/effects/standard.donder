@@ -7,6 +7,22 @@ effect Pulse {
   }
 }
 
+-- Vixen's pulse extension, shared by the chases and wipes: extending to the end
+-- holds an item at its pulse's peak from where the pulse first reaches it until
+-- the effect ends, and extending to the start holds the peak from the start of
+-- the effect until the pulse last leaves it. A chase or wipe that turns items on
+-- and leaves them on extends to the end; one that starts lit and turns them off
+-- extends to the start. Returns the point of the pulse to show, which is
+-- `pulse_progress` itself unless the item is held.
+fn extended_pulse(shape: curve, pulse_progress: float, to_start: bool, to_end: bool) -> float {
+  let peak = max(max(shape[0.0], shape[1.0]), value_or(shape[curve_first_crossing(shape, 1.0)], 0.0));
+  let rise = curve_first_crossing(shape, peak);
+  let fall = curve_last_crossing(shape, peak, 1.0);
+  if to_end && pulse_progress >= rise { rise }
+  else if to_start && pulse_progress <= fall { fall }
+  else { pulse_progress }
+}
+
 effect Chase {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
@@ -24,15 +40,14 @@ effect Chase {
     let position = item_index / max(1.0, item_count - 1.0);
     let chase_value = if reverse { 1.0 - position } else { position };
     let pulse_duration = pulse_overlap / item_count;
-    let travel_start = if extend_to_start { -pulse_duration } else { 0.0 };
-    let travel_end = if extend_to_end { 1.0 } else { max(0.0, 1.0 - pulse_duration) };
-    let hit = mix(travel_start, travel_end, value_or(curve_first_crossing(chase_position, chase_value), chase_value));
+    let hit = max(0.0, 1.0 - pulse_duration) * value_or(curve_first_crossing(chase_position, chase_value), chase_value);
     let pulse_progress = (progress - hit) / pulse_duration;
-    let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
+    let shown = extended_pulse(pulse_shape, pulse_progress, extend_to_start, extend_to_end);
+    let level = if shown >= 0.0 && shown <= 1.0 { pulse_shape[shown] } else { 0.0 };
     let gradient_position =
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { position }
-      else { pulse_progress };
+      else { shown };
     gradient_color_scaled(gradient, gradient_position, level)
   }
 }
@@ -40,9 +55,6 @@ effect Chase {
 effect Wipe {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
-  -- Pass lights a pixel only while the pulse crosses it; On keeps it lit after,
-  -- Off lights it before.
-  param mode: enum { Pass, On, Off } = Pass;
   param pulse_width: float in 0.01..1.0 = 0.15;
   param direction_angle: float in 0.0..360.0 = 0.0;
   -- How many times the pulse sweeps across, one pass after another.
@@ -64,23 +76,20 @@ effect Wipe {
     -- Rounding can step just outside the projected span.
     let position = if span > 0.0 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
     let chase_value = if reverse { 1.0 - position } else { position };
-    let travel_start = if extend_to_start { -pulse_width } else { 0.0 };
-    let travel_end = if extend_to_end { 1.0 } else { max(0.0, 1.0 - pulse_width) };
     -- Each pass sweeps an equal share of the travel; the latest pass to reach
     -- the pixel lights it.
-    let sweep = (travel_end - travel_start) / passes;
-    let first_hit = travel_start + sweep * value_or(curve_first_crossing(wipe_position, chase_value), chase_value);
+    let sweep = max(0.0, 1.0 - pulse_width) / passes;
+    let first_hit = sweep * value_or(curve_first_crossing(wipe_position, chase_value), chase_value);
     let pass = clamp(floor((progress - first_hit) / sweep), 0.0, passes - 1.0);
     let hit = first_hit + pass * sweep;
     let pulse_progress = (progress - hit) / pulse_width;
-    let level =
-      if pulse_progress < 0.0 { if mode == Off { 1.0 } else { 0.0 } }
-      else if pulse_progress > 1.0 { if mode == On && pass == passes - 1 { 1.0 } else { 0.0 } }
-      else { pulse_shape[pulse_progress] };
+    -- The first pass may hold from the start, the last until the end.
+    let shown = extended_pulse(pulse_shape, pulse_progress, extend_to_start && pass == 0.0, extend_to_end && pass == passes - 1);
+    let level = if shown >= 0.0 && shown <= 1.0 { pulse_shape[shown] } else { 0.0 };
     let gradient_position =
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { position }
-      else { clamp(pulse_progress, 0.0, 1.0) };
+      else { clamp(shown, 0.0, 1.0) };
     gradient_color_scaled(gradient, gradient_position, level)
   }
 }
@@ -93,8 +102,6 @@ effect Spin {
   param chase_position: curve in 0.0..1.0;
   param revolutions: int in 1..100 = 2;
   param reverse: bool = false;
-  param extend_to_start: bool = false;
-  param extend_to_end: bool = false;
   param pulse_shape: curve in 0.0..1.0;
 
   sample {
@@ -103,9 +110,7 @@ effect Spin {
     let position = item_index / max(1.0, item_count - 1.0);
     let position = if reverse { 1.0 - position } else { position };
     let pulse_width = pulse_overlap / item_count;
-    let travel_start = if extend_to_start { pulse_width } else { 0.0 };
-    let travel_end = if extend_to_end { revolutions } else { revolutions + pulse_width };
-    let virtual_position = mix(travel_start, travel_end, chase_position[progress]);
+    let virtual_position = (revolutions + pulse_width) * chase_position[progress];
     let virtual_pixel = virtual_position - position;
     let phase =
       if virtual_pixel >= revolutions { virtual_pixel - (revolutions - 1.0) }
@@ -254,9 +259,6 @@ effect MarkWipe {
 -- center point (or inward when reversed), reaching each pixel by its distance.
 effect RadialWipe {
   param gradient: gradient;
-  -- Pass lights a pixel only while the pulse crosses it; On keeps it lit after,
-  -- Off lights it before.
-  param mode: enum { Pass, On, Off } = Pass;
   -- Circle measures straight-line distance, Diamond the sum of the horizontal
   -- and vertical distances, Burst the larger of the two.
   param shape: enum { Circle, Diamond, Burst } = Circle;
@@ -268,6 +270,8 @@ effect RadialWipe {
   param reverse: bool = false;
   -- How many times the pulse crosses within the effect.
   param passes: int in 1..100 = 1;
+  param extend_to_start: bool = false;
+  param extend_to_end: bool = false;
   param pulse_shape: curve in 0.0..1.0;
 
   sample {
@@ -303,13 +307,12 @@ effect RadialWipe {
     let hit = position * (1.0 - pulse_width);
     -- Progress through the current pass; the last pass ends with the effect.
     let passed = progress * passes;
-    let pass_progress = passed - min(floor(passed), passes - 1);
-    let pulse_progress = (pass_progress - hit) / pulse_width;
-    let level =
-      if pulse_progress < 0.0 { if mode == Off { pulse_shape[0.0] } else { 0.0 } }
-      else if pulse_progress > 1.0 { if mode == On { pulse_shape[1.0] } else { 0.0 } }
-      else { pulse_shape[pulse_progress] };
-    gradient_color_scaled(gradient, clamp(pulse_progress, 0.0, 1.0), level)
+    let pass = min(floor(passed), passes - 1);
+    let pulse_progress = (passed - pass - hit) / pulse_width;
+    -- The first pass may hold from the start, the last until the end.
+    let shown = extended_pulse(pulse_shape, pulse_progress, extend_to_start && pass == 0.0, extend_to_end && pass == passes - 1);
+    let level = if shown >= 0.0 && shown <= 1.0 { pulse_shape[shown] } else { 0.0 };
+    gradient_color_scaled(gradient, clamp(shown, 0.0, 1.0), level)
   }
 }
 
@@ -400,9 +403,6 @@ effect MarkFieldWipe {
 effect FieldWipe {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
-  -- Pass lights a pixel only while the pulse crosses it; On keeps it lit after,
-  -- Off lights it before.
-  param mode: enum { Pass, On, Off } = Pass;
   param pulse_width: float in 0.01..1.0 = 0.15;
   param direction_angle: float in 0.0..360.0 = 0.0;
   -- Where the field is centered on the target: 0 is the left or top edge, 1 the right or bottom.
@@ -434,23 +434,20 @@ effect FieldWipe {
       radial
     );
     let chase_value = if reverse { 1.0 - position } else { position };
-    let travel_start = if extend_to_start { -pulse_width } else { 0.0 };
-    let travel_end = if extend_to_end { 1.0 } else { max(0.0, 1.0 - pulse_width) };
     -- Each pass sweeps an equal share of the travel; the latest pass to reach
     -- the pixel lights it.
-    let sweep = (travel_end - travel_start) / passes;
-    let first_hit = travel_start + sweep * value_or(curve_first_crossing(wipe_position, chase_value), chase_value);
+    let sweep = max(0.0, 1.0 - pulse_width) / passes;
+    let first_hit = sweep * value_or(curve_first_crossing(wipe_position, chase_value), chase_value);
     let pass = clamp(floor((progress - first_hit) / sweep), 0.0, passes - 1.0);
     let hit = first_hit + pass * sweep;
     let pulse_progress = (progress - hit) / pulse_width;
-    let level =
-      if pulse_progress < 0.0 { if mode == Off { 1.0 } else { 0.0 } }
-      else if pulse_progress > 1.0 { if mode == On && pass == passes - 1 { 1.0 } else { 0.0 } }
-      else { pulse_shape[pulse_progress] };
+    -- The first pass may hold from the start, the last until the end.
+    let shown = extended_pulse(pulse_shape, pulse_progress, extend_to_start && pass == 0.0, extend_to_end && pass == passes - 1);
+    let level = if shown >= 0.0 && shown <= 1.0 { pulse_shape[shown] } else { 0.0 };
     let gradient_position =
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { position }
-      else { clamp(pulse_progress, 0.0, 1.0) };
+      else { clamp(shown, 0.0, 1.0) };
     gradient_color_scaled(gradient, gradient_position, level)
   }
 }

@@ -458,9 +458,15 @@ pub(crate) struct Route {
     pub(crate) lookup: u32,
     /// The colors of an [`ENCODING_CHANNELS`] route's channels, or [`NONE`].
     pub(crate) palette: u32,
-    /// 1 when its bytes dither over frames, else 0.
-    pub(crate) dither: u32,
+    /// [`ROUTE_DITHER`] and [`ROUTE_REVERSE`].
+    pub(crate) flags: u32,
 }
+
+/// Its bytes dither over frames.
+pub(crate) const ROUTE_DITHER: u32 = 1;
+/// Its pixels fill its slots from the last to the first: pixel `end - 1`
+/// takes the first slot.
+pub(crate) const ROUTE_REVERSE: u32 = 2;
 
 /// The color each channel of an [`ENCODING_CHANNELS`] route lights, packed
 /// as `0x00rrggbb`: the first `count` are its channels.

@@ -116,8 +116,11 @@ struct Region {
     encoding: PixelEncoding,
     gamma: f32,
     brightness: f32,
-    /// Each pixel's layout height; raw channels rise in channel order.
+    /// Each pixel's layout height, in channel order; raw channels rise in
+    /// channel order.
     heights: Vec<f32>,
+    /// Its route sends the pixels last first.
+    wired_reversed: bool,
     /// Patterns run from the fixture's last pixel to its first.
     reversed: bool,
 }
@@ -177,6 +180,7 @@ impl OutputTest {
                     gamma: 1.0,
                     brightness: 1.0,
                     heights: (0..pixels).map(|pixel| pixel as f32).collect(),
+                    wired_reversed: false,
                     reversed: false,
                 });
                 test.measure();
@@ -273,7 +277,13 @@ impl OutputTest {
                 }
             };
             let width = route.encoding.channel_count() as u32;
-            let start_channel = placement.channels.start + (span.start - routed.start) * width;
+            // The span's first channel: a reversed route sends its last pixel first.
+            let skipped = if route.reverse {
+                routed.start + routed.count - (span.start + span.count)
+            } else {
+                span.start - routed.start
+            };
+            let start_channel = placement.channels.start + skipped * width;
             let prepared = layouts
                 .entry(route.target.layout)
                 .or_insert_with(|| geometry.prepare_layout(layout));
@@ -282,13 +292,17 @@ impl OutputTest {
                 .iter()
                 .find(|instance| instance.id == route.target.fixture)
                 .map(|instance| {
-                    instance
+                    let mut heights: Vec<f32> = instance
                         .pixels
                         .iter()
                         .skip(span.start as usize)
                         .take(span.count as usize)
                         .map(|pixel| instance.transform.transform_point3(pixel.position).y)
-                        .collect()
+                        .collect();
+                    if route.reverse {
+                        heights.reverse();
+                    }
+                    heights
                 })
                 .unwrap_or_default();
             test.add_controller(project, route.controller)?;
@@ -303,6 +317,7 @@ impl OutputTest {
                 gamma: route.gamma,
                 brightness: route.brightness,
                 heights,
+                wired_reversed: route.reverse,
                 reversed: false,
             });
         }
@@ -405,7 +420,11 @@ impl Region {
                 .heights
                 .get(pixel as usize)
                 .map_or(0.0, |height| (height - range.0) / (range.1 - range.0));
-            let index = self.first_pixel + pixel;
+            let index = if self.wired_reversed {
+                self.first_pixel + self.pixels - 1 - pixel
+            } else {
+                self.first_pixel + pixel
+            };
             let index = if self.reversed {
                 self.fixture_pixels - 1 - index
             } else {

@@ -117,7 +117,7 @@ pub(crate) struct Slot {
     pub(crate) offset: u32,
 }
 
-/// A fixture of the profile: its pixels in channel order.
+/// A fixture of the profile: its pixels in its elements' order.
 pub(crate) struct ProfileFixture {
     pub(crate) name: String,
     pub(crate) description: Option<String>,
@@ -478,18 +478,20 @@ struct Place {
     channel: u32,
 }
 
-/// A fixture's routes as runs of pixels: the place of the first, its index,
-/// and how many; or why some of its pixels have none.
+/// A fixture's routes as runs of pixels whose channels rise, or fall when
+/// the run is reversed, one pixel at a time: the place of its lowest
+/// channel, the index of its first pixel, how many, and whether it is
+/// reversed; or why some of its pixels have none.
 fn runs(
     fixture: &ProfileFixture,
     profile: &[ProfileController],
     controllers: &Controllers,
-) -> Result<Vec<(Place, u32, u32)>, UnroutedReason> {
+) -> Result<Vec<Run>, UnroutedReason> {
     let Some(slots) = &fixture.slots else {
         return Ok(Vec::new());
     };
     let per_pixel = fixture.encoding.channel_count() as u32;
-    let mut runs: Vec<(Place, u32, u32)> = Vec::new();
+    let mut runs: Vec<Run> = Vec::new();
     for (pixel, &slot) in slots.iter().enumerate() {
         let Some(&channels) = controllers.outputs.get(&(slot.controller, slot.output)) else {
             return Err(UnroutedReason::UnsupportedController(
@@ -504,17 +506,43 @@ fn runs(
             channel: channels.first + slot.offset,
         };
         match runs.last_mut() {
-            Some((first, start, count))
-                if first.controller == place.controller
-                    && first.channel + *count * per_pixel == place.channel
-                    && *start + *count == pixel as u32 =>
+            Some(run)
+                if run.place.controller == place.controller
+                    && run.start + run.count == pixel as u32
+                    && !run.reverse
+                    && run.place.channel + run.count * per_pixel == place.channel =>
             {
-                *count += 1
+                run.count += 1
             }
-            _ => runs.push((place, pixel as u32, 1)),
+            Some(run)
+                if run.place.controller == place.controller
+                    && run.start + run.count == pixel as u32
+                    && (run.reverse || run.count == 1)
+                    && run.place.channel == place.channel + per_pixel =>
+            {
+                run.place = place;
+                run.count += 1;
+                run.reverse = true;
+            }
+            _ => runs.push(Run {
+                place,
+                start: pixel as u32,
+                count: 1,
+                reverse: false,
+            }),
         }
     }
     Ok(runs)
+}
+
+/// Consecutive pixels of a fixture on consecutive channels of a controller.
+struct Run {
+    /// Its lowest channel.
+    place: Place,
+    start: u32,
+    count: u32,
+    /// Its pixels' channels fall.
+    reverse: bool,
 }
 
 /// Channels from `0` up to `1` of a controller, patched to the fixture named `2`.
@@ -560,7 +588,8 @@ pub(crate) fn build(
             }
         };
         let per_pixel = fixture.encoding.channel_count() as u32;
-        let overlap = runs.iter().find_map(|(place, _, count)| {
+        let overlap = runs.iter().find_map(|run| {
+            let (place, count) = (run.place, run.count);
             let (from, to) = (place.channel, place.channel + count * per_pixel);
             claimed
                 .get(&place.controller)?
@@ -575,10 +604,10 @@ pub(crate) fn build(
             });
             continue;
         }
-        for (place, _, count) in &runs {
-            claimed.entry(place.controller).or_default().push((
-                place.channel,
-                place.channel + count * per_pixel,
+        for run in &runs {
+            claimed.entry(run.place.controller).or_default().push((
+                run.place.channel,
+                run.place.channel + run.count * per_pixel,
                 fixture.name.clone(),
             ));
         }
@@ -595,7 +624,13 @@ pub(crate) fn build(
         let (brightness, gamma) = fixture
             .dimming
             .map_or((1.0, 1.0), |dimming| (dimming.brightness, dimming.gamma));
-        for (place, start, count) in runs {
+        for Run {
+            place,
+            start,
+            count,
+            reverse,
+        } in runs
+        {
             let previous_end = ends.insert(place.controller, place.channel + count * per_pixel);
             let follows = previous_end.unwrap_or(0) == place.channel;
             route_list.push(PixelRoute {
@@ -605,6 +640,7 @@ pub(crate) fn build(
                     fixture: id,
                 },
                 pixels: (count != pixel_count).then_some(PixelSpan { start, count }),
+                reverse,
                 controller: place.controller,
                 port: IMPORT_PORT,
                 start: if follows {

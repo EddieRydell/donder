@@ -85,7 +85,14 @@ pub(crate) fn prepare<S>(
             // Admission checked non-overlap and the complete output width.
             let start = played.placement.channels.start as usize;
             builder.padding(output, start - cursor);
-            let count = builder.route(output, target, encoding, lookup, route.dither);
+            let count = builder.route(
+                output,
+                target,
+                encoding,
+                lookup,
+                route.dither,
+                route.reverse,
+            );
             cursor = start + count * encoding.channel_count();
         }
         builder.padding(output, selected_output.width as usize - cursor);

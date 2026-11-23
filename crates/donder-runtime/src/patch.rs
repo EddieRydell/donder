@@ -2,7 +2,8 @@
 //! 0..1 with NaN off, becomes a level in 1/256 of a byte, through the route's
 //! gamma and brightness table when it has one, and then a byte: the nearest,
 //! or on a dithered route the one a threshold cycling over eight frames picks,
-//! so the bytes average to the exact level.
+//! so the bytes average to the exact level. A reversed route sends its
+//! pixels last first.
 use crate::format::{self, NONE};
 use donder_runtime_types::Color;
 use donder_runtime_types::channel_level;
@@ -37,45 +38,68 @@ pub(crate) fn evaluate(show: Show<'_>, colors: &[Color], outputs: &mut [u8], fra
         let bytes = &mut outputs[start..start + colors.len() * channels];
         let lookup = (route.lookup != NONE).then(|| &s.lookups[route.lookup as usize].table);
         let threshold = |index: usize| {
-            if route.dither == 0 {
+            if route.flags & format::ROUTE_DITHER == 0 {
                 NEAREST
             } else {
                 let pixel = first.wrapping_add(index as u32);
                 DITHER[(frame.wrapping_add(pixel.wrapping_mul(DITHER_PIXEL_STEP)) % 8) as usize]
             }
         };
-        let order = route.order;
-        if let Some(palette) = palette {
-            pack_channels(colors, bytes, palette, lookup, threshold);
-        } else if route.encoding == format::ENCODING_RGBW {
-            pack(
-                colors,
-                bytes,
-                [order[0], order[1], order[2], order[3]],
-                lookup,
-                threshold,
-                |c| {
-                    let white = min_float(min_float(c.red, c.green), c.blue);
-                    [c.red - white, c.green - white, c.blue - white, white]
-                },
-            );
+        if route.flags & format::ROUTE_REVERSE == 0 {
+            pack_route(route, palette, colors.iter(), bytes, lookup, threshold);
         } else {
-            pack(
-                colors,
+            pack_route(
+                route,
+                palette,
+                colors.iter().rev(),
                 bytes,
-                [order[0], order[1], order[2]],
                 lookup,
                 threshold,
-                |c| [c.red, c.green, c.blue],
             );
         }
     }
 }
 
+/// One route's `colors`, in the order given, into its `bytes`.
+fn pack_route<'a>(
+    route: &format::Route,
+    palette: Option<&format::Palette>,
+    colors: impl Iterator<Item = &'a Color>,
+    bytes: &mut [u8],
+    lookup: Option<&[u16; 256]>,
+    threshold: impl Fn(usize) -> u32,
+) {
+    let order = route.order;
+    if let Some(palette) = palette {
+        pack_channels(colors, bytes, palette, lookup, threshold);
+    } else if route.encoding == format::ENCODING_RGBW {
+        pack(
+            colors,
+            bytes,
+            [order[0], order[1], order[2], order[3]],
+            lookup,
+            threshold,
+            |c| {
+                let white = min_float(min_float(c.red, c.green), c.blue);
+                [c.red - white, c.green - white, c.blue - white, white]
+            },
+        );
+    } else {
+        pack(
+            colors,
+            bytes,
+            [order[0], order[1], order[2]],
+            lookup,
+            threshold,
+            |c| [c.red, c.green, c.blue],
+        );
+    }
+}
+
 /// Each pixel's level in each color of `palette`, one channel per color, by
 /// [`channel_level`].
-fn pack_channels(
-    colors: &[Color],
+fn pack_channels<'a>(
+    colors: impl Iterator<Item = &'a Color>,
     output: &mut [u8],
     palette: &format::Palette,
     lookup: Option<&[u16; 256]>,
@@ -85,11 +109,7 @@ fn pack_channels(
     let targets = palette
         .colors
         .map(|packed| [16, 8, 0].map(|shift| ((packed >> shift) & 0xff) as f32 / 255.0));
-    for (index, (color, output)) in colors
-        .iter()
-        .zip(output.chunks_exact_mut(count))
-        .enumerate()
-    {
+    for (index, (color, output)) in colors.zip(output.chunks_exact_mut(count)).enumerate() {
         let threshold = threshold(index);
         for (byte, target) in output.iter_mut().zip(&targets) {
             let channel = channel_level([color.red, color.green, color.blue], *target);
@@ -113,15 +133,15 @@ fn level(channel: f32, lookup: Option<&[u16; 256]>) -> u32 {
     }
 }
 
-fn pack<const N: usize>(
-    colors: &[Color],
+fn pack<'a, const N: usize>(
+    colors: impl Iterator<Item = &'a Color>,
     output: &mut [u8],
     order: [u8; N],
     lookup: Option<&[u16; 256]>,
     threshold: impl Fn(usize) -> u32,
     channels: impl Fn(Color) -> [f32; N],
 ) {
-    for (index, (color, output)) in colors.iter().zip(output.as_chunks_mut::<N>().0).enumerate() {
+    for (index, (color, output)) in colors.zip(output.as_chunks_mut::<N>().0).enumerate() {
         let channels = channels(*color);
         let threshold = threshold(index);
         output.copy_from_slice(&order.map(|channel| {

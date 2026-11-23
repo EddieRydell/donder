@@ -462,6 +462,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_01,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -474,8 +475,8 @@ Patch outputs {
 }
 ```
 
-- `Route`: `target` (a fixture; groups are not routed), `pixels`, `controller`,
-  `port`, `start`, `encoding`, `gamma`, `brightness`, `dither`.
+- `Route`: `target` (a fixture; groups are not routed), `pixels`, `reverse`,
+  `controller`, `port`, `start`, `encoding`, `gamma`, `brightness`, `dither`.
 - `port` names one of the controller's ports.
 - `start` is `Next` or `Channel { channel }`:
   - `Next` begins right after the route before it on its port, in patch order.
@@ -491,6 +492,10 @@ Patch outputs {
   frame at a high rate; at a long FSEQ step the cycle shows as flicker.
 - `pixels` is `PixelSpan { start, count }`, or `none` to route the whole target,
   including later pixel-count edits.
+- `reverse: true` sends the route's pixels last first, for wiring that runs
+  against the fixture's pixel order, such as the half of a strand that folds
+  back. Effects count a fixture's pixels in its own order, so the wiring never
+  changes which end a chase starts from.
 - `encoding` is `Rgb { order: (a, b, c) }` or `Rgbw { order: (a, b, c, d) }`:
   the color each of a pixel's channels carries, in channel order, with 0 red,
   1 green, 2 blue and 3 white. `(1, 0, 2)` is GRB, the order of WS2811 and

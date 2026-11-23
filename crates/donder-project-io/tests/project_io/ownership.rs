@@ -35,6 +35,7 @@ fn inline_fields() -> String {
         Route {{
           target: main.setup.layout.test_strip,
           pixels: none,
+          reverse: false,
           controller: main.setup.controllers.controller_3,
           port: "1",
           start: Next,

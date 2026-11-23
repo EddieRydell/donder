@@ -38,6 +38,8 @@ pub struct GuiPixelRoute {
     pub layout: GuiObjectRef,
     pub fixture: u32,
     pub pixels: Option<GuiPixelSpan>,
+    /// Sends the pixels last first.
+    pub reverse: bool,
     pub controller: GuiObjectRef,
     /// One of the controller's ports, by id.
     pub port: u32,

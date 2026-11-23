@@ -101,7 +101,7 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
     if (layout === undefined || fixture === undefined || controller === undefined) return;
     setDraft({ ...draft, routes: [...draft.routes, {
       id: Math.max(0, ...draft.routes.map((route) => route.id)) + 1,
-      layout: layout.sourceRef, fixture: fixture.id, pixels: null,
+      layout: layout.sourceRef, fixture: fixture.id, pixels: null, reverse: false,
       controller: controller.sourceRef, port: firstPort(controller), start: { type: "next" },
       encoding: { type: "rgb", order: [...RGB_ORDER] }, gamma: 1, brightness: 1, dither: false
     }] });
@@ -186,6 +186,9 @@ function RouteFields({ document, route, disabled, onChange }: { document: PatchG
     <Field label="Pixel count" error={error("pixels")}>
       <NumberField name="Pixel count" value={span?.count ?? target?.pixelCount ?? 0} step={1} min={1} integer disabled={disabled || span === null} invalid={error("pixels") !== null}
         onCommit={(count) => { if (span !== null) onChange({ ...route, pixels: { ...span, count } }); }} />
+    </Field>
+    <Field label="Reverse" tip="Send the pixels last first, for wiring that runs against the fixture's pixel order">
+      <Toggle name="Reverse" checked={route.reverse} disabled={disabled} onChange={(reverse) => { onChange({ ...route, reverse }); }} />
     </Field>
     <ReferenceInput label="Controller" value={route.controller} disabled={disabled} error={error("controller")} choices={document.controllers.map((controller) => ({ reference: controller.sourceRef, label: controller.label }))} onChange={(reference) => {
       const next = document.controllers.find((controller) => sameGuiObject(controller.sourceRef, reference));
