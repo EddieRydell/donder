@@ -826,6 +826,8 @@ export type GuiPixelRoute = {
 	layout: GuiObjectRef,
 	fixture: number,
 	pixels: GuiPixelSpan | null,
+	/**  Sends the pixels last first. */
+	reverse: boolean,
 	controller: GuiObjectRef,
 	/**  One of the controller's ports, by id. */
 	port: number,

@@ -51,6 +51,7 @@ pub fn build(
             OutputEncoding::admit(PixelEncoding::Rgb { order: [1, 0, 2] }).unwrap(),
             None,
             false,
+            false,
         );
         build(builder, target)
     })

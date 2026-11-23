@@ -42,10 +42,26 @@ A ported effect's parameters keep Vixen's names, except:
   `intensity_curve`, Fire's `height` and `hue_shift`, and Meteors'
   `tail_taper`.
 - Sliders Vixen sets in its own 0..100 units keep them: speeds, Pinwheel's
-  `movement`, `thickness`, `size`, `twist` and `rotation`, Spiral's `rotation`
-  and `thickness`, Plasma's `line_density`, Garlands' `spacing`, Spirograph's
-  radii and ranges, Fireworks' counts and fade, Meteors' and Snowflakes'
-  counts and lengths, and the Advanced Border's thicknesses, size and offsets.
+  `thickness`, `size`, `twist` and `rotation`, Spiral's `rotation` and
+  `thickness`, Plasma's `line_density`, Garlands' `spacing`, Spirograph's
+  radii and ranges, Fireworks' counts, Meteors' and Snowflakes' counts and
+  lengths, and the Advanced Border's thicknesses, size and offsets.
+- Vixen moves Pinwheel, Spirograph and Fireworks a fixed amount per frame, so
+  their look depends on the sequence's frame interval `F` in milliseconds
+  (Vixen's default is 50). The ports take per-second and per-clip settings
+  instead; convert with the source sequence's `F`:
+  - Pinwheel's `movement` `m` becomes `k = max(1, (1 + 0.49 m) F / 50)`:
+    `turns: k` in `Iterations` motion, or `speed: 1000 k / F` (degrees a
+    second) in `Speed` motion. An automation curve on `movement` (`m` is its
+    value × 100) is converted point by point onto `turns` (`k / 100`) or
+    `speed` (`k / F`).
+  - Spirograph's `speed` `s` becomes `speed: 1000 s / F` (degrees a second).
+  - Fireworks' `particle_fade` `p` gives a life of `L = max(1, p / 2)` frames:
+    `particle_life: L F / 1000` seconds and `fall: 0.0004 L³ / 3`.
+    `velocity`, `min_velocity` and `max_velocity` times `L` become `reach`,
+    `min_reach` and `max_reach`, and `random_velocity` is `random_reach`.
+  - Vixen's random and rainbow colors in Pinwheel and Spirograph change every
+    frame; the ports change them 20 times a second.
 
 How the ports read their settings:
 
@@ -68,9 +84,8 @@ How the ports read their settings:
   (`simple_border_width`, or the `Advanced` border's type, thicknesses, size
   and offsets), the directions of Meteors' `meteor_effect` and Snowflakes'
   `snowflake_effect`, and the Strings layout's `orientation`, `string_count`
-  and `string_length`.
-- Pinwheel, Fireworks and Spirograph move a fixed amount per Vixen frame, so
-  they take the source show's `frame_interval_ms`. The other ports run on
-  continuous time.
+  and `string_length`. Pinwheel's `turns` and `speed` stay top-level
+  parameters, because automation sets only those and Vixen shows automate
+  Pinwheel's movement.
 - Random choices are seeded by `random_seed`. They are repeatable, but they are
   not Vixen's random stream.

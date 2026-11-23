@@ -140,6 +140,7 @@ fn project_route(session: &ProjectSession, route: &PixelRoute) -> GuiPixelRoute 
             start: pixels.start,
             count: pixels.count,
         }),
+        reverse: route.reverse,
         controller: object_ref(session, route.controller),
         port: route.port.0,
         start: match route.start {
@@ -198,6 +199,7 @@ pub(super) fn replace(
                     start: pixels.start,
                     count: pixels.count,
                 }),
+                reverse: route.reverse,
                 controller,
                 port: ControllerPortId(route.port),
                 start: match route.start {

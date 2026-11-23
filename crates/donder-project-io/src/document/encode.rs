@@ -338,6 +338,7 @@ impl Encoder<'_> {
                             start: span.start,
                             count: span.count,
                         }),
+                        reverse: route.reverse,
                         controller: self
                             .object_reference(ObjectKind::Controller, route.controller)?,
                         port: types::PortName::new(port.name.clone()),

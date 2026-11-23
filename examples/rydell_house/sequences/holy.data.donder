@@ -1442,7 +1442,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1616,
         direction_angle: 0.0,
         passes: 1,
@@ -1465,7 +1464,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.165,
         direction_angle: 270.0,
         passes: 2,
@@ -1618,7 +1616,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1641,7 +1638,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.165,
         direction_angle: 270.0,
         passes: 2,
@@ -1664,7 +1660,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.165,
         direction_angle: 270.0,
         passes: 2,
@@ -1687,7 +1682,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1616,
         direction_angle: 0.0,
         passes: 1,
@@ -1710,7 +1704,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1733,7 +1726,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1756,7 +1748,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1779,7 +1770,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1802,7 +1792,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1825,7 +1814,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
@@ -1848,7 +1836,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1871,7 +1858,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
@@ -1894,7 +1880,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1917,7 +1902,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
@@ -1940,7 +1924,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 270.0,
         passes: 1,
@@ -1963,7 +1946,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1877,
         direction_angle: 0.0,
         passes: 1,
@@ -1986,7 +1968,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2208,
         direction_angle: 0.0,
         passes: 1,
@@ -2009,7 +1990,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2208,
         direction_angle: 0.0,
         passes: 1,
@@ -2032,7 +2012,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2208,
         direction_angle: 0.0,
         passes: 1,
@@ -2055,7 +2034,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2223,
         direction_angle: 0.0,
         passes: 1,
@@ -2078,7 +2056,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2257,
         direction_angle: 0.0,
         passes: 1,
@@ -2101,7 +2078,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2218,
         direction_angle: 0.0,
         passes: 1,
@@ -2124,7 +2100,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2218,
         direction_angle: 0.0,
         passes: 1,
@@ -2147,7 +2122,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2257,
         direction_angle: 0.0,
         passes: 1,
@@ -2170,7 +2144,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2647,
         direction_angle: 0.0,
         passes: 1,
@@ -2193,7 +2166,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2647,
         direction_angle: 90.0,
         passes: 1,
@@ -2216,7 +2188,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2668,
         direction_angle: 0.0,
         passes: 1,
@@ -2239,7 +2210,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2676,
         direction_angle: 0.0,
         passes: 1,
@@ -2262,7 +2232,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2661,
         direction_angle: 90.0,
         passes: 1,
@@ -2285,7 +2254,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2676,
         direction_angle: 0.0,
         passes: 1,
@@ -2308,7 +2276,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.2676,
         direction_angle: 0.0,
         passes: 1,
@@ -2331,7 +2298,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.3249,
         direction_angle: 0.0,
         passes: 1,
@@ -2354,7 +2320,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.3249,
         direction_angle: 0.0,
         passes: 1,
@@ -2377,7 +2342,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.4259,
         direction_angle: 0.0,
         passes: 1,
@@ -2420,7 +2384,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2441,7 +2404,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2462,7 +2424,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2483,7 +2444,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2504,7 +2464,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2525,7 +2484,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2546,7 +2504,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2567,7 +2524,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2588,7 +2544,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2609,7 +2564,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2630,7 +2584,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -2762,7 +2715,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1544,
         direction_angle: 0.0,
         passes: 1,
@@ -2785,7 +2737,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1563,
         direction_angle: 0.0,
         passes: 1,
@@ -2808,7 +2759,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.11,
         direction_angle: 90.0,
         passes: 3,
@@ -2931,7 +2881,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.0863,
         direction_angle: 270.0,
         passes: 1,
@@ -3305,7 +3254,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -3328,7 +3276,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -3351,7 +3298,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -3374,7 +3320,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -3397,7 +3342,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -3420,7 +3364,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1737,
         direction_angle: 270.0,
         passes: 1,
@@ -3443,7 +3386,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.1737,
         direction_angle: 270.0,
         passes: 1,
@@ -3466,7 +3408,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 270.0,
         passes: 1,
@@ -3489,7 +3430,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
@@ -3512,7 +3452,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
@@ -3535,7 +3474,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
@@ -3558,7 +3496,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
@@ -3581,7 +3518,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
@@ -3604,7 +3540,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 270.0,
         passes: 1,
@@ -6507,7 +6442,7 @@ Sequence holy {
         color_type: Standard,
         motion: Iterations,
         arms: 5,
-        movement: 5.0,
+        turns: 1.587,
         thickness: 54.37761,
         size: 23.0,
         twist: 56.0,
@@ -6518,7 +6453,6 @@ Sequence holy {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 1.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -6642,7 +6576,7 @@ Sequence holy {
         color_type: Standard,
         motion: Iterations,
         arms: 5,
-        movement: 5.0,
+        turns: 1.587,
         thickness: 44.304268,
         size: 23.0,
         twist: 56.0,
@@ -6653,7 +6587,6 @@ Sequence holy {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 1.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -6692,7 +6625,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 180.0,
         passes: 1,
@@ -6796,7 +6728,7 @@ Sequence holy {
         color_type: Standard,
         motion: Iterations,
         arms: 3,
-        movement: 5.0,
+        turns: 1.587,
         thickness: 59.41428,
         size: 23.0,
         twist: 56.0,
@@ -6807,7 +6739,6 @@ Sequence holy {
         offset_percentage: true,
         blade_type: Flat,
         intensity: 1.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -6821,7 +6752,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -6842,7 +6772,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -6863,7 +6792,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -6884,7 +6812,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -6905,7 +6832,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -6948,7 +6874,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -6969,7 +6894,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7012,7 +6936,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
@@ -7685,7 +7608,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7706,7 +7628,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7727,7 +7648,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7748,7 +7668,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7769,7 +7688,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7790,7 +7708,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7811,7 +7728,6 @@ Sequence holy {
       effect: effects.RadialWipe,
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-        mode: Pass,
         shape: Burst,
         pulse_length: 0.33,
         center_x: 0.0,
@@ -7833,7 +7749,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -7856,7 +7771,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -7879,7 +7793,6 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
         gradient_mode: PerPulse,
-        mode: Pass,
         pulse_width: 0.33,
         direction_angle: 0.0,
         passes: 1,
@@ -7926,18 +7839,18 @@ Sequence holy {
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 20,
-        random_velocity: false,
-        velocity: 4,
-        min_velocity: 1,
-        max_velocity: 10,
+        random_reach: false,
+        reach: 116.0,
+        min_reach: 29.0,
+        max_reach: 290.0,
         random_particles: true,
         particles: 40,
         min_particles: 8,
         max_particles: 51,
-        particle_fade: 58,
+        particle_life: 0.667,
+        fall: 3.2518666,
         intensity: 1.0,
         random_seed: 8116.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -7966,13 +7879,12 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #7f7f7f)] },
         gradient_mode: PerPulse,
-        mode: Off,
         pulse_width: 0.33,
         direction_angle: 270.0,
         passes: 1,
         wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
-        extend_to_start: false,
+        extend_to_start: true,
         extend_to_end: false,
         pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
@@ -7989,14 +7901,13 @@ Sequence holy {
       params: {
         gradient: Gradient { space: LinearRgb, stops: [(0.0, #7f7f7f)] },
         gradient_mode: PerPulse,
-        mode: On,
         pulse_width: 0.33,
         direction_angle: 90.0,
         passes: 1,
         wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
         reverse: false,
         extend_to_start: false,
-        extend_to_end: false,
+        extend_to_end: true,
         pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
       },
     },
@@ -11051,12 +10962,14 @@ Sequence holy {
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
-        velocity: 0,
+        reach: 0.0,
+        min_reach: 37.0,
+        max_reach: 370.0,
         random_particles: false,
         particles: 54,
-        particle_fade: 74,
+        particle_life: 0.851,
+        fall: 6.753733,
         random_seed: 925213.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -11073,12 +10986,14 @@ Sequence holy {
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
-        velocity: 0,
+        reach: 0.0,
+        min_reach: 37.0,
+        max_reach: 370.0,
         random_particles: false,
         particles: 54,
-        particle_fade: 74,
+        particle_life: 0.851,
+        fall: 6.753733,
         random_seed: 286761.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -11095,12 +11010,14 @@ Sequence holy {
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
-        velocity: 0,
+        reach: 0.0,
+        min_reach: 37.0,
+        max_reach: 370.0,
         random_particles: false,
         particles: 54,
-        particle_fade: 74,
+        particle_life: 0.851,
+        fall: 6.753733,
         random_seed: 561525.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -11117,12 +11034,14 @@ Sequence holy {
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
-        velocity: 0,
+        reach: 0.0,
+        min_reach: 37.0,
+        max_reach: 370.0,
         random_particles: false,
         particles: 54,
-        particle_fade: 74,
+        particle_life: 0.851,
+        fall: 6.753733,
         random_seed: 584924.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {
@@ -11139,12 +11058,14 @@ Sequence holy {
         source: RandomExplosions,
         explosion_marks: none,
         explosions: 44,
-        velocity: 0,
+        reach: 0.0,
+        min_reach: 37.0,
+        max_reach: 370.0,
         random_particles: false,
         particles: 54,
-        particle_fade: 74,
+        particle_life: 0.851,
+        fall: 6.753733,
         random_seed: 462252.0,
-        frame_interval_ms: 23.0,
       },
     },
     Clip {

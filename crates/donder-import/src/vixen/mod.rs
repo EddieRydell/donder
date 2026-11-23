@@ -239,25 +239,36 @@ fn wire<'a>(
         let width = patches
             .first()
             .map_or(3, |patch| patch.encoding.channel_count() as u32);
-        let mut order: Vec<usize> = (0..patches.len()).collect();
-        order.sort_by_key(|&index| {
+        // Runs of the shape's pixels, in its order, whose channels rise or
+        // fall one pixel at a time: a falling run is wired against the
+        // elements' order and is patched reversed.
+        let mut runs: Vec<(Vec<usize>, Option<bool>)> = Vec::new();
+        for index in 0..patches.len() {
             let slot = patches[index].slot;
-            (slot.controller, slot.output, slot.offset)
-        });
-        let mut runs: Vec<Vec<usize>> = Vec::new();
-        for index in order {
-            match runs.last_mut() {
-                Some(run)
-                    if run.last().is_some_and(|&last| {
-                        follows(patches[last].slot, patches[index].slot, width, controllers)
-                            && patches[last].dimming == patches[index].dimming
-                    }) =>
-                {
-                    run.push(index);
+            let extends = runs.last().and_then(|(run, falling)| {
+                let last = patches[*run.last()?];
+                if last.dimming != patches[index].dimming {
+                    return None;
                 }
-                _ => runs.push(vec![index]),
+                let rises = follows(last.slot, slot, width, controllers);
+                let falls = follows(slot, last.slot, width, controllers);
+                match falling {
+                    Some(false) if rises => Some(false),
+                    Some(true) if falls => Some(true),
+                    None if rises => Some(false),
+                    None if falls => Some(true),
+                    _ => None,
+                }
+            });
+            match (extends, runs.last_mut()) {
+                (Some(direction), Some((run, falling))) => {
+                    run.push(index);
+                    *falling = Some(direction);
+                }
+                _ => runs.push((vec![index], None)),
             }
         }
+        let runs = runs.into_iter().map(|(run, _)| run);
         for run in runs {
             let first = patches[run[0]];
             wired.push(Wired {

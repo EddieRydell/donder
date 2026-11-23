@@ -7,6 +7,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_01,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -18,6 +19,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_02,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -29,6 +31,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_03,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -40,6 +43,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_04,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -51,6 +55,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_05,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -62,6 +67,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_06,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -73,6 +79,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_07,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -84,6 +91,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_08,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -95,6 +103,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_09,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -106,6 +115,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_10,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -117,6 +127,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_11,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -128,6 +139,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_12,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -139,6 +151,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_13,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -150,6 +163,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_14,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -161,6 +175,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_15,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -172,6 +187,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_16,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -183,6 +199,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_17,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -194,6 +211,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_18,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -205,6 +223,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_19,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -216,6 +235,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_20,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -227,6 +247,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_21,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -238,6 +259,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_22,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -249,6 +271,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_23,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -260,6 +283,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_24,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -271,6 +295,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_25,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -282,6 +307,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_26,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -293,6 +319,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_27,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -304,6 +331,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_28,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -315,6 +343,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_29,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,
@@ -326,6 +355,7 @@ Patch outputs {
     Route {
       target: layouts.outputs_layout.output_30,
       pixels: none,
+      reverse: false,
       controller: setups.output_controller,
       port: "1",
       start: Next,

@@ -45,6 +45,7 @@ fn console(
             OutputEncoding::admit(PixelEncoding::Rgb { order: [0, 1, 2] }).unwrap(),
             None,
             false,
+            false,
         );
         let window = SampleDuration::from_ticks(SESSION);
         let handles: Vec<_> = effects
@@ -107,6 +108,7 @@ fn archived_console_plays_like_the_prepared_one() {
             target,
             OutputEncoding::admit(PixelEncoding::Rgb { order: [0, 1, 2] }).unwrap(),
             None,
+            false,
             false,
         );
         let effect = builder.clip(
