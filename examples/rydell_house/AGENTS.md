@@ -132,7 +132,7 @@ say why.
 Wipe, Spin, their mark-driven versions and the wipes, it holds effects ported
 from Vixen 3 (Twinkle, Butterfly, Meteors, Pinwheel and others). Their levels
 and curves run `0..1` like every other effect's; sliders Vixen sets in its own
-`0..100` units (speed, movement, size, twist) keep those units. Pixel effects
+`0..100` units (speed, size, twist) keep those units. Pixel effects
 work on each pixel's exact position, stretched around the target's center by
 `scale_x` and `scale_y`. They look close to Vixen's effects, not identical.
 Read a definition's comment before using it.
