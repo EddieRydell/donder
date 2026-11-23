@@ -226,21 +226,20 @@ parameters take one too (`effect TwoDots "Two dots chasing." {`,
 ## 12. A first operator
 
 ```text
-operator Linger {
+operator Echo {
   input source;
-  param fade: float in 0.0..1.0 = 0.9;
+  param fade: float in 0.0..1.0 = 0.5;
 
-  sample { max(source, previous * pow(fade, frames_elapsed)) }
+  sample { max(source, source.at(pixel.index - 3) * fade) }
 }
 ```
 
 An operator transforms other signals instead of drawing from nothing. It
 declares `input`s, which you connect in the sequence's composition graph. Using
 an input as a color reads the current pixel; `source.at(index)` reads
-another pixel of the same fixture. `previous` is the operator's own output one
-frame earlier, and `frames_elapsed` counts the frames since, so this keeps
-`fade` of its last frame per frame. `max` of two colors keeps the brighter of
-each channel.
+another pixel of the same fixture, so this adds a copy of the light three
+pixels back, scaled by `fade`. `max` of two colors keeps the brighter of each
+channel.
 
 ## Next steps
 

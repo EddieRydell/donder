@@ -23,7 +23,7 @@ const EFFECT_TEMPLATE: &str = "effect Probe {
   }
 }";
 
-/// Current, temporal, local and global signal samples, inside and outside
+/// Current, local and global signal samples, inside and outside
 /// reductions.
 const OPERATOR_TEMPLATE: &str = "operator Probe {
   input source;
@@ -33,7 +33,7 @@ const OPERATOR_TEMPLATE: &str = "operator Probe {
   sample {
     let mirrored = source.at(target.count - 1 - pixel.index);
     let neighbor = other.at(pixel.index + 1);
-    let echo = sum for tap in 1..=taps { previous.at(pixel.index - tap) * pow(gain, tap) };
+    let echo = sum for tap in 1..=taps { source.at(pixel.index - tap) * pow(gain, tap) };
     guard intensity(source) < 0.99 else source;
     max(max(source, mirrored), neighbor + echo)
   }

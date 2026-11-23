@@ -1,7 +1,10 @@
 //! Construction-time simplification. Every rewrite preserves the value of the
 //! expression, except where the float policy allows: real-number algebra may
 //! change rounding and signed zero, but never hides a missing (NaN) value.
+//! Value ranges (see [`super::interval`]) fold what they decide: a number they
+//! pin to one value, and a comparison every value in them agrees on.
 use super::eval::{self, as_bool, as_color, as_float, as_int};
+use super::interval::{self, Interval};
 use super::{Binary, Context, Graph, LoopId, Node, Op, Reducer, Ternary, Unary};
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::{Edges, SignalPixel};
@@ -51,6 +54,10 @@ pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
 }
 
 pub(super) fn simplify(graph: &mut Graph, op: &Op, ty: &Type) -> Option<Node> {
+    structural(graph, op, ty).or_else(|| decided(graph, op, ty))
+}
+
+fn structural(graph: &mut Graph, op: &Op, ty: &Type) -> Option<Node> {
     match *op {
         Op::Pick { index, ref items } => match graph.constant_value(index).and_then(as_int) {
             Some(index) => {
@@ -67,6 +74,17 @@ pub(super) fn simplify(graph: &mut Graph, op: &Op, ty: &Type) -> Option<Node> {
         {
             Some(graph.color(Color::BLACK))
         }
+        // A value mixed with itself is itself for every finite weight.
+        Op::Ternary(Ternary::Mix, a, b, weight)
+            if a == b && graph.interval(a).is_finite() && graph.interval(weight).is_finite() =>
+        {
+            Some(a)
+        }
+        Op::Ternary(Ternary::MixColor, a, b, weight)
+            if a == b && graph.interval(weight).is_finite() =>
+        {
+            Some(a)
+        }
         Op::Ternary(ternary, a, b, c) => {
             let values = (
                 graph.constant_value(a)?.clone(),
@@ -77,6 +95,83 @@ pub(super) fn simplify(graph: &mut Graph, op: &Op, ty: &Type) -> Option<Node> {
             Some(graph.typed_constant(value, ty.clone()))
         }
         Op::Select(condition, yes, no) => simplify_select(graph, condition, yes, no),
+        _ => None,
+    }
+}
+
+/// A number its operands' ranges pin to one value, or a comparison they
+/// decide.
+fn decided(graph: &mut Graph, op: &Op, ty: &Type) -> Option<Node> {
+    if !matches!(
+        op,
+        Op::Unary(..) | Op::Binary(..) | Op::Ternary(..) | Op::Select(..) | Op::Pick { .. }
+    ) {
+        return None;
+    }
+    if let Op::Binary(binary, a, b) = *op {
+        let (left, right) = (compared(graph, a), compared(graph, b));
+        if let Some(value) = compare(binary, left, right) {
+            return Some(graph.bool(value));
+        }
+    }
+    let value = interval::recorded(graph, op).single()?;
+    match ty {
+        Type::Float => Some(graph.float(value as f32)),
+        Type::Int => Some(graph.int(value as i32)),
+        _ => None,
+    }
+}
+
+/// `node`'s range for a comparison. Float arithmetic rounds to 32 bits after
+/// every operation, which the range, kept in 64, does not; a margin covers it.
+fn compared(graph: &Graph, node: Node) -> Interval {
+    let range = graph.interval(node);
+    let rounds = matches!(graph.ty(node), Type::Float)
+        && matches!(
+            graph.op(node),
+            Op::Binary(..) | Op::Ternary(..) | Op::Unary(Unary::Sqrt, _)
+        );
+    if rounds { range.widened() } else { range }
+}
+
+/// The result of comparison `op` for every pair of values the ranges hold, if
+/// they agree. NaN compares false, so neither side may be NaN.
+fn compare(op: Binary, left: Interval, right: Interval) -> Option<bool> {
+    use Binary::*;
+    if !(left.is_number() && right.is_number()) {
+        return None;
+    }
+    let less = |a: Interval, b: Interval| {
+        if a.max < b.min {
+            Some(true)
+        } else if a.min >= b.max {
+            Some(false)
+        } else {
+            None
+        }
+    };
+    let less_equal = |a: Interval, b: Interval| {
+        if a.max <= b.min {
+            Some(true)
+        } else if a.min > b.max {
+            Some(false)
+        } else {
+            None
+        }
+    };
+    match op {
+        Less | IntLess => less(left, right),
+        LessEqual | IntLessEqual => less_equal(left, right),
+        Greater | IntGreater => less(right, left),
+        GreaterEqual | IntGreaterEqual => less_equal(right, left),
+        Equal | NotEqual => {
+            let equal = if left.max < right.min || right.max < left.min {
+                Some(false)
+            } else {
+                (left.single().is_some() && left == right).then_some(true)
+            };
+            equal.map(|equal| equal == (op == Equal))
+        }
         _ => None,
     }
 }

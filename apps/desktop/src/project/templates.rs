@@ -148,7 +148,6 @@ mod tests {
             ("Dim", &["input"][..]),
             ("Invert", &["input"][..]),
             ("Colorize", &["input"][..]),
-            ("Afterglow", &["input"][..]),
             ("Blur", &["input"][..]),
             ("HueShift", &["source"][..]),
         ];

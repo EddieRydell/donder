@@ -60,7 +60,7 @@ wire! {
     Reducer { Max, Min, Sum, Any, All, First, Last }
     Bank { Float, Int, Bool, Color, Resource }
     ContextRead {
-        Seconds, Progress, Duration, FrameRate, Frame, FramesElapsed, PixelCount, TargetMinX, TargetMinY, TargetMaxX,
+        Seconds, Progress, Duration, FrameRate, Frame, PixelCount, TargetMinX, TargetMinY, TargetMaxX,
         TargetMaxY
     }
     Direction { Forward, Backward }

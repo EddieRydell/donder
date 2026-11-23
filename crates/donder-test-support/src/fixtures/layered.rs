@@ -1,5 +1,5 @@
 //! Mixed playback workload: four independently evaluated layers, followed by
-//! hue adjustment, an afterglow, and output dimming.
+//! hue adjustment, partial desaturation, and output dimming.
 use crate::playback::{build, definition, invoke, timing};
 use donder_language::compiler::{Instance, ProgramConstants};
 use donder_runtime::PreparedShow;
@@ -18,7 +18,7 @@ pub fn layered_600() -> PreparedShow {
     let source = include_str!("../../../../examples/starter/operators/standard.donder");
     let operators = [
         ("HueShift", vec![("shift", Value::Float(0.13))]),
-        ("Afterglow", vec![("seconds", Value::Float(0.075))]),
+        ("Grayscale", vec![("amount", Value::Float(0.5))]),
         ("Dim", vec![("amount", Value::Float(0.8))]),
     ]
     .map(|(name, values)| {
@@ -51,7 +51,7 @@ pub fn layered_600() -> PreparedShow {
             .collect::<Vec<_>>();
         let mut signal = builder.mix(layers);
         for operator in &fused {
-            signal = builder.operator(operator, |_| signal);
+            signal = builder.operator(operator, None, |_| signal);
         }
         Some(signal)
     })

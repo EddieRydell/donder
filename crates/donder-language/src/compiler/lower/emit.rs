@@ -1343,7 +1343,6 @@ fn context_read(context: Context) -> ContextRead {
         Context::Duration => ContextRead::Duration,
         Context::FrameRate => ContextRead::FrameRate,
         Context::Frame => ContextRead::Frame,
-        Context::FramesElapsed => ContextRead::FramesElapsed,
         Context::TargetCount => ContextRead::PixelCount,
         Context::TargetMinX => ContextRead::TargetMinX,
         Context::TargetMinY => ContextRead::TargetMinY,

@@ -8,9 +8,10 @@ libraries are ordinary project files; `examples/starter` contains every bundled
 effect and operator.
 
 The language is pure: a definition computes the current pixel's color from
-time, its parameters, its pixel and target, its signal's previous frame and
-(for operators) its input signals. Nothing is mutable, so every value can be computed wherever and as
-rarely as its dependencies allow.
+time, its parameters, its pixel and target, and (for operators) its input
+signals. Nothing is mutable and nothing carries from one frame to the next, so
+every frame is a function of its time alone, and every value can be computed
+wherever and as rarely as its dependencies allow.
 
 New to the language? Start with the [tutorial](effect_tutorial.md). Every builtin
 function and context value is described in the generated [builtin
@@ -276,7 +277,7 @@ let tail = scan forward input decay d as light {
 - At each pixel the scan's value is its value at the pixel before times the
   `decay`, plus the light the pixel adds; the first pixel's previous value is
   black. `scan forward` runs from each fixture's first pixel to its last,
-  `scan backward` the other way. The scanned signal is an input or `previous`.
+  `scan backward` the other way. The scanned signal is an input.
 - `decay` and `as` are keywords only here. The decay may depend on parameters
   and time, not on the pixel.
 - Without `as`, each pixel adds the input there. `as light { .. }` names the
@@ -289,8 +290,6 @@ let tail = scan forward input decay d as light {
 - A scan's whole frame is computed once per frame, so its cost does not depend
   on how far the light travels. `max` or `+` of a forward and a backward scan
   spreads light both ways. A program runs at most 8 scans.
-- Light that lingers from frame to frame reads `previous` instead; see
-  [Previous frames](#previous-frames).
 
 Syntax nests at most 128 levels deep. Expressions, blocks and each operator
 of a chain such as `a + b + c` are levels.
@@ -312,13 +311,13 @@ from the compiler's builtin table, so it always matches what the compiler
 accepts.
 
 The context names (`time`, `duration`, `progress`, `frame`, `frame_rate`,
-`frames_elapsed`, `previous`, `pixel`, `target`, `PI`, `TAU`) are reserved, and a function cannot take a builtin's name. In an effect,
+`pixel`, `target`, `PI`, `TAU`) are reserved, and a function cannot take a builtin's name. In an effect,
 time is measured over the clip; in an
 operator, over the sequence. Spatial values use layout-space meters, after
 fixture transforms.
 
 **Colors** are three 32-bit floats, red, green and blue, where 0 is off and 1
-  is full brightness, in programs, frames and `previous` alike. Nothing clamps
+  is full brightness, in programs and frames alike. Nothing clamps
   them between operations: light can add past 1 or go negative, and NaN
   follows IEEE 754 arithmetic. Color `+` adds, `*` of two colors multiplies
   channels, and `*` with a number scales. Authored hex colors are 8-bit per
@@ -339,40 +338,9 @@ An operator reads its input signals in the current frame:
 
 Out-of-range pixels return black. Every input's whole frame is computed before
 the operator runs, so a read at any pixel is one load. A signal is read only
-at the current frame, and at the one before through `previous`. A spatial read keeps the pixels it needs when a controller
+at the current frame. A spatial read keeps the pixels it needs when a controller
 fragment is prepared, even if they are patched elsewhere; see
 [output selection](output_selection.md).
-
-## Previous frames
-
-`previous` is the signal's own frame from the frame before: in an operator,
-its output; in an effect, its layer's composited frame. It reads like an
-input: `previous` at the current pixel, `previous.at(pixel)`, `around
-previous` and `scan forward previous decay d`.
-`frames_elapsed` is the number of frames since that frame, so a decay applied
-per frame stays steady when frames are skipped:
-
-```text
-operator Afterglow {
-  input input;
-  param seconds: float in 0.01..10.0 = 0.5;
-
-  sample {
-    let decay = pow(0.1, 1.0 / (seconds * frame_rate));
-    max(input, previous * pow(decay, frames_elapsed))
-  }
-}
-```
-
-- `previous` is black before the first frame and is never cleared: a clip
-  that starts reads its layer as the clip before left it.
-- After a seek or when playback goes backward, `frames_elapsed` is 1 and
-  `previous` is whatever frame was shown last. Re-evaluating the same frame
-  after a live command gives a `frames_elapsed` of 0.
-- A clip evaluated alone, as the sequence editor's thumbnails are, reads a black
-  `previous`.
-- A signal that reads `previous` is never fused with its input or consumer, and
-  a show may have at most 16 of them.
 
 ## Numeric rules
 
@@ -427,8 +395,8 @@ fixture; a whole-target clip sections the target's fixtures in order.
   error.
 - Reductions are bounded as described above.
 
-- A show's graph holds at most 16 signal frames at once and at most 16
-  signals that read `previous`; a program runs at most 8 scans.
+- A show's graph holds at most 16 signal frames at once; a program runs at
+  most 8 scans.
 
 Preparation and playback never report errors at frame time. Programs are
 checked once when they compile; a show is trusted when it loads.
@@ -487,10 +455,7 @@ checked once when they compile; a show is trusted when it loads.
 | Threshold | `input` | Passes pixels whose brightness (`measure` = Brightest, Luminance or Average) exceeds `threshold = 0.5`, fading across `softness = 0.1`; `invert` passes the darker pixels instead |
 | Trail | `input` | Carries each pixel's light along each fixture's pixel order, keeping `decay = 0.8` of it per pixel, `Forward`, `Backward` or `Both` (the brighter) |
 | Bloom | `input` | Thresholds like Threshold (`threshold = 0.6`, `softness = 0.2`), spreads the passing light both ways along each fixture's pixel order with forward and backward scans, fading to a tenth over `radius = 6` pixels, scales it by `strength = 2.0` and `tint`, and combines it with the input by `blend` (Add, Screen, Lighten or GlowOnly). The glow fades off fixture ends, and its cost does not depend on the radius |
-| Afterglow | `input` | Holds light after it goes out, fading it to a tenth over `seconds = 0.5`: the brighter of the input and its `previous` frame faded by the frames since; steady light shows unchanged, and its cost does not depend on the tail's length |
 | Grit | `input` | Rough texture: scales each group of `grain_pixels` by a random amount down to `1 - grain` (`grain = 0.6`), redrawn every `hold_frames = 3` frames; multiplies by `drive = 1.0`, clips each channel at full brightness and rounds it to `levels = 256` steps; with chance `tear` per hold, shifts each band of `tear_pixels = 16` up to `tear_shift = 8` pixels along the fixture |
 
 The starter adds Gain as a separate operator document. `examples/stanford_room`
-carries its own copy of the library with HueMap added, and FreezeFrame, which
-captures its input every `interval_seconds` into the frame it holds in
-`previous` and fades it to a hundredth over `fade_seconds`.
+carries its own copy of the library with HueMap added.

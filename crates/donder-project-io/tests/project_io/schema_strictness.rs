@@ -13,14 +13,22 @@ fn operator_names_require_project_definitions_and_explicit_imports() {
     let root = common::starter_root();
     let original = project_source_texts(&root).unwrap();
     let path = Utf8PathBuf::from("sequences/layer_test.data.donder");
-    let source = &original[&path];
-    assert!(source.contains("operator: operators.Afterglow"));
-    // Every operator name goes through the same reference resolution.
+    let root_node = "      RootNode { position: (1393.0885, -375.6623) },\n";
+    assert!(original[&path].contains(root_node));
+    let node = |operator: &str| {
+        original[&path].replace(
+            root_node,
+            &format!(
+                "{root_node}      OperatorNode {{ name: probe, operator: {operator}, params: {{}}, position: (0.0, 0.0) }},\n"
+            ),
+        )
+    };
     let mut overrides = original.clone();
-    overrides.insert(
-        path.clone(),
-        source.replace("operator: operators.Afterglow", "operator: max"),
-    );
+    overrides.insert(path.clone(), node("operators.Grayscale"));
+    let report = check_project(&root, &overrides, &mut Default::default());
+    assert!(report.session.is_some(), "{:?}", report.diagnostics);
+    // Every operator name goes through the same reference resolution.
+    overrides.insert(path.clone(), node("max"));
     let report = check_project(&root, &overrides, &mut Default::default());
     assert!(report.session.is_none(), "unimported operator max resolved");
     assert!(!report.diagnostics.is_empty());

@@ -91,22 +91,15 @@ pub(crate) fn frame_at(ticks: u32, frame_rate: u32) -> u32 {
 
 /// Evaluate the frame of `time` in `workspace` unless its buffers still hold
 /// it: its colors, then its output bytes. Returns the buffer holding the
-/// colors. A frame after the one before advances its state by the frames
-/// between them, the same frame after a command by none, and any other is a
-/// seek: one frame on from the state it has.
+/// colors.
 fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize {
     let frame = frame_at(time.as_ticks(), show.frame_rate());
     let [last, held] = *workspace.frame;
     if last == frame && held != 0 {
         return root_buffer(show);
     }
-    let frames_elapsed = if last == NONE || frame < last {
-        1
-    } else {
-        frame - last
-    };
     *workspace.frame = [frame, 1];
-    let buffer = evaluate_frame(show, workspace, time, frames_elapsed);
+    let buffer = evaluate_frame(show, workspace, time);
     crate::patch::evaluate(show, workspace.buffers[buffer], workspace.outputs, frame);
     buffer
 }

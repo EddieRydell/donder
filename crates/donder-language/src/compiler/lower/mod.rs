@@ -165,6 +165,7 @@ fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         slots.push(Param {
             ty: graph.ty(node).clone(),
             domain: Domain::PARAM,
+            range: None,
         });
         values.push(fixed[&node].clone());
     }
@@ -174,6 +175,7 @@ fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         slots.push(Param {
             ty: Type::Float,
             domain: Domain::PARAM,
+            range: None,
         });
         values.push(Value::Float(
             reciprocal(fixed.get(&node)).unwrap_or_else(|| unreachable!("checked reciprocal")),

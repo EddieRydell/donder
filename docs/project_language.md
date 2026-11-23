@@ -138,7 +138,7 @@ identities in document order.
 
 An edge leaving a layer names it `layers.layer` and the root node is named
 `root`, so a layer and a graph node may share a name. The GUI derives names from what
-it creates (`pulse`, `pulse_2`, `afterglow`), and a name typed in the GUI is
+it creates (`pulse`, `pulse_2`, `dim`), and a name typed in the GUI is
 converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
 
 **References** are dotted paths resolved from where they are written:
@@ -540,16 +540,16 @@ Sequence layer_test {
       RootNode { position: (1393.0885, -375.6623) },
       LayerNode { layer: glow, position: (444.03857, -40.094635) },
       OperatorNode {
-        name: afterglow,
-        operator: operators.Afterglow,
+        name: dim,
+        operator: operators.Dim,
         params: {},
         position: (815.0807, -62.519207),
       },
     ],
     edges: [
       Edge { from: layers.default, to: root },
-      Edge { from: layers.glow, to: afterglow.input },
-      Edge { from: afterglow, to: root },
+      Edge { from: layers.glow, to: dim.input },
+      Edge { from: dim, to: root },
     ],
   },
   automation: [
@@ -559,7 +559,7 @@ Sequence layer_test {
       duration: 249.753832s,
       curve: Curve { points: [(0.0, 0.505), (0.103248, 0.787)] },
       bindings: [
-        Bound { binding: NodeParam { node: afterglow, param: seconds }, window: (0.0, 1.0) },
+        Bound { binding: NodeParam { node: dim, param: amount }, window: (0.0, 1.0) },
       ],
       detached: [],
     },
@@ -597,7 +597,7 @@ Sequence layer_test {
   - `RootNode { position }`, named `root`, exactly one.
 
   Every node has one output, so an edge names only the input it reaches:
-  `to: afterglow.input` names an operator input and `to: root` the root
+  `to: dim.input` names an operator input and `to: root` the root
   node. `position` is the node's place on the graph canvas.
 - `AutomationClip`: `row` (the fixture or group whose automation row holds it),
   `start`, `duration`, `curve`, `bindings` and `detached`. A target is

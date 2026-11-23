@@ -233,8 +233,6 @@ pub enum ContextRead {
     FrameRate,
     /// Int of the query: frames since the start.
     Frame,
-    /// Int: frames since the frame before; one after a seek.
-    FramesElapsed,
     /// Int of the target.
     PixelCount,
     /// Floats of the target.
@@ -247,7 +245,7 @@ pub enum ContextRead {
 impl ContextRead {
     fn bank(self) -> Bank {
         match self {
-            Self::PixelCount | Self::Frame | Self::FramesElapsed => Bank::Int,
+            Self::PixelCount | Self::Frame => Bank::Int,
             _ => Bank::Float,
         }
     }
@@ -255,12 +253,7 @@ impl ContextRead {
     fn reads_target(self) -> bool {
         !matches!(
             self,
-            Self::Seconds
-                | Self::Progress
-                | Self::Duration
-                | Self::FrameRate
-                | Self::Frame
-                | Self::FramesElapsed
+            Self::Seconds | Self::Progress | Self::Duration | Self::FrameRate | Self::Frame
         )
     }
 
@@ -644,8 +637,7 @@ pub enum Instruction {
     /// Int: the pixel's section index for an int width, or with `!index` the
     /// section count.
     Section { index: bool, dst: Slot, width: Slot },
-    /// Color: an operator input, or the node's own previous frame as
-    /// [`STATE_INPUT`], at this frame and a pixel.
+    /// Color: an operator input at this frame and a pixel.
     Read {
         dst: Slot,
         input: u16,
@@ -744,10 +736,6 @@ pub enum Instruction {
         weight_len: u16,
     },
 }
-
-/// The input a [`Instruction::Read`] of the node's own previous frame reads:
-/// an operator's own last output, or an effect's layer's.
-pub const STATE_INPUT: u16 = u16::MAX;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BytecodeProgram {
@@ -1221,19 +1209,6 @@ impl BytecodeProgram {
                 ..
             } => *edges != Edges::Skip,
             _ => false,
-        })
-    }
-
-    /// Reads its own previous frame, or its layer's.
-    pub fn reads_state(&self) -> bool {
-        self.reads(|instruction| {
-            matches!(
-                instruction,
-                Instruction::Read {
-                    input: STATE_INPUT,
-                    ..
-                }
-            )
         })
     }
 

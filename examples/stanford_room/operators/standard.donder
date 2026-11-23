@@ -74,24 +74,6 @@ operator Saturate {
   }
 }
 
-operator FreezeFrame {
-  input input;
-  param interval_seconds: float in 0.001..10.0 = 0.01;
-  param fade_seconds: float in 0.001..60.0 = 1.0;
-
-  -- Each interval captures the input over what it holds; between captures
-  -- the held frame fades to a hundredth over `fade_seconds`.
-  sample {
-    let elapsed = frames_elapsed / frame_rate;
-    let held = previous * pow(0.01, elapsed / fade_seconds);
-    if floor(time / interval_seconds) != floor((time - elapsed) / interval_seconds) {
-      max(input, held)
-    } else {
-      held
-    }
-  }
-}
-
 operator Blur {
   input input;
   -- Pixels averaged on each side, along each fixture's pixel order.
@@ -216,19 +198,6 @@ operator Trail {
     } else {
       max(forward, backward)
     }
-  }
-}
-
-operator Afterglow {
-  input input;
-  -- Seconds for light that goes out to fade to a tenth.
-  param seconds: float in 0.01..10.0 = 0.5;
-
-  -- Each frame keeps the brighter of the input and its own previous frame,
-  -- faded by the frames since then. Steady light shows unchanged.
-  sample {
-    let decay = pow(0.1, 1.0 / (seconds * frame_rate));
-    max(input, previous * pow(decay, frames_elapsed))
   }
 }
 

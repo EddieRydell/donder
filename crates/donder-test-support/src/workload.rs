@@ -63,7 +63,7 @@ impl Workload {
                 })
                 .collect();
             // Operator fixtures measure Layer 0 -> operator chain, including
-            // the four-layer Chase/Pulse source used by the Afterglow cases.
+            // the four-layer Chase/Pulse source used by the Trail chain cases.
             // Preserve that input selection; layer-only cases mix every layer.
             let mut signal = if layers.len() == 1 || !self.operators.is_empty() {
                 layers[0]
@@ -71,7 +71,7 @@ impl Workload {
                 builder.mix(layers.iter().copied())
             };
             for operator in &self.operators {
-                signal = builder.operator(operator, |input| {
+                signal = builder.operator(operator, None, |input| {
                     assert_eq!(input, 0);
                     signal
                 });

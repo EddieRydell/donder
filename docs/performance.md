@@ -47,6 +47,7 @@ The `*_large_show*` cases in `render_bench` run Ding Dong from
 
 | Date | Workload and conditions | Result |
 | --- | --- | --- |
+| 2026-11-23 | Rydell House `all_we_are` (25,519 pixels, 980 clips, 16,011 frames at 144 fps), every frame in order, Windows x64 release on the i9-13980HX, pinned to CPU 2 | 5.50 ms mean per frame before; 5.24 ms after removing `previous` and state buffers; 1.29 ms after range-aware folding and skipping black frames (median 0.36 ms, 0.37 ms on frames with no active clip). Before, the two Grit operators took 3.3 ms on every frame though their layers are lit for 4.6 s |
 | 2026-11-21 | `prepared_playback_bench` workload replaced: the library's Pulse, Chase, Twinkle and Butterfly instead of ScanSweep, ImpactBurst, SparkleComet and ShimmerField (also in `layered_600`) | Earlier `prepared_effect_suite_4x512_pixels` and `prepared_600_pixels_4_layers_3_operators` numbers are not comparable with later ones |
 | 2026-11-21 | Rydell House `all_we_are` FSEQ export, 11,119 frames at 10 ms, 104,742 channels, `donder export-fseq` release on the i9-13980HX from a background shell, unpinned | 1 min 4 s holding `PowerGuard::no_throttling` (about 5.8 ms per frame), against 4 min 21 s without it, when Windows ran the render as background work on efficiency cores |
 | 2026-11-16 | Dig-Quad in access-point mode, Stanford `main` (22.9 KB show) after splitting a clip | 2.6 KB delta applied in 26 ms, against 117–147 ms for the whole show; frames match a fresh upload |

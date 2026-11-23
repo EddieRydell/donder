@@ -502,9 +502,9 @@ fn bench_operators(c: &mut Criterion) {
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
-    let afterglow = standard
+    let trail = standard
         .iter()
-        .find(|operator| operator.name().as_str() == "Afterglow")
+        .find(|operator| operator.name().as_str() == "Trail")
         .unwrap();
     let invert = standard
         .iter()
@@ -512,13 +512,13 @@ fn bench_operators(c: &mut Criterion) {
         .unwrap();
     for count in workload::COUNTS {
         for (name, nested) in [
-            ("standard_afterglow", false),
-            ("standard_afterglow_nested_invert", true),
+            ("standard_trail", false),
+            ("standard_trail_nested_invert", true),
         ] {
             let mut show = workload::chase_pulse_show(count, 4);
-            workload::apply_operator(&mut show, afterglow, true);
+            workload::apply_operator(&mut show, trail, true);
             if nested {
-                // Layer -> Afterglow -> Invert -> Afterglow: two stateful nodes.
+                // Layer -> Trail -> Invert -> Trail: two whole-fixture scans.
                 workload::insert_invert(&mut show, invert);
             }
             let mut workspace = show.clone().prepare().into_playback();
@@ -534,7 +534,7 @@ fn bench_operators(c: &mut Criterion) {
             }
             assert!(any_lit, "{name}/{count} produced only black frames");
             let mut frame = 0;
-            c.bench_function(&format!("prepared_stateful/{name}/{count}"), |b| {
+            c.bench_function(&format!("prepared_operator_chain/{name}/{count}"), |b| {
                 b.iter(|| {
                     frame = (frame + 1) % workload::FRAMES;
                     black_box(workspace.evaluate(black_box(playback::time(frame))));

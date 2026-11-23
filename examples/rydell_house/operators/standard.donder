@@ -217,19 +217,6 @@ operator Trail {
   }
 }
 
-operator Afterglow {
-  input input;
-  -- Seconds for light that goes out to fade to a tenth.
-  param seconds: float in 0.01..10.0 = 0.5;
-
-  -- Each frame keeps the brighter of the input and its own previous frame,
-  -- faded by the frames since then. Steady light shows unchanged.
-  sample {
-    let decay = pow(0.1, 1.0 / (seconds * frame_rate));
-    max(input, previous * pow(decay, frames_elapsed))
-  }
-}
-
 -- A channel clipped at full brightness and rounded to one of `levels` steps.
 fn crush(level: float, levels: int) -> float {
   round(min(level, 1.0) * (levels - 1)) / (levels - 1)

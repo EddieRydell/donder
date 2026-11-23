@@ -1,5 +1,3 @@
-mod support;
-
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -115,34 +113,6 @@ fn prepared_controller_sampling_does_not_allocate() {
                 .as_str()
         );
     }
-
-    let mut project = session.project;
-    let sequence_id = *project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
-        .find(|id| {
-            session
-                .source
-                .declared_name((**id).into())
-                .unwrap()
-                .as_str()
-                == "layer_test"
-        })
-        .expect("starter project should include layer_test");
-    // A stateful operator through the same prepared controller path,
-    // including seeks backward.
-    let afterglow = donder_language::compiler::compile_script(include_str!(
-        "../../../examples/starter/operators/standard.donder"
-    ))
-    .unwrap()
-    .into_iter()
-    .find(|operator| operator.name().as_str() == "Afterglow")
-    .unwrap();
-    support::append_operator(&mut project, &sequence_id, afterglow);
-    let output = prepare(&project, &sequence_id, Retain::All).unwrap();
-    assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 0], "Afterglow");
 }
 
 fn assert_prepared_sampling_does_not_allocate(output: PreparedShow, frames: &[u32], name: &str) {

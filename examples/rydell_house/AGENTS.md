@@ -112,11 +112,9 @@ neighbor * weight }`, as `Blur` and `Bloom` do, rather than computing pixel
 indices with `input.at(...)`. Trails and long glows that fade with distance use
 `scan forward input decay d`, or `scan forward input decay d as light { light * w }`
 to weight the light each pixel adds, as `Trail` and `Bloom` do; their cost
-does not grow with the distance. Light that lingers over time
-reads the operator's own last frame, `previous`, faded by the frames since, as
-`Afterglow` does: `max(input, previous * pow(decay, frames_elapsed))`. Effects
-and operators see only the current frame and `previous`; nothing reads another
-time of a signal.
+does not grow with the distance. Effects and operators see only the current
+frame; nothing reads another time of a signal, so light that lingers over time
+is drawn by the clips themselves, with a pulse shape or curve that fades out.
 
 Do not write defensively. Every operation is defined for every value of its
 types, so no input can fail at playback: float division by zero gives infinity

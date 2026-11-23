@@ -97,7 +97,7 @@ pub(crate) trait NeighborWeights {
     fn weights(&mut self, colors: &[Color], weights: &mut [f32]);
 }
 
-/// A clip sampled alone: it has no layer, so its previous frame is black.
+/// A program without signal inputs.
 impl StripSignals for super::NoSignals {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn read_strip(&mut self, _: usize, output: &mut [Color; STRIP]) {
@@ -1783,9 +1783,6 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 }
                 ContextRead::Frame => {
                     Self::set_scalar(self.int_dst(dst), self.context.frame as i32);
-                }
-                ContextRead::FramesElapsed => {
-                    Self::set_scalar(self.int_dst(dst), self.context.frames_elapsed as i32);
                 }
                 read => Self::set_scalar(self.float_dst(dst), self.context_float(read)),
             },

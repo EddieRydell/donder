@@ -578,18 +578,8 @@ Sequence layer_test {
       LayerNode { layer: default, position: (566.45416, -474.141) },
       RootNode { position: (1393.0885, -375.6623) },
       LayerNode { layer: afterglow, position: (444.03857, -40.094635) },
-      OperatorNode {
-        name: afterglow_2,
-        operator: operators.Afterglow,
-        params: {},
-        position: (815.0807, -62.519207),
-      },
     ],
-    edges: [
-      Edge { from: layers.default, to: root },
-      Edge { from: layers.afterglow, to: afterglow_2.input },
-      Edge { from: afterglow_2, to: root },
-    ],
+    edges: [Edge { from: layers.default, to: root }, Edge { from: layers.afterglow, to: root }],
   },
   automation: [],
 }

@@ -190,7 +190,7 @@ A prepared show, a sequence's or a console's, is encoded as a header, a section 
 fixed-size records that refer to one another by index. A `PreparedShow` holds
 those bytes in memory, and playback reads the records where they lie. Its
 `workspace_bytes()` is the exact size of its playback buffer.
-`prepared.into_playback()` (a `ShowPlayback`) owns that buffer and lays the nodes' frame buffers, their state buffers, scan
+`prepared.into_playback()` (a `ShowPlayback`) owns that buffer and lays the nodes' frame buffers, scan
 frames, port bytes, the strip workspace and the automation scratch out in it,
 and each later call borrows them again. `evaluate(time)` returns
 borrowed fixture colors and packed controller bytes for the frame nearest
@@ -207,16 +207,17 @@ topological order, each into a frame buffer that is reused once its last
 reader has run (at most 16 at once): a layer max-composites its active clips,
 found by a binary search over its clips' start order and latest ends; an
 operator runs over every pixel and reads its inputs' frames of this frame at
-any pixel; a mix keeps each channel's maximum. A layer or operator that reads
-`previous` (at most 16) copies its frame into a state buffer once it has run,
-which it reads on the next frame. Colors are 32-bit floats per channel
+any pixel; a mix keeps each channel's maximum. A layer with no active clip
+writes a black frame, and while every input of a node is black, a mix writes
+black and an operator with a proven black-input color writes that color
+without running its program. Nothing carries from one frame to the next, so
+every frame depends only on its time. Colors are 32-bit floats per channel
 throughout; only packing the output bytes narrows them. Packing clamps each
 channel to 0..1 and reads it through the route's table, interpolated, as a
 level in 1/256 of a byte, then rounds it to the nearest byte or, on a dithered
 route, against a threshold that cycles over eight frames and is offset per
 pixel, so the bytes average to the exact level.
-The builder asserts the limits on frame buffers, state buffers and scans per
-program (8).
+The builder asserts the limits on frame buffers and scans per program (8).
 
 The same `PreparedShow` runs in three places. All three map wall time to
 show time and choose rendered frames through the runtime's `PlaybackRate`, so a

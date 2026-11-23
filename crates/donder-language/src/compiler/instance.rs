@@ -5,7 +5,7 @@
 //! global signal graph before they are lowered.
 use super::check::Definition;
 use super::ir::{
-    Binary, Context, Domain, Graph, Node, Op, Param, Rebuild, STATE, Substitute, TooManyLoops,
+    Binary, Context, Domain, Graph, Node, Op, Param, Rebuild, Substitute, TooManyLoops,
 };
 use donder_runtime_types::BoundParams;
 use donder_runtime_types::Color;
@@ -71,6 +71,7 @@ impl Instance {
                 } else {
                     Domain::PARAM
                 },
+                range: param.range,
             })
             .collect();
         let mut values = params.values().to_vec();
@@ -79,6 +80,7 @@ impl Instance {
             slots.push(Param {
                 ty,
                 domain: Domain::PARAM,
+                range: None,
             });
             values.push(value);
             slots.len() as u32 - 1
@@ -112,6 +114,7 @@ impl Instance {
             slots.push(Param {
                 ty: Type::Float,
                 domain: Domain::TIME,
+                range: None,
             });
             values.push(Value::Float(0.0));
             automation.push(integral);
@@ -179,23 +182,20 @@ impl Instance {
         self.graph.inputs() as usize
     }
 
+    /// The color this instance produces at every time and pixel while every
+    /// input is black, if the folds prove it is one color.
+    pub fn black_input_color(&self) -> Option<Color> {
+        (0..self.inputs())
+            .fold(self.clone(), |instance, _| instance.with_black_input(0))
+            .constant_color()
+    }
+
     /// The color this instance always produces, if it is constant.
     pub fn constant_color(&self) -> Option<Color> {
         match self.graph.constant_value(self.root) {
             Some(Value::Color(color)) => Some(*color),
             _ => None,
         }
-    }
-
-    /// Whether this instance, once its inputs are all black, is black at
-    /// every frame: black while its previous frame is, which starts black.
-    pub fn stays_black(&self) -> bool {
-        let mut graph = Graph::new(self.graph.params().to_vec(), self.graph.inputs());
-        let Ok(root) = Rebuild::new(&self.graph).node(&mut graph, self.root, &mut BlackState)
-        else {
-            return false;
-        };
-        matches!(graph.constant_value(root), Some(Value::Color(color)) if *color == Color::BLACK)
     }
 
     /// Replace every read of `input` with black, for a signal that is black
@@ -246,10 +246,6 @@ impl Instance {
         else {
             return None;
         };
-        // A node's previous frame is its own; fused, it would be another's.
-        if self.reads_state() || upstream.reads_state() {
-            return None;
-        }
         let offset = self.graph.params().len() as u32;
         let mut params = self.graph.params().to_vec();
         params.extend(upstream.graph.params().iter().cloned());
@@ -277,13 +273,6 @@ impl Instance {
             values,
             automation,
         })
-    }
-
-    /// Whether the program reads its node's previous frame.
-    fn reads_state(&self) -> bool {
-        self.graph
-            .nodes()
-            .any(|node| self.graph.op(node).input() == Some(STATE) && self.reaches(node))
     }
 
     /// Whether `node` is reachable from the root, through reductions.
@@ -362,31 +351,12 @@ impl Substitute for BlackInput {
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
         Ok(match input.cmp(&self.input) {
-            _ if input == STATE => target.add(Op::Read { input, pixel }),
             core::cmp::Ordering::Equal => target.color(Color::BLACK),
             core::cmp::Ordering::Less => target.add(Op::Read { input, pixel }),
             core::cmp::Ordering::Greater => target.add(Op::Read {
                 input: input - 1,
                 pixel,
             }),
-        })
-    }
-}
-
-/// Reads of the previous frame as black.
-struct BlackState;
-
-impl Substitute for BlackState {
-    fn read(
-        &mut self,
-        target: &mut Graph,
-        input: u32,
-        pixel: SignalPixel<Node>,
-    ) -> Result<Node, TooManyLoops> {
-        Ok(if input == STATE {
-            target.color(Color::BLACK)
-        } else {
-            target.add(Op::Read { input, pixel })
         })
     }
 }

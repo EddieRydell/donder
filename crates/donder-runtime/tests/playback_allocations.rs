@@ -616,7 +616,7 @@ const STARTER_EFFECTS: [&str; 1] = [include_str!(
 const OPERATOR_LIBRARIES: [&str; 3] = [
     include_str!("../../../examples/starter/operators/standard.donder"),
     include_str!("../../../examples/starter/operators/gain.donder"),
-    // FreezeFrame and HueMap; its other operators repeat the starter's.
+    // HueMap and Saturate; its other operators repeat the starter's.
     include_str!("../../../examples/stanford_room/operators/standard.donder"),
 ];
 
@@ -641,7 +641,7 @@ operator Scatter {
       guard intensity(source.at(i)) > darkest;
       i
     } else { 0 };
-    blur * (darkest + 0.5) + previous.at(brightest)
+    blur * (darkest + 0.5) + source.at(brightest)
   }
 }";
 
@@ -788,7 +788,7 @@ fn operator_show(nodes: &[(Instance, Vec<Input>)]) -> PreparedShow {
         });
         let mut signal = first;
         for (operator, inputs) in &lowered {
-            signal = builder.operator(operator, |input| match inputs[input] {
+            signal = builder.operator(operator, None, |input| match inputs[input] {
                 Input::Chain => signal,
                 Input::Second => second,
             });

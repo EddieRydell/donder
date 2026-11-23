@@ -11,8 +11,8 @@ use std::prelude::rust_2024::*;
 use super::evaluation::{Single, StripWorkspace};
 use crate::dsl::bytecode::{CurveOp, FloatBinary, Instruction, instructions};
 use crate::dsl::{NoSignals, STRIP};
+use donder_runtime_types::SampleTime;
 use donder_runtime_types::{BoundProgram, SampleDuration, TargetGeometry, Value};
-use donder_runtime_types::{Color, SampleTime};
 use donder_runtime_types::{FixtureGeometry, SpatialContext, TargetScope};
 use donder_test_support::workload;
 
@@ -99,7 +99,7 @@ fn strips_preserve_local_and_subset_target_addressing() {
                     subset,
                 );
                 let layer = builder.layer(true, [effect]);
-                let signal = builder.operator(op, |_| layer);
+                let signal = builder.operator(op, None, |_| layer);
                 Some(signal)
             })
         };
@@ -549,7 +549,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
     use donder_runtime_types::{Color, Gradient, GradientStop};
     let effect = compile(
         "effect Target { param colors: gradient; sample {
-            guard pixel.index >= 0;
+            guard pixel.index != 100;
             colors[target.max_x * target.count / 9.0]
         } }",
     );
@@ -592,7 +592,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             (5, 9, 0.25),
         ] {
             let pixels = strip.pixels();
-            pixels.index[0].set(-1);
+            pixels.index[0].set(100);
             pixels.index[1].set(pixel);
             let mut colors = [Color::BLACK; 2];
             strip.run(
@@ -647,41 +647,5 @@ fn section_reciprocal_preserves_boundaries_and_missing_values() {
                 );
             }
         }
-    }
-}
-
-#[test]
-fn previous_frames_persist_between_frames_and_step_once_after_a_seek() {
-    // White for the first four frames at 120 frames per second, then black.
-    let source = effect("effect Flash { sample { if time < 0.03 { #ffffff } else { #000000 } } }");
-    let trail = operator("operator Trail { input source; sample { max(source, previous * 0.5) } }");
-    let mut playback = show(3, &source, 1, &[trail]).into_playback();
-    let white = Color::from_bytes([255, 255, 255]);
-    let half = |color| crate::sampling::scale_color(color, 0.5);
-    let mut expected = white;
-    // Frame, and the color it holds: each frame halves the one before;
-    // the same frame again is held; a seek steps once from the state held.
-    for (frame, step) in [
-        (0, None),
-        (3, None),
-        (4, Some(1)),
-        (5, Some(1)),
-        (6, Some(1)),
-        (50, Some(1)),
-        (50, Some(0)),
-        (51, Some(1)),
-        (2, None),
-    ] {
-        expected = match step {
-            None => white,
-            Some(0) => expected,
-            Some(_) => half(expected),
-        };
-        let time = donder_runtime_types::sample_time_from_frame(frame, 120).unwrap();
-        assert_eq!(
-            playback.evaluate(time).colors(),
-            [expected; 3],
-            "frame={frame}"
-        );
     }
 }

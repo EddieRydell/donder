@@ -178,7 +178,7 @@ impl Single {
                 None
             } else {
                 let layer = builder.layer(true, []);
-                Some(builder.operator(program, |_| layer))
+                Some(builder.operator(program, None, |_| layer))
             }
         });
         let show = sequence.show();
@@ -313,7 +313,6 @@ pub(super) fn context(count: usize, pixel: usize, frame: usize) -> PixelContext 
             duration: SampleDuration::from_ticks(8_000_000),
             frame_rate: 40.0,
             frame: 0,
-            frames_elapsed: 1,
             pixel_count: count as i32,
         },
         index: pixel as i32,
@@ -332,7 +331,6 @@ pub(super) fn one_pixel(progress: f32) -> PixelContext {
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
             frame: 0,
-            frames_elapsed: 1,
             pixel_count: 1,
         },
         index: 0,
@@ -412,7 +410,7 @@ pub(super) fn show(
             .collect();
         let mut signal = builder.mix(layers);
         for operator in operators {
-            signal = builder.operator(operator, |_| signal);
+            signal = builder.operator(operator, None, |_| signal);
         }
         Some(signal)
     })

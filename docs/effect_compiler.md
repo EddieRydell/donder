@@ -46,8 +46,8 @@ signature left widens it. So `min` and `clamp` choose int operations when every
 argument is an int. Builtins without an instruction of their own (`round`,
 `fract`, `sign`, `step`, `is_nan`, `smoothstep`, `section_position`, ...) name
 a small expansion function that builds them from other operations. A context
-value's row names the IR context it reads (or `previous`, or a constant such as
-`PI`), and gives the context's type.
+value's row names the IR context it reads (or a constant such as `PI`), and
+gives the context's type.
 
 The check can also record every name it declares and resolves. Editor analysis
 (`analysis/script.rs`) runs that one check over a partial parse, so hover,
@@ -63,9 +63,12 @@ with arguments of unknown value, skipping the bound proofs that need values, so
 an unused function cannot hide errors. Recursion is reported when a function
 would inline itself.
 
-Reduction bounds are proved by interval analysis (`ir/interval.rs`) over
-literals, declared ranges and array lengths. A bound that depends on a length is
-kept and rechecked by `check_values` when an instance supplies its values.
+Every node records its value range (`ir/interval.rs`) as it is built, from
+literals, the ranges parameters declare, and the fixed ranges of builtins such
+as `rand` and `intensity`; integer arithmetic wraps, so a range past the int
+range holds any int. The ranges prove reduction bounds and drive folding. A
+bound that depends on an array length is kept and rechecked by `check_values`
+when an instance supplies its values.
 
 ## IR
 
@@ -79,7 +82,7 @@ so equal expressions share a node by construction.
 | `Unary`, `Binary`, `Ternary` | Scalar, color, resource, mark and section operations |
 | `Select` | Pure choice. `&&` and `\|\|` are selects too |
 | `Reduce` with `LoopIndex` | A reduction; its bounds, body, filter and default live in its loop |
-| `Read` | An input signal of this frame, or the node's previous frame (`previous`), at the current pixel, a shift of it, or a pixel of its fixture |
+| `Read` | An input signal of this frame, at the current pixel, a shift of it, or a pixel of its fixture |
 | `Items`, `Pick` | An array literal, and its item at a clamped index |
 | `ParamIntegral` | A float parameter integrated over the definition's time. Only definitions hold it: whether it is a slot playback writes or `parameter * time` depends on the invocation's automation, so instantiation replaces it |
 | `Tap` | A stencil: an `around` reduction's contribution as checking forms it, its reduction's body |
@@ -92,7 +95,7 @@ computed when it is built:
 | Domain bit | Varies with |
 | --- | --- |
 | `PARAM` | the instance: fixed parameters, clip duration, uniform pixel count |
-| `TIME` | the query: `time`, `progress`, `frames_elapsed`, automated parameters |
+| `TIME` | the query: `time`, `progress`, `frame`, automated parameters |
 | `TARGET` | the target run: pixel count of mixed fixtures and target bounds |
 | `PIXEL` | the pixel |
 | `SIGNAL` | an upstream read |
@@ -113,7 +116,12 @@ Construction folds (`ir/fold.rs`):
 - a choice on `a && b` or `a || b` becomes nested choices on `a` and then `b`, so
   the second test is evaluated only when it decides;
 - reductions over an empty range, with an identity body, or with a body that
-  does not read the index.
+  does not read the index;
+- what ranges decide: a number its operands' ranges pin to one finite value
+  (`0 * x` and `0 / x` for a finite, nonzero `x`), a comparison every value
+  in the ranges agrees on (`rand(..) < 0.0` is false), and a value mixed with
+  itself by a finite weight. Comparisons widen the range of float arithmetic by
+  more than 32-bit rounding, since ranges are kept in 64 bits.
 
 `ir/rebuild.rs` copies a graph into another with leaves replaced; building in
 the target refolds every node. Instantiation, black inputs, fusion and slot
@@ -149,12 +157,15 @@ stay runtime nodes: the active clip set changes with time.
 
 1. **Black signals.** A disabled or empty layer is black. Reading a black input
    folds to black (`Instance::with_black_input`), and an operator that becomes
-   constant black is dropped from its consumers and the root.
+   constant black is dropped from its consumers and the root. Each operator
+   kept also records the one color it produces while every input is black,
+   when folding all of them proves there is one
+   (`Instance::black_input_color`); playback fills its frame with that color on
+   frames where its inputs are black instead of running it.
 2. **Fusion.** An operator consumed once is substituted into its consumer
    (`Instance::fuse_input`) at its only read site, on the current pixel, and
-   runs at the consumer's time. A scan's or stencil's input, and an upstream instance or consumer that reads `previous` keep the boundary, since a
-   node's previous frame is its own. A fused program beyond the row or nesting
-   limits keeps the boundary too.
+   runs at the consumer's time. A scan's or stencil's input keeps the
+   boundary, and so does a fused program beyond the row or nesting limits.
 3. Every remaining instance is lowered, equal programs are interned, and only
    then is each program bound to its values (`BoundProgram`).
 
@@ -281,8 +292,7 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   computes the scan over the whole input frame the first time the program reads
   it in a frame, into a scan frame of its own (at most 8 per program); each
   strip copies its pixels from there.
-- A read takes the whole frame its input already wrote this frame, or the
-  node's state buffer for `previous`.
+- A read takes the whole frame its input already wrote this frame.
 - Every value starts in its own slot; liveness over the structured code then
   shares slots per bank and kind. A value read inside a reduction but defined
   before it lives through the whole loop. A value of the query or target block

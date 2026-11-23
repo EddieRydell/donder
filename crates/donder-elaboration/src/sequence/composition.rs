@@ -132,7 +132,9 @@ pub(crate) fn prepare<'id>(
             }
             Some(Pending::Operator { instance, inputs }) => {
                 let program = programs.lower(&instance);
-                let signal = builder.operator(&program, |input| signals[&inputs[input]]);
+                let signal = builder.operator(&program, instance.black_input_color(), |input| {
+                    signals[&inputs[input]]
+                });
                 signals.insert(index, signal);
                 if !program.automation().is_empty() {
                     automated.push((signal, program));
@@ -204,9 +206,7 @@ fn simplify<'id>(
         }
         input += 1;
     }
-    if instance.constant_color() == Some(Color::BLACK)
-        || (inputs.is_empty() && instance.stays_black())
-    {
+    if instance.constant_color() == Some(Color::BLACK) {
         Pending::Black
     } else {
         Pending::Operator {

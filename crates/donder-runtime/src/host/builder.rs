@@ -139,6 +139,8 @@ struct Node {
     params: u32,
     inputs: Vec<u32>,
     automation: u32,
+    /// The colors-section index of its frame while its inputs are black.
+    black_inputs: u32,
 }
 
 /// Resources written so far, so that equal values share one record.
@@ -428,7 +430,6 @@ impl ShowBuilder<'_> {
                 format::PROGRAM_USES_PIXEL_CONTEXT,
             ),
             (stencil, format::PROGRAM_HAS_STENCIL),
-            (program.reads_state(), format::PROGRAM_READS_STATE),
         ]
         .iter()
         .filter(|(set, _)| *set)
@@ -819,9 +820,14 @@ impl<'id> ShowBuilder<'id> {
 
     /// Request each declared input exactly once. References can only point to
     /// signals already created by this builder, so cycles cannot be expressed.
+    /// An operator node running `program` over its `input` signals.
+    /// `black_inputs` is the one color it produces while every input is
+    /// black, when the compiler proves there is one; playback then fills its
+    /// frame with that color instead of running it.
     pub fn operator(
         &mut self,
         program: &BoundProgram,
+        black_inputs: Option<donder_runtime_types::Color>,
         mut input: impl FnMut(usize) -> SignalHandle<'id>,
     ) -> SignalHandle<'id> {
         let bytecode = &program.program().bytecode;
@@ -831,6 +837,7 @@ impl<'id> ShowBuilder<'id> {
         let inputs = (0..program.program().inputs)
             .map(|index| input(index).index as u32)
             .collect();
+        let black_inputs = black_inputs.map_or(NONE, |color| self.color(color));
         self.nodes.push(Node {
             kind: format::NODE_OPERATOR,
             layer: 0,
@@ -838,6 +845,7 @@ impl<'id> ShowBuilder<'id> {
             params,
             inputs,
             automation,
+            black_inputs,
         });
         SignalHandle::new(self.nodes.len() - 1)
     }
@@ -857,6 +865,7 @@ impl<'id> ShowBuilder<'id> {
             params: 0,
             inputs: Vec::new(),
             automation: NONE,
+            black_inputs: NONE,
         });
         SignalHandle::new(self.nodes.len() - 1)
     }
@@ -874,6 +883,7 @@ impl<'id> ShowBuilder<'id> {
             params: 0,
             inputs: inputs.into_iter().map(|input| input.index as u32).collect(),
             automation: NONE,
+            black_inputs: NONE,
         });
         SignalHandle::new(self.nodes.len() - 1)
     }
@@ -1084,7 +1094,7 @@ impl<'id> ShowBuilder<'id> {
         let root = root.map(|signal| chain_mixes(&mut self.nodes, signal.index));
         // Only the nodes the output reads are written, inputs first as they
         // were built. Each writes a frame buffer free from its start until its
-        // last reader runs; one that reads its previous frame keeps a state.
+        // last reader runs.
         let mut live = vec![false; self.nodes.len()];
         if let Some(root) = root {
             live[root] = true;
@@ -1105,9 +1115,7 @@ impl<'id> ShowBuilder<'id> {
                 }
             }
         }
-        let reads_state =
-            |program: u32| w.programs[program as usize].flags & format::PROGRAM_READS_STATE != 0;
-        let (mut free, mut buffers, mut states) = (Vec::<u32>::new(), 0, 0);
+        let (mut free, mut buffers) = (Vec::<u32>::new(), 0);
         for (index, node) in self.nodes.iter().enumerate() {
             if !live[index] {
                 continue;
@@ -1116,20 +1124,6 @@ impl<'id> ShowBuilder<'id> {
                 buffers += 1;
                 buffers - 1
             });
-            let stateful = match node.kind {
-                format::NODE_LAYER => self.layers[node.layer as usize]
-                    .clips
-                    .iter()
-                    .any(|&clip| reads_state(w.clips[clip as usize].program)),
-                format::NODE_OPERATOR => reads_state(node.program),
-                _ => false,
-            };
-            let state = if stateful {
-                states += 1;
-                states - 1
-            } else {
-                NONE
-            };
             for &input in &node.inputs {
                 if last_read[input as usize] == index {
                     let input = &w.nodes[node_index[input as usize] as usize];
@@ -1151,7 +1145,7 @@ impl<'id> ShowBuilder<'id> {
                 inputs,
                 automation: node.automation,
                 buffer,
-                state,
+                black_inputs: node.black_inputs,
             });
         }
         let buffers = buffers.max(1);
@@ -1159,11 +1153,6 @@ impl<'id> ShowBuilder<'id> {
             buffers as usize <= crate::workspace::MAX_BUFFERS,
             "a show's graph holds at most {} frames at once",
             crate::workspace::MAX_BUFFERS
-        );
-        assert!(
-            states as usize <= crate::workspace::MAX_STATES,
-            "at most {} signals of a show read their previous frame",
-            crate::workspace::MAX_STATES
         );
         assert!(
             w.programs
@@ -1196,7 +1185,6 @@ impl<'id> ShowBuilder<'id> {
             plan_target: written[full.index],
             root: root.map_or(NONE, |root| node_index[root]),
             buffers,
-            states,
             collections: self.collections,
             controls: self.controls,
         });
@@ -1470,6 +1458,7 @@ fn chain_mixes(nodes: &mut Vec<Node>, root: usize) -> usize {
         params: 0,
         inputs,
         automation: NONE,
+        black_inputs: NONE,
     };
     let mut chained = Vec::with_capacity(nodes.len());
     let mut moved = vec![0u32; nodes.len()];

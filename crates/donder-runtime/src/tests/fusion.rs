@@ -267,10 +267,12 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
                     b.layer(true, [sample])
                 });
                 let output = if fuse {
-                    b.operator(&fused, |input| [layers[2], layers[0], layers[1]][input])
+                    b.operator(&fused, None, |input| {
+                        [layers[2], layers[0], layers[1]][input]
+                    })
                 } else {
-                    let inner = b.operator(&inner, |input| layers[input]);
-                    b.operator(&outer, |input| [layers[2], inner][input])
+                    let inner = b.operator(&inner, None, |input| layers[input]);
+                    b.operator(&outer, None, |input| [layers[2], inner][input])
                 };
                 Some(output)
             })
@@ -472,7 +474,6 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
         "max(source, source.at(pixel.index + 1))",
         "source.at(pixel.index + 1)",
         "source.at(pixel.index)",
-        "max(source, previous)",
     ] {
         let consumer = instance(
             &compile(&format!(

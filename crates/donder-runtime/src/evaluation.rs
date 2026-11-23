@@ -1,13 +1,15 @@
 //! Frame evaluation. Every node of the graph runs once per frame, inputs
 //! first, into its whole frame buffer: a layer composites its active clips,
-//! an operator runs over the plan target reading its inputs' frames and its
-//! own previous frame, and a mix keeps the channel-wise maximum of its
-//! inputs. Every program runs over strips of up to [`STRIP`] pixels.
+//! an operator runs over the plan target reading its inputs' frames, and a mix
+//! keeps the channel-wise maximum of its inputs. A layer with no active clip is
+//! black; while every input is black, a mix is black and an operator the
+//! compiler proves produces one color then is filled with it instead of
+//! running. Every program runs over strips of up to [`STRIP`] pixels.
 //!
 //! With the `iram` feature, every function here is linked into instruction RAM
 //! (see `docs/performance.md`); `pnpm firmware:build` checks the placement.
 #![cfg_attr(feature = "iram", allow(unsafe_code))]
-use crate::dsl::bytecode::{Edges, STATE_INPUT, SignalPixel};
+use crate::dsl::bytecode::{Edges, SignalPixel};
 use crate::dsl::{
     Bound, NeighborWeights, OUTSIDE, Override, ParamsRef, Pixels, RunContext, STRIP, ScanQuery,
     Scratch, Strip, StripSignals, StripWorkspace, params_at,
@@ -17,7 +19,7 @@ use crate::resources::{LiveView, ParamsView};
 use crate::sections::SectionsView;
 use crate::targets::{PreparedPixel, TargetCursor, TargetView};
 use crate::view::{ProgramView, Show};
-use crate::workspace::{CachedClipColor, ConsoleState, Timing, Workspace};
+use crate::workspace::{CachedClipColor, ConsoleState, MAX_BUFFERS, Timing, Workspace};
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 /// One clip at one time, evaluated over any selection of pixel coordinates.
@@ -123,16 +125,6 @@ impl PixelSet<'_, '_> {
             Self::Listed(pixels) => pixels[k],
         }
     }
-
-    /// Whether pixel `k`'s address follows pixel `start`'s by `k - start`.
-    #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn adjacent(&self, start: usize, k: usize) -> bool {
-        match *self {
-            Self::Cells(_, cells) => cells[k][1] == cells[start][1] + (k - start) as u32,
-            _ => true,
-        }
-    }
 }
 
 /// The shared shape of a strip.
@@ -152,21 +144,13 @@ struct StripLayout<'a> {
     sections: Option<SectionsView<'a>>,
     /// Strips must not mix pixel counts or bounds.
     split: bool,
-    /// Strips must cover consecutive plan-target addresses, as a program
-    /// reading its layer's previous frame reads it by address.
-    contiguous: bool,
 }
 
 impl<'a> StripLayout<'a> {
     /// What `program` reads of `target`'s pixels.
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn new(
-        show: Show<'a>,
-        program: ProgramView<'a>,
-        target: TargetView<'a>,
-        contiguous: bool,
-    ) -> Self {
+    fn new(show: Show<'a>, program: ProgramView<'a>, target: TargetView<'a>) -> Self {
         Self {
             show,
             target,
@@ -175,7 +159,6 @@ impl<'a> StripLayout<'a> {
                 .flag(format::PROGRAM_USES_SECTIONS)
                 .then_some(target.sections),
             split: program.flag(format::PROGRAM_READS_TARGET),
-            contiguous,
         }
     }
 }
@@ -183,19 +166,13 @@ impl<'a> StripLayout<'a> {
 /// A program's run context `time` into a span of `duration`.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn run_context(
-    show: Show<'_>,
-    time: SampleDuration,
-    duration: SampleDuration,
-    frames_elapsed: u32,
-) -> RunContext {
+fn run_context(show: Show<'_>, time: SampleDuration, duration: SampleDuration) -> RunContext {
     RunContext {
         progress: time.as_ticks() as f32 / duration.as_ticks() as f32,
         time,
         duration,
         frame_rate: show.frame_rate() as f32,
         frame: crate::playback::frame_at(time.as_ticks(), show.frame_rate()),
-        frames_elapsed,
         pixel_count: 0,
     }
 }
@@ -218,7 +195,6 @@ fn fill_strip(
         spatial,
         sections,
         split,
-        contiguous,
     } = layout;
     let (start, end) = (pixels.start, pixels.end);
     let mut shape = StripShape {
@@ -234,9 +210,7 @@ fn fill_strip(
             let offset = index - start;
             if offset == 0 {
                 shape.pixel_count = pixel_at.pixel_count;
-            } else if (split && pixel_at.pixel_count != shape.pixel_count)
-                || (contiguous && !pixel.adjacent(start, index))
-            {
+            } else if split && pixel_at.pixel_count != shape.pixel_count {
                 break;
             }
             strip.index[offset].set(pixel_at.pixel_index as i32);
@@ -260,9 +234,8 @@ fn fill_strip(
         }
         if offset == 0 {
             (shape.pixel_count, shape.min, shape.max) = (pixel_at.pixel_count, min, max);
-        } else if (split
-            && (pixel_at.pixel_count != shape.pixel_count || (min, max) != (shape.min, shape.max)))
-            || (contiguous && !pixel.adjacent(start, index))
+        } else if split
+            && (pixel_at.pixel_count != shape.pixel_count || (min, max) != (shape.min, shape.max))
         {
             break;
         }
@@ -285,22 +258,12 @@ impl<'a> ClipEvaluator<'a> {
     /// Whether every pixel of the clip has one color.
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn uniform(&self) -> bool {
-        !self.bound.program.flag(format::PROGRAM_USES_PIXEL_CONTEXT) && !self.reads_state()
-    }
-
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn reads_state(&self) -> bool {
-        self.bound.program.flag(format::PROGRAM_READS_STATE)
+        !self.bound.program.flag(format::PROGRAM_USES_PIXEL_CONTEXT)
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn layout(&self) -> StripLayout<'a> {
-        StripLayout::new(
-            self.bound.show,
-            self.bound.program,
-            self.target,
-            self.reads_state(),
-        )
+        StripLayout::new(self.bound.show, self.bound.program, self.target)
     }
 
     /// Evaluate `count` pixels of this clip's target, `pixel(0..count)`, and
@@ -352,22 +315,16 @@ fn base(show: Show<'_>, fixture: usize, cell: u32) -> usize {
     show.s.fixtures[fixture].offset as usize + cell as usize
 }
 
-/// The frame a program reads as `input`: its own previous frame, or an input
-/// node's frame of this frame.
+/// The frame a program reads as `input`: an input node's frame of this frame.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn input_frame<'f>(
     buffers: &'f [&mut [Color]],
     nodes: &[format::Node],
     inputs: &[u32],
-    state: &'f [Color],
     input: usize,
 ) -> &'f [Color] {
-    if input == usize::from(STATE_INPUT) {
-        state
-    } else {
-        buffers[nodes[inputs[input] as usize].buffer as usize]
-    }
+    buffers[nodes[inputs[input] as usize].buffer as usize]
 }
 
 /// Signal reads of a strip, from frames this frame already evaluated. Pixel
@@ -377,8 +334,6 @@ pub(crate) struct FrameSignals<'g, 'w> {
     nodes: &'g [format::Node],
     inputs: &'g [u32],
     buffers: &'g [&'w mut [Color]],
-    /// The running node's previous frame, or empty.
-    state: &'g [Color],
     scans: &'g mut [&'w mut [Color]],
     /// The running program's scans computed this frame, by bit.
     scanned: u32,
@@ -390,7 +345,7 @@ impl FrameSignals<'_, '_> {
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn frame(&self, input: usize) -> &[Color] {
-        input_frame(self.buffers, self.nodes, self.inputs, self.state, input)
+        input_frame(self.buffers, self.nodes, self.inputs, input)
     }
 }
 
@@ -418,13 +373,7 @@ impl StripSignals for FrameSignals<'_, '_> {
     ) {
         let bit = 1 << query.cache;
         if self.scanned & bit == 0 {
-            let input = input_frame(
-                self.buffers,
-                self.nodes,
-                self.inputs,
-                self.state,
-                query.input,
-            );
+            let input = input_frame(self.buffers, self.nodes, self.inputs, query.input);
             crate::scan::scan_frame(self.plan, query, weights, input, self.scans[query.cache]);
             self.scanned |= bit;
         }
@@ -490,7 +439,6 @@ struct Programs<'r, 'w> {
     overrides: &'r [Override],
     live: LiveView<'r>,
     time: SampleTime,
-    frames_elapsed: u32,
 }
 
 impl<'w> Programs<'_, 'w> {
@@ -524,7 +472,8 @@ fn overrides<'o>(show: Show<'_>, plan: u32, all: &'o [Override]) -> &'o [Overrid
     }
 }
 
-/// Every active clip of `layer`, max-composited into `rendered`.
+/// Every active clip of `layer`, max-composited into `rendered`. Returns
+/// whether any clip was active.
 // Called once per layer per frame, but its loops over the layer's clips
 // stay here.
 #[inline(never)]
@@ -539,20 +488,21 @@ fn evaluate_layer(
     programs: &mut Programs<'_, '_>,
     gather: &mut [[u32; 2]],
     clip_colors: &mut [CachedClipColor],
-) {
+) -> bool {
     rendered.fill(black());
     if layer.enabled == 0 {
-        return;
+        return false;
     }
     let time = programs.time;
+    let mut active = false;
     for &clip_index in timeline.live(layer, time) {
         let clip_index = clip_index as usize;
         let timing = timeline.timing(clip_index);
         if !timing.is_active(time) {
             continue;
         }
+        active = true;
         let clip = &show.s.clips[clip_index];
-        let frames_elapsed = programs.frames_elapsed;
         let (params, workspace) = programs.params(
             show,
             ParamsRef {
@@ -561,7 +511,7 @@ fn evaluate_layer(
                 origin: timing.start,
             },
         );
-        let sampler = clip_evaluator(show, clip, timing, time, frames_elapsed, params);
+        let sampler = clip_evaluator(show, clip, timing, time, params);
         let target = sampler.target;
         signals.scanned = 0;
         if sampler.uniform() {
@@ -588,8 +538,7 @@ fn evaluate_layer(
         // unless the clip reads its layer's frame by address.
         let sample_count = target.sample_count();
         let layout = sampler.layout();
-        let cacheable =
-            sample_count != 0 && !layout.spatial && layout.sections.is_none() && !layout.contiguous;
+        let cacheable = sample_count != 0 && !layout.spatial && layout.sections.is_none();
         if cacheable {
             for sample in &mut clip_colors[..sample_count] {
                 sample.pixel_count = 0;
@@ -633,6 +582,7 @@ fn evaluate_layer(
             cacheable.then_some(&mut clip_colors[..]),
         );
     }
+    active
 }
 
 /// Run gathered pixels, each a target index and its address in `rendered`,
@@ -694,7 +644,6 @@ fn evaluate_operator(
         show,
         SampleDuration::from_ticks(programs.time.as_ticks()),
         show.duration(),
-        programs.frames_elapsed,
     );
     let (params, workspace) = programs.params(
         show,
@@ -713,7 +662,7 @@ fn evaluate_operator(
     let mut strip = Strip::new(bound, &context, workspace);
     let pixels = plan.cursor();
     let pixel = PixelSet::Target(&pixels);
-    let layout = StripLayout::new(show, program, plan, false);
+    let layout = StripLayout::new(show, program, plan);
     let end = rendered.len();
     let mut start = 0;
     while start < end {
@@ -775,15 +724,13 @@ mod frames {
         }
     }
 
-    /// Evaluate every node at `time` into its frame buffer, `frames_elapsed`
-    /// frames after the frame before, and keep each stateful node's frame as its
-    /// previous. Returns the buffer holding the root's frame.
+    /// Evaluate every node at `time` into its frame buffer. Returns the buffer
+    /// holding the root's frame.
     #[inline(never)]
     pub(crate) fn evaluate_frame(
         show: Show<'_>,
         workspace: &mut Workspace<'_>,
         time: SampleTime,
-        frames_elapsed: u32,
     ) -> usize {
         let result = root_buffer(show);
         if show.root().is_none() || time.as_ticks() >= show.duration().as_ticks() {
@@ -792,7 +739,6 @@ mod frames {
         }
         let Workspace {
             buffers,
-            states,
             scans,
             strip,
             scratch,
@@ -820,29 +766,29 @@ mod frames {
                 ticks: live_ticks,
             },
             time,
-            frames_elapsed,
         };
+        // Whether each buffer holds a frame known to be black.
+        let mut black_frames = [false; MAX_BUFFERS];
         for node in show.s.nodes {
             let buffer = node.buffer as usize;
             let rendered = core::mem::take(&mut buffers[buffer]);
-            {
-                let state: &[Color] = match node.state {
-                    NONE => &[],
-                    state => states[state as usize],
-                };
+            let inputs = show.inputs(node);
+            let inputs_black = inputs
+                .iter()
+                .all(|&input| black_frames[show.s.nodes[input as usize].buffer as usize]);
+            black_frames[buffer] = {
                 let mut signals = FrameSignals {
                     plan,
                     nodes: show.s.nodes,
                     inputs: show.inputs(node),
                     buffers,
-                    state,
                     scans,
                     scanned: 0,
                     first: 0,
                     count: 0,
                 };
                 match node.kind {
-                    format::NODE_LAYER => evaluate_layer(
+                    format::NODE_LAYER => !evaluate_layer(
                         show,
                         &show.s.layers[node.layer as usize],
                         timeline,
@@ -852,22 +798,30 @@ mod frames {
                         gather,
                         clip_colors,
                     ),
+                    format::NODE_OPERATOR if inputs_black && node.black_inputs != NONE => {
+                        let color = show.s.colors[node.black_inputs as usize];
+                        rendered.fill(color);
+                        color == black()
+                    }
                     format::NODE_OPERATOR => {
                         evaluate_operator(show, node, plan, rendered, &mut signals, &mut programs);
+                        false
                     }
                     _ => {
                         rendered.fill(black());
-                        for input in 0..signals.inputs.len() {
-                            for (target, &color) in rendered.iter_mut().zip(signals.frame(input)) {
-                                compose_max(target, color);
+                        if !inputs_black {
+                            for input in 0..signals.inputs.len() {
+                                for (target, &color) in
+                                    rendered.iter_mut().zip(signals.frame(input))
+                                {
+                                    compose_max(target, color);
+                                }
                             }
                         }
+                        inputs_black
                     }
                 }
-            }
-            if node.state != NONE {
-                states[node.state as usize].copy_from_slice(rendered);
-            }
+            };
             buffers[buffer] = rendered;
         }
         result
@@ -880,7 +834,6 @@ mod frames {
         clip: &'a format::Clip,
         timing: Timing,
         time: SampleTime,
-        frames_elapsed: u32,
         params: ParamsView<'a>,
     ) -> ClipEvaluator<'a> {
         let program = show.program(clip.program);
@@ -897,7 +850,6 @@ mod frames {
                 show,
                 SampleDuration::from_ticks(elapsed),
                 SampleDuration::from_ticks(timing.duration),
-                frames_elapsed,
             ),
             target,
         }

@@ -145,7 +145,7 @@ pub fn show(
             .collect();
         let mut signal = builder.mix(layers);
         for operator in operators {
-            signal = builder.operator(operator, |_| signal);
+            signal = builder.operator(operator, None, |_| signal);
         }
         Some(signal)
     })

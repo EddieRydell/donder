@@ -31,7 +31,6 @@ fn at(progress: f32) -> PixelContext {
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
             frame: 0,
-            frames_elapsed: 1,
             pixel_count: 1,
         },
         index: 0,
@@ -553,7 +552,7 @@ fn signals_are_only_operator_inputs() {
     );
     assert!(
         compile_error("operator Bad { input source; sample { let t = time; t.at(0) } }")
-            .contains("only operator inputs and `previous` have methods")
+            .contains("only operator inputs have methods")
     );
     assert!(
         compile_error("operator Bad { input source; sample { source.later(time) } }")
@@ -765,9 +764,6 @@ impl Samples {
     }
 }
 
-/// The input index `previous` samples.
-const PREVIOUS: usize = donder_runtime_types::bytecode::STATE_INPUT as usize;
-
 #[test]
 fn spatial_signal_queries_keep_their_coordinate_domains() {
     let operator = operator(
@@ -838,8 +834,8 @@ fn equal_signal_queries_share_one_sample() {
             vec![(0, SignalPixel::Current)],
         ),
         (
-            "max(max(source.at(2), source.at(2)), max(previous, previous))",
-            vec![(0, SignalPixel::Local(2)), (PREVIOUS, SignalPixel::Current)],
+            "max(max(source.at(2), source.at(2)), max(other, other))",
+            vec![(0, SignalPixel::Local(2)), (1, SignalPixel::Current)],
         ),
         (
             "max for i in 0..3 { source.at(i) }",

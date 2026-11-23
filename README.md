@@ -4,7 +4,7 @@ Donder is a light show sequencer where every effect is a program. This has a few
 - Sequences are compiled programs that can be evaluated by the Donder runtime, which is fast and small enough to fit on a microcontroller. This means that a stock ESP32 can store and play back a minutes-long sequence at high framerates without the use of external memory or networking.
 - Because shows aren't pre-rendered like in xLights or Vixen, live input is almost trivial with Donder's runtime. When input is received, the runtime can immediately render effects on the fly.
 - Effect parameters can be tuned and automated in real time. Effects can have user-defined parameters like hue, brightness, fade speed, etc, which are all declared and used as variables in the Donder DSL.
-- Sequences can be divided into layers, which can be composed using something called operators. Operators (which can also be custom written in the Donder DSL) are used to apply visual effects to different layers of a sequence. Operator examples include things like dim, blur, bloom, or afterglow.
+- Sequences can be divided into layers, which can be composed using something called operators. Operators (which can also be custom written in the Donder DSL) are used to apply visual effects to different layers of a sequence. Operator examples include things like dim, blur, bloom, or trail.
 - Every part of a profile is modular. Sequences, fixtures, operators, effects, controller configs, etc. can all be shared between different users and integrated into different shows.
 
 ![The sequence editor with a house show open](docs/images/sequence_editor.png)
@@ -34,10 +34,10 @@ the library doesn't have, you can write it yourself (or ask an LLM to write it f
   4 different outputs on the same hardware (this can vary depending on how many stacked effects
   and operators you have in a sequence)**.
 - **A layer graph** Layers feed a node graph of operators:
-  blends, dimming, hue shifts, blurs, blooms, trails, afterglows, mirrors.
+  blends, dimming, hue shifts, blurs, blooms, trails, mirrors.
   Operators are written the same way as effects, and they can sample their
-  inputs at any pixel and their own previous frame. An afterglow is one line:
-  `sample { max(input, previous * pow(decay, frames_elapsed)) }`.
+  inputs at any pixel. A trail is one line:
+  `sample { scan forward input decay decay }`.
   → [Operator inputs](docs/effect_language.md#operator-inputs)
 - **Automation like a DAW.** An automation clip is a curve on the timeline that
   can drive any number of effect and operator parameters at once. Beat marks

@@ -43,3 +43,4 @@ Donder is pre-release with no users or compatibility obligations; the current pr
 - Do not start or leave a frontend dev server running; the user needs `pnpm tauri dev` to own the port.
 - Do not jump to editing when the conversation is diagnosing or discussing design. When planning, ask relevant questions and list the files the plan affects.
 - After implementing a plan, run `cargo fmt` then `pnpm check` and fix regressions. Not needed for docs, example projects or other changes the checks do not cover.
+- Do not switch to a git branch other than `main` unless the user specifically asks for it

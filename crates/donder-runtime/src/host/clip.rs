@@ -196,7 +196,7 @@ impl ClipRaster<'_> {
             &[],
             LiveView::default(),
         );
-        let sampler = clip_evaluator(show, clip, timing, time, 1, params);
+        let sampler = clip_evaluator(show, clip, timing, time, params);
         let (groups, output) = (&self.groups, &mut self.output);
         sampler.evaluate_pixels(
             groups.len(),

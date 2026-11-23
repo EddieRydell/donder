@@ -75,8 +75,6 @@ pub(crate) struct Meta {
     pub(crate) root: u32,
     /// Frame buffers the nodes write, each one plan-target frame.
     pub(crate) buffers: u32,
-    /// State buffers: the previous frames of the nodes that read them.
-    pub(crate) states: u32,
     /// A console's live mark collections.
     pub(crate) collections: u32,
     /// The controls a console reads.
@@ -228,9 +226,9 @@ pub(crate) struct Node {
     pub(crate) automation: u32,
     /// The frame buffer it writes.
     pub(crate) buffer: u32,
-    /// Its state buffer, which holds its previous frame, or [`NONE`]. A
-    /// layer's clips read it as `previous`, as an operator does its own.
-    pub(crate) state: u32,
+    /// An operator's frame while every input is black, as an index in the
+    /// colors section, or [`NONE`] when it must run.
+    pub(crate) black_inputs: u32,
 }
 
 /// Program flags.
@@ -239,8 +237,6 @@ pub(crate) const PROGRAM_USES_SECTIONS: u32 = 1 << 3;
 pub(crate) const PROGRAM_READS_TARGET: u32 = 1 << 4;
 pub(crate) const PROGRAM_USES_PIXEL_CONTEXT: u32 = 1 << 5;
 pub(crate) const PROGRAM_HAS_STENCIL: u32 = 1 << 6;
-/// The program reads `previous`.
-pub(crate) const PROGRAM_READS_STATE: u32 = 1 << 7;
 
 /// Slot counts per storage bank: floats, ints, bools, resources.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]

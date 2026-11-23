@@ -13,8 +13,6 @@ Every builtin function, context value and signal method of the [effect language]
 | `progress` | float | `time / duration`, in 0..1. |
 | `frame` | int | Frames since the effect's clip started, the nearest frame to `time`; in an operator, since the sequence started. |
 | `frame_rate` | float | The sequence's frames per second. |
-| `frames_elapsed` | int | Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a console command re-renders the same frame. |
-| `previous` | color | This pixel last frame: an operator's own output, or an effect's layer. `previous.at(i)` reads another pixel of the fixture and `around previous` its neighbors. Black until the first frame and for a clip previewed alone; kept as it was after a seek. |
 | `pixel.index` | int | The pixel's zero-based index within the target; in an operator, within its fixture instance. |
 | `pixel.fraction` | float | The pixel's index scaled to 0..1 across the target; in an operator, across its fixture instance. |
 | `pixel.x` | float | The pixel's layout x coordinate in meters, after fixture transforms. |
@@ -29,7 +27,7 @@ Every builtin function, context value and signal method of the [effect language]
 
 ## Signal methods
 
-Operator inputs and `previous` are signals.
+Operator inputs are signals.
 
 ```text
 at(pixel: int) -> color

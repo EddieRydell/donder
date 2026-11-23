@@ -36,7 +36,9 @@ fn sequence(sizes: &[usize], operator: Option<&BoundProgram>) -> PreparedShow {
             target,
         );
         let layer = builder.layer(true, [effect]);
-        let output = operator.map_or(layer, |operator| builder.operator(operator, |_| layer));
+        let output = operator.map_or(layer, |operator| {
+            builder.operator(operator, None, |_| layer)
+        });
         Some(output)
     })
 }

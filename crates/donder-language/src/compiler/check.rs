@@ -8,10 +8,8 @@ use super::builtins::{
     is_context_scope, type_text,
 };
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange, program_params};
-use super::ir::interval::{Bounds, interval};
 use super::ir::{
-    Binary, Context, Domain, Graph, LoopSet, Node, Op, Param, Reducer, STATE, Unary, reads,
-    scan_weight,
+    Binary, Context, Domain, Graph, LoopSet, Node, Op, Param, Reducer, Unary, reads, scan_weight,
 };
 use super::syntax::ast::*;
 use super::syntax::lexer::{Keyword, TextSpan};
@@ -230,6 +228,7 @@ fn check_functions(
                 .map(|ty| Param {
                     ty: ty.clone(),
                     domain: super::ir::Domain::PARAM,
+                    range: None,
                 })
                 .collect(),
             0,
@@ -576,6 +575,7 @@ impl Checker {
                 .map(|param| Param {
                     ty: param.ty.clone(),
                     domain: super::ir::Domain::PARAM,
+                    range: param_range(param),
                 })
                 .collect(),
             declaration.inputs.len() as u32,
@@ -995,10 +995,6 @@ impl Checker {
     fn read(&mut self, read: Read) -> Node {
         match read {
             Read::Context(context) => self.graph.add(Op::Context(context)),
-            Read::Previous => self.graph.add(Op::Read {
-                input: STATE,
-                pixel: SignalPixel::Current,
-            }),
             Read::Constant(value) => self.graph.float(value),
         }
     }
@@ -1039,29 +1035,18 @@ impl Checker {
         Some(self.read(value.read))
     }
 
-    /// The signal `name` reads: an operator input, or `previous`, the node's
-    /// own previous frame. Not inside a function, where inputs are out of
-    /// scope.
+    /// The operator input `name` reads. Not inside a function, where inputs
+    /// are out of scope.
     fn signal(&mut self, name: &Name) -> Option<u32> {
         if !self.frames.is_empty() || self.scopes.iter().any(|(known, ..)| known == &name.name) {
             return None;
         }
-        match self
+        let index = self
             .inputs
             .iter()
-            .position(|input| input.value == name.name)
-        {
-            Some(index) => {
-                self.refer_symbol(name.span, self.inputs[index].symbol);
-                Some(index as u32)
-            }
-            None => {
-                let value = context_value(name.name.as_str())
-                    .filter(|value| value.read == Read::Previous)?;
-                self.refer(name.span, ScriptTarget::Context(value));
-                Some(STATE)
-            }
-        }
+            .position(|input| input.value == name.name)?;
+        self.refer_symbol(name.span, self.inputs[index].symbol);
+        Some(index as u32)
     }
 
     fn method(
@@ -1079,10 +1064,7 @@ impl Checker {
             _ => None,
         };
         let Some(input) = input else {
-            self.error(
-                method.span,
-                "only operator inputs and `previous` have methods",
-            );
+            self.error(method.span, "only operator inputs have methods");
             return None;
         };
         if method.name.as_str() != AT.name {
@@ -1696,16 +1678,7 @@ impl Checker {
         if self.standalone {
             return Some(());
         }
-        let ranges = param_ranges(program_params(self.params.iter().map(|param| &param.value)));
-        let lengths = vec![None; ranges.len()];
-        let bounds = Bounds {
-            ranges: &ranges,
-            lengths: &lengths,
-        };
-        let (first, past) = (
-            interval(&self.graph, start, &bounds).min,
-            interval(&self.graph, end, &bounds).max,
-        );
+        let (first, past) = (self.graph.interval(start).min, self.graph.interval(end).max);
         let reach = (STRIP / 2) as f64;
         if !(first.is_finite() && past.is_finite() && past - first <= STRIP as f64) {
             let message = format!(
@@ -1737,7 +1710,7 @@ impl Checker {
         } = scan;
         let Some(index) = self.signal(input) else {
             let message = format!(
-                "`scan` reads an operator input or `previous`; `{}` is neither",
+                "`scan` reads an operator input; `{}` is not one",
                 input.name.as_str()
             );
             self.error(input.span, message);
@@ -1796,7 +1769,7 @@ impl Checker {
         let name = &around.input;
         let Some(input) = self.signal(name) else {
             let message = format!(
-                "`around` reads an operator input or `previous`; `{}` is neither",
+                "`around` reads an operator input; `{}` is not one",
                 name.name.as_str()
             );
             self.error(name.span, message);
@@ -1838,16 +1811,7 @@ impl Checker {
         if self.standalone {
             return Some(());
         }
-        let ranges = param_ranges(program_params(self.params.iter().map(|param| &param.value)));
-        let lengths = vec![None; ranges.len()];
-        let range = interval(
-            &self.graph,
-            count,
-            &Bounds {
-                ranges: &ranges,
-                lengths: &lengths,
-            },
-        );
+        let range = self.graph.interval(count);
         if range.max <= MAX_ITERATIONS as f64 && !range.max.is_nan() {
             return Some(());
         }
@@ -2011,16 +1975,7 @@ impl Checker {
         if self.standalone {
             return false;
         }
-        let ranges = param_ranges(program_params(self.params.iter().map(|param| &param.value)));
-        let lengths = vec![None; ranges.len()];
-        let range = interval(
-            &self.graph,
-            node,
-            &Bounds {
-                ranges: &ranges,
-                lengths: &lengths,
-            },
-        );
+        let range = self.graph.interval(node);
         range.min >= 0.0 && range.max <= MAX_ITERATIONS as f64 && !range.max.is_nan()
     }
 
@@ -2068,18 +2023,15 @@ impl Checker {
     }
 }
 
-fn param_ranges<'a>(params: impl Iterator<Item = &'a ParamDecl>) -> Vec<Option<(f64, f64)>> {
-    params
-        .map(|param| match (&param.ty, param.range) {
-            (Type::Int, Some(ParamRange::Int { min, max })) => {
-                Some((f64::from(min), f64::from(max)))
-            }
-            (Type::Float, Some(ParamRange::Float { min, max })) => {
-                Some((f64::from(min), f64::from(max)))
-            }
-            _ => None,
-        })
-        .collect()
+/// The range a numeric parameter's declaration promises.
+fn param_range(param: &ParamDecl) -> Option<(f64, f64)> {
+    match (&param.ty, param.range) {
+        (Type::Int, Some(ParamRange::Int { min, max })) => Some((f64::from(min), f64::from(max))),
+        (Type::Float, Some(ParamRange::Float { min, max })) => {
+            Some((f64::from(min), f64::from(max)))
+        }
+        _ => None,
+    }
 }
 
 /// Whether `node` reads the length of an array or marks parameter.

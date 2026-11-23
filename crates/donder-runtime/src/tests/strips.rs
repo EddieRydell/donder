@@ -68,7 +68,6 @@ fn run_context(ticks: u32, count: usize) -> RunContext {
         duration: SampleDuration::from_ticks(DURATION),
         frame_rate: 40.0,
         frame: 0,
-        frames_elapsed: 1,
         pixel_count: count as i32,
     }
 }
@@ -958,8 +957,7 @@ fn a_new_target_shape_reinitializes_the_target_block() {
     }
 }
 
-/// A signal with a color of its own at each input and pixel; `previous` is
-/// input [`crate::dsl::bytecode::STATE_INPUT`].
+/// A signal with a color of its own at each input and pixel.
 fn signal(input: usize, pixel: usize) -> Color {
     let (input, pixel) = (input as u32, pixel as u32);
     Color::from_bytes([
@@ -1054,21 +1052,20 @@ impl StripSignals for Run {
     }
 }
 
-/// Starter operators, and samples at per-pixel addresses and of the previous
-/// frame, inside
-/// per-pixel branches and inside reductions with per-pixel bounds.
+/// Starter operators, and samples at per-pixel addresses, inside per-pixel
+/// branches and inside reductions with per-pixel bounds.
 #[test]
 fn operator_samples_in_strips_match_lone_pixels() {
     let mut sources = starter_sources("operators", ".donder");
     sources.push(
         "operator Rotate { input source; sample { source.at((pixel.index + 3) % target.count) } }
-        operator Shift { input source; sample {
-            max(source.at(pixel.index + 1), previous.at(pixel.index - 2))
+        operator Shift { input source; input other; sample {
+            max(source.at(pixel.index + 1), other.at(pixel.index - 2))
         } }
         operator Mirror { input source; sample { source.at(target.count - 1 - pixel.index) } }
         operator Split { input source; input other; sample {
             if pixel.index % 2 == 0 { source * 0.75 + #101010 }
-            else { invert(previous) * pixel.fraction }
+            else { invert(other) * pixel.fraction }
         } }
         operator Trail { input source; sample {
             max for k in 0..pixel.index % 4 + 1 { source.at(pixel.index - k) * (1.0 - k * 0.25) }

@@ -27435,12 +27435,6 @@ Sequence all_we_are {
         params: { radius: 1 },
         position: (674.9368, 822.15607),
       },
-      OperatorNode {
-        name: afterglow,
-        operator: operators.Afterglow,
-        params: { seconds: 0.2 },
-        position: (945.16144, 1126.3682),
-      },
       LayerNode { layer: reverb, position: (245.55449, 1308.7236) },
       LayerNode { layer: grit_layer, position: (-476.92026, 608.5783) },
       OperatorNode {
@@ -27475,8 +27469,7 @@ Sequence all_we_are {
       Edge { from: layers.grayscale, to: grayscale_2.input },
       Edge { from: grayscale_2, to: root },
       Edge { from: layers.blur, to: blur_2.input },
-      Edge { from: afterglow, to: root },
-      Edge { from: layers.reverb, to: afterglow.input },
+      Edge { from: layers.reverb, to: root },
       Edge { from: blur_2, to: root },
       Edge { from: layers.grit_layer, to: grit.input },
       Edge { from: grit, to: intensity_overlay_mix.source },

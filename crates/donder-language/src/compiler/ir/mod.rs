@@ -115,8 +115,6 @@ pub(crate) enum Context {
     FrameRate,
     /// Frames since the start, as `time` counts seconds.
     Frame,
-    /// Frames since the frame before; one after a seek.
-    FramesElapsed,
     PixelIndex,
     PixelFraction,
     PixelX,
@@ -135,7 +133,7 @@ impl Context {
 
     fn domain(self) -> Domain {
         match self {
-            Self::Time | Self::Progress | Self::Frame | Self::FramesElapsed => Domain::TIME,
+            Self::Time | Self::Progress | Self::Frame => Domain::TIME,
             Self::Duration | Self::FrameRate => Domain::PARAM,
             Self::PixelIndex | Self::PixelFraction | Self::PixelX | Self::PixelY => Domain::PIXEL,
             Self::TargetCount
@@ -297,9 +295,6 @@ impl Hash for Constant {
     }
 }
 
-/// The input index a [`Op::Read`] of the node's own previous frame reads.
-pub(crate) const STATE: u32 = u32::MAX;
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Op {
     Constant(Constant),
@@ -315,8 +310,7 @@ pub(crate) enum Op {
     /// Pure choice. Whether an arm is evaluated lazily is a scheduling decision.
     Select(Node, Node, Node),
     Reduce(LoopId),
-    /// An operator input, or the node's own previous frame as [`STATE`], at
-    /// this frame and a pixel.
+    /// An operator input at this frame and a pixel.
     Read {
         input: u32,
         pixel: SignalPixel<Node>,
@@ -358,7 +352,7 @@ pub(crate) enum Op {
 }
 
 impl Op {
-    /// The operator input, or [`STATE`], that a sample, scan or stencil reads.
+    /// The operator input that a sample, scan or stencil reads.
     pub(crate) fn input(&self) -> Option<u32> {
         match *self {
             Self::Read { input, .. } | Self::Scan { input, .. } | Self::Tap { input, .. } => {
@@ -435,13 +429,16 @@ struct Data {
     ty: Type,
     domain: Domain,
     loops: LoopSet,
+    interval: interval::Interval,
 }
 
-/// A parameter leaf: its type and the domain its value varies in.
+/// A parameter leaf: its type, the domain its value varies in, and the range
+/// its declaration promises every value lies in.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Param {
     pub(crate) ty: Type,
     pub(crate) domain: Domain,
+    pub(crate) range: Option<(f64, f64)>,
 }
 
 #[derive(Clone, Debug)]
@@ -470,6 +467,11 @@ impl Graph {
 
     pub(crate) fn op(&self, node: Node) -> &Op {
         &self.nodes[node.index()].op
+    }
+
+    /// The range `node`'s value lies in, from the declared parameter ranges.
+    pub(crate) fn interval(&self, node: Node) -> interval::Interval {
+        self.nodes[node.index()].interval
     }
     pub(crate) fn ty(&self, node: Node) -> &Type {
         &self.nodes[node.index()].ty
@@ -583,12 +585,14 @@ impl Graph {
             domain = domain.union(self.domain(operand));
             loops = loops.union(self.loops_of(operand));
         }
+        let interval = interval::recorded(self, &op);
         let node = Node(self.nodes.len() as u32);
         self.nodes.push(Data {
             op: op.clone(),
             ty,
             domain,
             loops,
+            interval,
         });
         self.interned.insert(op, node);
         node

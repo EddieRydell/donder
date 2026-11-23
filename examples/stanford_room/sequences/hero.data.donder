@@ -1173,12 +1173,6 @@ Sequence hero {
       },
       LayerNode { layer: freeze_frame_test, position: (-404.6263, 890.90063) },
       OperatorNode {
-        name: freeze_frame,
-        operator: operators.FreezeFrame,
-        params: { interval_seconds: 0.1, fade_seconds: 0.5 },
-        position: (55.094406, 787.83777),
-      },
-      OperatorNode {
         name: bloom,
         operator: operators.Bloom,
         params: {
@@ -1223,8 +1217,7 @@ Sequence hero {
       Edge { from: layers.gradient_base, to: hue_map.gradient },
       Edge { from: layers.hue_shift, to: hue_map.source },
       Edge { from: hue_map, to: hue_shift_2.source },
-      Edge { from: layers.freeze_frame_test, to: freeze_frame.input },
-      Edge { from: freeze_frame, to: bloom.input },
+      Edge { from: layers.freeze_frame_test, to: bloom.input },
       Edge { from: layers.default, to: bloom.input },
       Edge { from: hue_shift_2, to: bloom.input },
       Edge { from: layers.buildup, to: dim.input },

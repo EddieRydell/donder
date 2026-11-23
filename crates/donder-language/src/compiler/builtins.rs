@@ -775,8 +775,6 @@ pub(crate) fn builtin(name: &str) -> Option<&'static Builtin> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Read {
     Context(Context),
-    /// This pixel last frame.
-    Previous,
     Constant(f32),
 }
 
@@ -865,18 +863,6 @@ pub const CONTEXT: &[ContextValue] = &[
         read: Read::Context(Context::FrameRate),
     },
     ContextValue {
-        name: "frames_elapsed",
-        ty: Type::Int,
-        summary: "Frames since the frame shown before: one in steady playback, more after skipped frames, one after a seek, and zero when a console command re-renders the same frame.",
-        read: Read::Context(Context::FramesElapsed),
-    },
-    ContextValue {
-        name: "previous",
-        ty: Type::Color,
-        summary: "This pixel last frame: an operator's own output, or an effect's layer. `previous.at(i)` reads another pixel of the fixture and `around previous` its neighbors. Black until the first frame and for a clip previewed alone; kept as it was after a seek.",
-        read: Read::Previous,
-    },
-    ContextValue {
         name: "pixel.index",
         ty: Type::Int,
         summary: "The pixel's zero-based index within the target; in an operator, within its fixture instance.",
@@ -944,7 +930,7 @@ pub const CONTEXT: &[ContextValue] = &[
     },
 ];
 
-/// A method of operator inputs and `previous`.
+/// A method of operator inputs.
 #[derive(Debug)]
 pub struct Method {
     pub(crate) name: &'static str,
@@ -1104,7 +1090,7 @@ pub fn builtin_reference() -> String {
     }
     let _ = writeln!(
         text,
-        "\n## Signal methods\n\nOperator inputs and `previous` are signals.\n\n```text\n{}\n```\n\n{}",
+        "\n## Signal methods\n\nOperator inputs are signals.\n\n```text\n{}\n```\n\n{}",
         AT.label(),
         AT.summary
     );

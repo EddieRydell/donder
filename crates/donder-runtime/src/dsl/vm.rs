@@ -21,7 +21,5 @@ pub(crate) struct RunContext {
     pub frame_rate: f32,
     /// Frames since the start of `time`, the nearest frame.
     pub frame: u32,
-    /// Frames since the frame before; one after a seek.
-    pub frames_elapsed: u32,
     pub pixel_count: i32,
 }

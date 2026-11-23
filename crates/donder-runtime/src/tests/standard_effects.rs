@@ -68,7 +68,6 @@ fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
                     duration: SampleDuration::from_ticks(1_000_000),
                     frame_rate: 40.0,
                     frame: 0,
-                    frames_elapsed: 1,
                     pixel_count: 1,
                 },
                 index: 0,

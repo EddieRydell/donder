@@ -208,12 +208,11 @@ fn empty_layer(sequence: &mut Sequence) {
 fn operators_that_keep_black_inputs_black_are_not_prepared() {
     for blacken in [disable_layer, empty_layer] {
         let direct = encoded(&black_layer_through(blacken, &[]));
-        // Scaling, recoloring, trailing and reducing operators map black to
-        // black, so each folds away, including along a chain.
+        // Scaling, recoloring and reducing operators map black to black, so
+        // each folds away, including along a chain.
         for operators in [
             &[("Dim", "input")][..],
-            &[("Afterglow", "input")][..],
-            &[("Afterglow", "input"), ("Dim", "input")][..],
+            &[("Colorize", "input"), ("Dim", "input")][..],
             &[("Blur", "input"), ("Gain", "source")][..],
             &[("HueShift", "source")][..],
             &[("Colorize", "input")][..],

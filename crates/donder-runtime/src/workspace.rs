@@ -1,6 +1,5 @@
 //! A show's playback workspace, carved from one buffer: the nodes' frame
-//! buffers, their state buffers, the one strip workspace programs run in, scan
-//! scratch frames, the automation scratch and a console's state. [`Layout`]
+//! buffers, the one strip workspace programs run in, scan scratch frames, the automation scratch and a console's state. [`Layout`]
 //! counts every region once; [`Layout::size`] and [`carve`] walk them in the
 //! same order.
 use crate::format::{self, CrossingSegment, CurvePoint, NONE};
@@ -14,8 +13,6 @@ use crate::view::Show;
 
 /// The most frame buffers a show's nodes use at once.
 pub(crate) const MAX_BUFFERS: usize = 16;
-/// The most nodes of a show that keep their previous frame.
-pub(crate) const MAX_STATES: usize = 16;
 /// The most whole-frame scans one program runs.
 pub(crate) const MAX_SCANS: usize = 8;
 /// The most marks a live collection keeps; older marks are dropped.
@@ -63,7 +60,6 @@ pub(crate) struct ConsoleState<'w> {
 
 pub(crate) struct Workspace<'w> {
     pub(crate) buffers: [&'w mut [Color]; MAX_BUFFERS],
-    pub(crate) states: [&'w mut [Color]; MAX_STATES],
     pub(crate) scans: [&'w mut [Color]; MAX_SCANS],
     pub(crate) outputs: &'w mut [u8],
     pub(crate) strip: StripWorkspace<'w>,
@@ -83,7 +79,6 @@ pub(crate) struct Layout {
     pixels: usize,
     output_bytes: usize,
     buffers: usize,
-    states: usize,
     scans: usize,
     slots: StripSlots,
     scratch: [usize; 4],
@@ -127,7 +122,6 @@ impl Layout {
             pixels: show.pixel_count(),
             output_bytes: s.outputs.iter().map(|output| output.width as usize).sum(),
             buffers: meta.buffers as usize,
-            states: meta.states as usize,
             scans,
             slots,
             scratch,
@@ -153,7 +147,7 @@ impl Layout {
     /// Bytes of the buffer [`carve`] needs.
     fn size(&self) -> usize {
         let mut size = Size::default();
-        for _ in 0..self.buffers + self.states + self.scans {
+        for _ in 0..self.buffers + self.scans {
             size.values::<Color>(self.pixels);
         }
         size.values::<u8>(self.output_bytes);
@@ -227,7 +221,6 @@ pub(crate) fn carve<'w>(
         Carve::again(buffer)
     };
     let buffers = frames(&mut arena, layout.buffers, pixels)?;
-    let states = frames(&mut arena, layout.states, pixels)?;
     let scans = frames(&mut arena, layout.scans, pixels)?;
     let outputs = arena.values(layout.output_bytes, 0)?;
     let strip = layout.slots.carve(&mut arena)?;
@@ -266,7 +259,6 @@ pub(crate) fn carve<'w>(
     }
     Some(Workspace {
         buffers,
-        states,
         scans,
         outputs,
         strip,

@@ -445,8 +445,8 @@ fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
             let layer = builder.layer(true, [effect]);
             let siblings = siblings
                 .each_ref()
-                .map(|invocation| builder.operator(invocation, |_| layer));
-            let mixed = builder.operator(&mix, |input| siblings[input]);
+                .map(|invocation| builder.operator(invocation, None, |_| layer));
+            let mixed = builder.operator(&mix, None, |input| siblings[input]);
             Some(mixed)
         })
     };
