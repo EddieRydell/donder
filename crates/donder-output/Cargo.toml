@@ -16,6 +16,7 @@ power-guard.workspace = true
 sacn.workspace = true
 uuid.workspace = true
 zstd.workspace = true
+donder-workspace-hack.workspace = true
 
 [lints]
 workspace = true

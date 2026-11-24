@@ -17,6 +17,7 @@ indexmap.workspace = true
 serde = { workspace = true, features = ["std"] }
 specta = { workspace = true, features = ["camino"] }
 tempfile.workspace = true
+donder-workspace-hack.workspace = true
 
 [dev-dependencies]
 donder-elaboration.workspace = true

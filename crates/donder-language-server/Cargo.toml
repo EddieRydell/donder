@@ -17,6 +17,7 @@ lsp-types.workspace = true
 serde = { workspace = true, features = ["std"] }
 serde_json.workspace = true
 url.workspace = true
+donder-workspace-hack.workspace = true
 
 [lints]
 workspace = true

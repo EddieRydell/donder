@@ -10,6 +10,7 @@ license = "MIT"
 camino.workspace = true
 donder-runtime-types = { workspace = true, features = ["atomic"] }
 indexmap.workspace = true
+donder-workspace-hack.workspace = true
 
 [lints]
 workspace = true

@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-import", "crates/donder-fixture-capture"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-import", "crates/donder-fixture-capture", "crates/donder-workspace-hack"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -39,6 +39,7 @@ donder-runtime-types = { path = "crates/donder-runtime-types" }
 donder-test-support = { path = "crates/donder-test-support" }
 donder-import = { path = "crates/donder-import" }
 donder-fixture-capture = { path = "crates/donder-fixture-capture" }
+donder-workspace-hack = { path = "crates/donder-workspace-hack" }
 fs-err = "3.3.2"
 glam = "0.33.7"
 fdk-aac = "0.8.0"

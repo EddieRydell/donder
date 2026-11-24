@@ -16,6 +16,7 @@ donder-model.workspace = true
 donder-runtime-types.workspace = true
 donder-runtime.workspace = true
 indexmap.workspace = true
+donder-workspace-hack.workspace = true
 
 [dev-dependencies]
 donder-test-support.workspace = true

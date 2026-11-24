@@ -1,0 +1,20 @@
+# `cargo hakari generate` and `cargo hakari manage-deps` keep
+# `donder-workspace-hack` current; see docs/development.md.
+
+hakari-package = "donder-workspace-hack"
+dep-format-version = "4"
+workspace-hack-line-style = "workspace-dotted"
+resolver = "2"
+
+# The release targets.
+platforms = [
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+]
+
+# The firmware workspace builds these no_std crates; the host-only feature set
+# must not reach them.
+[final-excludes]
+workspace-members = ["donder-runtime", "donder-runtime-types", "donder-device-protocol"]

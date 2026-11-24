@@ -8,10 +8,9 @@ pnpm check
 ```
 
 `pnpm check` runs, in order:
-1. `cargo fmt --check`, then the workspace Rust tests of every target, compiled
-   once with `clippy-driver` as the workspace compiler and every warning denied,
-   so linting and testing share one build; the desktop's `generated_bindings`
-   test writes the committed TypeScript bindings;
+1. `cargo fmt --check`, the workspace-hack freshness check, `cargo clippy` of
+   every target with every warning denied, then the workspace Rust tests; the
+   desktop's `generated_bindings` test writes the committed TypeScript bindings;
 2. frontend typechecking, lint, unused-export analysis, tests and production build;
 3. the firmware-owned device-storage tests on the host (`pnpm storage:test`).
 
@@ -22,8 +21,9 @@ commands in the [firmware README](../firmware/esp32/README.md#validation).
 
 Documentation and example-only changes do not need the gate.
 
-Every host Cargo command of the gate uses that one build. The `iram` feature is
-linted by `pnpm firmware:build`, which compiles it.
+The tests share their build with `pnpm tauri dev` and the CLI; see
+[development](development.md#builds). The `iram` feature is linted by
+`pnpm firmware:build`, which compiles it.
 
 The dev profile compiles workspace crates at opt-level 1 and dependencies at
 opt-level 2. Tests load and compile whole projects, and unoptimized builds made

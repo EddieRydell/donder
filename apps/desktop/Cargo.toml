@@ -48,6 +48,7 @@ tauri-plugin-clipboard-manager.workspace = true
 tauri-specta.workspace = true
 wgpu.workspace = true
 winit.workspace = true
+donder-workspace-hack.workspace = true
 
 [build-dependencies]
 tauri-build.workspace = true

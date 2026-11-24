@@ -11,6 +11,7 @@ donder-language.workspace = true
 donder-runtime-types = { workspace = true, features = ["atomic"] }
 glam.workspace = true
 indexmap.workspace = true
+donder-workspace-hack.workspace = true
 
 [lints]
 workspace = true
