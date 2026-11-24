@@ -23,6 +23,7 @@ Setup setup {
     arch_tunnel,
     right_pilaster_stairs,
     garage,
+    garage_wreath_controller,
     left_meteors,
     left_meteors_2,
     right_meteors,
@@ -294,6 +295,25 @@ Controller garage {
     channels: 510,
     fseq_channel: 2551,
     ports: [Port { name: "1", description: none }],
+  },
+}
+
+Controller garage_wreath_controller {
+  description: "Garage Wreath Controller",
+  protocol: E131 {
+    sender_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.227" },
+    start_universe: 239,
+    universes: 4,
+    channels: 510,
+    fseq_channel: none,
+    ports: [
+      Port { name: "Seeds", description: "The 300-pixel outer seed ring." },
+      Port { name: "Bulbs", description: "The 50-pixel middle bulb ring." },
+      Port { name: "Bullets", description: "The 200-pixel inner bullet ring." },
+    ],
   },
 }
 

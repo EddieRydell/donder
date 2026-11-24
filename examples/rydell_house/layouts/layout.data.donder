@@ -200,9 +200,22 @@ Layout layout {
       members: [window_1, window_2, window_3, peak_1, peak_2, peak_3],
     },
     Group {
+      name: above_garage_wreath,
+      description: "The three concentric strings of the wreath above the garage.",
+      members: [above_garage_wreath_seeds, above_garage_wreath_bulbs, above_garage_wreath_bullets],
+    },
+    Group {
       name: wreaths,
       description: none,
-      members: [fran_wreath, wreath_1, wreath_2, wreath_3, front_door_wreath, bathroom_wreath],
+      members: [
+        fran_wreath,
+        wreath_1,
+        wreath_2,
+        wreath_3,
+        front_door_wreath,
+        bathroom_wreath,
+        above_garage_wreath,
+      ],
     },
     Group {
       name: house,
@@ -6094,6 +6107,99 @@ Layout layout {
       },
       transform: Transform {
         position: (-8.446025m, 16.834144m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: above_garage_wreath_seeds,
+      description: "The 300-pixel outer seed ring of the wreath above the garage.",
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: ring,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, 0.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Arc {
+              radius: 1.15,
+              start_degrees: 90.0,
+              sweep_degrees: 360.0,
+              count: 300,
+              closed: true,
+            },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (-6.15m, 15m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: above_garage_wreath_bulbs,
+      description: "The 50-pixel middle bulb ring of the wreath above the garage.",
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: ring,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, 0.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Arc {
+              radius: 0.92,
+              start_degrees: 90.0,
+              sweep_degrees: 360.0,
+              count: 50,
+              closed: true,
+            },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (-6.15m, 15m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: above_garage_wreath_bullets,
+      description: "The 200-pixel inner bullet ring of the wreath above the garage.",
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: ring,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, 0.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Arc {
+              radius: 0.7,
+              start_degrees: 90.0,
+              sweep_degrees: 360.0,
+              count: 200,
+              closed: true,
+            },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (-6.15m, 15m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
