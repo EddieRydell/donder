@@ -1,5 +1,5 @@
 use super::{
-    GuiMutationError, IdAllocator,
+    GuiMutationError, IdAllocator, ResolvedGuiObject,
     model::{domain_point3_meters, rotation3_degrees, scale3},
 };
 use crate::dto::{
@@ -228,7 +228,7 @@ fn domain_element(element: GuiFixtureElement) -> Result<FixtureElement, GuiMutat
     Ok(element)
 }
 
-pub(crate) fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
+pub fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
     let shape = match &element.shape {
         FixtureShape::Pixel => GuiFixtureShape::Pixel,
         FixtureShape::Line { length, count } => GuiFixtureShape::Line {
@@ -472,4 +472,36 @@ pub(crate) fn checked_point(
         ));
     }
     Ok(domain_point3_meters(point))
+}
+
+/// The open fixture definition, declared or owned by a layout fixture, and
+/// its name.
+pub fn open_fixture_definition<'a>(
+    session: &'a ProjectSession,
+    resolved: &ResolvedGuiObject,
+) -> Result<(&'a FixtureDefinition, String), &'static str> {
+    match resolved.owned_path.as_slice() {
+        [] => session
+            .project
+            .reusable::<FixtureDefinition>()
+            .get(&resolved.id::<FixtureDefinitionId>())
+            .map(|value| (value, resolved.identity.object().to_string()))
+            .ok_or("Fixture was not found."),
+        [.., crate::dto::OwnedObjectSlot::Fixture { id }] => {
+            let placement = session
+                .project
+                .get::<donder_model::Layout>(resolved.id::<donder_model::LayoutId>())
+                .and_then(|layout| layout.fixture(donder_model::FixtureInstanceId(*id)))
+                .ok_or("Fixture was not found.")?;
+            let donder_model::LayoutFixtureKind::Fixture {
+                definition: OwnedFixture::Inline(value),
+                ..
+            } = &placement.kind
+            else {
+                return Err("Fixture is not owned inline.");
+            };
+            Ok((value, placement.name.as_str().to_string()))
+        }
+        _ => Err("Unsupported owned fixture path."),
+    }
 }

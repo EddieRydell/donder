@@ -3,14 +3,17 @@
 //! A check can also record every name it declares and resolves, which is all
 //! editor analysis knows of a script's names.
 use super::Diagnostic;
+use super::audio::{AudioKind, AudioSpec, Setting};
 use super::builtins::{
     self, AT, Fit, Lowering, NAMED_TYPES, Read, builtin, context_field, context_value, describe,
     is_context_scope, type_text,
 };
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange, program_params};
 use super::ir::{
-    Binary, Context, Domain, Graph, LoopSet, Node, Op, Param, Reducer, Unary, reads, scan_weight,
+    Binary, Context, Domain, Graph, LoopId, LoopSet, Node, Op, Param, Reducer, Unary, reads,
+    scan_weight,
 };
+use super::ir::{Constant, Ternary};
 use super::syntax::ast::*;
 use super::syntax::lexer::{Keyword, TextSpan};
 use crate::analysis::{ScriptReference, ScriptTarget, Symbol, SymbolKind};
@@ -33,6 +36,9 @@ pub(crate) struct Definition {
     pub(crate) root: Node,
     /// Iteration counts whose bound depends on the lengths of parameters.
     pub(crate) length_bounds: Vec<Node>,
+    /// The analyses of the sequence's audio it reads, whose samples are the
+    /// parameter slots after the declared ones and their fields, in order.
+    pub(crate) audio: Vec<AudioSpec>,
     /// The declaration's name in its source.
     pub(crate) span: TextSpan,
     pub(crate) fingerprint: u64,
@@ -249,6 +255,8 @@ fn check_functions(
             function_symbols: function_symbols.clone(),
             options: Vec::new(),
             fields: Vec::new(),
+            audio: Vec::new(),
+            call_span: TextSpan { start: 0, end: 0 },
         };
         for (position, (arg, _)) in function.args.iter().enumerate() {
             let node = checker.graph.add(Op::Param(position as u32));
@@ -335,6 +343,11 @@ pub(crate) struct Checker {
     options: Vec<(Identifier, usize)>,
     /// The symbol of each option field: its parameter, option and name.
     fields: Vec<(FieldName, usize)>,
+    /// The analyses of the sequence's audio the declaration reads, each with
+    /// its hidden parameter slot.
+    audio: Vec<(AudioSpec, u32)>,
+    /// The builtin call being checked, where its expansion reports errors.
+    call_span: TextSpan,
 }
 
 /// A field by its parameter's, its option's and its own name.
@@ -596,6 +609,8 @@ impl Checker {
             parent: symbol,
             options,
             fields,
+            audio: Vec::new(),
+            call_span: TextSpan { start: 0, end: 0 },
         };
         let declared = checker.diagnostics.len();
         let root = checker.tail_block(sample, Mode::Tail).and_then(|outcome| {
@@ -611,6 +626,7 @@ impl Checker {
         }
         match root {
             Some(root) if checker.diagnostics.is_empty() => Ok(Definition {
+                audio: checker.audio.iter().map(|(spec, _)| spec.clone()).collect(),
                 kind: declaration.kind,
                 description: declaration.description,
                 span: declaration.name.span,
@@ -636,6 +652,19 @@ impl Checker {
 
     fn error(&mut self, span: TextSpan, message: impl Into<String>) {
         self.diagnostics.push(Diagnostic::new(span, message));
+    }
+
+    /// Report `message` at the call unless `node` is the same for every
+    /// pixel of a frame.
+    pub(crate) fn require_per_frame(&mut self, node: Node, message: &str) {
+        let varies = !self.graph.loops_of(node).is_empty()
+            || self
+                .graph
+                .domain(node)
+                .intersects(Domain::PIXEL.union(Domain::SIGNAL));
+        if varies {
+            self.error(self.call_span, message);
+        }
     }
 
     /// Whether names are recorded here: in the checked body itself, not in a
@@ -940,7 +969,58 @@ impl Checker {
                     span,
                 });
             }
+            LiteralKind::String(text) => match text_value(text) {
+                Some(value) => self.graph.typed_constant(value, Type::Text),
+                None => {
+                    self.error(span, TEXT_ERROR);
+                    return None;
+                }
+            },
         })
+    }
+
+    /// A table of `len` entries: the body at each index, or with
+    /// [`Reducer::RunningSum`] its running sums.
+    pub(crate) fn tabulated(
+        &mut self,
+        reducer: Reducer,
+        len: i32,
+        body: impl FnOnce(&mut Self, Node) -> Node,
+    ) -> Node {
+        let (start, end) = (self.graph.int(0), self.graph.int(len));
+        match self.graph.begin_loop(start, end, false) {
+            Ok((id, index)) => {
+                let value = body(self, index);
+                self.graph.finish_loop(id, reducer, value, None, None)
+            }
+            Err(_) => {
+                let message = format!("a definition has at most {} reductions", LoopSet::LIMIT);
+                self.error(self.call_span, message);
+                self.graph.typed_constant(
+                    Value::Array(std::sync::Arc::from([])),
+                    Type::array(Type::Int),
+                )
+            }
+        }
+    }
+
+    /// `text` as a table of its character codes, 0 past its end.
+    pub(crate) fn characters(&mut self, text: Node) -> Node {
+        if *self.ty(text) != Type::Text {
+            return text;
+        }
+        self.tabulated(
+            Reducer::Table,
+            donder_runtime_types::TEXT_LENGTH as i32,
+            |checker, index| {
+                let graph = &mut checker.graph;
+                let length = graph.unary(Unary::Len, text);
+                let within = graph.binary(Binary::IntLess, index, length);
+                let code = graph.binary(Binary::Index, text, index);
+                let zero = graph.int(0);
+                graph.select(within, code, zero)
+            },
+        )
     }
 
     fn name(&mut self, name: &Identifier, span: TextSpan) -> Checked<Operand> {
@@ -1117,7 +1197,7 @@ impl Checker {
     fn index(&mut self, target: &Expr, index: &Expr) -> Checked<Node> {
         let collection = self.value(target)?;
         match self.ty(collection).clone() {
-            Type::Array(_) => {
+            Type::Array(_) | Type::Text => {
                 // A float index floors; clamping makes truncation agree below zero.
                 let position = self.value(index)?;
                 let position = match self.ty(position) {
@@ -1552,6 +1632,9 @@ impl Checker {
         };
         let count = self.graph.binary(Binary::IntSubtract, end, start);
         self.bound(count, span, "reduction")?;
+        if matches!(reducer, ReducerKind::Table | ReducerKind::TableSum) {
+            self.table_bounds(reducer_name, count, around.is_some(), span)?;
+        }
         if let Some(around) = around {
             self.neighborhood(start, end, around.edges, span)?;
         }
@@ -1623,6 +1706,9 @@ impl Checker {
                 };
                 (reducer, body, None, None)
             }
+            ReducerKind::Table | ReducerKind::TableSum => {
+                return self.table(reducer, id, value, filter, body.result.span);
+            }
             ReducerKind::First | ReducerKind::Last => {
                 if matches!(ty, Type::Array(_)) {
                     self.error(
@@ -1664,6 +1750,86 @@ impl Checker {
             };
         }
         Some(self.graph.finish_loop(id, reducer, body, filter, default))
+    }
+
+    /// Check that a table fits one row: at most a strip of entries, read
+    /// without `around`.
+    fn table_bounds(
+        &mut self,
+        name: &str,
+        count: Node,
+        around: bool,
+        span: TextSpan,
+    ) -> Checked<()> {
+        if around {
+            self.error(span, format!("a `{name}` cannot read `around` an input"));
+            return None;
+        }
+        // Running sums take one entry more than their range.
+        let limit = if name == builtins::reducer(ReducerKind::TableSum).name {
+            STRIP - 1
+        } else {
+            STRIP
+        };
+        let most = self.graph.interval(count).max;
+        if !self.standalone && (most.is_nan() || most > limit as f64) {
+            let message = format!(
+                "cannot prove this `{name}` spans at most {limit} indices; bound its range with literals or parameter ranges"
+            );
+            self.error(span, message);
+            return None;
+        }
+        Some(())
+    }
+
+    /// A table of `value` at each index of loop `id`, computed once per
+    /// frame.
+    fn table(
+        &mut self,
+        reducer: ReducerKind,
+        id: LoopId,
+        value: Node,
+        filter: Option<Node>,
+        result_span: TextSpan,
+    ) -> Checked<Node> {
+        let name = builtins::reducer(reducer).name;
+        if filter.is_some() {
+            let message =
+                format!("a `{name}` has an entry at every index, so its body cannot skip one");
+            self.error(result_span, message);
+            return None;
+        }
+        let ty = self.ty(value).clone();
+        let (ir, holds) = match reducer {
+            ReducerKind::Table => (
+                Reducer::Table,
+                matches!(ty, Type::Int | Type::Float | Type::Bool | Type::Color),
+            ),
+            _ => (
+                Reducer::RunningSum,
+                matches!(ty, Type::Int | Type::Float | Type::Color),
+            ),
+        };
+        if !holds {
+            let message = format!("a `{name}` cannot hold {}", describe(&ty));
+            self.error(result_span, message);
+            return None;
+        }
+        let table = self.graph.finish_loop(id, ir, value, None, None);
+        let per_frame = self.graph.loops_of(table).is_empty()
+            && !self
+                .graph
+                .domain(table)
+                .intersects(Domain::PIXEL.union(Domain::SIGNAL))
+            && !reduces(&self.graph, value);
+        if !per_frame {
+            let message = format!(
+                "a `{name}` is computed once per frame: its body may read parameters, time, the target, its index and other tables, not the pixel, an input, another reduction or an enclosing index"
+            );
+            self.error(result_span, message);
+            return None;
+        }
+        Some(table)
     }
 
     /// Check that a neighborhood's offsets fit one stencil: at most a strip
@@ -1847,6 +2013,7 @@ impl Checker {
             };
         };
         self.refer(name.span, ScriptTarget::Builtin(builtin));
+        self.call_span = span;
         let (function, arity) = (builtin.name, builtin.arity());
         if args.len() != arity {
             let message = format!(
@@ -1936,7 +2103,89 @@ impl Checker {
             Lowering::Ternary(op) => self.graph.ternary(op, nodes[0], nodes[1], nodes[2]),
             Lowering::Expand(expand) => expand(self, &nodes),
             Lowering::Integral => unreachable!("`integral` takes a parameter name"),
+            Lowering::Audio(kind) => return self.audio(kind, &nodes, args),
         })
+    }
+
+    /// A read of an analysis of the sequence's audio. Its settings are
+    /// numbers or parameters, so each clip fixes them; in a function checked
+    /// on its own they are unknown, and the call is checked where it is
+    /// inlined.
+    fn audio(&mut self, kind: AudioKind, nodes: &[Node], args: &[Expr]) -> Checked<Node> {
+        let mut settings = Vec::new();
+        let positions: &[usize] = match kind {
+            AudioKind::Level => &[1, 2, 3, 4],
+            AudioKind::Band => &[1, 3, 4],
+            AudioKind::Wave => &[],
+        };
+        for &position in positions {
+            let mut node = nodes[position];
+            if let Op::Unary(Unary::IntToFloat, inner) = *self.graph.op(node) {
+                node = inner;
+            }
+            let setting = match self.graph.op(node) {
+                Op::Constant(Constant {
+                    value: Value::Float(number),
+                    ..
+                }) => Setting::Number(*number),
+                Op::Constant(Constant {
+                    value: Value::Int(number),
+                    ..
+                }) => Setting::Number(*number as f32),
+                Op::Param(index) => Setting::Param(*index as usize),
+                _ if self.standalone => Setting::Number(0.0),
+                _ => {
+                    self.error(
+                        args[position].span,
+                        "an audio analysis is fixed per clip, so this setting is a number or a parameter",
+                    );
+                    return None;
+                }
+            };
+            settings.push(setting);
+        }
+        let zero = self.graph.int(0);
+        let (spec, channel, time) = match kind {
+            AudioKind::Level => (
+                AudioSpec::Level {
+                    low: settings[0],
+                    high: settings[1],
+                    attack: settings[2],
+                    decay: settings[3],
+                },
+                zero,
+                nodes[0],
+            ),
+            AudioKind::Band => (
+                AudioSpec::Spectrum {
+                    bands: settings[0],
+                    attack: settings[1],
+                    decay: settings[2],
+                },
+                nodes[0],
+                nodes[2],
+            ),
+            AudioKind::Wave => (AudioSpec::Wave, zero, nodes[0]),
+        };
+        let samples = if self.standalone {
+            self.graph
+                .typed_constant(Type::Track.default_value(), Type::Track)
+        } else {
+            let index = match self.audio.iter().position(|(known, _)| *known == spec) {
+                Some(index) => self.audio[index].1,
+                None => {
+                    let index = self.graph.add_param(Param {
+                        ty: Type::Track,
+                        domain: super::ir::Domain::PARAM,
+                        range: None,
+                    });
+                    self.audio.push((spec, index));
+                    index
+                }
+            };
+            self.graph.add(Op::Param(index))
+        };
+        Some(self.graph.ternary(Ternary::TrackAt, samples, channel, time))
     }
 
     /// `integral(parameter)`: the argument names a float parameter.
@@ -2024,6 +2273,36 @@ impl Checker {
 }
 
 /// The range a numeric parameter's declaration promises.
+/// Whether `node` reads a reduction other than a table.
+fn reduces(graph: &Graph, node: Node) -> bool {
+    let mut seen = std::collections::HashSet::new();
+    let mut pending = vec![node];
+    while let Some(node) = pending.pop() {
+        if !seen.insert(node) {
+            continue;
+        }
+        match graph.op(node) {
+            Op::Reduce(id) if graph.loop_(*id).reducer.tabulates() => {}
+            Op::Reduce(_) => return true,
+            op => pending.extend(op.operands()),
+        }
+    }
+    false
+}
+
+/// Why a string cannot be a text.
+const TEXT_ERROR: &str = "a text holds at most 64 characters";
+
+/// `text` as a text value: its character codes.
+pub(crate) fn text_value(text: &str) -> Option<Value> {
+    let codes: Vec<Value> = text
+        .chars()
+        .map(|character| Value::Int(character as i32))
+        .collect();
+    (codes.len() <= donder_runtime_types::TEXT_LENGTH)
+        .then(|| Value::Array(std::sync::Arc::from(codes)))
+}
+
 fn param_range(param: &ParamDecl) -> Option<(f64, f64)> {
     match (&param.ty, param.range) {
         (Type::Int, Some(ParamRange::Int { min, max })) => Some((f64::from(min), f64::from(max))),
@@ -2115,6 +2394,7 @@ fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnosti
                 (Type::Float, kind) => number(kind).map(Value::Float),
                 (Type::Bool, LiteralKind::Bool(value)) => Some(Value::Bool(*value)),
                 (Type::Color, LiteralKind::Color(value)) => Some(Value::Color(*value)),
+                (Type::Text, LiteralKind::String(text)) => text_value(text),
                 (Type::Enum(options), LiteralKind::Name(value)) if options.contains(value) => {
                     Some(Value::Enum(value.clone()))
                 }
@@ -2249,10 +2529,10 @@ fn resolve_param_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
             Type::Enum(names)
         }
         TypeKind::Array(item) => match resolve_type(item)? {
-            Type::Array(_) => {
+            Type::Array(_) | Type::Text | Type::Font | Type::Image => {
                 return Err(Diagnostic::new(
                     item.span,
-                    "an array's items cannot be arrays",
+                    "an array's items cannot be arrays, texts, fonts or images",
                 ));
             }
             item => Type::array(item),

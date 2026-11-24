@@ -2,6 +2,7 @@ use super::{DesktopState, lock_unpoisoned};
 use donder_editor::dto::{AppSnapshot, GuiDocumentRequest, OutputTestPattern, OutputTestTarget};
 use donder_model::{ControllerId, FixtureInstanceId, LayoutId, PatchId, PixelRouteId};
 use donder_output::{OutputTest, TestPattern, TestSelection};
+use donder_project_io::ProjectSession;
 
 impl DesktopState {
     /// Stream a test pattern on what the open document's `target` denotes,
@@ -13,6 +14,54 @@ impl DesktopState {
         pattern: OutputTestPattern,
         reversed: bool,
     ) -> Result<AppSnapshot, String> {
+        self.stream_output_test(request, |session| {
+            let object = donder_editor::resolve_request(session, request)?.object;
+            let selection = match target {
+                OutputTestTarget::Channels {
+                    start_channel,
+                    channel_count,
+                } => TestSelection::Channels {
+                    controller: ControllerId::try_from(object)
+                        .map_err(|_| "Open a controller to test its channels.")?,
+                    start_channel,
+                    channel_count,
+                },
+                OutputTestTarget::LayoutItem { item } => TestSelection::LayoutItem {
+                    layout: LayoutId::try_from(object)
+                        .map_err(|_| "Open a layout to test its fixtures.")?,
+                    item: FixtureInstanceId(item),
+                },
+                OutputTestTarget::Route { route } => TestSelection::Route {
+                    patch: PatchId::try_from(object)
+                        .map_err(|_| "Open a patch to test its outputs.")?,
+                    route: PixelRouteId(route),
+                },
+            };
+            let pattern = match pattern {
+                OutputTestPattern::Solid { red, green, blue } => {
+                    TestPattern::Solid([red, green, blue])
+                }
+                OutputTestPattern::Count => TestPattern::Count,
+                OutputTestPattern::Order => TestPattern::Order,
+                OutputTestPattern::Chase => TestPattern::Chase,
+                OutputTestPattern::Rise => TestPattern::Rise,
+            };
+            let mut test = OutputTest::new(&session.project, selection, pattern)
+                .map_err(|error| error.to_string())?;
+            if reversed {
+                test.reverse();
+            }
+            Ok(test)
+        })
+    }
+
+    /// Stream the test `build` makes from the current project in place of
+    /// live output, until output stops.
+    pub(super) fn stream_output_test(
+        &self,
+        request: &GuiDocumentRequest,
+        build: impl FnOnce(&ProjectSession) -> Result<OutputTest, String>,
+    ) -> Result<AppSnapshot, String> {
         let _authoring = lock_unpoisoned(&self.authoring);
         if request.project_revision != self.snapshot().project_revision {
             return Err("The project changed. Start the test again.".into());
@@ -20,40 +69,7 @@ impl DesktopState {
         let session = self
             .project_session()
             .ok_or("Open a valid project to test outputs.")?;
-        let object = donder_editor::resolve_request(&session, request)?.object;
-        let selection = match target {
-            OutputTestTarget::Channels {
-                start_channel,
-                channel_count,
-            } => TestSelection::Channels {
-                controller: ControllerId::try_from(object)
-                    .map_err(|_| "Open a controller to test its channels.")?,
-                start_channel,
-                channel_count,
-            },
-            OutputTestTarget::LayoutItem { item } => TestSelection::LayoutItem {
-                layout: LayoutId::try_from(object)
-                    .map_err(|_| "Open a layout to test its fixtures.")?,
-                item: FixtureInstanceId(item),
-            },
-            OutputTestTarget::Route { route } => TestSelection::Route {
-                patch: PatchId::try_from(object)
-                    .map_err(|_| "Open a patch to test its outputs.")?,
-                route: PixelRouteId(route),
-            },
-        };
-        let pattern = match pattern {
-            OutputTestPattern::Solid { red, green, blue } => TestPattern::Solid([red, green, blue]),
-            OutputTestPattern::Count => TestPattern::Count,
-            OutputTestPattern::Order => TestPattern::Order,
-            OutputTestPattern::Chase => TestPattern::Chase,
-            OutputTestPattern::Rise => TestPattern::Rise,
-        };
-        let mut test = OutputTest::new(&session.project, selection, pattern)
-            .map_err(|error| error.to_string())?;
-        if reversed {
-            test.reverse();
-        }
+        let test = build(&session)?;
         let output = {
             let mut service = lock_unpoisoned(&self.live_output);
             if service.stopping() {

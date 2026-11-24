@@ -467,6 +467,7 @@ impl DesktopState {
             .and_then(|path| super::descriptor_for_path(&session, Utf8Path::new(path)));
         self.invalidate_prepared_project();
         let performed = Arc::clone(&session);
+        self.schedule_derivations(&session);
         self.schedule_render_refresh(session);
         self.schedule_working_copy(false);
         self.update_snapshot(|snapshot| {

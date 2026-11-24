@@ -65,6 +65,9 @@ pub(crate) struct Plan {
     stage: HashMap<Node, Stage>,
     /// The tables of reductions' index-only values.
     pub(crate) tables: Vec<Table>,
+    /// Each authored table's per-index nodes, operands first, which its
+    /// `Tabulate` runs.
+    pub(crate) table_cones: HashMap<Node, Vec<Node>>,
 }
 
 /// A reduction's values that depend only on its index and on values of
@@ -119,6 +122,7 @@ const CHOICE_WORK: usize = 2;
 pub(crate) fn schedule(graph: &Graph, root: Node) -> Plan {
     let nodes = super::reachable(graph, root);
     let mut stage = stages(graph, &nodes);
+    let table_cones = table_cones(graph, &nodes, &mut stage);
     let tables = tables(graph, &nodes, &mut stage);
     let mut uses = HashMap::new();
     for &node in &nodes {
@@ -147,7 +151,39 @@ pub(crate) fn schedule(graph: &Graph, root: Node) -> Plan {
     let mut plan = place(graph, root, &nodes, &stage, &branches);
     plan.uses = uses;
     plan.tables = tables;
+    plan.table_cones = table_cones;
     plan
+}
+
+/// Each authored table's nodes that vary with its index, which move to the
+/// table stage: checking proved they depend only on the index and on values
+/// the query or target stage computes.
+fn table_cones(
+    graph: &Graph,
+    nodes: &[Node],
+    stage: &mut HashMap<Node, Stage>,
+) -> HashMap<Node, Vec<Node>> {
+    let mut cones = HashMap::new();
+    for &table in nodes {
+        let Op::Reduce(id) = *graph.op(table) else {
+            continue;
+        };
+        if !graph.loop_(id).reducer.tabulates() {
+            continue;
+        }
+        let mut cone = Vec::new();
+        for &node in nodes {
+            if !graph.loops_of(node).contains(id) {
+                continue;
+            }
+            stage.insert(node, Stage::Table);
+            if !matches!(graph.op(node), Op::LoopIndex(_)) && !is_leaf(graph, node) {
+                cone.push(node);
+            }
+        }
+        cones.insert(table, cone);
+    }
+    cones
 }
 
 /// The pixel index and target count of a filter that holds where the pixel
@@ -197,6 +233,9 @@ fn tables(graph: &Graph, nodes: &[Node], stage: &mut HashMap<Node, Stage>) -> Ve
             continue;
         };
         let data = graph.loop_(id);
+        if data.reducer.tabulates() {
+            continue;
+        }
         let bounds = stage[&data.start].max(stage[&data.end]);
         // A stencil's offsets span at most a strip, as checking proves.
         let span = match (
@@ -305,7 +344,15 @@ fn stages(graph: &Graph, nodes: &[Node]) -> HashMap<Node, Stage> {
     let mut stage = HashMap::new();
     for &node in nodes {
         let domain = graph.domain(node);
-        let operands = structural_operands(graph, node)
+        // A table's body runs in its `Tabulate`, so only its bounds order it.
+        let operands = match *graph.op(node) {
+            Op::Reduce(id) if graph.loop_(id).reducer.tabulates() => {
+                let data = graph.loop_(id);
+                vec![data.start, data.end]
+            }
+            _ => structural_operands(graph, node),
+        };
+        let operands = operands
             .into_iter()
             .map(|operand| stage.get(&operand).copied().unwrap_or(Stage::Query))
             .max()
@@ -341,14 +388,20 @@ fn prefix_capable(graph: &Graph, node: Node) -> bool {
     !matches!(
         graph.op(node),
         Op::Context(
-            Context::PixelIndex | Context::PixelFraction | Context::PixelX | Context::PixelY
+            Context::PixelIndex
+                | Context::PixelFraction
+                | Context::PixelX
+                | Context::PixelY
+                | Context::PixelZ
+                | Context::PixelMember
+                | Context::PixelStrand
+                | Context::PixelAlong
         ) | Op::Unary(Unary::SectionCount | Unary::SectionIndex, _)
             | Op::Binary(Binary::SectionPosition, ..)
-            | Op::Reduce(_)
             | Op::LoopIndex(_)
             | Op::Read { .. }
             | Op::Items(_)
-    )
+    ) && !matches!(graph.op(node), Op::Reduce(id) if !graph.loop_(*id).reducer.tabulates())
 }
 
 /// How a node uses an operand.
@@ -368,6 +421,10 @@ fn operand_uses(graph: &Graph, node: Node, branches: &HashSet<Node>) -> Vec<(Nod
             (yes, Use::Then(node)),
             (no, Use::Else(node)),
         ],
+        Op::Reduce(id) if graph.loop_(id).reducer.tabulates() => {
+            let data = graph.loop_(id);
+            vec![(data.start, Use::Here), (data.end, Use::Here)]
+        }
         Op::Reduce(id) => {
             let data = graph.loop_(id);
             let mut uses = vec![(data.start, Use::Here), (data.end, Use::Here)];
@@ -415,6 +472,7 @@ fn place(
         uses: HashMap::new(),
         stage: stage.clone(),
         tables: Vec::new(),
+        table_cones: HashMap::new(),
     };
     // Where each body node is used, by region.
     let mut use_regions: HashMap<Node, Vec<Use>> = HashMap::new();

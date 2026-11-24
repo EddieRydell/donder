@@ -70,6 +70,20 @@ fn point(point: &Point3) -> (Meters, Meters, Meters) {
 }
 
 impl Encoder<'_> {
+    /// An asset's path, as its document wrote it.
+    fn asset_path(&self, id: &donder_model::AssetId) -> Result<Path, ExportProjectError> {
+        Ok(Path(
+            self.session
+                .source
+                .referenced_assets
+                .iter()
+                .find(|asset| &asset.id == id)
+                .ok_or_else(|| self.error("", "an asset is missing"))?
+                .relative_path
+                .to_string(),
+        ))
+    }
+
     fn error(&self, reference: &str, message: &str) -> ExportProjectError {
         invalid(self.document, reference, message)
     }
@@ -703,16 +717,7 @@ impl Encoder<'_> {
             frame_rate: sequence.frame_rate,
             audio: match &sequence.audio {
                 SequenceAudio::None => None,
-                SequenceAudio::Asset(id) => Some(Path(
-                    self.session
-                        .source
-                        .referenced_assets
-                        .iter()
-                        .find(|asset| &asset.id == id)
-                        .ok_or_else(|| self.error("", "the sequence's audio asset is missing"))?
-                        .relative_path
-                        .to_string(),
-                )),
+                SequenceAudio::Asset(id) => Some(self.asset_path(id)?),
             },
             marks: sequence
                 .mark_collections
@@ -726,6 +731,7 @@ impl Encoder<'_> {
                         .iter()
                         .map(|mark| types::MarkTime {
                             time: mark.time.0,
+                            duration: mark.duration.0,
                             label: mark.label.clone(),
                         })
                         .collect(),
@@ -864,6 +870,19 @@ impl Encoder<'_> {
                     .map(|item| self.param_value(item).map(spanned))
                     .collect::<Result<_, _>>()?,
             ),
+            ParamValue::Text(text) => DataValue::String(text.clone()),
+            ParamValue::Font(Some(face)) => types::FontValue {
+                file: self.asset_path(&face.file)?,
+                height: face.height,
+            }
+            .encode(),
+            ParamValue::Font(None) => DataValue::None,
+            ParamValue::Image(Some(image)) => types::ImageValue {
+                file: self.asset_path(&image.file)?,
+                size: image.size,
+            }
+            .encode(),
+            ParamValue::Image(None) => DataValue::None,
         })
     }
 }

@@ -550,7 +550,7 @@ fn validate_sequence_since(
         if collection
             .marks
             .iter()
-            .any(|mark| mark.time.0 > sequence.duration.0)
+            .any(|mark| mark.end() > sequence.duration.0)
         {
             problems.push(Error::MarkOutsideDuration(name()));
         } else if collection.marks.iter().any(|mark| {
@@ -1310,6 +1310,21 @@ fn validate_param_references(
                 validate_param_references(project, param, value, mark_keys)?;
             }
             Ok(())
+        }
+        ParamValue::Text(text)
+            if text.chars().count() > donder_runtime_types::TEXT_LENGTH || text.contains(' ') =>
+        {
+            Err(ParamProblem::InvalidText(name()))
+        }
+        ParamValue::Font(Some(face))
+            if !(1..=crate::FontFace::MAX_HEIGHT).contains(&face.height) =>
+        {
+            Err(ParamProblem::InvalidFontHeight(name()))
+        }
+        ParamValue::Image(Some(image))
+            if !(1..=crate::ImageSource::MAX_SIZE).contains(&image.size) =>
+        {
+            Err(ParamProblem::InvalidImageSize(name()))
         }
         _ => Ok(()),
     }

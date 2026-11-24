@@ -655,6 +655,18 @@ pub fn mark_at(marks: &crate::values::MarkWindow<'_>, index: i32) -> f32 {
     marks.seconds(index as usize)
 }
 
+/// Character `char` of the label of the mark at `index`, or 0 past its end.
+// Text is drawn by few programs: it stays in flash, out of instruction RAM.
+#[inline(never)]
+pub fn mark_label_char(marks: &crate::values::MarkWindow<'_>, index: i32, char: i32) -> i32 {
+    marks.label_char(index, char)
+}
+
+/// How long the mark at `index` lasts in seconds, or NaN for a missing index.
+pub fn mark_duration(marks: &crate::values::MarkWindow<'_>, index: i32) -> f32 {
+    marks.duration_seconds(index as usize)
+}
+
 /// The last mark at or before `seconds`: its index and its time in seconds.
 #[inline(never)]
 pub fn previous_mark(
@@ -678,4 +690,32 @@ pub fn previous_mark_index(
 #[inline(always)]
 pub fn clamp_array_index(index: i32, nonempty_length: usize) -> usize {
     (index.max(0) as usize).min(nonempty_length - 1)
+}
+
+/// Channel `channel` of `track` at `seconds`, or silence outside it.
+pub fn track_at(track: &crate::values::TrackView<'_>, channel: i32, seconds: f32) -> f32 {
+    track.at(channel, seconds)
+}
+
+/// How far character `code` moves the pen in `font`, in pixels.
+// Text is drawn by few programs: it stays in flash, out of instruction RAM.
+#[inline(never)]
+pub fn glyph_advance(font: &crate::values::FontView<'_>, code: i32) -> f32 {
+    font.advance(code)
+}
+
+/// Frame `frame` of `image` at `x` right of its left edge and `y` up from
+/// its bottom.
+// Pictures are drawn by few programs: they stay in flash, out of instruction RAM.
+#[inline(never)]
+pub fn image_color(image: &crate::values::ImageView<'_>, frame: i32, x: f32, y: f32) -> Color {
+    image.color(frame, x, y)
+}
+
+/// Character `code`'s coverage in `font` at `x` right of its pen and `y` up
+/// from the line's bottom.
+// Text is drawn by few programs: it stays in flash, out of instruction RAM.
+#[inline(never)]
+pub fn glyph_coverage(font: &crate::values::FontView<'_>, code: i32, x: f32, y: f32) -> f32 {
+    font.coverage(code, x, y)
 }

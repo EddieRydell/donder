@@ -453,6 +453,10 @@ FixtureDefinition vertical_113 {
 Lengths inside geometry (`length`, `radius`, `width`, `height`) are floats in
 meters. Fixture rules are in [fixture authoring](fixture_authoring.md).
 
+Each shape is a strand, which effects read as `pixel.strand` and
+`pixel.along`; a grid's rows (or columns, along its `axis`) are a strand each,
+in wiring order.
+
 ### Patches
 
 ```text
@@ -515,7 +519,12 @@ Sequence layer_test {
   frame_rate: 144,
   audio: none,
   marks: [
-    MarkCollection { name: wipe_marks, description: none, color: #45b7ff, times: [4s, 5s, 6s, 7s] },
+    MarkCollection {
+      name: wipe_marks,
+      description: none,
+      color: #45b7ff,
+      times: [(4s, 0s), (5s, 0s), (6s, 0s), (7s, 0s)],
+    },
   ],
   layers: [
     Layer { name: default, description: none, color: #38bdf8, enabled: true },
@@ -569,9 +578,10 @@ Sequence layer_test {
 
 - `Sequence`: `description`, `duration`, `frame_rate`, `audio` (a path or
   `none`), `marks`, `layers`, `clips`, `graph`, `automation`.
-- `MarkCollection`: `name`, `description`, `color`, `times`, in time order. A mark is its time, `4s`, or its
-  time and a one-line label, `(4s, "chorus")`, for lyric lines, singers or section names; the editor shows and
-  edits labels on the timeline.
+- `MarkCollection`: `name`, `description`, `color`, `times`, in time order. A mark is its time and
+  duration, `(4s, 0s)`, or those and a one-line label, `(4s, 2.5s, "chorus")`, for lyric words, singers or
+  section names. A beat lasts zero; a mark must end by the sequence's end. The timeline draws a lasting mark's
+  span, and the marks inspector edits each mark's time, duration and label.
 - `Layer`: `name`, `description`, `color`, `enabled`. The first layer is the
   default layer, which new clips use and which cannot be deleted. Deleting
   another layer deletes its clips.
@@ -589,7 +599,12 @@ Sequence layer_test {
   parameter maps onto its declared range) and
   `Gradient { space: LinearRgb, stops: [(position, #color), ...] }`. A marks value may be `none`: no collection, so the
   effect sees no marks. New effects and operators start with `none`, and deleting
-  a collection sets the values that named it to `none`.
+  a collection sets the values that named it to `none`. A text is a string of at
+  most 64 characters, `"Merry Christmas"`. A font is
+  `Font { file: <fonts/sans.ttf>, height: 8 }`, a TrueType or OpenType file and
+  a line height of 1 to 256 pixels, or `none`, which draws nothing. An image is
+  `Image { file: <images/tree.png>, size: 32 }`, an image file and the longest
+  side, 1 to 256 pixels, it is scaled down to, or `none`, which is black.
 - `Graph`: `nodes` and `edges`. A node is one of:
   - `LayerNode { layer, position }`, named by its layer, which appears in at
     most one node;
@@ -932,9 +947,9 @@ when it fits in 100 columns and otherwise puts each item on its own line; long
 lists of numbers and tuples (curves, mark times) wrap densely. Because tokens
 are canonical and every field is explicit, saving a loaded project rewrites no
 byte of a canonically formatted document, and changes only whitespace in any
-other valid one. Script text is kept exactly and never regenerated. Audio is a
-project-relative path; copying a sequence keeps the path and does not copy audio
-bytes.
+other valid one. Script text is kept exactly and never regenerated. Audio, fonts and
+images are project-relative paths; copying a sequence keeps the paths and does not copy
+the files.
 
 Each file is written through `donder_project_io::atomic_write`, which replaces
 it with a complete synced temporary file. That keeps any one file from being

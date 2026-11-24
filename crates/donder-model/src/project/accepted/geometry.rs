@@ -50,11 +50,18 @@ pub(super) fn admit(
                         .pixels
                         .iter()
                         .map(|pixel| {
-                            let point = instance.transform.transform_point3(pixel.position);
-                            [point.x, point.y]
+                            instance
+                                .transform
+                                .transform_point3(pixel.position)
+                                .to_array()
                         })
                         .collect();
-                    let geometry = FixtureGeometry::admit(positions).ok_or(
+                    let strands = instance
+                        .pixels
+                        .iter()
+                        .map(|pixel| (pixel.strand, pixel.along))
+                        .collect();
+                    let geometry = FixtureGeometry::admit(positions, strands).ok_or(
                         ValidationProblem::Admission(AdmissionProblem::GeometryOutOfRange),
                     )?;
                     Ok((instance.id, geometry))

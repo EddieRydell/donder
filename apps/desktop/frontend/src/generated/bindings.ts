@@ -86,6 +86,18 @@ export const commands = {
 	 */
 	pasteSequence: (request: GuiDocumentRequest, anchor: SequencePasteAnchor) => __TAURI_INVOKE<GuiEditUpdate>("paste_sequence", { request, anchor }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	chooseSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditUpdate>("choose_sequence_audio", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	/**
+	 *  A font file the user chooses, by its project-relative path, copied into
+	 *  the project's `fonts` directory when it is outside the project; `None`
+	 *  when the user cancels.
+	 */
+	chooseFontFile: () => typedError<string | null, string>(__TAURI_INVOKE("choose_font_file")),
+	/**
+	 *  An image file the user chooses, by its project-relative path, copied
+	 *  into the project's `images` directory when it is outside the project;
+	 *  `None` when the user cancels.
+	 */
+	chooseImageFile: () => typedError<string | null, string>(__TAURI_INVOKE("choose_image_file")),
 	createFile: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_file", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	createDirectory: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_directory", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	deletePath: (path: string) => __TAURI_INVOKE<AppSnapshot>("delete_path", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
@@ -112,6 +124,10 @@ export const commands = {
 	setPreviewAppearance: (appearance: PreviewAppearance) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_preview_appearance", { appearance })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setLiveOutputActive: (active: boolean) => __TAURI_INVOKE<AppSnapshot>("set_live_output_active", { active }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	startOutputTest: (request: GuiDocumentRequest, target: OutputTestTarget, pattern: OutputTestPattern, reversed: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, target, pattern, reversed })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	startFixtureCapture: (request: GuiDocumentRequest, controller: GuiObjectRef, startChannel: number, pixels: number) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_fixture_capture", { request, controller, startChannel, pixels })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	/**  A phone video of the capture pattern; `None` when the user cancels. */
+	chooseCaptureVideo: () => __TAURI_INVOKE<string | null>("choose_capture_video"),
+	captureFixture: (request: GuiDocumentRequest, path: string, pixels: number) => typedError<GuiFixtureCapture, string>(__TAURI_INVOKE("capture_fixture", { request, path, pixels })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,elements:v.data.elements.map(i=>i)}) } : v) as typeof v)),
 	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getPerformSnapshot: () => __TAURI_INVOKE<PerformSnapshot>("get_perform_snapshot").then((v) => (({...v,session:v.session==null?v.session:v.session}) as typeof v)),
 	startPerforming: (projectRevision: number, console: number) => typedError<PerformSnapshot, string>(__TAURI_INVOKE("start_performing", { projectRevision, console })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,session:v.data.session==null?v.data.session:v.data.session}) } : v) as typeof v)),
@@ -467,6 +483,18 @@ export type CurveGuiDocument = {
 	points: SequenceCurvePoint[],
 };
 
+/**  Where the analysis of a sequence's audio its effects read stands. */
+export type DerivedDataStatus = 
+/**  No effect of the sequence reads its audio, a font or an image. */
+{ type: "unused" } | 
+/**
+ *  The audio is being analyzed, fonts rasterized or images decoded;
+ *  effects read silence, blank text and black images until then.
+ */
+{ type: "reading" } | { type: "ready" } | { type: "failed"; 
+/**  The asset's project-relative path. */
+file: string; reason: string };
+
 export type DocumentDescriptor = {
 	path: string,
 	objects: DocumentObjectDescriptor[],
@@ -591,6 +619,11 @@ export type FixtureGuiDocument = {
 	elements: GuiFixtureElement[],
 	handles: GuiFixtureHandle[],
 	renderPlan: SpatialRenderPlan,
+	/**
+	 *  The setup's E1.31 and Art-Net controllers, which can play the
+	 *  capture pattern.
+	 */
+	captureControllers: GuiCaptureController[],
 };
 
 export type FixtureGuiEdit = { type: "setElements"; elements: GuiFixtureElement[] } | { type: "moveElement"; id: number; delta: Point3Meters } | { type: "moveHandle"; id: number; index: number; position: Point3Meters } | { type: "convertToPixels"; id: number };
@@ -612,6 +645,13 @@ export type GradientGuiDocument = {
 	path: string,
 	objectKey: string,
 	gradient: SequenceGradient,
+};
+
+export type GuiCaptureController = {
+	label: string,
+	sourceRef: GuiObjectRef,
+	/**  Channels across all its universes. */
+	channelCount: number,
 };
 
 /**  Where a route's channels land, as people count, from 1. */
@@ -723,6 +763,14 @@ export type GuiField = { type: "name" } | { type: "description" } | { type: "col
 { type: "points" } | 
 /**  The declaration an owned object is replaced with. */
 { type: "declaration" };
+
+/**  Shapes measured from a video of a fixture's pixels. */
+export type GuiFixtureCapture = {
+	elements: GuiFixtureElement[],
+	/**  Pixels seen in the video; the rest were placed between their neighbors. */
+	found: number,
+	pixels: number,
+};
 
 export type GuiFixtureElement = {
 	id: number,
@@ -1591,6 +1639,15 @@ export type SequenceFollowMode =
 /**  The playhead holds a fixed screen position while the timeline scrolls under it. */
 "continuous";
 
+/**
+ *  A font file, by its project-relative path, drawn at a line height in
+ *  pixels.
+ */
+export type SequenceFont = {
+	file: string,
+	height: number,
+};
+
 /**  A gradient's value: the color space it interpolates in and its stops. */
 export type SequenceGradient = {
 	space: SequenceGradientSpace,
@@ -1664,6 +1721,8 @@ export type SequenceGuiDocument = {
 	frameRate: number,
 	audio: SequenceAudio | null,
 	markCollections: SequenceMarkCollection[],
+	/**  Whether the audio its effects read is analyzed. */
+	derivedData: DerivedDataStatus,
 	lanes: SequenceLane[],
 	effectDefinitions: SequenceEffectDefinition[],
 	curveLibrary: SequenceCurveLibraryItem[],
@@ -1686,6 +1745,8 @@ export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } 
  *  names made, in order.
  */
 { type: "createMarkCollections"; collections: NewMarkCollection[] } | { type: "addMarks"; collectionKey: string; timesSeconds: number[] } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | 
+/**  Set how long a mark lasts; zero makes it instantaneous. */
+{ type: "setMarkDuration"; collectionKey: string; index: number; durationSeconds: number } | 
 /**  Label a mark, or clear its label with `None` or a blank label. */
 { type: "setMarkLabel"; collectionKey: string; index: number; label: string | null } | { type: "deleteSelection"; selection: SequenceSelection } | { type: "moveClips"; clips: SequenceClipRef[]; timeDeltaSeconds: number; 
 /**
@@ -1697,6 +1758,15 @@ anchorLane: number; laneDelta: number } | { type: "resizeClips"; clips: Sequence
 { type: "editClips"; clips: SequenceClipRef[]; edit: SequenceClipCommonEdit } | 
 /**  Retime the clips together; the selection stays the same. */
 { type: "arrangeClips"; clips: SequenceClipRef[]; arrangement: SequenceClipArrangement } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
+
+/**
+ *  An image file, by its project-relative path, scaled so its longer side
+ *  is at most `size` pixels.
+ */
+export type SequenceImage = {
+	file: string,
+	size: number,
+};
 
 export type SequenceInitialZoomMode = "fitToWidth" | "fixedPxPerSecond";
 
@@ -1732,6 +1802,11 @@ export type SequenceMarkCollection = {
 	description: string | null,
 	color: string,
 	marksSeconds: number[],
+	/**
+	 *  Each mark's duration, in the same order as `marks_seconds`; zero for an
+	 *  instantaneous mark.
+	 */
+	markDurationsSeconds: number[],
 	/**  Each mark's label, in the same order as `marks_seconds`. */
 	markLabels: (string | null)[],
 };
@@ -1753,7 +1828,7 @@ export type SequenceParamField = {
 	value: SequenceParamValue,
 };
 
-export type SequenceParamKind = "int" | "float" | "bool" | "color" | "enum" | "curve" | "gradient" | "intArray" | "floatArray" | "boolArray" | "colorArray" | "curveArray" | "gradientArray" | "marks";
+export type SequenceParamKind = "int" | "float" | "bool" | "color" | "enum" | "curve" | "gradient" | "intArray" | "floatArray" | "boolArray" | "colorArray" | "curveArray" | "gradientArray" | "marks" | "text" | "font" | "image";
 
 /**  An enum option and the fields it carries, each valued at its default. */
 export type SequenceParamOption = {
@@ -1771,7 +1846,11 @@ export type SequenceParamValue = { type: "int"; value: number } | { type: "float
 /**  An option and, in order, every field it carries. */
 { type: "enum"; value: string; fields: SequenceParamField[] } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | { type: "intArray"; values: number[] } | { type: "floatArray"; values: number[] } | { type: "boolArray"; values: boolean[] } | { type: "colorArray"; values: string[] } | { type: "curveArray"; values: SequenceCurveValue[] } | { type: "gradientArray"; values: SequenceGradientValue[] } | 
 /**  `None` is no collection: the parameter has no marks. */
-{ type: "marks"; key: string | null };
+{ type: "marks"; key: string | null } | { type: "text"; value: string } | 
+/**  `None` is no font: every character is blank. */
+{ type: "font"; value: SequenceFont | null } | 
+/**  `None` is no image: every point is black. */
+{ type: "image"; value: SequenceImage | null };
 
 export type SequencePasteAnchor = {
 	/**  The timeline lane to paste at; a target may have several lanes. */

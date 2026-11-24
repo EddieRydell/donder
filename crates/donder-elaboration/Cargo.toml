@@ -7,6 +7,9 @@ authors = ["Donder"]
 license = "MIT"
 
 [dependencies]
+ab_glyph.workspace = true
+image.workspace = true
+donder-audio-analysis.workspace = true
 donder-language.workspace = true
 donder-model.workspace = true
 donder-runtime-types.workspace = true

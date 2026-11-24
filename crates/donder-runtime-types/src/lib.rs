@@ -45,15 +45,19 @@ pub use bytecode::BytecodeProgram;
 pub use console::{ConsoleEvent, InputEvent, InputHappening};
 pub use prepared::{
     AutomatedQuantity, ChannelColors, FixtureGeometry, MAX_CHANNEL_COLORS, OutputEncoding,
-    PixelEncoding, PreparedAutomation, SequenceTiming, SpatialContext, TargetGeometry, TargetPixel,
-    TargetScope, channel_level,
+    PixelEncoding, PixelStructure, PreparedAutomation, SequenceTiming, SpatialContext,
+    TargetGeometry, TargetPixel, TargetScope, channel_level,
 };
 pub use program::{BoundProgram, Program};
 pub use types::{Identifier, IdentifierError, Type, Value};
 pub use values::{
-    Color, Curve, CurvePoint, CurveValidationError, Gradient, GradientSpace, GradientStop,
-    GradientValidationError, MICROS_PER_SECOND, MarkWindow, Marks, SECONDS_PER_TICK,
-    SampleDuration, SampleTime, SampleTimeError, mul_div, sample_duration_seconds_f32,
+    Color, Curve, CurvePoint, CurveValidationError, Font, FontView, Glyph, Gradient, GradientSpace,
+    GradientStop, GradientValidationError, Image, ImageView, MICROS_PER_SECOND, MarkDurations,
+    MarkLabels, MarkTrack, MarkWindow, Marks, SECONDS_PER_TICK, SampleDuration, SampleTime,
+    SampleTimeError, Track, TrackView, mul_div, sample_duration_seconds_f32,
     sample_time_from_frame, sample_time_seconds_f32,
 };
 pub use word::InstructionWord;
+
+/// The most characters a text holds.
+pub const TEXT_LENGTH: usize = 64;

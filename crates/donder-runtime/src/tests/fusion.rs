@@ -103,9 +103,9 @@ fn fusion_samples_conditionally() {
             let result = fused.evaluate_signals(
                 &context(2, pixel, 0),
                 &SpatialContext {
-                    position: [0.0; 2],
-                    min: [0.0; 2],
-                    max: [0.0; 2],
+                    position: [0.0; 3],
+                    min: [0.0; 3],
+                    max: [0.0; 3],
                 },
                 &mut sampler,
                 &mut StripWorkspace::default(),

@@ -299,7 +299,7 @@ impl Reads {
         }
         matches!(
             graph.op(node),
-            Op::Unary(..) | Op::Binary(..) | Op::Ternary(..) | Op::Select(..)
+            Op::Unary(..) | Op::Binary(..) | Op::Ternary(..) | Op::Quaternary(..) | Op::Select(..)
         ) && graph
             .op(node)
             .operands()

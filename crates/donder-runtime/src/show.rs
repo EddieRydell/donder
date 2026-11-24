@@ -105,6 +105,28 @@ impl PreparedShow {
         self.layout.words() * 4
     }
 
+    /// The bytes of the show and its playback buffer, by part.
+    pub fn size(&self) -> crate::ShowSize {
+        let show = self.show();
+        let mut parts = crate::size::show_parts(&show.s, self.bytes().len());
+        let (frames, slots) = (self.layout.frame_bytes(), self.layout.slot_bytes());
+        parts.extend([
+            (crate::ShowPart::Frames, frames),
+            (crate::ShowPart::Slots, slots),
+            (
+                crate::ShowPart::PlaybackState,
+                self.workspace_bytes().saturating_sub(frames + slots),
+            ),
+        ]);
+        parts.sort_by_key(|(_, bytes)| core::cmp::Reverse(*bytes));
+        crate::ShowSize {
+            parts,
+            pixels: show.pixel_count(),
+            frames: self.layout.frames(),
+            clips: show.s.clips.len(),
+        }
+    }
+
     /// Play the show from its start; a console's session starts its
     /// `always` clips.
     pub fn into_playback(self) -> ShowPlayback {

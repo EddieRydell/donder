@@ -11,8 +11,8 @@
 #![cfg_attr(feature = "iram", allow(unsafe_code))]
 use crate::dsl::bytecode::{Edges, SignalPixel};
 use crate::dsl::{
-    Bound, NeighborWeights, OUTSIDE, Override, ParamsRef, Pixels, RunContext, STRIP, ScanQuery,
-    Scratch, Strip, StripSignals, StripWorkspace, params_at,
+    Bound, Extent, NeighborWeights, OUTSIDE, Override, ParamsRef, Pixels, RunContext, STRIP,
+    ScanQuery, Scratch, Strip, StripSignals, StripWorkspace, params_at,
 };
 use crate::format::{self, NONE};
 use crate::resources::{LiveView, ParamsView};
@@ -131,8 +131,7 @@ impl PixelSet<'_, '_> {
 struct StripShape {
     len: usize,
     pixel_count: usize,
-    min: [f32; 2],
-    max: [f32; 2],
+    extent: Extent,
 }
 
 /// What a program reads of a target's pixels.
@@ -141,6 +140,8 @@ struct StripLayout<'a> {
     show: Show<'a>,
     target: TargetView<'a>,
     spatial: bool,
+    /// Whether the program reads pixels' depth or structure.
+    structure: bool,
     sections: Option<SectionsView<'a>>,
     /// Strips must not mix pixel counts or bounds.
     split: bool,
@@ -155,6 +156,7 @@ impl<'a> StripLayout<'a> {
             show,
             target,
             spatial: program.flag(format::PROGRAM_USES_SPATIAL),
+            structure: program.flag(format::PROGRAM_USES_STRUCTURE),
             sections: program
                 .flag(format::PROGRAM_USES_SECTIONS)
                 .then_some(target.sections),
@@ -193,6 +195,7 @@ fn fill_strip(
         show,
         target,
         spatial,
+        structure,
         sections,
         split,
     } = layout;
@@ -200,10 +203,9 @@ fn fill_strip(
     let mut shape = StripShape {
         len: 0,
         pixel_count: 0,
-        min: [0.0; 2],
-        max: [0.0; 2],
+        extent: Extent::default(),
     };
-    if !spatial && sections.is_none() {
+    if !spatial && !structure && sections.is_none() {
         // Without geometry only the pixel count can split a run.
         for index in start..end.min(start + STRIP) {
             let pixel_at = pixel.get(index).pixel;
@@ -225,18 +227,25 @@ fn fill_strip(
             pixel: pixel_at,
         } = pixel.get(index);
         let offset = index - start;
-        let (mut min, mut max) = ([0.0; 2], [0.0; 2]);
+        let mut extent = Extent::default();
         if spatial {
-            let geometry = target.spatial_context(target_index, &pixel_at, show);
-            strip.x[offset].set(geometry.position[0]);
-            strip.y[offset].set(geometry.position[1]);
-            (min, max) = (geometry.min, geometry.max);
+            let position;
+            (position, extent) = target.spatial_context(target_index, &pixel_at, show);
+            strip.x[offset].set(position[0]);
+            strip.y[offset].set(position[1]);
+            if let Some(rows) = &strip.structure {
+                rows.z[offset].set(position[2]);
+            }
+        }
+        if structure && let Some(rows) = &strip.structure {
+            let place = target.structure(target_index);
+            rows.member[offset].set(place.member as i32);
+            rows.strand[offset].set(place.strand as i32);
+            rows.along[offset].set(place.along as i32);
         }
         if offset == 0 {
-            (shape.pixel_count, shape.min, shape.max) = (pixel_at.pixel_count, min, max);
-        } else if split
-            && (pixel_at.pixel_count != shape.pixel_count || (min, max) != (shape.min, shape.max))
-        {
+            (shape.pixel_count, shape.extent) = (pixel_at.pixel_count, extent);
+        } else if split && (pixel_at.pixel_count != shape.pixel_count || extent != shape.extent) {
             break;
         }
         strip.index[offset].set(pixel_at.pixel_index as i32);
@@ -290,8 +299,7 @@ impl<'a> ClipEvaluator<'a> {
             let shape = fill_strip(strip.pixels(), layout, start..end, pixel);
             strip.run(
                 shape.pixel_count,
-                shape.min,
-                shape.max,
+                shape.extent,
                 signals,
                 &mut colors[..shape.len],
             );
@@ -609,8 +617,7 @@ fn run_gathered(
         signals.count = count;
         strip.run(
             shape.pixel_count,
-            shape.min,
-            shape.max,
+            shape.extent,
             signals,
             &mut colors[..count],
         );
@@ -671,8 +678,7 @@ fn evaluate_operator(
         signals.count = shape.len;
         strip.run(
             shape.pixel_count,
-            shape.min,
-            shape.max,
+            shape.extent,
             signals,
             &mut rendered[start..start + shape.len],
         );

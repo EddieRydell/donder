@@ -19,7 +19,13 @@ fn sequence(sizes: &[usize], operator: Option<&BoundProgram>) -> PreparedShow {
     PreparedShow::build(playback::timing(8_000_000), |builder| {
         let fixtures: Vec<_> = sizes
             .iter()
-            .map(|&size| FixtureGeometry::admit(vec![[0.0; 2]; size].into()).unwrap())
+            .map(|&size| {
+                FixtureGeometry::admit(
+                    vec![[0.0; 3]; size].into(),
+                    (0..size as u32).map(|along| (0, along)).collect(),
+                )
+                .unwrap()
+            })
             .collect();
         for (id, geometry) in fixtures.iter().enumerate() {
             builder.fixture(id as u32, geometry.clone());

@@ -1269,7 +1269,7 @@ impl DomainResolver<'_> {
     ) -> Result<Sequence, LoadError> {
         let audio = match &sequence.audio {
             None => SequenceAudio::None,
-            Some(path) => SequenceAudio::Asset(self.audio(document, span, &path.0)?),
+            Some(path) => SequenceAudio::Asset(self.asset(document, span, "audio", &path.0)?),
         };
         let mark_collections = sequence
             .marks
@@ -1285,6 +1285,7 @@ impl DomainResolver<'_> {
                     .iter()
                     .map(|mark| Mark {
                         time: DonderTime(mark.time),
+                        duration: DonderDuration(mark.duration),
                         label: mark.label.clone(),
                     })
                     .collect(),
@@ -1621,20 +1622,24 @@ impl DomainResolver<'_> {
             .unwrap_or_else(|| unreachable!("a resolved effect definition is stored"))
     }
 
-    fn audio(
-        &mut self,
+    /// The asset at `path`, which `document` references as `kind`.
+    fn asset(
+        &self,
         document: &DocumentId,
         span: TextSpan,
+        kind: &str,
         path: &str,
     ) -> Result<AssetId, LoadError> {
-        let root = self.loader.workspace.root.clone();
-        crate::source::reference_asset(&mut self.loader.referenced_assets, &root, document, path)
-            .map_err(|error| match error {
+        let root = &self.loader.workspace.root;
+        let mut assets = self.loader.referenced_assets.borrow_mut();
+        crate::source::reference_asset(&mut assets, root, document, path).map_err(|error| {
+            match error {
                 crate::AssetError::Read(source) => {
                     crate::diagnostics::read_error(root.join(path), &source)
                 }
-                error => self.invalid(document, span, format!("audio asset {path}: {error}")),
-            })
+                error => self.invalid(document, span, format!("{kind} asset {path}: {error}")),
+            }
+        })
     }
 
     /// Parameter values, typed by their declarations and written in
@@ -1846,6 +1851,23 @@ impl DomainResolver<'_> {
                     .map(|value| self.param_value(document, param, item, &[], marks, value))
                     .collect::<Result<_, _>>()?,
             ),
+            (Type::Text, DataValue::String(text)) => ParamValue::Text(text.clone()),
+            (Type::Font, DataValue::Record(..)) => {
+                let font = self.decode::<types::FontValue>(document, value)?;
+                ParamValue::Font(Some(donder_model::FontFace {
+                    file: self.asset(document, value.span, "font", &font.file.0)?,
+                    height: font.height,
+                }))
+            }
+            (Type::Font, DataValue::None) => ParamValue::Font(None),
+            (Type::Image, DataValue::Record(..)) => {
+                let image = self.decode::<types::ImageValue>(document, value)?;
+                ParamValue::Image(Some(donder_model::ImageSource {
+                    file: self.asset(document, value.span, "image", &image.file.0)?,
+                    size: image.size,
+                }))
+            }
+            (Type::Image, DataValue::None) => ParamValue::Image(None),
             _ => {
                 return Err(self.invalid(
                     document,
@@ -1913,6 +1935,12 @@ fn describe(
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        Type::Track => "no value: audio samples are bound by preparation".into(),
+        Type::Text => "a text like `\"Hello\"`".into(),
+        Type::Font => "`none` or a font like `Font { file: <fonts/sans.ttf>, height: 8 }`".into(),
+        Type::Image => {
+            "`none` or an image like `Image { file: <images/tree.png>, size: 32 }`".into()
+        }
         Type::Curve => {
             "a curve: a reference or `Curve { points: [(position, value), ...] }`".into()
         }

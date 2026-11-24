@@ -160,7 +160,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 /// Words of the region a show and its playback buffer share: the RAM the
 /// bootloader used, which nothing else allocates from.
-const SHOW_REGION_WORDS: usize = 64 * 1024 / 4;
+const SHOW_REGION_WORDS: usize = donder_device_protocol::SHOW_REGION_BYTES / 4;
 
 /// Play `show` when this controller drives its outputs; the region comes
 /// back otherwise.

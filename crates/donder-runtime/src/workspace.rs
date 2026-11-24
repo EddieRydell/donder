@@ -139,6 +139,27 @@ impl Layout {
         }
     }
 
+    /// Frames playback holds at once: one per buffer and per scan.
+    pub(crate) fn frames(&self) -> usize {
+        self.buffers + self.scans
+    }
+
+    /// Bytes of the frames playback holds.
+    pub(crate) fn frame_bytes(&self) -> usize {
+        let mut size = Size::default();
+        for _ in 0..self.frames() {
+            size.values::<Color>(self.pixels);
+        }
+        size.bytes
+    }
+
+    /// Bytes of the strip interpreter's slots.
+    pub(crate) fn slot_bytes(&self) -> usize {
+        let mut size = Size::default();
+        self.slots.size(&mut size);
+        size.bytes
+    }
+
     /// 32-bit words of the buffer a playback of the show needs.
     pub(crate) fn words(&self) -> usize {
         self.size().div_ceil(4)

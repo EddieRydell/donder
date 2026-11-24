@@ -35,7 +35,8 @@ fn console(
     register: impl for<'id> FnOnce(&mut crate::ShowBuilder<'id>, &[crate::ClipHandle<'id>]),
 ) -> ShowPlayback {
     PreparedShow::build(playback::timing(SESSION), |builder| {
-        let geometry = FixtureGeometry::admit(Box::new([[0.0, 0.0]])).unwrap();
+        let geometry =
+            FixtureGeometry::admit(Box::new([[0.0, 0.0, 0.0]]), Box::new([(0, 0)])).unwrap();
         builder.fixture(0, geometry.clone());
         let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);
@@ -99,7 +100,8 @@ fn fixed_voice_plays_its_length_from_each_start() {
 #[test]
 fn archived_console_plays_like_the_prepared_one() {
     let prepared = PreparedShow::build(playback::timing(SESSION), |builder| {
-        let geometry = FixtureGeometry::admit(Box::new([[0.0, 0.0]])).unwrap();
+        let geometry =
+            FixtureGeometry::admit(Box::new([[0.0, 0.0, 0.0]]), Box::new([(0, 0)])).unwrap();
         builder.fixture(0, geometry.clone());
         let target = whole(builder, &geometry, TargetScope::WholeTarget);
         let port = builder.port(0, 0);

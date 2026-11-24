@@ -311,6 +311,10 @@ fn param_kind(ty: &Type) -> Option<SequenceParamKind> {
         Type::Color => SequenceParamKind::Color,
         Type::Enum(_) => SequenceParamKind::Enum,
         Type::Marks => SequenceParamKind::Marks,
+        Type::Text => SequenceParamKind::Text,
+        Type::Font => SequenceParamKind::Font,
+        Type::Image => SequenceParamKind::Image,
+        Type::Track => return None,
         Type::Curve => SequenceParamKind::Curve,
         Type::Gradient => SequenceParamKind::Gradient,
         Type::Array(inner) => match inner.as_ref() {
@@ -493,6 +497,27 @@ fn param_value_to_gui(
             },
         },
         ParamValue::Array(values) => array_param_value(session, values, ty),
+        ParamValue::Text(value) => SequenceParamValue::Text {
+            value: value.clone(),
+        },
+        ParamValue::Font(face) => SequenceParamValue::Font {
+            value: face.as_ref().map(|face| crate::dto::SequenceFont {
+                file: session
+                    .asset(&face.file)
+                    .map(|asset| asset.relative_path.to_string())
+                    .unwrap_or_else(|| unreachable!("validated font assets are referenced")),
+                height: face.height,
+            }),
+        },
+        ParamValue::Image(image) => SequenceParamValue::Image {
+            value: image.as_ref().map(|image| crate::dto::SequenceImage {
+                file: session
+                    .asset(&image.file)
+                    .map(|asset| asset.relative_path.to_string())
+                    .unwrap_or_else(|| unreachable!("validated image assets are referenced")),
+                size: image.size,
+            }),
+        },
     }
 }
 
@@ -511,6 +536,18 @@ fn default_param_value(value: &EffectValue, ty: &Type) -> Option<SequenceParamVa
             fields: Vec::new(),
         },
         EffectValue::Marks(_) => SequenceParamValue::Marks { key: None },
+        EffectValue::Font(_) => SequenceParamValue::Font { value: None },
+        EffectValue::Image(_) => SequenceParamValue::Image { value: None },
+        EffectValue::Array(codes) if *ty == Type::Text => SequenceParamValue::Text {
+            value: codes
+                .iter()
+                .filter_map(|code| match code {
+                    EffectValue::Int(code) => char::from_u32(*code as u32),
+                    _ => None,
+                })
+                .collect(),
+        },
+        EffectValue::Track(_) => return None,
         EffectValue::Curve(curve) => SequenceParamValue::Curve {
             value: SequenceCurveValue {
                 points: curve_points(curve),

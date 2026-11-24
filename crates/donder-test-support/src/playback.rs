@@ -22,7 +22,11 @@ pub fn timing(duration: u32) -> SequenceTiming {
 
 /// A fixture of `count` pixels in a row, its first registered.
 pub fn row(count: usize) -> FixtureGeometry {
-    FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap()
+    FixtureGeometry::admit(
+        (0..count).map(|pixel| [pixel as f32, 0.0, 0.0]).collect(),
+        (0..count as u32).map(|along| (0, along)).collect(),
+    )
+    .unwrap()
 }
 
 /// The target of every pixel of the first registered fixture, `geometry`.

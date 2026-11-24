@@ -28,7 +28,7 @@ fn nanos_from_seconds(seconds: f64) -> Result<u64, SecondsError> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DonderTime(pub Duration);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DonderDuration(pub Duration);
 
 impl DonderTime {

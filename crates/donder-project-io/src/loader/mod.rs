@@ -122,7 +122,7 @@ pub(super) struct Loader {
     pub(crate) import_locations: IndexMap<DocumentId, Vec<ParsedImport>>,
     loading_documents: IndexSet<DocumentId>,
     definitions: LoadedDefinitions,
-    referenced_assets: Vec<ReferencedAsset>,
+    referenced_assets: RefCell<Vec<ReferencedAsset>>,
     pub(crate) checked_scripts: IndexSet<Utf8PathBuf>,
     pub(crate) texts: crate::project_loading::SourceTexts,
     cache: ProjectCheckCache,
@@ -147,7 +147,7 @@ impl Loader {
             import_locations: IndexMap::new(),
             loading_documents: IndexSet::new(),
             definitions: LoadedDefinitions::default(),
-            referenced_assets: Vec::new(),
+            referenced_assets: RefCell::default(),
             checked_scripts: IndexSet::new(),
             texts,
             cache,
@@ -180,7 +180,7 @@ impl Loader {
                 workspace: self.workspace.clone(),
                 entrypoint: Some(entrypoint),
                 documents: std::mem::take(&mut self.documents),
-                referenced_assets: std::mem::take(&mut self.referenced_assets),
+                referenced_assets: self.referenced_assets.take(),
             },
         })
     }

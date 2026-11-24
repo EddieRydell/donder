@@ -4,7 +4,7 @@
 //! samples are never evaluated here: their values must come from playback.
 //! Playback computes colors in floats and rounds them only when written, so a
 //! color folds only when its float value is an 8-bit color.
-use super::{Binary, Graph, Node, Op, Reducer, Ternary, Unary};
+use super::{Binary, Graph, Node, Op, Quaternary, Reducer, Ternary, Unary};
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::MAX_ITERATIONS;
 use donder_runtime_types::bytecode::{FloatBinary, FloatUnary};
@@ -41,6 +41,19 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
         Invert => folded(sampling::invert_color(as_color(value)?)),
         Len => match value {
             Value::Array(items) => Some(Value::Int(items.len() as i32)),
+            _ => None,
+        },
+        ImageWidth | ImageHeight | ImageRate | ImageFrames => match value {
+            Value::Image(image) => Some(match op {
+                ImageWidth => Value::Float(image.width as f32),
+                ImageHeight => Value::Float(image.height as f32),
+                ImageRate => Value::Float(image.rate),
+                _ => Value::Int(image.frames as i32),
+            }),
+            _ => None,
+        },
+        FontHeight => match value {
+            Value::Font(font) => Some(Value::Float(font.height)),
             _ => None,
         },
         MarkCount => match value {
@@ -107,7 +120,7 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             }
             _ => return None,
         },
-        Index => match left {
+        Index | Entry => match left {
             Value::Array(items) if items.is_empty() => ty.default_value(),
             Value::Array(items) => {
                 items[sampling::clamp_array_index(as_int(right)?, items.len())].clone()
@@ -116,6 +129,18 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
         },
         MarkAt => match left {
             Value::Marks(marks) => Value::Float(sampling::mark_at(&marks.view(), as_int(right)?)),
+            _ => return None,
+        },
+        GlyphAdvance => match left {
+            Value::Font(font) => {
+                Value::Float(sampling::glyph_advance(&font.view(), as_int(right)?))
+            }
+            _ => return None,
+        },
+        MarkDuration => match left {
+            Value::Marks(marks) => {
+                Value::Float(sampling::mark_duration(&marks.view(), as_int(right)?))
+            }
             _ => return None,
         },
         MarkLast => match left {
@@ -162,6 +187,38 @@ pub(super) fn ternary(op: Ternary, a: &Value, b: &Value, c: &Value) -> Option<Va
         ))?,
         Ternary::Rgb => folded(sampling::rgb(as_float(a)?, as_float(b)?, as_float(c)?))?,
         Ternary::Hsv => folded(sampling::hsv(as_float(a)?, as_float(b)?, as_float(c)?))?,
+        Ternary::MarkText => match a {
+            Value::Marks(marks) => Value::Int(sampling::mark_label_char(
+                &marks.view(),
+                as_int(b)?,
+                as_int(c)?,
+            )),
+            _ => return None,
+        },
+        Ternary::Partition => match a {
+            Value::Array(entries) => {
+                let len = (as_int(b)?.max(0) as usize).min(entries.len());
+                let at_most = |entry: &Value| match (entry, c) {
+                    (Value::Float(entry), Value::Float(value)) => Some(entry <= value),
+                    _ => None,
+                };
+                let mut count = 0;
+                for entry in &entries[..len] {
+                    if !at_most(entry)? {
+                        break;
+                    }
+                    count += 1;
+                }
+                Value::Int(count)
+            }
+            _ => return None,
+        },
+        Ternary::TrackAt => match a {
+            Value::Track(track) => {
+                Value::Float(sampling::track_at(&track.view(), as_int(b)?, as_float(c)?))
+            }
+            _ => return None,
+        },
         Ternary::CurveLastCrossing => match a {
             Value::Curve(curve) if !curve.points.is_empty() => Value::Float(
                 sampling::curve_last_crossing(&curve.points, as_float(b)?, as_float(c)?),
@@ -286,6 +343,32 @@ impl<'a> Evaluator<'a> {
                 let (a, b) = (self.value(*a)?, self.value(*b)?);
                 binary(*op, &a, &b, graph.ty(node))
             }
+            Op::Quaternary(Quaternary::ImageColor, image, frame, x, y) => {
+                let (image, frame) = (self.value(*image)?, self.value(*frame)?);
+                let (x, y) = (self.value(*x)?, self.value(*y)?);
+                match image {
+                    Value::Image(image) => Some(Value::Color(sampling::image_color(
+                        &image.view(),
+                        as_int(&frame)?,
+                        as_float(&x)?,
+                        as_float(&y)?,
+                    ))),
+                    _ => None,
+                }
+            }
+            Op::Quaternary(Quaternary::GlyphCoverage, font, code, x, y) => {
+                let (font, code) = (self.value(*font)?, self.value(*code)?);
+                let (x, y) = (self.value(*x)?, self.value(*y)?);
+                match font {
+                    Value::Font(font) => Some(Value::Float(sampling::glyph_coverage(
+                        &font.view(),
+                        as_int(&code)?,
+                        as_float(&x)?,
+                        as_float(&y)?,
+                    ))),
+                    _ => None,
+                }
+            }
             Op::Ternary(op, a, b, c) => {
                 let (a, b, c) = (self.value(*a)?, self.value(*b)?, self.value(*c)?);
                 ternary(*op, &a, &b, &c)
@@ -301,6 +384,39 @@ impl<'a> Evaluator<'a> {
         }
     }
 
+    /// A table's entries: the body at each index, or its running sums from
+    /// zero.
+    fn tabulate(
+        &mut self,
+        id: super::LoopId,
+        data: &super::Loop,
+        start: i32,
+        end: i32,
+    ) -> Option<Value> {
+        let ty = self.graph.ty(data.body).clone();
+        let mut entries = Vec::new();
+        let mut sum = reduce_identity(Reducer::Sum, &ty);
+        if data.reducer == Reducer::RunningSum {
+            entries.push(sum.clone()?);
+        }
+        for index in start..end {
+            self.indices[id.index()] = Some(index);
+            let graph = self.graph;
+            self.memo
+                .retain(|node, _| !graph.loops_of(*node).contains(id));
+            let value = self.value(data.body)?;
+            match data.reducer {
+                Reducer::RunningSum => {
+                    sum = Some(combine(Reducer::Sum, &sum?, &value)?);
+                    entries.push(sum.clone()?);
+                }
+                _ => entries.push(value),
+            }
+        }
+        self.indices[id.index()] = None;
+        Some(Value::Array(entries.into()))
+    }
+
     fn reduce(&mut self, id: super::LoopId) -> Option<Value> {
         let data = self.graph.loop_(id).clone();
         let start = as_int(&self.value(data.start)?)?;
@@ -308,6 +424,9 @@ impl<'a> Evaluator<'a> {
         let count = i64::from(end) - i64::from(start);
         if count > MAX_ITERATIONS as i64 {
             return None;
+        }
+        if data.reducer.tabulates() {
+            return self.tabulate(id, &data, start, end);
         }
         let indices: Vec<i32> = match data.reducer {
             Reducer::Last => (start..end).rev().collect(),
@@ -345,6 +464,9 @@ impl<'a> Evaluator<'a> {
                     if keep {
                         return self.value(data.body);
                     }
+                }
+                Reducer::Table | Reducer::RunningSum => {
+                    unreachable!("tables are tabulated")
                 }
             }
         }

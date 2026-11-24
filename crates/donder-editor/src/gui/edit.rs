@@ -160,6 +160,18 @@ pub(super) fn edit_sequence(
             }
             collection.marks.sort_by_key(|mark| mark.time.0);
         }
+        SequenceGuiEdit::SetMarkDuration {
+            collection_key,
+            index,
+            duration_seconds,
+        } => {
+            let collection = mark_collection_mut(&mut draft, &collection_key)?;
+            let mark = collection
+                .marks
+                .get_mut(index as usize)
+                .ok_or_else(|| GuiMutationError::Invalid("Mark was not found.".to_string()))?;
+            mark.duration = super::checked_gui_span(duration_seconds)?;
+        }
         SequenceGuiEdit::SetMarkLabel {
             collection_key,
             index,

@@ -50,9 +50,10 @@ Strings are double-quoted with the escapes `\"`, `\\`, `\n` and `\t`.
 
 An effect computes one color for each pixel of its target in every frame. An
 operator does the same over its `input` signals. Parameter types are `int`,
-`float`, `bool`, `color`, `enum { ... }`, `curve`, `gradient`, `marks` and
-`array<T>` of any of those but arrays. Required parameters have no default and
-must be supplied by every instance.
+`float`, `bool`, `color`, `enum { ... }`, `curve`, `gradient`, `marks`, `text`,
+`font`, `image` and `array<T>` of any of those but arrays, texts, fonts and
+images. Required parameters have no default and must be supplied by every
+instance.
 
 Effects, operators and enum options are `PascalCase` (`Forward`,
 `AcrossItems`); parameters, inputs, functions, arguments, `let` bindings and
@@ -228,6 +229,143 @@ A `guard` in the body skips an iteration. For colors, `first` and `last`
 default to black without an `else`. Only they take an `else`, so in
 `guard all for i in 0..n { c } else value;` the `else` belongs to the guard.
 
+### Layout and structure
+
+Every pixel has a layout position, `pixel.x`, `pixel.y` and `pixel.z`, and a
+place in its clip's target: `pixel.member` (which fixture or slice of the
+target), `pixel.strand` (which strand: a shape of a fixture, or a row or
+column of a grid as wired) and `pixel.along` (its place along that strand).
+`target.members`, `target.strands` and `target.strand_length` (the longest
+strand's pixels) size them. A whole target numbers its members' strands in
+member order; per fixture, each fixture numbers its own. A program that reads
+depth or structure costs the playback buffer four more rows, and its targets
+a few words per pixel.
+
+Other sequencers' render styles are a choice of coordinates:
+
+| Style | x | y |
+| --- | --- | --- |
+| Layout, from the front | `pixel.x` | `pixel.y` |
+| From above or the side | `pixel.x` or `pixel.z` | `pixel.z` or `pixel.y` |
+| Strings (Vixen), per strand (xLights) | `pixel.along` of `target.strand_length` | `pixel.strand` of `target.strands` |
+| Single line | `pixel.index` of `target.count` | 0 |
+| Horizontal stack, per fixture | `pixel.member` plus the fixture's own position | its own position |
+| As a pixel | 0 | 0 |
+
+The standard library's `turned_x` and `turned_y` turn and zoom a point about a
+pivot, and `ping_pong` runs time back and forth; `integral(speed)` changes an
+effect's speed without jumps, and `min(time, t)` freezes it at `t`.
+
+### Audio
+
+`audio_level`, `audio_band` and `audio_wave` read the sequence's audio: its
+loudness in a frequency range, one band of its spectrum, or its signal. Each
+call names an analysis by its settings, numbers or parameters, so each clip
+fixes them; preparation analyzes the audio once per distinct analysis, on the
+host, and the program reads the samples, so the device never decodes audio.
+A parameter that sets an analysis cannot be automated, and a function's
+settings are checked where it is inlined. Until the analysis arrives, without
+audio and in a console, the audio reads as silence.
+
+```text
+effect Bass {
+  param decay: float in 0.0..2.0 = 0.2;
+  sample { rgb(audio_level(time, 0.0, 200.0, 0.0, decay), 0.0, 0.0) }
+}
+```
+
+Levels and bands are sampled 50 times a second and waveforms 2000 times, a
+byte each, so an analysis costs show memory: 50 bytes a second for a level,
+50 per band for a spectrum, 2000 for a waveform.
+
+### Tables
+
+A table is an array computed once per frame, before any pixel, and then read
+by every pixel at an index of its own:
+
+```text
+let heights = table for i in 0..bars { curve_clamped(levels, i / bars) };
+let starts = table sum for i in 0..count { widths[i] };
+heights[pixel.index % bars]
+```
+
+- `table for i in a..b { x }` holds `x` at each index: entry `k` is `x` at
+  `i = a + k`. `table sum for` holds running sums, one entry more than the
+  range: entry `k` sums the first `k` values, so entry 0 is zero and the last
+  is the total.
+- The body reads parameters, time, the target, its index and other tables. It
+  cannot read the pixel, an operator input, another reduction or an
+  enclosing reduction's index, and it cannot skip an index with `guard`.
+- Entries are ints, floats, bools or colors (running sums: ints, floats or
+  colors).
+- A table spans at most 128 indices (a running sum at most 127), proven from
+  literals and parameter ranges.
+- Tables are indexed and measured like arrays: `t[k]` clamps `k` to the
+  entries, an empty table reads the type's default, and `len(t)` counts the
+  entries.
+
+### Text
+
+A `text` is up to 64 characters: a string literal (`"Merry Christmas"`), a
+text parameter, a mark's label (`mark_text`), a number (`number_text`) or
+two joined (`concat`). `t[k]` is the code of character `k` and
+`text_length(t)` counts them. A `font` parameter names a font file and a line
+height in pixels; preparation rasterizes it on the host, antialiased, for
+printable ASCII and every character of the program's literals, its text
+parameters and its sequence's mark labels. One text is one line.
+
+`glyph_coverage(font, text, x, y)` is how much of the line covers the point
+`x` pixels right of its start and `y` up from its bottom, 0 to 1, between the
+font's pixels; `text_width` measures the line and `char_index` finds the
+character at `x`. Scrolling, scaling and turning text are coordinates:
+
+```text
+effect Scroll {
+  param message: text = "Happy Holidays";
+  param font: font;
+  param color: color = #ffffff;
+  sample {
+    let scale = font_height(font) / (target.max_y - target.min_y);
+    let x = (pixel.x - target.min_x) * scale - progress * text_width(font, message);
+    color * glyph_coverage(font, message, x, (pixel.y - target.min_y) * scale)
+  }
+}
+```
+
+A text computed during playback, such as the current mark's label, is a
+table of the frame, so changing it costs nothing more than drawing it. Until
+the font is rasterized, with no font and for a file that cannot be read,
+every character is blank and takes no space. A font costs show memory: about
+its height squared in bytes for each character it draws.
+
+### Images
+
+An `image` parameter names a picture or an animation (PNG, JPEG, GIF, BMP or
+WebP, animated GIF, PNG and WebP included) and the longest side, in pixels, it
+is scaled down to; preparation decodes it on the host, over black where it is
+transparent. `image_color(image, frame, x, y)` is a frame's color `x` pixels
+right of its left edge and `y` up from its bottom, blended between its
+pixels' centers and black outside it. An animation plays at one rate,
+`image_rate` frames a second (at most 50), each frame repeated for as long as
+it lasts; frames repeat, so a frame number may count up forever, and a still
+picture has one frame and rate 0. Fitting, scrolling, turning and tiling are
+coordinates:
+
+```text
+effect Picture {
+  param picture: image;
+  sample {
+    let scale = image_height(picture) / (target.max_y - target.min_y);
+    let shown = int(time * image_rate(picture));
+    image_color(picture, shown, (pixel.x - target.min_x) * scale, (pixel.y - target.min_y) * scale)
+  }
+}
+```
+
+The image is chosen once a frame, not per pixel. Until it is decoded, with no
+image and for a file that cannot be read, it is black and measures 0. An
+image costs show memory: three bytes per pixel per frame.
+
 ### Neighborhoods
 
 An operator reads its input's neighbors along each fixture's pixel order with
@@ -371,6 +509,7 @@ elapsed time. Curve positions are normalized; mark times are seconds.
 | `mark_last(marks, time)` | Latest mark at or before `time`, or NaN |
 | `mark_last_index(marks, time)` | Its index, or `-1` |
 | `mark_at(marks, index)` | Time of that mark, or NaN for a missing index |
+| `mark_duration(marks, index)` | How long that mark lasts (zero for a beat or a live mark), or NaN |
 | `mark_count(marks)` | Number of marks |
 | `curve_first_crossing(curve, value)` | First position where the curve reaches `value`, or NaN |
 | `curve_last_crossing(curve, value, position)` | Latest crossing at or before `position`, or NaN |
@@ -393,7 +532,7 @@ fixture; a whole-target clip sections the target's fixtures in order.
   parameter automated) may hold at most 192 bytes of per-pixel values at once
   and nest at most 16 per-pixel choices and reductions; more is a compile
   error.
-- Reductions are bounded as described above.
+- Reductions and tables are bounded as described above.
 
 - A show's graph holds at most 16 signal frames at once; a program runs at
   most 8 scans.

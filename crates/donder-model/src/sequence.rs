@@ -90,16 +90,28 @@ pub struct MarkCollection {
     pub marks: Vec<Mark>,
 }
 
-/// A point in time, optionally labeled: a lyric line, a singer, a section name.
+/// A moment or a span of time, optionally labeled: a beat, a lyric word, a
+/// section. An instantaneous mark lasts zero.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mark {
     pub time: DonderTime,
+    pub duration: DonderDuration,
     pub label: Option<String>,
 }
 
 impl Mark {
+    /// An instantaneous, unlabeled mark.
     pub fn at(time: DonderTime) -> Self {
-        Self { time, label: None }
+        Self {
+            time,
+            duration: DonderDuration(std::time::Duration::ZERO),
+            label: None,
+        }
+    }
+
+    /// When the mark ends.
+    pub fn end(&self) -> std::time::Duration {
+        self.time.0 + self.duration.0
     }
 }
 

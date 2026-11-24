@@ -77,6 +77,7 @@ impl<'a> ShowClip<'a> {
         let target = crate::targets::TargetView::of(show, &show.s.targets[clip.target as usize]);
         let spatial = program.flag(format::PROGRAM_USES_SPATIAL);
         let sections = program.flag(format::PROGRAM_USES_SECTIONS);
+        let structure = program.flag(format::PROGRAM_USES_STRUCTURE);
         let indices = evenly_sample_indices(target.len(), rows);
         let row_count = indices.len();
         let mut groups = Vec::<RasterGroup>::new();
@@ -84,29 +85,25 @@ impl<'a> ShowClip<'a> {
         let mut group_by_context = BTreeMap::new();
         for (row, local) in indices.into_iter().enumerate() {
             let pixel = target.pixel(local);
-            let geometry = if spatial {
+            let (position, extent) = if spatial {
                 target.spatial_context(local, &pixel, show)
             } else {
-                donder_runtime_types::SpatialContext {
-                    position: [0.0; 2],
-                    min: [0.0; 2],
-                    max: [0.0; 2],
-                }
+                ([0.0; 3], crate::dsl::Extent::default())
             };
+            let place = structure.then(|| {
+                let place = target.structure(local);
+                (place.member, place.strand, place.along)
+            });
             let section = target.sections.pixel(local);
             let key = (
                 sections.then_some(section),
+                place,
                 pixel.pixel_index,
                 pixel.pixel_count,
-                [
-                    geometry.position[0],
-                    geometry.position[1],
-                    geometry.min[0],
-                    geometry.min[1],
-                    geometry.max[0],
-                    geometry.max[1],
-                ]
-                .map(f32::to_bits),
+                position.map(f32::to_bits),
+                extent.min.map(f32::to_bits),
+                extent.max.map(f32::to_bits),
+                (extent.members, extent.strands, extent.strand_length),
             );
             if let Some(&group) = group_by_context.get(&key) {
                 let group: &mut RasterGroup = &mut groups[group];

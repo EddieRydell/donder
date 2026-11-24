@@ -1,7 +1,7 @@
 //! Strip workspaces: the slots, selections and buffers a strip interpreter
 //! runs in, carved from the playback buffer for every program they run.
 //! Carving runs once, so it stays out of instruction RAM.
-use super::strip::{Handle, Levels, Pixels, Range, STRIP, Store};
+use super::strip::{Handle, Levels, Pixels, Range, STRIP, Store, StructureRows};
 use crate::arena::{Carve, Size};
 use crate::format::{self, SectionPixel};
 use crate::view::ProgramView;
@@ -59,6 +59,7 @@ pub(crate) struct StripSlots {
     rows: Banks,
     depth: u16,
     stencils: bool,
+    structure: bool,
 }
 
 impl StripSlots {
@@ -68,6 +69,7 @@ impl StripSlots {
         self.rows = self.rows.max(rows);
         self.depth = self.depth.max(depth);
         self.stencils |= program.flag(format::PROGRAM_HAS_STENCIL);
+        self.structure |= program.flag(format::PROGRAM_USES_STRUCTURE);
     }
 
     fn banks(&self) -> [(usize, usize); 4] {
@@ -87,6 +89,12 @@ impl StripSlots {
         size.row::<f32>();
         size.row::<f32>();
         size.row::<SectionPixel>();
+        if self.structure {
+            size.row::<f32>();
+            size.row::<i32>();
+            size.row::<i32>();
+            size.row::<i32>();
+        }
         let [floats, ints, bools, handles] = self.banks();
         size.values::<f32>(Store::<f32>::len(floats.0, floats.1));
         size.values::<i32>(Store::<i32>::len(ints.0, ints.1));
@@ -112,6 +120,16 @@ impl StripSlots {
             x: arena.row(0.0)?,
             y: arena.row(0.0)?,
             sections: arena.row(SectionPixel::default())?,
+            structure: if self.structure {
+                Some(StructureRows {
+                    z: arena.row(0.0)?,
+                    member: arena.row(0)?,
+                    strand: arena.row(0)?,
+                    along: arena.row(0)?,
+                })
+            } else {
+                None
+            },
         };
         let [floats, ints, bools, handles] = self.banks();
         let floats = Store::new(

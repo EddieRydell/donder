@@ -56,7 +56,8 @@ export function drawSequenceMarks(
       const draft = getMarkDraft(drafts, mark);
       const drawnTimeSeconds = draft?.timeSeconds ?? timeSeconds;
       const x = left + (drawnTimeSeconds - scrollXSeconds) * pxPerSecond;
-      if (x < left - MARK_DRAWING.cullPaddingPx || x > left + width + MARK_DRAWING.cullPaddingPx) continue;
+      const spanPx = (collection.markDurationsSeconds[index] ?? 0) * pxPerSecond;
+      if (x + spanPx < left - MARK_DRAWING.cullPaddingPx || x > left + width + MARK_DRAWING.cullPaddingPx) continue;
       const isSelected =
         (selected?.type === "mark" && selected.collectionKey === collection.key && selected.index === index) ||
         (selectedMarks.get(collection.key)?.has(index) ?? false);
@@ -69,6 +70,11 @@ export function drawSequenceMarks(
         ctx.moveTo(lineX, linesTop);
         ctx.lineTo(lineX, height);
         ctx.stroke();
+      }
+      if (spanPx > 0) {
+        ctx.globalAlpha = MARK_DRAWING.lineAlpha;
+        ctx.fillStyle = collection.color;
+        ctx.fillRect(x, rulerTop, spanPx, rulerHeight);
       }
       ctx.globalAlpha = active ? THEME_METRICS.opacityFull : MARK_DRAWING.lineAlpha;
       ctx.lineWidth = THEME_METRICS.visualLineWidthStrong;

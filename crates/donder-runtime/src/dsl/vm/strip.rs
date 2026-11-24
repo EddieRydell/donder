@@ -26,13 +26,13 @@ use crate::format::{self, GradientStop, SectionPixel};
 use crate::resources::{CurveView, ParamsView};
 use crate::sampling::{
     clamp_array_index, color_hue, color_intensity, color_saturation, float_binary, float_unary,
-    gradient_color_scaled, hsv, int_binary, mark_at, max_float, min_float, previous_mark,
-    previous_mark_index, sample_gradient_stops, value_or,
+    gradient_color_scaled, hsv, int_binary, mark_at, mark_duration, max_float, min_float,
+    previous_mark, previous_mark_index, sample_gradient_stops, track_at, value_or,
 };
 use crate::sections::{RunSections, SectionsView, single_section_query};
 use crate::view::{ProgramView, Show};
 use core::cell::Cell;
-use donder_runtime_types::{Color, GradientSpace, InstructionWord, MarkWindow};
+use donder_runtime_types::{Color, GradientSpace, InstructionWord, MarkWindow, TrackView};
 
 pub(crate) use crate::dsl::bytecode::STRIP;
 const MASK: usize = STRIP - 1;
@@ -128,6 +128,56 @@ pub(crate) struct Pixels<'w> {
     pub(crate) x: &'w Row<f32>,
     pub(crate) y: &'w Row<f32>,
     pub(crate) sections: &'w Row<SectionPixel>,
+    /// Held by workspaces whose programs read depth or structure.
+    pub(crate) structure: Option<StructureRows<'w>>,
+}
+
+/// Pixels' depth and place in their target's structure.
+pub(crate) struct StructureRows<'w> {
+    pub(crate) z: &'w Row<f32>,
+    pub(crate) member: &'w Row<i32>,
+    pub(crate) strand: &'w Row<i32>,
+    pub(crate) along: &'w Row<i32>,
+}
+
+/// A strip's scope: its bounds and the counts of its target's structure.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct Extent {
+    pub(crate) min: [f32; 3],
+    pub(crate) max: [f32; 3],
+    pub(crate) members: i32,
+    pub(crate) strands: i32,
+    pub(crate) strand_length: i32,
+}
+
+impl Extent {
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn key(&self) -> [u32; 9] {
+        [
+            self.min[0].to_bits(),
+            self.min[1].to_bits(),
+            self.min[2].to_bits(),
+            self.max[0].to_bits(),
+            self.max[1].to_bits(),
+            self.max[2].to_bits(),
+            self.members as u32,
+            self.strands as u32,
+            self.strand_length as u32,
+        ]
+    }
+}
+
+impl<'w> Pixels<'w> {
+    /// The structure rows, which a program that reads them was given.
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn structure(&self) -> &StructureRows<'w> {
+        match &self.structure {
+            Some(rows) => rows,
+            None => unreachable!("workspaces of programs reading structure hold its rows"),
+        }
+    }
 }
 
 /// A resource: one of the show's, by index into its kind's section, or a
@@ -157,7 +207,7 @@ impl Handle {
     /// The parameter bank of a rewritten resource, or the show index.
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn kind(self) -> Result<u32, u16> {
+    pub(super) fn kind(self) -> Result<u32, u16> {
         if self.0 & PARAM_HANDLE == 0 {
             Ok(self.0)
         } else {
@@ -244,7 +294,7 @@ fn range(start: u8, end: u8) -> [Cell<Range>; 1] {
 
 /// The pixels an instruction runs for: ascending, disjoint, nonempty ranges.
 #[derive(Clone, Copy)]
-struct Sel<'s>(&'s [Cell<Range>]);
+pub(super) struct Sel<'s>(&'s [Cell<Range>]);
 
 /// Selections open in one construct: a branch partitions into `sets[0]`; a
 /// reduction keeps its participating pixels in `sets[0]`, its filtered
@@ -335,7 +385,7 @@ fn filter(sel: Sel<'_>, buffer: &[Cell<Range>], keep: impl Fn(usize) -> bool) ->
 
 /// An operand: a row-sized window and a mask, 0 for a scalar.
 #[derive(Clone, Copy)]
-struct Src<'r, T> {
+pub(super) struct Src<'r, T> {
     row: &'r Row<T>,
     mask: usize,
 }
@@ -343,7 +393,7 @@ struct Src<'r, T> {
 impl<T: Copy> Src<'_, T> {
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn at(self, index: usize) -> T {
+    pub(super) fn at(self, index: usize) -> T {
         self.row[index & self.mask & MASK].get()
     }
 
@@ -355,14 +405,14 @@ impl<T: Copy> Src<'_, T> {
 
 /// A destination: one value, or a row written at the selected pixels.
 #[derive(Clone, Copy)]
-enum Dst<'r, T> {
+pub(super) enum Dst<'r, T> {
     One(&'r Cell<T>),
     Many(&'r Row<T>),
 }
 
 /// A color operand: its channels.
 type ColorSrc<'r> = [Src<'r, f32>; 3];
-type ColorDst<'r> = [Dst<'r, f32>; 3];
+pub(super) type ColorDst<'r> = [Dst<'r, f32>; 3];
 
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
@@ -377,7 +427,7 @@ fn color_at(color: ColorSrc<'_>, index: usize) -> Color {
 /// Write `value(i)` at the selected pixels of a color, or once for a scalar.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn pick_color(sel: Sel<'_>, dst: ColorDst<'_>, value: impl Fn(usize) -> Color) {
+pub(super) fn pick_color(sel: Sel<'_>, dst: ColorDst<'_>, value: impl Fn(usize) -> Color) {
     match dst {
         [Dst::Many(red), Dst::Many(green), Dst::Many(blue)] => each(sel, |i| {
             let color = value(i);
@@ -456,7 +506,12 @@ fn map3<A: Copy, B: Copy, C: Copy, D: Copy>(
 /// dominates, so one loop serves every operand kind.
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn apply1<A: Copy, D: Copy>(sel: Sel<'_>, dst: Dst<'_, D>, a: Src<'_, A>, f: impl Fn(A) -> D) {
+pub(super) fn apply1<A: Copy, D: Copy>(
+    sel: Sel<'_>,
+    dst: Dst<'_, D>,
+    a: Src<'_, A>,
+    f: impl Fn(A) -> D,
+) {
     match dst {
         Dst::One(dst) => dst.set(f(a.at(0))),
         Dst::Many(dst) => each(sel, |i| dst[i].set(f(a.at(i)))),
@@ -480,7 +535,7 @@ fn apply2<A: Copy, B: Copy, D: Copy>(
 
 #[inline(always)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn apply3<A: Copy, B: Copy, C: Copy, D: Copy>(
+pub(super) fn apply3<A: Copy, B: Copy, C: Copy, D: Copy>(
     sel: Sel<'_>,
     dst: Dst<'_, D>,
     a: Src<'_, A>,
@@ -626,10 +681,9 @@ pub(crate) struct Strip<'a, 'w> {
     context: RunContext,
     clock: Clock,
     workspace: &'a mut StripWorkspace<'w>,
-    /// Pixel count and bounds of the initialized target block.
-    shape: Option<(i32, [u32; 4])>,
-    min: [f32; 2],
-    max: [f32; 2],
+    /// Pixel count and extent of the initialized target block.
+    shape: Option<(i32, [u32; 9])>,
+    extent: Extent,
 }
 
 impl<'a, 'w> Strip<'a, 'w> {
@@ -645,8 +699,7 @@ impl<'a, 'w> Strip<'a, 'w> {
             clock: Clock::new(context),
             workspace,
             shape: None,
-            min: [0.0; 2],
-            max: [0.0; 2],
+            extent: Extent::default(),
         }
     }
 
@@ -661,34 +714,23 @@ impl<'a, 'w> Strip<'a, 'w> {
     pub(crate) fn run(
         &mut self,
         pixel_count: usize,
-        min: [f32; 2],
-        max: [f32; 2],
+        extent: Extent,
         signals: &mut dyn StripSignals,
         output: &mut [Color],
     ) {
         let len = output.len();
         assert!(len != 0 && len <= STRIP);
-        let shape = (
-            pixel_count as i32,
-            [
-                min[0].to_bits(),
-                min[1].to_bits(),
-                max[0].to_bits(),
-                max[1].to_bits(),
-            ],
-        );
+        let shape = (pixel_count as i32, extent.key());
         let initialize = self.shape.map(|current| current != shape);
         if initialize != Some(false) {
             self.context.pixel_count = shape.0;
-            self.min = min;
-            self.max = max;
+            self.extent = extent;
         }
         let machine = Machine {
             bound: self.bound,
             context: &self.context,
             clock: self.clock,
-            min: self.min,
-            max: self.max,
+            extent: self.extent,
             ws: self.workspace,
         };
         let code = self.bound.program.code;
@@ -715,12 +757,11 @@ impl<'a, 'w> Strip<'a, 'w> {
     }
 }
 
-struct Machine<'m, 'w> {
-    bound: Bound<'m>,
+pub(super) struct Machine<'m, 'w> {
+    pub(super) bound: Bound<'m>,
     context: &'m RunContext,
     clock: Clock,
-    min: [f32; 2],
-    max: [f32; 2],
+    extent: Extent,
     ws: &'m StripWorkspace<'w>,
 }
 
@@ -729,7 +770,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     // bounds check each rather than one per instruction arm.
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn float(&self, slot: Slot) -> Src<'m, f32> {
+    pub(super) fn float(&self, slot: Slot) -> Src<'m, f32> {
         let ws = self.ws;
         let input = |row| Src { row, mask: MASK };
         match slot.kind() {
@@ -737,19 +778,25 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             SlotKind::Row(index) => ws.floats.many(index),
             SlotKind::Input(Input::PixelX) => input(ws.pixels.x),
             SlotKind::Input(Input::PixelY) => input(ws.pixels.y),
+            SlotKind::Input(Input::PixelZ) => input(ws.pixels.structure().z),
             SlotKind::Input(_) => input(ws.pixels.fraction),
         }
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn int(&self, slot: Slot) -> Src<'m, i32> {
+    pub(super) fn int(&self, slot: Slot) -> Src<'m, i32> {
         let ws = self.ws;
         match slot.kind() {
             SlotKind::Scalar(index) => ws.ints.one(index),
             SlotKind::Row(index) => ws.ints.many(index),
-            SlotKind::Input(_) => Src {
-                row: ws.pixels.index,
+            SlotKind::Input(input) => Src {
+                row: match input {
+                    Input::PixelMember => ws.pixels.structure().member,
+                    Input::PixelStrand => ws.pixels.structure().strand,
+                    Input::PixelAlong => ws.pixels.structure().along,
+                    _ => ws.pixels.index,
+                },
                 mask: MASK,
             },
         }
@@ -772,19 +819,19 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn handle(&self, slot: Slot) -> Src<'m, Handle> {
+    pub(super) fn handle(&self, slot: Slot) -> Src<'m, Handle> {
         operand(&self.ws.handles, slot)
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn float_dst(&self, slot: Slot) -> Dst<'m, f32> {
+    pub(super) fn float_dst(&self, slot: Slot) -> Dst<'m, f32> {
         destination(&self.ws.floats, slot)
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn int_dst(&self, slot: Slot) -> Dst<'m, i32> {
+    pub(super) fn int_dst(&self, slot: Slot) -> Dst<'m, i32> {
         destination(&self.ws.ints, slot)
     }
 
@@ -795,7 +842,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn color_dst(&self, slot: Slot) -> ColorDst<'m> {
+    pub(super) fn color_dst(&self, slot: Slot) -> ColorDst<'m> {
         [
             self.float_dst(slot),
             self.float_dst(slot.channel(1)),
@@ -1343,6 +1390,11 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         if prefix {
             match bank {
                 Bank::Int => Self::set_first(self.int_dst(dst), 0),
+                Bank::Color => {
+                    for channel in 0..3 {
+                        Self::set_first(self.float_dst(dst.channel(channel)), 0.0);
+                    }
+                }
                 _ => Self::set_first(self.float_dst(dst), 0.0),
             }
         }
@@ -1361,13 +1413,28 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         row[k].set(self.boolean(value).at(0));
                     }
                 }
-                _ => {
-                    if let Dst::Many(row) = self.float_dst(dst) {
-                        let sum = if prefix { row[k].get() } else { 0.0 };
-                        row[k + shift].set(sum + self.float(value).at(0));
+                Bank::Color => {
+                    for channel in 0..3 {
+                        self.tabulate_float(
+                            dst.channel(channel),
+                            value.channel(channel),
+                            k,
+                            prefix,
+                        );
                     }
                 }
+                _ => self.tabulate_float(dst, value, k, prefix),
             }
+        }
+    }
+
+    /// Entry `k` of a float table row: the scalar `value`, or with `prefix`
+    /// the entry before it plus the value, one entry later.
+    fn tabulate_float(&self, dst: Slot, value: Slot, k: usize, prefix: bool) {
+        if let Dst::Many(row) = self.float_dst(dst) {
+            let shift = usize::from(prefix);
+            let sum = if prefix { row[k].get() } else { 0.0 };
+            row[k + shift].set(sum + self.float(value).at(0));
         }
     }
 
@@ -1571,7 +1638,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn marks(&self, handle: Handle) -> MarkWindow<'m> {
+    pub(super) fn marks(&self, handle: Handle) -> MarkWindow<'m> {
         let show = self.bound.show;
         match handle.kind() {
             Ok(index) => show.marks(index),
@@ -1689,6 +1756,26 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         mark_at(&self.marks(marks), index)
     }
 
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn track(&self, handle: Handle) -> TrackView<'m> {
+        match handle.kind() {
+            Ok(index) => self.bound.show.audio(index),
+            Err(_) => unreachable!("show tracks resolve when bound"),
+        }
+    }
+
+    #[inline(never)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn track_at(&self, track: Handle, channel: i32, seconds: f32) -> f32 {
+        track_at(&self.track(track), channel, seconds)
+    }
+
+    #[inline(never)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn mark_duration(&self, marks: Handle, index: i32) -> f32 {
+        mark_duration(&self.marks(marks), index)
+    }
+
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn previous_mark_index(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> i32 {
@@ -1733,10 +1820,12 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             ContextRead::Progress => self.context.progress,
             ContextRead::Duration => self.clock.duration,
             ContextRead::FrameRate => self.context.frame_rate,
-            ContextRead::TargetMinX => self.min[0],
-            ContextRead::TargetMinY => self.min[1],
-            ContextRead::TargetMaxX => self.max[0],
-            _ => self.max[1],
+            ContextRead::TargetMinX => self.extent.min[0],
+            ContextRead::TargetMinY => self.extent.min[1],
+            ContextRead::TargetMinZ => self.extent.min[2],
+            ContextRead::TargetMaxX => self.extent.max[0],
+            ContextRead::TargetMaxY => self.extent.max[1],
+            _ => self.extent.max[2],
         }
     }
 
@@ -1783,6 +1872,15 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 }
                 ContextRead::Frame => {
                     Self::set_scalar(self.int_dst(dst), self.context.frame as i32);
+                }
+                ContextRead::TargetMembers => {
+                    Self::set_scalar(self.int_dst(dst), self.extent.members);
+                }
+                ContextRead::TargetStrands => {
+                    Self::set_scalar(self.int_dst(dst), self.extent.strands);
+                }
+                ContextRead::TargetStrandLength => {
+                    Self::set_scalar(self.int_dst(dst), self.extent.strand_length);
                 }
                 read => Self::set_scalar(self.float_dst(dst), self.context_float(read)),
             },
@@ -1939,6 +2037,40 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     }),
                 }
             }
+            I::MarkText { .. } | I::Glyph { .. } | I::Image { .. } => {
+                super::assets::run(self, instruction, sel);
+            }
+            I::Partition {
+                dst,
+                table,
+                len,
+                value,
+            } => {
+                let (dst, len) = (self.int_dst(dst), self.int(len));
+                let (table, value) = (self.float(table), self.float(value));
+                map2(sel, dst, len, value, |len, value| {
+                    partition(len, |entry| table.at(entry) <= value)
+                });
+            }
+            I::Track {
+                dst,
+                track,
+                channel,
+                time,
+            } => {
+                let (dst, track) = (self.float_dst(dst), self.handle(track));
+                let (channel, time) = (self.int(channel), self.float(time));
+                if track.mask == 0 {
+                    let view = self.track(track.at(0));
+                    map2(sel, dst, channel, time, |channel, time| {
+                        track_at(&view, channel, time)
+                    });
+                } else {
+                    apply3(sel, dst, track, channel, time, |track, channel, time| {
+                        self.track_at(track, channel, time)
+                    });
+                }
+            }
             I::Gradient {
                 dst,
                 gradient,
@@ -1973,6 +2105,11 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         MarkOp::At => map1(sel, self.float_dst(dst), self.int(operand), |index| {
                             mark_at(&window, index)
                         }),
+                        MarkOp::Duration => {
+                            map1(sel, self.float_dst(dst), self.int(operand), |index| {
+                                self.mark_duration(marks.at(0), index)
+                            });
+                        }
                         MarkOp::Last => {
                             map1(sel, self.float_dst(dst), self.float(operand), |seconds| {
                                 previous_mark_time(&window, seconds, &cursor)
@@ -1993,6 +2130,13 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         marks,
                         self.int(operand),
                         |marks, index| self.mark_at(marks, index),
+                    ),
+                    MarkOp::Duration => apply2(
+                        sel,
+                        self.float_dst(dst),
+                        marks,
+                        self.int(operand),
+                        |marks, index| self.mark_duration(marks, index),
                     ),
                     MarkOp::Last => apply2(
                         sel,
@@ -2097,6 +2241,14 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     Bank::Bool => {
                         let table = self.boolean(table);
                         pick_each(sel, self.bool_dst(dst), |i| table.at(at(i)));
+                    }
+                    Bank::Color => {
+                        for channel in 0..3 {
+                            let table = self.float(table.channel(channel));
+                            pick_each(sel, self.float_dst(dst.channel(channel)), |i| {
+                                table.at(at(i))
+                            });
+                        }
                     }
                     _ => {
                         let table = self.float(table);
@@ -2225,6 +2377,23 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn choose<T>(condition: bool, yes: T, no: T) -> T {
     if condition { yes } else { no }
+}
+
+/// How many of the first `len` entries of an ascending table hold
+/// `at_most`: the place a value goes among them.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn partition(len: i32, at_most: impl Fn(usize) -> bool) -> i32 {
+    let (mut low, mut high) = (0, len.clamp(0, STRIP as i32) as usize);
+    while low < high {
+        let middle = (low + high) / 2;
+        if at_most(middle) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    low as i32
 }
 
 /// Write `value(i)` at the selected pixels, or once for a scalar destination.

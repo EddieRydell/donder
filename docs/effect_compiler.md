@@ -279,6 +279,11 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   reads it per offset and runs no offset code. A reduction qualifies when its
   bounds are constants spanning at most a strip, or it is a stencil, and the
   work is at least two instructions.
+- An authored `table for` or `table sum for` is a reduction that tabulates:
+  its node is a row computed in the query or target block, as its domain
+  says, by a `Tabulate` running the nodes that vary with its index, and
+  indexing it is a `Lookup` at the clamped index, or the default when the
+  table is empty. Color tables fill and read three rows.
 - A sum of such work over the offsets of an `around` that ignores its
   neighbor, `[max(start, -pixel), min(end, count - pixel))`, is a difference
   of two entries of a table of prefix sums: a renormalized kernel's weight

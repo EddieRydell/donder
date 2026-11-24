@@ -2,8 +2,8 @@
 use crate::address::{DocumentId, ObjectAddress};
 use crate::imports::ensure_document_can_reference_address;
 use crate::{ExportProjectError, ProjectSession};
-use donder_model::{ObjectId, SequenceAudio};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use donder_model::ObjectId;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Preserve the visibility of typed references after values change owners.
 /// The caller owns the candidate session and transaction boundary.
@@ -37,31 +37,26 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
     }
     // Asset identity is retained when a sequence moves or is copied; membership
     // records the documents that currently use it, rather than its old owners.
-    let documents: HashMap<_, _> = session
+    let mut uses = Vec::new();
+    session
         .project
-        .objects::<donder_model::Sequence>()
-        .map(|sequence| {
-            address(sequence.id.into()).map(|address| (sequence.id, address.document_id().clone()))
-        })
-        .collect::<Result<_, _>>()?;
+        .for_each_asset(&mut |user, asset| uses.push((user, asset.clone())));
     for asset in &mut session.source.referenced_assets {
         asset.referenced_by.clear();
     }
-    for sequence in session.project.objects::<donder_model::Sequence>() {
-        if let SequenceAudio::Asset(id) = &sequence.audio {
-            let document = &documents[&sequence.id];
-            let asset = session
-                .source
-                .referenced_assets
-                .iter_mut()
-                .find(|asset| &asset.id == id)
-                .ok_or_else(|| ExportProjectError::InvalidReference {
-                    path: document.path().to_owned(),
-                    reference: id.0.to_string(),
-                    message: "Sequence audio asset is missing.".into(),
-                })?;
-            asset.referenced_by.insert(document.clone());
-        }
+    for (user, id) in uses {
+        let document = address(user)?.document_id().clone();
+        let asset = session
+            .source
+            .referenced_assets
+            .iter_mut()
+            .find(|asset| asset.id == id)
+            .ok_or_else(|| ExportProjectError::InvalidReference {
+                path: document.path().to_owned(),
+                reference: id.0.to_string(),
+                message: "An asset is missing.".into(),
+            })?;
+        asset.referenced_by.insert(document);
     }
     Ok(())
 }

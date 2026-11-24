@@ -98,6 +98,7 @@ pub struct Fixture {
 pub(crate) struct Position {
     pub(crate) x: f32,
     pub(crate) y: f32,
+    pub(crate) z: f32,
 }
 
 /// How a target lists its pixels.
@@ -121,6 +122,18 @@ pub(crate) struct Target {
     pub(crate) per_fixture: u32,
     /// Distinct logical pixels shared by duplicate fixture layouts, or zero.
     pub(crate) sample_count: u32,
+    /// Each target pixel's place in the target's structure, for programs
+    /// that read it; empty otherwise.
+    pub(crate) structure: Range,
+}
+
+/// A target pixel's member, strand and place along the strand.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct PixelStructure {
+    pub(crate) member: u32,
+    pub(crate) strand: u32,
+    pub(crate) along: u32,
 }
 
 /// Consecutive target pixels with one fixture, count and contiguous cells.
@@ -146,13 +159,16 @@ pub(crate) struct Pixel {
     pub(crate) count: u32,
 }
 
-/// Consecutive pixels sharing their scope's bounds.
+/// Consecutive pixels sharing their scope's bounds and structure counts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct SpatialRun {
     pub(crate) end: u32,
-    pub(crate) min: [f32; 2],
-    pub(crate) max: [f32; 2],
+    pub(crate) min: [f32; 3],
+    pub(crate) max: [f32; 3],
+    pub(crate) members: u32,
+    pub(crate) strands: u32,
+    pub(crate) strand_length: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -237,6 +253,7 @@ pub(crate) const PROGRAM_USES_SECTIONS: u32 = 1 << 3;
 pub(crate) const PROGRAM_READS_TARGET: u32 = 1 << 4;
 pub(crate) const PROGRAM_USES_PIXEL_CONTEXT: u32 = 1 << 5;
 pub(crate) const PROGRAM_HAS_STENCIL: u32 = 1 << 6;
+pub(crate) const PROGRAM_USES_STRUCTURE: u32 = 1 << 7;
 
 /// Slot counts per storage bank: floats, ints, bools, resources.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -277,6 +294,9 @@ pub(crate) const RESOURCE_CURVE: u32 = 0;
 pub(crate) const RESOURCE_GRADIENT: u32 = 1;
 pub(crate) const RESOURCE_MARKS: u32 = 2;
 pub(crate) const RESOURCE_ARRAY: u32 = 3;
+pub(crate) const RESOURCE_TRACK: u32 = 4;
+pub(crate) const RESOURCE_FONT: u32 = 5;
+pub(crate) const RESOURCE_IMAGE: u32 = 6;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
@@ -354,14 +374,55 @@ pub(crate) struct GradientStop {
 }
 
 /// A window of a mark track: ticks `first..end` of the track, measured from
-/// `origin`.
+/// `origin`, each lasting the ticks `durations` holds at its index; empty
+/// durations make every mark instantaneous.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Marks {
     pub(crate) track: Range,
+    pub(crate) durations: Range,
+    /// Label character codes, and each mark's start and length in them, by
+    /// the track's index; empty spans without labels.
+    pub(crate) label_codes: Range,
+    pub(crate) label_spans: Range,
     pub(crate) first: u32,
     pub(crate) end: u32,
     pub(crate) origin: u32,
+}
+
+/// An audio track as a binding reads it: `channels` bytes per sample in the
+/// audio samples section, `rate` samples a second, read from tick `origin`;
+/// bytes are 0..1, or -1..1 when `signed` is 1.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct AudioTrack {
+    pub(crate) samples: Range,
+    pub(crate) channels: u32,
+    pub(crate) signed: u32,
+    pub(crate) rate: u32,
+    pub(crate) origin: u32,
+}
+
+/// A font: its line height, its glyphs in the glyphs section and their
+/// coverage bytes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct Font {
+    pub(crate) height: f32,
+    pub(crate) glyphs: Range,
+    pub(crate) coverage: Range,
+}
+
+/// An image: its size, its frames and their rate, and its pixels' bytes in
+/// the image pixels section.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct Image {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) frames: u32,
+    pub(crate) rate: f32,
+    pub(crate) pixels: Range,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -381,6 +442,9 @@ pub(crate) const VALUE_MARKS: u32 = 6;
 pub(crate) const VALUE_CURVE: u32 = 7;
 pub(crate) const VALUE_GRADIENT: u32 = 8;
 pub(crate) const VALUE_ARRAY: u32 = 9;
+pub(crate) const VALUE_TRACK: u32 = 10;
+pub(crate) const VALUE_FONT: u32 = 11;
+pub(crate) const VALUE_IMAGE: u32 = 12;
 
 /// An array item: its kind and a word: a scalar's bits, or for a color or
 /// a resource its index.
@@ -658,6 +722,7 @@ sections! {
     pixel_runs: PixelRun,
     pixels: Pixel,
     spatial_runs: SpatialRun,
+    pixel_structure: PixelStructure,
     section_runs: SectionRun,
     section_spans: SectionSpan,
     section_pixels: SectionPixel,
@@ -683,7 +748,14 @@ sections! {
     gradients: Gradient,
     gradient_stops: GradientStop,
     marks: Marks,
-    tracks: u32,
+    mark_ticks: u32,
+    audio_tracks: AudioTrack,
+    audio_samples: u8,
+    fonts: Font,
+    glyphs: donder_runtime_types::Glyph,
+    glyph_coverage: u8,
+    images: Image,
+    image_pixels: u8,
     arrays: Array,
     values: Value,
     automation: Automation,

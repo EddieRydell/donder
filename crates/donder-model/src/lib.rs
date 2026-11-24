@@ -15,6 +15,7 @@
 mod clock;
 mod console;
 mod controller;
+mod derived;
 mod effect;
 mod fixture;
 mod geometry;
@@ -40,9 +41,10 @@ pub use controller::{
     ControllerPortId, ControllerProtocol, ControllerValidationError, DonderConfig, DonderDeviceId,
     DonderPort, E131Config, E131Mode, OwnedController, UniverseChannel, Universes,
 };
+pub use derived::{AudioAnalysis, AudioFeature, Derivation, Derived, FontRaster, Number};
 pub use effect::{
-    Clip, ClipId, ClipScope, CurveDefinition, EffectDefinition, GradientDefinition, OwnedCurve,
-    OwnedGradient, ParamValue,
+    Clip, ClipId, ClipScope, CurveDefinition, EffectDefinition, FontFace, GradientDefinition,
+    ImageSource, OwnedCurve, OwnedGradient, ParamValue,
 };
 pub use fixture::{
     FixtureDefinition, FixtureDefinitionError, FixtureElement, FixtureElementId,

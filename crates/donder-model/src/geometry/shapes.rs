@@ -121,6 +121,22 @@ pub(super) fn expand_element(element: &FixtureElement) -> Vec<PreparedPixel> {
             } else {
                 ordinal as f32 / (count - 1) as f32
             };
+            // A grid's lanes are strands; any other element is one.
+            let (strand, along) = match &element.shape {
+                FixtureShape::Grid {
+                    columns,
+                    rows,
+                    axis,
+                    ..
+                } => {
+                    let minor = match axis {
+                        GridAxis::Rows => *columns,
+                        GridAxis::Columns => *rows,
+                    };
+                    (index / minor, index % minor)
+                }
+                _ => (0, index),
+            };
             let position = match &element.shape {
                 FixtureShape::Pixel => Vec3::ZERO,
                 FixtureShape::Line { length, .. } => Vec3::X * *length * fraction,
@@ -197,6 +213,8 @@ pub(super) fn expand_element(element: &FixtureElement) -> Vec<PreparedPixel> {
             PreparedPixel {
                 element: element.id,
                 ordinal,
+                strand,
+                along,
                 position,
                 diameter_meters: element.diameter.as_meters_f32(),
             }

@@ -19,9 +19,9 @@ use donder_test_support::workload;
 use super::playback;
 
 const SPATIAL: SpatialContext = SpatialContext {
-    position: [0.0; 2],
-    min: [0.0; 2],
-    max: [1.0; 2],
+    position: [0.0; 3],
+    min: [0.0; 3],
+    max: [1.0, 1.0, 0.0],
 };
 
 /// Pixel counts around the strip boundaries.
@@ -64,11 +64,16 @@ fn strips_preserve_local_and_subset_target_addressing() {
     for right_count in [7, 2 * STRIP + 3] {
         let build = |op: &BoundProgram| {
             crate::PreparedShow::build(playback::timing(4_000_000), |builder| {
-                let left =
-                    FixtureGeometry::admit((0..3).map(|i| [i as f32, 0.0]).collect()).unwrap();
-                let right =
-                    FixtureGeometry::admit((0..right_count).map(|i| [i as f32, 1.0]).collect())
-                        .unwrap();
+                let left = FixtureGeometry::admit(
+                    (0..3).map(|i| [i as f32, 0.0, 0.0]).collect(),
+                    (0..3_u32).map(|along| (0, along)).collect(),
+                )
+                .unwrap();
+                let right = FixtureGeometry::admit(
+                    (0..right_count).map(|i| [i as f32, 1.0, 0.0]).collect(),
+                    (0..right_count as u32).map(|along| (0, along)).collect(),
+                )
+                .unwrap();
                 builder.fixture(0, left.clone());
                 builder.fixture(1, right.clone());
                 let full = builder.target(&TargetGeometry::new(
@@ -597,8 +602,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             let mut colors = [Color::BLACK; 2];
             strip.run(
                 pixel_count,
-                [0.0; 2],
-                [max_x, 1.0],
+                super::evaluation::planar([0.0; 2], [max_x, 1.0]),
                 &mut NoSignals,
                 &mut colors,
             );

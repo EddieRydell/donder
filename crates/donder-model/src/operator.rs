@@ -273,7 +273,10 @@ fn param_matches_type(value: &ParamValue, ty: &Type) -> bool {
         | (ParamValue::Color(_), Type::Color)
         | (ParamValue::Marks(_), Type::Marks)
         | (ParamValue::Curve(_), Type::Curve)
-        | (ParamValue::Gradient(_), Type::Gradient) => true,
+        | (ParamValue::Gradient(_), Type::Gradient)
+        | (ParamValue::Text(_), Type::Text)
+        | (ParamValue::Font(_), Type::Font)
+        | (ParamValue::Image(_), Type::Image) => true,
         (ParamValue::Enum { option, fields }, Type::Enum(options)) => {
             fields.is_empty() && options.contains(option)
         }

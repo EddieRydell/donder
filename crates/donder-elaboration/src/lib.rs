@@ -15,11 +15,13 @@
 )]
 
 mod console;
+mod derive;
 mod selection;
 mod sequence;
 mod stage;
 
 pub use console::{ArmedConsole, arm};
+pub use derive::derive;
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::{ControllerId, ControllerOutput};

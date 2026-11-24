@@ -52,7 +52,7 @@ defaults, so damaged storage never stops a controller from starting.
 Shows live only in RAM: a controller boots with none, and the editor sends the
 show it plays whenever the controller lacks it. A show and its playback buffer
 share the show region, the 64 KiB of RAM the bootloader used
-(`SHOW_REGION_WORDS`): the show's bytes first, then the buffer, whose size is
+(`donder_device_protocol::SHOW_REGION_BYTES`): the show's bytes first, then the buffer, whose size is
 exact, from the show's layout. Nothing else allocates there, so the heap's
 fragmentation never limits a show; the 62 KiB heap is the network's, plus a
 console's routing state. Receiving a show (`PUT /show`):
@@ -82,7 +82,12 @@ format version and length. It rejects a show
   number of pixels), or a higher frame rate than the outputs carry; the reason
   names those limits.
 
-The editor does not check a show against the controller before sending it.
+Before sending a show, the editor checks that it and its playback buffer fit
+the show region (`PreparedShow::size` breaks both down by part). A show too
+large is not sent; the controller's reason names the total, the region's size
+and the three largest parts, each with what shrinks it: for example the
+frames playback holds for the layers, operators and scans lit at once, the
+clips, or the pixels' positions. The controller's own check stays.
 
 A panic prints `LOADER PANIC` and its message on the serial port (not on a
 Dig-Quad, whose UART pins drive LEDs) and restarts the controller. Playback allocates nothing after the show loads.

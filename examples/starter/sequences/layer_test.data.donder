@@ -11,7 +11,12 @@ Sequence layer_test {
   audio: none,
   marks: [
     MarkCollection { name: marks, description: none, color: #45b7ff, times: [] },
-    MarkCollection { name: wipe_marks, description: none, color: #45b7ff, times: [4s, 5s, 6s, 7s] },
+    MarkCollection {
+      name: wipe_marks,
+      description: none,
+      color: #45b7ff,
+      times: [(4s, 0s), (5s, 0s), (6s, 0s), (7s, 0s)],
+    },
   ],
   layers: [
     Layer { name: default, description: none, color: #38bdf8, enabled: true },

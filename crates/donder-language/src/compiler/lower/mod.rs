@@ -114,6 +114,8 @@ fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         if graph.domain(node).is_instance_fixed()
             && graph.loops_of(node).is_empty()
             && !matches!(graph.op(node), Op::Constant(_))
+            // Pixels read a table by its row, so playback fills it.
+            && !matches!(graph.op(node), Op::Reduce(id) if graph.loop_(*id).reducer.tabulates())
             && let Some(value) = evaluator.value(node)
         {
             fixed.insert(node, value);

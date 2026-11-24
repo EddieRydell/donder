@@ -1,18 +1,18 @@
-import { commands } from "../../../../api";
+import { commands, errorMessage } from "../../../../api";
 import { runGuiEditCommand } from "../../../../store";
 import { navigateToGuiObject } from "../../../../workspace/navigation";
 import { isSecondaryClick } from "../../../../platform";
 import { matchesCommand } from "../../../../commandRegistry";
 import { normalizeHexColor } from "../../../../color";
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, SquareArrowOutUpRight, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, FlipHorizontal2, FlipVertical2, Image as ImageIcon, Link2, Link2Off, Minus, Plus, SquareArrowOutUpRight, Trash2, Type, X, type LucideIcon } from "lucide-react";
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
 import type { GuiMember, SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../types";
 
 import { ColorPicker } from "../../../ColorPicker";
-import { AddRow, Field, IconButton, NumberField, Problem, Section, Select, Toggle } from "../../../kit";
+import { AddRow, Button, Field, IconButton, NumberField, Problem, Section, Select, TextField, Toggle } from "../../../kit";
 import { useFieldProblem } from "../../problems";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
 import { WindowFields } from "../../WindowFields";
@@ -223,7 +223,68 @@ function TypedParamValue({
           />
         </ParamField>
       );
+    case "text":
+      return valueField(<TextField name={param.name} value={param.value.value} onCommit={(value) => void commit({ type: "text", value })} />);
+    case "font": {
+      const font = param.value.value;
+      return valueField(<AssetFileParam name={param.name} icon={Type} choose={commands.chooseFontFile} chooseTip="Choose a font file" clearLabel="No font"
+        file={font?.file ?? null} measure={font?.height ?? null} initialMeasure={INITIAL_FONT_HEIGHT} maxMeasure={MAX_FONT_HEIGHT} measureName="height"
+        commit={(value) => commit({ type: "font", value: value === null ? null : { file: value.file, height: value.measure } })} />);
+    }
+    case "image": {
+      const image = param.value.value;
+      return valueField(<AssetFileParam name={param.name} icon={ImageIcon} choose={commands.chooseImageFile} chooseTip="Choose an image file" clearLabel="No image"
+        file={image?.file ?? null} measure={image?.size ?? null} initialMeasure={INITIAL_IMAGE_SIZE} maxMeasure={MAX_IMAGE_SIZE} measureName="size"
+        commit={(value) => commit({ type: "image", value: value === null ? null : { file: value.file, size: value.measure } })} />);
+    }
   }
+}
+
+/** The line height a chosen font starts at, in pixels. */
+const INITIAL_FONT_HEIGHT = 8;
+/** The tallest line a font is drawn at, as the model allows. */
+const MAX_FONT_HEIGHT = 256;
+/** The longest side a chosen image starts at, in pixels. */
+const INITIAL_IMAGE_SIZE = 32;
+/** The longest side an image is scaled to, as the model allows. */
+const MAX_IMAGE_SIZE = 256;
+
+/** An asset file and the pixel measure it is drawn at; choosing a file outside the project copies it in. */
+function AssetFileParam({ name, icon, choose, chooseTip, clearLabel, file, measure, initialMeasure, maxMeasure, measureName, commit }: {
+  name: string;
+  icon: LucideIcon;
+  choose: () => Promise<string | null>;
+  chooseTip: string;
+  clearLabel: string;
+  file: string | null;
+  measure: number | null;
+  initialMeasure: number;
+  maxMeasure: number;
+  measureName: string;
+  commit: (value: { file: string; measure: number } | null) => Promise<void>;
+}) {
+  const [failure, setFailure] = useState<string | null>(null);
+  const pick = async () => {
+    try {
+      const chosen = await choose();
+      setFailure(null);
+      if (chosen !== null) await commit({ file: chosen, measure: measure ?? initialMeasure });
+    } catch (error: unknown) {
+      setFailure(errorMessage(error));
+    }
+  };
+  return (
+    <>
+      <Button icon={icon} failed={failure !== null} tip={failure ?? file ?? chooseTip} onClick={() => void pick()}>
+        {file === null ? "None" : file.split("/").pop()}
+      </Button>
+      {file !== null && measure !== null && <>
+        <NumberField name={`${name} ${measureName}`} value={measure} step={1} integer min={1} max={maxMeasure} unit="px"
+          onCommit={(next) => void commit({ file, measure: next })} />
+        <IconButton icon={X} label={clearLabel} onClick={() => void commit(null)} />
+      </>}
+    </>
+  );
 }
 
 /** Option `name` of an enum parameter, its fields at their defaults. */

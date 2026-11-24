@@ -15,9 +15,9 @@ use donder_runtime_types::bytecode::{FloatUnary, Instruction, SignalPixel, instr
 use donder_runtime_types::{Color, Value};
 
 const SPATIAL: SpatialContext = SpatialContext {
-    position: [0.0; 2],
-    min: [0.0; 2],
-    max: [0.0; 2],
+    position: [0.0; 3],
+    min: [0.0; 3],
+    max: [0.0; 3],
 };
 
 #[test]

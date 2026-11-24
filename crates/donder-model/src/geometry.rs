@@ -19,6 +19,11 @@ pub struct PreparedPixel {
     pub element: FixtureElementId,
     /// Stable ordinal within its shape, independent of output reversal.
     pub ordinal: u32,
+    /// The strand of its fixture it lies on: each element is one, and a
+    /// grid's rows or columns, as it is wired, are one each.
+    pub strand: u32,
+    /// Its place along its strand, in wiring order.
+    pub along: u32,
     /// Meters, relative to the containing definition.
     pub position: Vec3,
     pub diameter_meters: f32,
@@ -104,11 +109,22 @@ impl PreparedFixtureDefinitions {
 
 /// Expand accepted fixture geometry without repeating authoring validation.
 pub fn prepare_geometry(definition: &FixtureDefinition) -> Vec<PreparedPixel> {
-    definition
-        .elements
-        .iter()
-        .flat_map(shapes::expand_element)
-        .collect()
+    let mut strands = 0;
+    let mut pixels = Vec::new();
+    for element in &definition.elements {
+        let expanded = shapes::expand_element(element);
+        let first = strands;
+        strands += expanded
+            .iter()
+            .map(|pixel| pixel.strand + 1)
+            .max()
+            .unwrap_or(0);
+        pixels.extend(expanded.into_iter().map(|pixel| PreparedPixel {
+            strand: first + pixel.strand,
+            ..pixel
+        }));
+    }
+    pixels
 }
 
 impl PreparedLayout {

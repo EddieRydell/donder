@@ -19,6 +19,9 @@ use serde::{Deserialize, Serialize};
 /// The WPA2 password of a controller's own access point.
 pub const ACCESS_POINT_PASSWORD: &str = "12345678";
 
+/// Bytes a controller holds a show and its playback buffer in.
+pub const SHOW_REGION_BYTES: usize = 64 * 1024;
+
 /// How a controller announces itself over mDNS: the `_donder._tcp` service
 /// with these TXT keys.
 pub mod advertisement {

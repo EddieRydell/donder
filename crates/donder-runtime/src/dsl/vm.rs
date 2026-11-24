@@ -1,5 +1,6 @@
 mod context;
 pub(crate) use context::NoSignals;
+mod assets;
 mod automation;
 mod strip;
 mod workspace;
@@ -7,7 +8,9 @@ mod workspace;
 pub(crate) use automation::{
     Override, ParamsRef, Scratch, params as params_at, set_value, shape as scratch_shape,
 };
-pub(crate) use strip::{Bound, NeighborWeights, Pixels, STRIP, ScanQuery, Strip, StripSignals};
+pub(crate) use strip::{
+    Bound, Extent, NeighborWeights, Pixels, STRIP, ScanQuery, Strip, StripSignals,
+};
 pub(crate) use workspace::{OUTSIDE, StripSlots, StripWorkspace};
 
 use donder_runtime_types::SampleDuration;

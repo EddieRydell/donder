@@ -182,6 +182,9 @@ impl Binding {
             .is_none_or(|prepared| prepared.sequence != *sequence || prepared.revision != revision)
         {
             let show = compile(&self.ports)?;
+            if let Some(reason) = super::show_size::too_large(&show.size()) {
+                return Err(reason);
+            }
             self.prepared = Some(Prepared {
                 revision,
                 sequence: sequence.clone(),

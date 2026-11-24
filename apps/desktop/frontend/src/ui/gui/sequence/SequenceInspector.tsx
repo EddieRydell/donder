@@ -42,6 +42,7 @@ type SelectedMarkEntry = {
   ref: SequenceMarkRef;
   collection: SequenceMarkCollection;
   timeSeconds: number;
+  durationSeconds: number;
   label: string | null;
 };
 
@@ -620,6 +621,19 @@ function MarkInspectorPanel({
     });
   };
 
+  const spanSelectedMark = (entry: SelectedMarkEntry, durationSeconds: number) => {
+    const next = roundToNanosecond(Math.max(0, durationSeconds));
+    if (!Number.isFinite(next) || next === entry.durationSeconds) return;
+    void runGuiEditCommand((request) =>
+      commands.applyGuiEdit(request, { type: "sequence", edit: {
+        type: "setMarkDuration",
+        collectionKey: entry.ref.collectionKey,
+        index: entry.ref.index,
+        durationSeconds: next
+      } })
+    );
+  };
+
   const labelSelectedMark = (entry: SelectedMarkEntry, label: string) => {
     const next = label.trim() === "" ? null : label.trim();
     if (next === entry.label) return;
@@ -734,6 +748,14 @@ function MarkInspectorPanel({
                   unit="s"
                   onCommit={(timeSeconds) => { moveSelectedMark(entry, timeSeconds); }}
                 />
+                <NumberField
+                  name="Mark duration"
+                  value={entry.durationSeconds}
+                  min={0}
+                  step={TIME_STEP_SECONDS}
+                  unit="s"
+                  onCommit={(durationSeconds) => { spanSelectedMark(entry, durationSeconds); }}
+                />
                 <IconButton icon={Trash2} label="Delete mark" danger onClick={() => { deleteSelectedMark(entry); }} />
                 <TextField
                   className="mark-label-input"
@@ -787,8 +809,9 @@ function selectedMarkEntries(
 function markEntry(document: SequenceGuiDocument, ref: SequenceMarkRef): SelectedMarkEntry | null {
   const collection = document.markCollections.find((candidate) => candidate.key === ref.collectionKey);
   const timeSeconds = collection?.marksSeconds[ref.index];
-  if (collection === undefined || timeSeconds === undefined) return null;
-  return { ref, collection, timeSeconds, label: collection.markLabels[ref.index] ?? null };
+  const durationSeconds = collection?.markDurationsSeconds[ref.index];
+  if (collection === undefined || timeSeconds === undefined || durationSeconds === undefined) return null;
+  return { ref, collection, timeSeconds, durationSeconds, label: collection.markLabels[ref.index] ?? null };
 }
 
 function selectedRefsAfterMove(

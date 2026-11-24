@@ -40,6 +40,8 @@ pub struct SequenceGuiDocument {
     pub frame_rate: f32,
     pub audio: Option<SequenceAudio>,
     pub(crate) mark_collections: Vec<SequenceMarkCollection>,
+    /// Whether the audio its effects read is analyzed.
+    pub(crate) derived_data: DerivedDataStatus,
     pub lanes: Vec<SequenceLane>,
     pub effect_definitions: Vec<SequenceEffectDefinition>,
     pub curve_library: Vec<SequenceCurveLibraryItem>,
@@ -332,6 +334,30 @@ pub struct SequenceMarkCollection {
     pub(crate) description: Option<String>,
     pub(crate) color: String,
     pub(crate) marks_seconds: Vec<f64>,
+    /// Each mark's duration, in the same order as `marks_seconds`; zero for an
+    /// instantaneous mark.
+    pub(crate) mark_durations_seconds: Vec<f64>,
     /// Each mark's label, in the same order as `marks_seconds`.
     pub(crate) mark_labels: Vec<Option<String>>,
+}
+
+/// Where the analysis of a sequence's audio its effects read stands.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum DerivedDataStatus {
+    /// No effect of the sequence reads its audio, a font or an image.
+    Unused,
+    /// The audio is being analyzed, fonts rasterized or images decoded;
+    /// effects read silence, blank text and black images until then.
+    Reading,
+    Ready,
+    Failed {
+        /// The asset's project-relative path.
+        file: String,
+        reason: String,
+    },
 }

@@ -10,8 +10,8 @@ use crate::compiler::ir::{
 };
 use donder_runtime_types::bytecode::{
     Bank, Banks, BytecodeProgram, ColorComponent, Colors, CompareOp, ContextRead, CurveOp,
-    FloatBinary, FloatUnary, Input, Instruction, IntBinary, IntUnary, MAX_DEPTH, MAX_ROW_BYTES,
-    MarkOp, Reducer, Resource, SignalPixel, Slot, param_bank,
+    FloatBinary, FloatUnary, GlyphOp, ImageOp, Input, Instruction, IntBinary, IntUnary, MAX_DEPTH,
+    MAX_ROW_BYTES, MarkOp, Reducer, Resource, SignalPixel, Slot, param_bank,
 };
 use donder_runtime_types::{Color, Identifier, InstructionWord, Type, Value};
 use std::collections::{HashMap, HashSet};
@@ -253,7 +253,13 @@ impl<'a> Emitter<'a> {
                     });
                 }
             }
-            Value::Curve(_) | Value::Gradient(_) | Value::Marks(_) | Value::Array(_) => {
+            Value::Curve(_)
+            | Value::Gradient(_)
+            | Value::Marks(_)
+            | Value::Track(_)
+            | Value::Font(_)
+            | Value::Image(_)
+            | Value::Array(_) => {
                 self.resources.push(constant.value.clone());
                 let index = self.resources.len() as u32 - 1;
                 self.head.push(scalar(Bank::Resource, index));
@@ -335,6 +341,30 @@ impl<'a> Emitter<'a> {
             Op::Unary(op, a) => self.unary(node, op, a, code),
             Op::Binary(op, a, b) => self.binary(node, op, a, b, code),
             Op::Ternary(op, a, b, c) => self.ternary(node, op, a, b, c, code),
+            Op::Quaternary(ir::Quaternary::ImageColor, image, frame, x, y) => {
+                let (image, frame) = (self.operand(image), self.operand(frame));
+                let (x, y) = (self.operand(x), self.operand(y));
+                code.push(Instruction::Image {
+                    op: ImageOp::Color,
+                    dst: self.destination(node),
+                    image,
+                    frame,
+                    x,
+                    y,
+                });
+            }
+            Op::Quaternary(ir::Quaternary::GlyphCoverage, font, character, x, y) => {
+                let (font, character) = (self.operand(font), self.operand(character));
+                let (x, y) = (self.operand(x), self.operand(y));
+                code.push(Instruction::Glyph {
+                    op: GlyphOp::Coverage,
+                    dst: self.destination(node),
+                    font,
+                    code: character,
+                    x,
+                    y,
+                });
+            }
             Op::Select(condition, yes, no) => {
                 if self.plan.branches.contains(&node) {
                     self.branch(node, code);
@@ -497,6 +527,29 @@ impl<'a> Emitter<'a> {
                 dst,
                 resource: a,
             },
+            Unary::ImageWidth | Unary::ImageHeight | Unary::ImageRate | Unary::ImageFrames => {
+                Instruction::Image {
+                    op: match op {
+                        Unary::ImageWidth => ImageOp::Width,
+                        Unary::ImageHeight => ImageOp::Height,
+                        Unary::ImageRate => ImageOp::Rate,
+                        _ => ImageOp::Frames,
+                    },
+                    dst,
+                    image: a,
+                    frame: Slot::NONE,
+                    x: Slot::NONE,
+                    y: Slot::NONE,
+                }
+            }
+            Unary::FontHeight => Instruction::Glyph {
+                op: GlyphOp::Height,
+                dst,
+                font: a,
+                code: Slot::NONE,
+                x: Slot::NONE,
+                y: Slot::NONE,
+            },
             Unary::SectionCount | Unary::SectionIndex => Instruction::Section {
                 index: op == Unary::SectionIndex,
                 dst,
@@ -634,7 +687,29 @@ impl<'a> Emitter<'a> {
                     default,
                 }
             }
+            Entry => {
+                let start = self.constant(Constant {
+                    value: Value::Int(0),
+                    ty: Type::Int,
+                });
+                Instruction::Lookup {
+                    bank: Bank::for_type(graph.ty(node)),
+                    dst,
+                    table: a,
+                    index: b,
+                    start,
+                }
+            }
+            GlyphAdvance => Instruction::Glyph {
+                op: GlyphOp::Advance,
+                dst,
+                font: a,
+                code: b,
+                x: Slot::NONE,
+                y: Slot::NONE,
+            },
             MarkAt => mark(MarkOp::At),
+            MarkDuration => mark(MarkOp::Duration),
             MarkLast => mark(MarkOp::Last),
             MarkLastIndex => mark(MarkOp::LastIndex),
             // A float multiplied by itself an int number of times.
@@ -812,6 +887,24 @@ impl<'a> Emitter<'a> {
                 saturation: b,
                 value: c,
             }),
+            Ternary::MarkText => code.push(Instruction::MarkText {
+                dst,
+                marks: a,
+                index: b,
+                char: c,
+            }),
+            Ternary::Partition => code.push(Instruction::Partition {
+                dst,
+                table: a,
+                len: b,
+                value: c,
+            }),
+            Ternary::TrackAt => code.push(Instruction::Track {
+                dst,
+                track: a,
+                channel: b,
+                time: c,
+            }),
             Ternary::CurveLastCrossing => code.push(Instruction::Curve {
                 op: CurveOp::LastCrossing,
                 dst,
@@ -895,6 +988,10 @@ impl<'a> Emitter<'a> {
             unreachable!("reductions are reduce nodes")
         };
         let data = self.graph.loop_(id).clone();
+        if data.reducer.tabulates() {
+            self.table(node, code);
+            return;
+        }
         if matches!(self.graph.op(data.body), Op::Tap { .. }) {
             self.stencil(node, code);
             return;
@@ -947,6 +1044,9 @@ impl<'a> Emitter<'a> {
                 ir::Reducer::All => Reducer::All,
                 ir::Reducer::First => Reducer::First,
                 ir::Reducer::Last => Reducer::Last,
+                ir::Reducer::Table | ir::Reducer::RunningSum => {
+                    unreachable!("tables are tabulated")
+                }
             },
             bank,
             acc,
@@ -1151,6 +1251,47 @@ impl<'a> Emitter<'a> {
         code.append(&mut weights);
     }
 
+    /// An authored table: a `Tabulate` running its body's code once per
+    /// index, into a row its entries are looked up in.
+    fn table(&mut self, node: Node, code: &mut Vec<Instruction>) {
+        let Op::Reduce(id) = *self.graph.op(node) else {
+            unreachable!("tables are reduce nodes")
+        };
+        let data = self.graph.loop_(id).clone();
+        let (start, end) = (self.operand(data.start), self.operand(data.end));
+        let index = self.fresh(Bank::Int, false);
+        self.values.insert(data.index, index);
+        let cone = self.plan.table_cones[&node].clone();
+        let mut body = Vec::new();
+        for &member in &cone {
+            if !self.absorbed.contains(&member) {
+                self.node(member, &mut body);
+            }
+        }
+        let value = self.operand(data.body);
+        for member in cone.iter().chain([&data.index]) {
+            self.values.remove(member);
+        }
+        let bank = self.bank(data.body);
+        let dst = self.fresh(bank, true);
+        let len = u8::try_from(words(&body)).unwrap_or_else(|_| {
+            self.fail(LowerError::Code);
+            0
+        });
+        code.push(Instruction::Tabulate {
+            bank,
+            prefix: data.reducer == ir::Reducer::RunningSum,
+            dst,
+            index,
+            start,
+            end,
+            value,
+            len,
+        });
+        code.append(&mut body);
+        self.values.insert(node, dst);
+    }
+
     /// The tables `stage` fills, at the end of its block: for each output, a
     /// `Tabulate` and the code computing it from the reduction's index.
     fn tables(&mut self, stage: Stage, code: &mut Vec<Instruction>) {
@@ -1332,6 +1473,10 @@ fn pixel_input(context: Context) -> Option<Input> {
         Context::PixelFraction => Some(Input::PixelFraction),
         Context::PixelX => Some(Input::PixelX),
         Context::PixelY => Some(Input::PixelY),
+        Context::PixelZ => Some(Input::PixelZ),
+        Context::PixelMember => Some(Input::PixelMember),
+        Context::PixelStrand => Some(Input::PixelStrand),
+        Context::PixelAlong => Some(Input::PixelAlong),
         _ => None,
     }
 }
@@ -1348,6 +1493,11 @@ fn context_read(context: Context) -> ContextRead {
         Context::TargetMinY => ContextRead::TargetMinY,
         Context::TargetMaxX => ContextRead::TargetMaxX,
         Context::TargetMaxY => ContextRead::TargetMaxY,
+        Context::TargetMinZ => ContextRead::TargetMinZ,
+        Context::TargetMaxZ => ContextRead::TargetMaxZ,
+        Context::TargetMembers => ContextRead::TargetMembers,
+        Context::TargetStrands => ContextRead::TargetStrands,
+        Context::TargetStrandLength => ContextRead::TargetStrandLength,
         _ => unreachable!("pixel context is a strip input"),
     }
 }

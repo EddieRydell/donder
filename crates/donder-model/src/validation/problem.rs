@@ -266,6 +266,9 @@ pub enum ParamProblem {
     MissingGradient(Identifier),
     InvalidCurve(Identifier, CurveValidationError),
     InvalidGradient(Identifier, GradientValidationError),
+    InvalidText(Identifier),
+    InvalidFontHeight(Identifier),
+    InvalidImageSize(Identifier),
 }
 
 /// A clip's place in time.
@@ -549,7 +552,10 @@ impl ParamProblem {
             | Self::MissingCurve(param)
             | Self::MissingGradient(param)
             | Self::InvalidCurve(param, _)
-            | Self::InvalidGradient(param, _) => param,
+            | Self::InvalidGradient(param, _)
+            | Self::InvalidText(param)
+            | Self::InvalidFontHeight(param)
+            | Self::InvalidImageSize(param) => param,
         }
     }
 }
@@ -777,7 +783,11 @@ impl fmt::Display for SequenceValidationError {
                 write!(f, "automation clip id {} is used twice", clip.0)
             }
             Self::MarkOutsideDuration(name) => {
-                write!(f, "a mark of {} is past the sequence's end", name.as_str())
+                write!(
+                    f,
+                    "a mark of {} ends past the sequence's end",
+                    name.as_str()
+                )
             }
             Self::InvalidMarkLabel(name) => write!(
                 f,
@@ -904,6 +914,24 @@ impl fmt::Display for ParamProblem {
                 "parameter {} has an invalid gradient: {}",
                 param.as_str(),
                 gradient_error(error)
+            ),
+            Self::InvalidText(param) => write!(
+                f,
+                "parameter {}'s text has more than {} characters or a NUL",
+                param.as_str(),
+                donder_runtime_types::TEXT_LENGTH
+            ),
+            Self::InvalidFontHeight(param) => write!(
+                f,
+                "parameter {}'s font height is not 1 to {} pixels",
+                param.as_str(),
+                crate::FontFace::MAX_HEIGHT
+            ),
+            Self::InvalidImageSize(param) => write!(
+                f,
+                "parameter {}'s image size is not 1 to {} pixels",
+                param.as_str(),
+                crate::ImageSource::MAX_SIZE
             ),
         }
     }

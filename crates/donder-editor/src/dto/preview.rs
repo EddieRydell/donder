@@ -27,6 +27,28 @@ pub struct FixtureGuiDocument {
     pub elements: Vec<GuiFixtureElement>,
     pub handles: Vec<GuiFixtureHandle>,
     pub render_plan: SpatialRenderPlan,
+    /// The setup's E1.31 and Art-Net controllers, which can play the
+    /// capture pattern.
+    pub capture_controllers: Vec<GuiCaptureController>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiCaptureController {
+    pub label: String,
+    pub source_ref: GuiObjectRef,
+    /// Channels across all its universes.
+    pub channel_count: u32,
+}
+
+/// Shapes measured from a video of a fixture's pixels.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiFixtureCapture {
+    pub elements: Vec<GuiFixtureElement>,
+    /// Pixels seen in the video; the rest were placed between their neighbors.
+    pub found: u32,
+    pub pixels: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

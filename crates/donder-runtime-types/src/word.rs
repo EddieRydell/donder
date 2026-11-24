@@ -6,8 +6,8 @@
 //! field as its instruction declares it.
 use crate::bytecode::{
     Bank, ColorComponent, Colors, CompareOp, ContextRead, CurveOp, Direction, Edges, FloatBinary,
-    FloatUnary, Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource, SignalPixel, Slot,
-    SlotKind,
+    FloatUnary, GlyphOp, ImageOp, Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource,
+    SignalPixel, Slot, SlotKind,
 };
 
 /// One encoded instruction word.
@@ -55,13 +55,15 @@ wire! {
     CompareOp { Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual }
     ColorComponent { Hue, Saturation, Intensity }
     CurveOp { Sample, Integral, Crossing, LastCrossing }
-    MarkOp { At, Last, LastIndex }
-    Resource { Curve, Gradient, Marks, Array }
+    MarkOp { At, Duration, Last, LastIndex }
+    Resource { Curve, Gradient, Marks, Array, Track, Font, Image }
+    GlyphOp { Height, Advance, Coverage }
+    ImageOp { Width, Height, Rate, Frames, Color }
     Reducer { Max, Min, Sum, Any, All, First, Last }
     Bank { Float, Int, Bool, Color, Resource }
     ContextRead {
         Seconds, Progress, Duration, FrameRate, Frame, PixelCount, TargetMinX, TargetMinY, TargetMaxX,
-        TargetMaxY
+        TargetMaxY, TargetMinZ, TargetMaxZ, TargetMembers, TargetStrands, TargetStrandLength
     }
     Direction { Forward, Backward }
     Edges { Skip, Extend, Mirror }
@@ -99,6 +101,11 @@ mod op {
     pub(super) const SCAN: u8 = 27;
     pub(super) const TABULATE: u8 = 29;
     pub(super) const LOOKUP: u8 = 30;
+    pub(super) const TRACK: u8 = 31;
+    pub(super) const MARK_TEXT: u8 = 32;
+    pub(super) const PARTITION: u8 = 33;
+    pub(super) const GLYPH: u8 = 34;
+    pub(super) const IMAGE: u8 = 35;
     /// The second word of a reduction or a stencil.
     pub(super) const CONTINUED: u8 = 28;
 }
@@ -109,10 +116,10 @@ const PIXEL_LOCAL: u8 = 1;
 const PIXEL_SHIFTED: u8 = 2;
 
 /// A slot in a byte: scalars from 0, [`Slot::NONE`] as 127, rows from 128
-/// and the pixel inputs as the last four.
+/// and the pixel inputs as the last eight.
 const NONE_BYTE: u8 = 0x7f;
 const ROW_BYTE: u8 = 0x80;
-const INPUT_BYTE: u8 = 0xfc;
+const INPUT_BYTE: u8 = 0xf8;
 
 fn pack(slot: Slot) -> u8 {
     if slot.is_none() {
@@ -312,6 +319,48 @@ impl InstructionWord {
             } => code.push(
                 w(op::MARK, op.to_wire())
                     .slots(&[dst, marks, operand])
+                    .done(),
+            ),
+            I::Track {
+                dst,
+                track,
+                channel,
+                time,
+            } => code.push(w(op::TRACK, 0).slots(&[dst, track, channel, time]).done()),
+            I::MarkText {
+                dst,
+                marks,
+                index,
+                char,
+            } => code.push(w(op::MARK_TEXT, 0).slots(&[dst, marks, index, char]).done()),
+            I::Partition {
+                dst,
+                table,
+                len,
+                value,
+            } => code.push(w(op::PARTITION, 0).slots(&[dst, table, len, value]).done()),
+            I::Glyph {
+                op,
+                dst,
+                font,
+                code: character,
+                x,
+                y,
+            } => code.push(
+                w(op::GLYPH, op.to_wire())
+                    .slots(&[dst, font, character, x, y])
+                    .done(),
+            ),
+            I::Image {
+                op,
+                dst,
+                image,
+                frame,
+                x,
+                y,
+            } => code.push(
+                w(op::IMAGE, op.to_wire())
+                    .slots(&[dst, image, frame, x, y])
                     .done(),
             ),
             I::Length {
@@ -567,6 +616,40 @@ impl InstructionWord {
                 dst: s(2),
                 marks: s(3),
                 operand: s(4),
+            },
+            op::TRACK => I::Track {
+                dst: s(2),
+                track: s(3),
+                channel: s(4),
+                time: s(5),
+            },
+            op::MARK_TEXT => I::MarkText {
+                dst: s(2),
+                marks: s(3),
+                index: s(4),
+                char: s(5),
+            },
+            op::PARTITION => I::Partition {
+                dst: s(2),
+                table: s(3),
+                len: s(4),
+                value: s(5),
+            },
+            op::GLYPH => I::Glyph {
+                op: word.low(),
+                dst: s(2),
+                font: s(3),
+                code: s(4),
+                x: s(5),
+                y: s(6),
+            },
+            op::IMAGE => I::Image {
+                op: word.low(),
+                dst: s(2),
+                image: s(3),
+                frame: s(4),
+                x: s(5),
+                y: s(6),
             },
             op::LENGTH => I::Length {
                 kind: word.low(),

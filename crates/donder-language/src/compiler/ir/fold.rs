@@ -181,6 +181,9 @@ fn simplify_unary(graph: &mut Graph, op: Unary, a: Node, ty: &Type) -> Option<No
     if op == Unary::Len {
         match graph.op(a).clone() {
             Op::Items(items) => return Some(graph.int(items.len() as i32)),
+            Op::Reduce(id) if graph.loop_(id).reducer.tabulates() => {
+                return Some(table_len(graph, id));
+            }
             Op::Select(condition, yes, no) if is_items(graph, yes) || is_items(graph, no) => {
                 let (yes, no) = (graph.unary(op, yes), graph.unary(op, no));
                 return Some(graph.select(condition, yes, no));
@@ -215,6 +218,9 @@ fn simplify_binary(graph: &mut Graph, op: Binary, a: Node, b: Node, ty: &Type) -
     if op == Index {
         match graph.op(a).clone() {
             Op::Items(items) => return Some(graph.add(Op::Pick { index: b, items })),
+            Op::Reduce(id) if graph.loop_(id).reducer.tabulates() => {
+                return Some(table_index(graph, id, a, b, ty));
+            }
             Op::Select(condition, yes, no) if is_items(graph, yes) || is_items(graph, no) => {
                 let (yes, no) = (graph.binary(op, yes, b), graph.binary(op, no, b));
                 return Some(graph.select(condition, yes, no));
@@ -302,8 +308,42 @@ fn simplify_select(graph: &mut Graph, condition: Node, yes: Node, no: Node) -> O
 
 /// A reduction that needs no loop: an empty range, an invariant body, or a
 /// body that only contributes the identity.
+/// Entries in table `id`: one per index, and one more for running sums.
+fn table_len(graph: &mut Graph, id: LoopId) -> Node {
+    let data = graph.loop_(id).clone();
+    let count = graph.binary(Binary::IntSubtract, data.end, data.start);
+    let zero = graph.int(0);
+    let count = graph.binary(Binary::IntMax, count, zero);
+    match data.reducer {
+        Reducer::RunningSum => {
+            let one = graph.int(1);
+            graph.binary(Binary::IntAdd, count, one)
+        }
+        _ => count,
+    }
+}
+
+/// `table[index]`: the entry at the index clamped into the table, or the
+/// item type's default for an empty table, as arrays index.
+fn table_index(graph: &mut Graph, id: LoopId, table: Node, index: Node, ty: &Type) -> Node {
+    let len = table_len(graph, id);
+    let one = graph.int(1);
+    let last = graph.binary(Binary::IntSubtract, len, one);
+    let zero = graph.int(0);
+    let below = graph.binary(Binary::IntMin, index, last);
+    let clamped = graph.binary(Binary::IntMax, below, zero);
+    let entry = graph.binary(Binary::Entry, table, clamped);
+    let nonempty = graph.binary(Binary::IntGreater, len, zero);
+    let default = graph.typed_constant(ty.default_value(), ty.clone());
+    graph.select(nonempty, entry, default)
+}
+
 pub(super) fn reduction(graph: &mut Graph, id: LoopId) -> Option<Node> {
     let data = graph.loop_(id).clone();
+    // A table is its entries; only playback computes them.
+    if data.reducer.tabulates() {
+        return None;
+    }
     let ty = graph.ty(data.body).clone();
     let identity = |graph: &mut Graph| match data.default {
         Some(default) => default,

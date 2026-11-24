@@ -96,7 +96,7 @@ fn admit_console(
         let values = resolve_values(
             project,
             MarkOrigin::Live,
-            definition.params(),
+            definition.compiled(),
             &operator.params,
             session(),
         )?;
@@ -146,7 +146,7 @@ fn admit_clip(
     let values = resolve_values(
         project,
         MarkOrigin::Live,
-        params,
+        definition.compiled(),
         &clip.param_overrides,
         session(),
     )?;

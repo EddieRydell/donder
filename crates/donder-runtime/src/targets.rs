@@ -1,9 +1,9 @@
 //! Targets as a show stores them: runs of contiguous cells, or one record
 //! per pixel for irregular selections, with each pixel's original logical
 //! place. A pixel's fraction is computed from its place, as authoring does.
+use crate::dsl::Extent;
 use crate::format::{self, PixelRun};
 use core::cell::Cell;
-use donder_runtime_types::SpatialContext;
 
 use crate::sections::SectionsView;
 use crate::view::Show;
@@ -58,6 +58,7 @@ pub(crate) struct TargetView<'a> {
     runs: &'a [PixelRun],
     pixels: &'a [format::Pixel],
     spatial: &'a [format::SpatialRun],
+    structure: &'a [format::PixelStructure],
     pub(crate) sections: SectionsView<'a>,
 }
 
@@ -88,6 +89,7 @@ impl<'a> TargetView<'a> {
             runs,
             pixels,
             spatial: record.spatial.get(s.spatial_runs),
+            structure: record.structure.get(s.pixel_structure),
             sections: SectionsView::of(show, record),
         }
     }
@@ -179,22 +181,34 @@ impl<'a> TargetView<'a> {
         (index..self.len()).map(move |index| cursor.pixel(index))
     }
 
+    /// Target pixel `index`'s position, and its scope's bounds and
+    /// structure counts.
     pub(crate) fn spatial_context(
         &self,
         index: usize,
         pixel: &PreparedPixel,
         show: Show<'a>,
-    ) -> SpatialContext {
+    ) -> ([f32; 3], Extent) {
         let run = &self.spatial[self
             .spatial
             .partition_point(|run| run.end as usize <= index)];
         let fixture = &show.s.fixtures[pixel.fixture_index];
         let position = &fixture.positions.get(show.s.positions)[pixel.fixture_pixel_index as usize];
-        SpatialContext {
-            position: [position.x, position.y],
-            min: run.min,
-            max: run.max,
-        }
+        (
+            [position.x, position.y, position.z],
+            Extent {
+                min: run.min,
+                max: run.max,
+                members: run.members as i32,
+                strands: run.strands as i32,
+                strand_length: run.strand_length as i32,
+            },
+        )
+    }
+
+    /// Target pixel `index`'s member, strand and place along it.
+    pub(crate) fn structure(&self, index: usize) -> format::PixelStructure {
+        self.structure[index]
     }
 }
 

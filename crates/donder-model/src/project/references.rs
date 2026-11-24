@@ -140,6 +140,9 @@ fn param(owner: ObjectId, value: &ParamValue, f: &mut Visit<'_>) {
         | ParamValue::Color(_)
         | ParamValue::Enum { .. }
         | ParamValue::Marks(_)
+        | ParamValue::Text(_)
+        | ParamValue::Font(_)
+        | ParamValue::Image(_)
         | ParamValue::Curve(Owned::Inline(_))
         | ParamValue::Gradient(Owned::Inline(_)) => {}
     }
@@ -165,6 +168,52 @@ impl DonderProject {
         }
         for value in self.objects::<Console>() {
             console(value.id.into(), value, visit);
+        }
+    }
+}
+
+impl DonderProject {
+    /// Every asset file an object uses, as `(user, asset)`: a sequence's
+    /// audio and the fonts its own or a console's parameters name.
+    pub fn for_each_asset(&self, visit: &mut dyn FnMut(ObjectId, &crate::AssetId)) {
+        fn params<'a>(
+            owner: ObjectId,
+            values: impl Iterator<Item = &'a ParamValue>,
+            visit: &mut dyn FnMut(ObjectId, &crate::AssetId),
+        ) {
+            for value in values {
+                for asset in value.assets() {
+                    visit(owner, asset);
+                }
+            }
+        }
+        fn operators(
+            owner: ObjectId,
+            graph: &SequenceCompositionGraph,
+            visit: &mut dyn FnMut(ObjectId, &crate::AssetId),
+        ) {
+            for node in &graph.nodes {
+                if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
+                    params(owner, operator.params.values(), visit);
+                }
+            }
+        }
+        for sequence in self.objects::<Sequence>() {
+            let owner = sequence.id.into();
+            if let crate::SequenceAudio::Asset(asset) = &sequence.audio {
+                visit(owner, asset);
+            }
+            for clip in &sequence.clips {
+                params(owner, clip.param_overrides.values(), visit);
+            }
+            operators(owner, &sequence.composition_graph, visit);
+        }
+        for console in self.objects::<Console>() {
+            let owner = console.id.into();
+            for clip in &console.clips {
+                params(owner, clip.param_overrides.values(), visit);
+            }
+            operators(owner, &console.composition_graph, visit);
         }
     }
 }

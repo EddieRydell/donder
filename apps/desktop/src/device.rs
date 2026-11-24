@@ -1,6 +1,7 @@
 pub(crate) mod console;
 pub(crate) mod discovery;
 pub(crate) mod playback;
+mod show_size;
 
 use donder_device_protocol::{LOADED, TransportStatus, path};
 use donder_editor::dto::DonderDeviceNetworkRequest;

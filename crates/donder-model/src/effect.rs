@@ -1,6 +1,6 @@
 pub(crate) use crate::identity::{CurveId, EffectDefinitionId, GradientId};
 use crate::layout::FixtureTarget;
-use crate::sequence::{MarkCollectionKey, SequenceLayerId};
+use crate::sequence::{AssetId, MarkCollectionKey, SequenceLayerId};
 use donder_language::compiler::{CompiledDefinition, ParamDecl, ParamRange};
 use donder_language::{DonderDuration, DonderTime};
 use donder_runtime_types::Identifier;
@@ -49,9 +49,51 @@ pub enum ParamValue {
     Curve(OwnedCurve),
     Gradient(OwnedGradient),
     Array(Vec<ParamValue>),
+    /// At most [`donder_runtime_types::TEXT_LENGTH`] characters, none NUL.
+    Text(String),
+    /// `None` is no font: every character is blank.
+    Font(Option<FontFace>),
+    /// `None` is no image: every point is black.
+    Image(Option<ImageSource>),
+}
+
+/// A font file drawn at a line height in pixels.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct FontFace {
+    pub file: AssetId,
+    pub height: u32,
+}
+
+impl FontFace {
+    /// The tallest line a font is drawn at.
+    pub const MAX_HEIGHT: u32 = 256;
+}
+
+/// An image file, a picture or an animation, scaled so its longer side is
+/// at most `size` pixels.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct ImageSource {
+    pub file: AssetId,
+    pub size: u32,
+}
+
+impl ImageSource {
+    /// The longest side an image is scaled to.
+    pub const MAX_SIZE: u32 = 256;
 }
 
 impl ParamValue {
+    /// The asset files the value names.
+    pub fn assets(&self) -> Vec<&AssetId> {
+        match self {
+            Self::Font(Some(face)) => vec![&face.file],
+            Self::Image(Some(image)) => vec![&image.file],
+            Self::Array(values) => values.iter().flat_map(Self::assets).collect(),
+            Self::Enum { fields, .. } => fields.values().flat_map(Self::assets).collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// Initial authored values must be valid resources inside the declared
     /// range, unlike the VM's empty storage defaults. Numbers start at zero
     /// held inside the range, a curve falls across it (from 1 to 0, as curves
@@ -146,7 +188,11 @@ impl ParamValue {
                 fields: IndexMap::new(),
             }),
             Type::Marks => Some(Self::Marks(None)),
-            Type::Void => None,
+            Type::Text => Some(Self::Text(String::new())),
+            Type::Font => Some(Self::Font(None)),
+            Type::Image => Some(Self::Image(None)),
+            // Audio samples are bound by preparation, never authored.
+            Type::Void | Type::Track => None,
         }
     }
 }

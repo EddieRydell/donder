@@ -64,6 +64,18 @@ GUI edit:
 4. asks the person to confirm repairs that remove or change what they made;
 5. publishes the accepted snapshot to state, history, save and render work.
 
+The audio analyses, font rasters and decoded images effects read are derived
+from asset files, not documents: the project holds them beside its typed
+state (`DonderProject::with_derived`), outside its equality, and admission
+binds each analysis's samples to its hidden program parameter and each raster
+or image to its parameter. `donder_elaboration::derive` reads each file once. The desktop
+derives what a snapshot lacks on the latest-request scheduler, keeps results
+by file and settings, and installs them as a new snapshot under a new
+revision, which adds no history and dirties no document; until then, and
+after a failure the transport bar shows, audio reads as silence, text as
+blank and images as black. The CLI derives everything when it loads a project and fails if it
+cannot.
+
 The model has one store per kind of reusable object, keyed by id; owned
 objects live in their owner. `DonderProject::get::<T>(id)` finds an object of
 kind `T` wherever it is written and `objects::<T>()` lists every one, so there

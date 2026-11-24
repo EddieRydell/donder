@@ -6,7 +6,7 @@ use crate::effect::ParamValue;
 use crate::sequence::AutomationTarget;
 use crate::sequence::CompositionGraphNodeId;
 use crate::validation::{AdmissionProblem, Member, ProjectValidationError, ValidationProblem, at};
-use donder_language::compiler::{Invocation, ParamDecl};
+use donder_language::compiler::Invocation;
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::SequenceTiming;
 use donder_runtime_types::Value;
@@ -52,7 +52,7 @@ impl ProjectInputs {
                 let values = resolve(
                     project,
                     sequence,
-                    definition.params(),
+                    definition.compiled(),
                     &clip.param_overrides,
                     ClipTiming {
                         start: crate::clock::sample_time(&clip.start),
@@ -87,7 +87,7 @@ impl ProjectInputs {
                 let values = resolve(
                     project,
                     sequence,
-                    definition.params(),
+                    definition.compiled(),
                     &operator.params,
                     ClipTiming {
                         start: SampleTime::from_ticks(0),
@@ -147,14 +147,14 @@ fn admit_timing(sequence: &Sequence) -> SequenceTiming {
 fn resolve(
     project: &DonderProject,
     sequence: &Sequence,
-    declarations: &[ParamDecl],
+    definition: &donder_language::compiler::CompiledDefinition,
     overrides: &IndexMap<donder_runtime_types::Identifier, ParamValue>,
     timing: ClipTiming,
 ) -> Result<Box<[Value]>, ValidationProblem> {
     resolve_values(
         project,
-        MarkOrigin::Authored(&sequence.mark_collections),
-        declarations,
+        MarkOrigin::Authored(sequence),
+        definition,
         overrides,
         timing,
     )
@@ -165,11 +165,11 @@ fn resolve(
 pub(super) fn resolve_values(
     project: &DonderProject,
     marks: MarkOrigin<'_>,
-    declarations: &[ParamDecl],
+    definition: &donder_language::compiler::CompiledDefinition,
     overrides: &IndexMap<donder_runtime_types::Identifier, ParamValue>,
     timing: ClipTiming,
 ) -> Result<Box<[Value]>, ValidationProblem> {
-    Ok(prepare_program_values(project, marks, declarations, overrides, timing).into())
+    Ok(prepare_program_values(project, marks, definition, overrides, timing).into())
 }
 
 /// The previous admission's invocations of `sequence`'s clips, when every
@@ -199,6 +199,8 @@ fn reusable_effect_inputs<'a>(
     if !project.definitions_same_allocation(previous)
         || before.mark_collections != sequence.mark_collections
         || before.automation_clips != sequence.automation_clips
+        || before.audio != sequence.audio
+        || !project.same_derived(previous)
     {
         return Default::default();
     }

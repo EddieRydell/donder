@@ -76506,7 +76506,9 @@ Sequence inner_demons {
       row: layouts.layout.arch_tunnel,
       start: 14.432564s,
       duration: 13.975862s,
-      curve: Curve { points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)] },
+      curve: Curve {
+        points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)],
+      },
       bindings: [
         Bound { binding: ClipParam { clip: pin_wheel_1, param: speed }, window: (0.0, 1.0) },
       ],
@@ -76556,7 +76558,9 @@ Sequence inner_demons {
       row: layouts.layout.mega_tree,
       start: 14.432564s,
       duration: 13.975862s,
-      curve: Curve { points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)] },
+      curve: Curve {
+        points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)],
+      },
       bindings: [
         Bound { binding: ClipParam { clip: pin_wheel_3, param: speed }, window: (0.0, 1.0) },
       ],
@@ -76586,7 +76590,9 @@ Sequence inner_demons {
       row: layouts.layout.pilasters,
       start: 14.432564s,
       duration: 13.975862s,
-      curve: Curve { points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)] },
+      curve: Curve {
+        points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)],
+      },
       bindings: [
         Bound { binding: ClipParam { clip: pin_wheel_4, param: speed }, window: (0.0, 1.0) },
       ],
@@ -76616,7 +76622,9 @@ Sequence inner_demons {
       row: layouts.layout.right_wall_top,
       start: 14.432564s,
       duration: 13.975862s,
-      curve: Curve { points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)] },
+      curve: Curve {
+        points: [(0.0, 0.071254), (0.4966, 0.07684), (0.7791, 0.088012), (1.0, 0.104868)],
+      },
       bindings: [
         Bound { binding: ClipParam { clip: pin_wheel_5, param: speed }, window: (0.0, 1.0) },
       ],

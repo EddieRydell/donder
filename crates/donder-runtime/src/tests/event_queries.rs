@@ -29,9 +29,9 @@ fn sample(params: &[Param], body: &str) -> Color {
         fraction: 0.0,
     };
     let spatial = SpatialContext {
-        position: [0.0; 2],
-        min: [0.0; 2],
-        max: [0.0; 2],
+        position: [0.0; 3],
+        min: [0.0; 3],
+        max: [0.0; 3],
     };
     let declarations: String = params
         .iter()

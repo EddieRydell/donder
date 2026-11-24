@@ -22,6 +22,7 @@ extern crate alloc;
 pub use playback::{FixtureFrame, OutputFrame, SequenceFrame};
 pub use playback_rate::{FrameTiming, PlaybackRate};
 pub use show::{PreparedShow, RegionPlayback, ShowPlayback, ShowRegion};
+pub use size::{ShowPart, ShowSize};
 pub use view::{FORMAT_VERSION, LoadError};
 
 pub use crate::format::{Fixture, Output};
@@ -41,6 +42,7 @@ mod dsl;
 mod evaluation;
 #[cfg(feature = "host")]
 mod host;
+mod size;
 // The show format is written by the host builder; a player alone reads only
 // part of it.
 #[cfg_attr(not(feature = "host"), allow(dead_code))]

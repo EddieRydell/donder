@@ -41,6 +41,33 @@ Convert to individual pixels replaces a shape in place with its current ordered
 pixels. Those pixels can be edited separately; Undo restores the shape. Drawing,
 handle gestures, reordering, conversion, and numeric edits use ordinary history.
 
+## Capturing a fixture from video
+
+**Capture** in the fixture sidebar measures a fixture's shapes from a phone
+video of its pixels. It needs an E1.31 or Art-Net controller in the setup.
+
+1. Choose the controller, the fixture's first channel (counted across all the
+   controller's universes) and its pixel count. Pixels are RGB, three channels
+   each. The count starts at the fixture's current pixel count.
+2. **Play pattern** streams the capture pattern in place of live output until
+   stopped: a dark pause, every pixel lit, then each pixel blinking the bits of
+   its number. One cycle lasts a few seconds and repeats.
+3. Film the whole fixture from a tripod, facing it, in the dark, with the
+   phone's exposure and focus locked (on iPhone, press and hold the screen),
+   until the pattern has repeated twice. Any frame rate from 24 frames per
+   second works, portrait or landscape, H.264 or HEVC.
+4. **From video** reads the MP4 or MOV file and replaces the fixture's shapes
+   in one undoable edit. The badge shows how many pixels were seen.
+
+Capture keeps the simplest shapes that explain where the pixels lit: one grid
+for the whole fixture, otherwise a line, arc, circle or polyline for each run of
+neighboring pixels, split where consecutive pixels are far apart, and individual
+pixels where no shape fits. Pixels the camera missed are placed between their
+neighbors. A fixture with pixels keeps its center, overall size and pixel
+diameter; an empty one is centered on its origin with 10 cm between neighboring
+pixels. Resize or adjust the result like any drawn shapes. The video is flat, so
+depth is not measured; film the fixture face on.
+
 ## Precision and arrangement
 
 Both spatial editors share a saved Snap distance and display unit (meters,

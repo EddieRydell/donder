@@ -734,7 +734,10 @@ fn param(owner: ParamOwner, problem: &ParamProblem) -> Option<Repair> {
         }),
         ParamProblem::MissingRequired(_)
         | ParamProblem::InvalidCurve(..)
-        | ParamProblem::InvalidGradient(..) => None,
+        | ParamProblem::InvalidGradient(..)
+        | ParamProblem::InvalidText(_)
+        | ParamProblem::InvalidFontHeight(_)
+        | ParamProblem::InvalidImageSize(_) => None,
     }
 }
 
@@ -823,7 +826,14 @@ fn apply(project: &mut DonderProject, repair: &Repair) -> bool {
                     .iter_mut()
                     .find(|candidate| &candidate.key.name == collection)
                     .is_some_and(|collection| {
-                        retain(&mut collection.marks, |mark| mark.time.0 <= end)
+                        let mut changed = retain(&mut collection.marks, |mark| mark.time.0 <= end);
+                        for mark in &mut collection.marks {
+                            if mark.end() > end {
+                                mark.duration.0 = end - mark.time.0;
+                                changed = true;
+                            }
+                        }
+                        changed
                     })
             }),
         Repair::RemoveAutomationClip { sequence, clip } => project

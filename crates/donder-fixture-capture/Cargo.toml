@@ -1,0 +1,19 @@
+[package]
+name = "donder-fixture-capture"
+edition.workspace = true
+version.workspace = true
+description = "Donder fixture shapes measured from a phone video of a coded test pattern"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+donder-language.workspace = true
+donder-model.workspace = true
+donder-output.workspace = true
+glam.workspace = true
+rust_h264.workspace = true
+rust_h265.workspace = true
+shiguredo_mp4.workspace = true
+
+[lints]
+workspace = true

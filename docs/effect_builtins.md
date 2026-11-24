@@ -17,11 +17,20 @@ Every builtin function, context value and signal method of the [effect language]
 | `pixel.fraction` | float | The pixel's index scaled to 0..1 across the target; in an operator, across its fixture instance. |
 | `pixel.x` | float | The pixel's layout x coordinate in meters, after fixture transforms. |
 | `pixel.y` | float | The pixel's layout y coordinate in meters. |
+| `pixel.z` | float | The pixel's layout z coordinate in meters, toward the viewer. |
+| `pixel.member` | int | Which member of the clip's target the pixel belongs to, a fixture or slice, counting from 0 in member order. |
+| `pixel.strand` | int | The strand the pixel lies on, counting from 0: each element of a fixture is one, and each row or column of a grid as it is wired. A whole target numbers its members' strands in member order; per fixture, each fixture's own. |
+| `pixel.along` | int | The pixel's place along its strand in wiring order, counting from 0. |
 | `target.count` | int | How many pixels the target has; in an operator, its fixture instance. |
 | `target.min_x` | float | The smallest x coordinate of the target's pixels. |
 | `target.min_y` | float | The smallest y coordinate of the target's pixels. |
 | `target.max_x` | float | The largest x coordinate of the target's pixels. |
 | `target.max_y` | float | The largest y coordinate of the target's pixels. |
+| `target.min_z` | float | The smallest z coordinate of the target's pixels. |
+| `target.max_z` | float | The largest z coordinate of the target's pixels. |
+| `target.members` | int | How many members, fixtures or slices, the clip's target has, per fixture as for the whole target. |
+| `target.strands` | int | How many strands the target has: per fixture, the fixture's. |
+| `target.strand_length` | int | How many pixels the target's longest strand has. |
 | `PI` | float | π, half a turn in radians. |
 | `TAU` | float | 2π, a full turn in radians. |
 
@@ -560,6 +569,19 @@ NaN outside `0..mark_count(marks)`.
 let next = mark_at(beats, beat + 1);
 ```
 
+### `mark_duration`
+
+```text
+mark_duration(marks: marks, index: int) -> float
+```
+
+How long the mark at `index` lasts, in seconds.
+Zero for an instantaneous mark and for every live mark; NaN outside `0..mark_count(marks)`.
+
+```text
+let span = mark_duration(words, mark_last_index(words, time));
+```
+
 ### `mark_count`
 
 ```text
@@ -667,4 +689,214 @@ Indexing an array, `array[i]`, clamps `i` to the first or last item and floors a
 
 ```text
 let color = colors[pixel.index % len(colors)];
+```
+
+## Audio
+
+### `audio_level`
+
+```text
+audio_level(time: float, low: float, high: float, attack: float, decay: float) -> float
+```
+
+How loud the sequence's audio is between `low` and `high` hertz at `time` seconds, 0..1 of its loudest.
+The level rises toward louder sound over `attack` seconds and falls over `decay`. A low of 0 or less keeps the lowest frequencies, and a high at or above half the audio's sample rate the highest. The settings are numbers or parameters, fixed per clip, and a parameter that sets one cannot be automated. Time 0 is the clip's start; outside the audio, and while it is analyzed, the level is 0.
+
+```text
+let bass = audio_level(time, 0.0, 200.0, 0.0, 0.2);
+```
+
+### `audio_band`
+
+```text
+audio_band(band: int, bands: int, time: float, attack: float, decay: float) -> float
+```
+
+How loud band `band` of `bands` (up to 128) is at `time` seconds, 0..1.
+The bands are spaced evenly in pitch from 30 Hz to 16 kHz, band 0 the lowest; a band outside `0..bands` is 0. Each is measured in decibels: 0 is 60 dB below the loudest band of the audio and 1 is the loudest. `bands`, `attack` and `decay` are numbers or parameters, fixed per clip; `band` may vary by pixel.
+
+```text
+let height = audio_band(pixel.index % 16, 16, time, 0.0, 0.1);
+```
+
+### `audio_wave`
+
+```text
+audio_wave(time: float) -> float
+```
+
+The sequence's audio signal at `time` seconds, -1..1 of its loudest.
+Sampled 2000 times a second, so it follows the sound's shape up to 1 kHz.
+
+```text
+let sample = audio_wave(time - pixel.fraction * 0.05);
+```
+
+## Text
+
+### `glyph_coverage`
+
+```text
+glyph_coverage(font: font, text: text, x: float, y: float) -> float
+```
+
+How much of the point `x`, `y` the text covers, 0..1, in the font's pixels: x from the text's start, y up from the bottom of its line.
+Characters are smoothed; `step(0.5, coverage)` makes them crisp. Points outside the text are 0. Sample several points for outlines and glow.
+
+```text
+let ink = glyph_coverage(font, message, pixel.x * 10.0 - time * 20.0, pixel.y * 10.0);
+```
+
+### `text_width`
+
+```text
+text_width(font: font, text: text) -> float
+```
+
+How wide the text is in the font, in its pixels.
+
+```text
+let start = -text_width(font, message) * progress;
+```
+
+### `char_index`
+
+```text
+char_index(font: font, text: text, x: float) -> int
+```
+
+Which character of the text is at `x` in the font's pixels, counting from 0.
+-1 before the text, and its length or more after it.
+
+```text
+let color = colors[char_index(font, message, x) % len(colors)];
+```
+
+### `font_height`
+
+```text
+font_height(font: font) -> float
+```
+
+The height of the font's line in pixels.
+0 while the font is prepared, or when its file cannot be read.
+
+```text
+let y = pixel.fraction * font_height(font);
+```
+
+### `text_length`
+
+```text
+text_length(text: text) -> int
+```
+
+How many characters the text has.
+
+```text
+guard text_length(message) > 0;
+```
+
+### `mark_text`
+
+```text
+mark_text(marks: marks, index: int) -> text
+```
+
+The label of the mark at `index`, as text: a lyric, word or phrase.
+Empty for a mark without a label or an index outside the collection. The index is fixed for the frame, such as `mark_last_index(words, time)`.
+
+```text
+let word = mark_text(words, mark_last_index(words, time));
+```
+
+### `number_text`
+
+```text
+number_text(value: float, digits: int) -> text
+```
+
+The whole part of `value` as decimal text, with leading zeros to at least `digits` digits.
+A negative value starts with `-`. Values beyond about two billion read as their nearest int.
+
+```text
+let clock = concat(number_text(minutes, 1), concat(":", number_text(seconds, 2)));
+```
+
+### `concat`
+
+```text
+concat(a: text, b: text) -> text
+```
+
+`a` followed by `b`, up to 64 characters.
+
+```text
+concat("Hello ", name)
+```
+
+## Images
+
+### `image_color`
+
+```text
+image_color(image: image, frame: int, x: float, y: float) -> color
+```
+
+Frame `frame` of the image at `x` pixels right of its left edge and `y` up from its bottom.
+Colors blend between the centers of its pixels, and fade to black past its edges. Frames repeat, so `frame` may count up forever; a still picture has one frame. The image is chosen once a frame, not per pixel. Black while the image is prepared, or when its file cannot be read.
+
+```text
+image_color(picture, int(time * image_rate(picture)), pixel.x * 8.0, pixel.y * 8.0)
+```
+
+### `image_width`
+
+```text
+image_width(image: image) -> float
+```
+
+How wide the image is in pixels.
+0 while the image is prepared, or when its file cannot be read.
+
+```text
+let x = pixel.fraction * image_width(picture);
+```
+
+### `image_height`
+
+```text
+image_height(image: image) -> float
+```
+
+How tall the image is in pixels.
+0 while the image is prepared, or when its file cannot be read.
+
+```text
+let y = (pixel.y - target.min_y) / (target.max_y - target.min_y) * image_height(picture);
+```
+
+### `image_frames`
+
+```text
+image_frames(image: image) -> int
+```
+
+How many frames the image has: 1 for a still picture.
+0 while the image is prepared, or when its file cannot be read.
+
+```text
+let last = image_frames(picture) - 1;
+```
+
+### `image_rate`
+
+```text
+image_rate(image: image) -> float
+```
+
+How many frames a second the image shows: 0 for a still picture.
+
+```text
+let shown = int(time * image_rate(picture)) % image_frames(picture);
 ```

@@ -111,9 +111,9 @@ fn grid(
     PreparedShow::build(playback::timing(8_000_000), |builder| {
         let fixtures = [0, 1].map(|fixture| {
             let pixels = (0..32)
-                .map(|pixel| [(pixel % 8) as f32, (fixture * 4 + pixel / 8) as f32])
+                .map(|pixel| [(pixel % 8) as f32, (fixture * 4 + pixel / 8) as f32, 0.0])
                 .collect();
-            FixtureGeometry::admit(pixels).unwrap()
+            FixtureGeometry::admit(pixels, (0..32).map(|along| (0, along)).collect()).unwrap()
         });
         for (id, geometry) in fixtures.iter().enumerate() {
             builder.fixture(id as u32, geometry.clone());

@@ -13,6 +13,7 @@ use crate::dto::{
 };
 
 mod arrange;
+mod audio;
 mod clip_match;
 mod console;
 mod controller;
@@ -40,6 +41,7 @@ use arrange::arrange_clip_selection;
 pub use clip_match::matching_sequence_clips;
 use edit::edit_sequence;
 use fixture::edit_fixture;
+pub use fixture::{gui_element, open_fixture_definition};
 use layout::edit_layout;
 pub use ownership::{
     DeletedMember, delete_member, member_file_rename, member_name_site, rename_member,
@@ -65,6 +67,11 @@ pub use document::{ResolvedGuiObject, affected_paths, gui_editor_order, resolve_
 /// A time typed or dragged in the GUI. Negative times are refused, never clamped.
 fn checked_gui_time(seconds: f64) -> Result<DonderTime, GuiMutationError> {
     DonderTime::try_from_seconds_f64(seconds).map_err(|error| seconds_error("Times", error))
+}
+
+/// A span typed or dragged in the GUI, which may be zero.
+fn checked_gui_span(seconds: f64) -> Result<DonderDuration, GuiMutationError> {
+    DonderDuration::try_from_seconds_f64(seconds).map_err(|error| seconds_error("Durations", error))
 }
 
 /// A duration typed or dragged in the GUI, which must be greater than zero.

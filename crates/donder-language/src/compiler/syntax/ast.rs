@@ -96,6 +96,7 @@ pub(crate) enum LiteralKind {
     Bool(bool),
     Color(Color),
     Name(Identifier),
+    String(String),
 }
 
 #[derive(Clone, Debug)]
@@ -160,6 +161,11 @@ pub(crate) enum ReducerKind {
     All,
     First,
     Last,
+    /// `table for`: an array of the body at each index, computed once per
+    /// frame.
+    Table,
+    /// `table sum for`: the body's running sums.
+    TableSum,
 }
 
 impl ReducerKind {

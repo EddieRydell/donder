@@ -100,6 +100,11 @@ pub(super) fn project_sequence_clips(
                         .iter()
                         .map(|mark| mark.time.as_seconds_f64())
                         .collect(),
+                    mark_durations_seconds: collection
+                        .marks
+                        .iter()
+                        .map(|mark| mark.duration.as_seconds_f64())
+                        .collect(),
                     mark_labels: collection
                         .marks
                         .iter()
@@ -107,6 +112,7 @@ pub(super) fn project_sequence_clips(
                         .collect(),
                 })
                 .collect(),
+            derived_data: super::audio::derived_status(session, sequence),
             lanes,
             effect_definitions: effect_definitions(session),
             curve_library: curve_library(session),

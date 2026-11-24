@@ -134,9 +134,9 @@ impl Bound {
             fraction: pixel.fraction,
         };
         let spatial = SpatialContext {
-            position: pixel.position,
-            min: target.min,
-            max: target.max,
+            position: super::evaluation::point(pixel.position),
+            min: super::evaluation::point(target.min),
+            max: super::evaluation::point(target.max),
         };
         self.single
             .one(&context, &spatial, &mut NoSignals, workspace)
@@ -206,8 +206,7 @@ fn run_strips<S: StripSignals>(
         fill(strip, &target.pixels[start..end]);
         strip.run(
             target.len(),
-            target.min,
-            target.max,
+            super::evaluation::planar(target.min, target.max),
             &mut signals(start),
             &mut colors[start..end],
         );
@@ -938,8 +937,7 @@ fn a_new_target_shape_reinitializes_the_target_block() {
                 fill(strip, &target.pixels[pixels.clone()]);
                 strip.run(
                     target.len(),
-                    target.min,
-                    target.max,
+                    super::evaluation::planar(target.min, target.max),
                     &mut NoSignals,
                     &mut colors,
                 );
@@ -1101,9 +1099,9 @@ fn operator_samples_in_strips_match_lone_pixels() {
                             fraction: pixel.fraction,
                         };
                         let spatial = SpatialContext {
-                            position: pixel.position,
-                            min: target.min,
-                            max: target.max,
+                            position: super::evaluation::point(pixel.position),
+                            min: super::evaluation::point(target.min),
+                            max: super::evaluation::point(target.max),
                         };
                         let mut signals = Lone {
                             pixel: index,

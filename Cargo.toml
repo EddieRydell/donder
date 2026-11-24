@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-import"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-import", "crates/donder-fixture-capture"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -14,6 +14,8 @@ unnameable_types = "warn"
 unreachable_pub = "warn"
 
 [workspace.dependencies]
+ab_glyph = "0.2.32"
+image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "jpeg", "png", "webp"] }
 crc32fast = { version = "1.5.1", default-features = false }
 bytemuck = { version = "1.25.2", features = ["derive"] }
 mimalloc = "0.1.52"
@@ -36,6 +38,7 @@ donder-runtime = { path = "crates/donder-runtime" }
 donder-runtime-types = { path = "crates/donder-runtime-types" }
 donder-test-support = { path = "crates/donder-test-support" }
 donder-import = { path = "crates/donder-import" }
+donder-fixture-capture = { path = "crates/donder-fixture-capture" }
 glam = "0.33.7"
 fdk-aac = "0.8.0"
 ignore = "0.4.33"
@@ -54,6 +57,8 @@ quick-xml = "0.42.0"
 proc-macro2 = "1.0.107"
 realfft = "3.5.0"
 rubato = "5.0.1"
+rust_h264 = "0.6.1"
+rust_h265 = "0.4.1"
 quote = "1.0.47"
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "json", "rustls"] }
 rfd = "0.17.2"

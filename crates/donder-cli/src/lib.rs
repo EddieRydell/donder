@@ -79,11 +79,38 @@ enum Command {
     Lsp,
 }
 
-/// The project at `path`, or why it does not load.
+/// The project at `path` with the audio its effects read analyzed and their
+/// fonts rasterized, or why it does not load.
 fn load(path: &camino::Utf8Path) -> Result<donder_project_io::ProjectSession, String> {
-    donder_project_io::check_project(path, &Default::default(), &mut Default::default())
-        .into_session()
-        .map_err(|diagnostics| diagnostics_text(&diagnostics))
+    let mut session =
+        donder_project_io::check_project(path, &Default::default(), &mut Default::default())
+            .into_session()
+            .map_err(|diagnostics| diagnostics_text(&diagnostics))?;
+    let mut files: Vec<(donder_model::AssetId, Vec<donder_model::Derivation>)> = Vec::new();
+    for derivation in session.project.pending_derivations() {
+        match files
+            .iter_mut()
+            .find(|(asset, _)| asset == derivation.asset())
+        {
+            Some((_, derivations)) => derivations.push(derivation),
+            None => files.push((derivation.asset().clone(), vec![derivation])),
+        }
+    }
+    for (asset, derivations) in files {
+        let asset = session.asset(&asset).ok_or("an asset is missing")?;
+        let path = asset.absolute_path.clone();
+        let results = donder_elaboration::derive(path.as_std_path(), &derivations);
+        for (derivation, derived) in derivations.into_iter().zip(results) {
+            if let donder_model::Derived::Failed(reason) = &derived {
+                return Err(format!("Could not read {path}: {reason}"));
+            }
+            session.project = session
+                .project
+                .with_derived(derivation, derived)
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(session)
 }
 
 /// One diagnostic per line.

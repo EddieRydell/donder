@@ -96,6 +96,42 @@ impl CompiledDefinition {
         self.0.description.as_deref()
     }
 
+    /// The analyses of the sequence's audio it reads. Binding takes one
+    /// track value for each, in order, after the program's values.
+    pub fn audio(&self) -> &[super::AudioSpec] {
+        &self.0.audio
+    }
+
+    /// The character codes of its text literals and text parameter defaults.
+    pub fn characters(&self) -> Vec<u32> {
+        let graph = &self.0.graph;
+        let literals = graph
+            .nodes()
+            .filter(|&node| *graph.ty(node) == Type::Text)
+            .filter_map(|node| graph.constant_value(node));
+        let defaults = self
+            .0
+            .params
+            .iter()
+            .filter(|param| param.ty == Type::Text)
+            .filter_map(|param| param.default.as_ref());
+        let mut characters: Vec<u32> = literals
+            .chain(defaults)
+            .filter_map(|value| match value {
+                Value::Array(codes) => Some(codes.iter()),
+                _ => None,
+            })
+            .flatten()
+            .filter_map(|code| match code {
+                Value::Int(code) => u32::try_from(*code).ok(),
+                _ => None,
+            })
+            .collect();
+        characters.sort_unstable();
+        characters.dedup();
+        characters
+    }
+
     /// Positional `values`, as [`super::program_values`] orders them,
     /// respect every declared range and the
     /// iteration limit of reductions bounded by parameter lengths.
@@ -121,12 +157,30 @@ fn check_values(
     automation: &[PreparedAutomation],
 ) -> Result<(), BindingError> {
     let params: Vec<&ParamDecl> = program_params(definition.params.iter()).collect();
-    if params.len() != values.len() {
+    let expected = params.len() + definition.audio.len();
+    if values.len() != expected {
         return Err(BindingError {
-            message: format!("expected {} values, found {}", params.len(), values.len()),
+            message: format!("expected {expected} values, found {}", values.len()),
         });
     }
-    check_ranges(params.iter().copied(), values)?;
+    check_ranges(params.iter().copied(), &values[..params.len()])?;
+    let sets_audio = |index: usize| {
+        definition
+            .audio
+            .iter()
+            .any(|spec| spec.params().any(|param| param == index))
+    };
+    if let Some(binding) = automation
+        .iter()
+        .find(|binding| sets_audio(usize::from(binding.param_index)))
+    {
+        return Err(BindingError {
+            message: format!(
+                "parameter {} sets an audio analysis, which is fixed per clip, so it cannot be automated",
+                params[usize::from(binding.param_index)].name.as_str()
+            ),
+        });
+    }
     if definition.length_bounds.is_empty() {
         return Ok(());
     }
@@ -186,12 +240,17 @@ fn invoke(
     automation: Box<[PreparedAutomation]>,
 ) -> Result<Invocation, BindingError> {
     check_values(definition, &values, &automation)?;
+    let declared = program_params(definition.params.iter()).count();
+    let mut values = values;
+    let audio = values.split_off(declared);
     let values = program_params(definition.params.iter())
         .zip(values)
         .map(|(param, value)| map_curves(param, value))
+        .chain(audio)
         .collect();
     let types: Vec<_> = program_params(definition.params.iter())
         .map(|param| param.ty.clone())
+        .chain(definition.audio.iter().map(|_| Type::Track))
         .collect();
     let params = BoundParams::bind_values(&types, values)?;
     if !params.accepts_automation(&automation) {

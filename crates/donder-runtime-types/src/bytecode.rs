@@ -50,14 +50,24 @@ pub enum Input {
     PixelFraction,
     PixelX,
     PixelY,
+    PixelZ,
+    /// Ints: the target member, the strand in the target, and the place
+    /// along that strand.
+    PixelMember,
+    PixelStrand,
+    PixelAlong,
 }
 
 impl Input {
-    pub(crate) const ALL: [Self; 4] = [
+    pub(crate) const ALL: [Self; 8] = [
         Self::PixelIndex,
         Self::PixelFraction,
         Self::PixelX,
         Self::PixelY,
+        Self::PixelZ,
+        Self::PixelMember,
+        Self::PixelStrand,
+        Self::PixelAlong,
     ];
 
     pub(crate) fn number(self) -> u16 {
@@ -66,7 +76,20 @@ impl Input {
             Self::PixelFraction => 1,
             Self::PixelX => 2,
             Self::PixelY => 3,
+            Self::PixelZ => 4,
+            Self::PixelMember => 5,
+            Self::PixelStrand => 6,
+            Self::PixelAlong => 7,
         }
+    }
+
+    /// Whether the strip fills it only for programs that read the target's
+    /// structure.
+    pub fn structural(self) -> bool {
+        matches!(
+            self,
+            Self::PixelZ | Self::PixelMember | Self::PixelStrand | Self::PixelAlong
+        )
     }
 }
 
@@ -76,7 +99,7 @@ impl Slot {
     /// Allocated scalars of one bank an instruction word can name.
     pub const SCALARS: u16 = 127;
     /// Allocated rows of one bank an instruction word can name.
-    pub const ROWS: u16 = 124;
+    pub const ROWS: u16 = 120;
     /// Virtual slots of one bank and kind the compiler may number before
     /// allocation.
     pub const VIRTUAL: u16 = INDEX;
@@ -104,7 +127,7 @@ impl Slot {
         if self.0 & ROW != 0 {
             SlotKind::Row(self.0 & INDEX)
         } else if self.0 & INPUT != 0 {
-            SlotKind::Input(Input::ALL[usize::from(self.0 & 3)])
+            SlotKind::Input(Input::ALL[usize::from(self.0 & 7)])
         } else {
             SlotKind::Scalar(self.0)
         }
@@ -240,12 +263,23 @@ pub enum ContextRead {
     TargetMinY,
     TargetMaxX,
     TargetMaxY,
+    TargetMinZ,
+    TargetMaxZ,
+    /// Ints of the target: its members, its strands, and its longest
+    /// strand's pixels.
+    TargetMembers,
+    TargetStrands,
+    TargetStrandLength,
 }
 
 impl ContextRead {
     fn bank(self) -> Bank {
         match self {
-            Self::PixelCount | Self::Frame => Bank::Int,
+            Self::PixelCount
+            | Self::Frame
+            | Self::TargetMembers
+            | Self::TargetStrands
+            | Self::TargetStrandLength => Bank::Int,
             _ => Bank::Float,
         }
     }
@@ -260,7 +294,15 @@ impl ContextRead {
     fn reads_geometry(self) -> bool {
         matches!(
             self,
-            Self::TargetMinX | Self::TargetMinY | Self::TargetMaxX | Self::TargetMaxY
+            Self::TargetMinX
+                | Self::TargetMinY
+                | Self::TargetMaxX
+                | Self::TargetMaxY
+                | Self::TargetMinZ
+                | Self::TargetMaxZ
+                | Self::TargetMembers
+                | Self::TargetStrands
+                | Self::TargetStrandLength
         )
     }
 }
@@ -403,9 +445,32 @@ pub enum CurveOp {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum GlyphOp {
+    Height,
+    Advance,
+    Coverage,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ImageOp {
+    /// Float: its width in pixels.
+    Width,
+    /// Float: its height in pixels.
+    Height,
+    /// Float: its frames a second, 0 for a still picture.
+    Rate,
+    /// Int: how many frames it has.
+    Frames,
+    /// Color: an int frame's color at float `x` and `y`.
+    Color,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum MarkOp {
     /// Float: the mark at an int index.
     At,
+    /// Float: the duration of the mark at an int index.
+    Duration,
     /// Float: the latest mark at or before float seconds.
     Last,
     /// Int: its index.
@@ -419,6 +484,9 @@ pub enum Resource {
     Gradient,
     Marks,
     Array,
+    Track,
+    Font,
+    Image,
 }
 
 impl Resource {}
@@ -609,7 +677,55 @@ pub enum Instruction {
         marks: Slot,
         operand: Slot,
     },
-    /// Int: the length of a marks or array resource of `kind`.
+    /// Float: channel `channel` (an int) of a track resource at float
+    /// seconds `time`.
+    Track {
+        dst: Slot,
+        track: Slot,
+        channel: Slot,
+        time: Slot,
+    },
+    /// Int: character `char` (an int) of the label of mark `index` (an
+    /// int) of a marks resource, or 0 past it.
+    MarkText {
+        dst: Slot,
+        marks: Slot,
+        index: Slot,
+        char: Slot,
+    },
+    /// Int: how many of the first `len` entries of the ascending float
+    /// table row `table` are at most float `value`.
+    Partition {
+        dst: Slot,
+        table: Slot,
+        len: Slot,
+        value: Slot,
+    },
+    /// Float: of a font resource, the line height, character `code`'s
+    /// advance, or its coverage at float `x` and `y`. An advance or a
+    /// coverage reads one font for the whole strip: text lays out in tables,
+    /// which a font that varies by pixel cannot fill.
+    Glyph {
+        op: GlyphOp,
+        dst: Slot,
+        font: Slot,
+        code: Slot,
+        x: Slot,
+        y: Slot,
+    },
+    /// Of an image resource, a measure or a color by `op`. A color reads
+    /// one image for the whole strip, which the compiler proves: an image is
+    /// chosen once a frame.
+    Image {
+        op: ImageOp,
+        dst: Slot,
+        image: Slot,
+        frame: Slot,
+        x: Slot,
+        y: Slot,
+    },
+    /// Int: the length of a marks or array resource of `kind`, or a track's
+    /// channels.
     Length {
         kind: Resource,
         dst: Slot,
@@ -771,6 +887,9 @@ pub enum ParameterKind {
     Marks,
     Curve,
     Gradient,
+    Track,
+    Font,
+    Image,
     Enum,
     Array,
 }
@@ -786,6 +905,10 @@ impl ParameterKind {
             Type::Marks => Self::Marks,
             Type::Curve => Self::Curve,
             Type::Gradient => Self::Gradient,
+            Type::Track => Self::Track,
+            Type::Font => Self::Font,
+            Type::Image => Self::Image,
+            Type::Text => Self::Array,
             Type::Enum(_) => Self::Enum,
             Type::Array(_) => Self::Array,
         }
@@ -797,9 +920,13 @@ impl ParameterKind {
             Self::Int | Self::Float | Self::Bool | Self::Color | Self::Enum => {
                 Some(ParamStorage::Word)
             }
-            Self::Marks | Self::Curve | Self::Gradient | Self::Array => {
-                Some(ParamStorage::Resource)
-            }
+            Self::Marks
+            | Self::Curve
+            | Self::Gradient
+            | Self::Track
+            | Self::Font
+            | Self::Image
+            | Self::Array => Some(ParamStorage::Resource),
         }
     }
 }
@@ -811,7 +938,7 @@ pub enum ParamStorage {
     /// One 32-bit word: float bits, an int, a bool, a color's index in the
     /// image or an enum option's index in the program's names.
     Word,
-    /// A curve, gradient, marks or array.
+    /// A curve, gradient, marks, track or array.
     Resource,
 }
 
@@ -966,7 +1093,7 @@ impl Instruction {
             } => {
                 v(Resource, marks, Read);
                 match op {
-                    MarkOp::At => {
+                    MarkOp::At | MarkOp::Duration => {
                         v(Int, operand, Read);
                         v(Float, dst, Write);
                     }
@@ -978,6 +1105,77 @@ impl Instruction {
                         v(Float, operand, Read);
                         v(Int, dst, Write);
                     }
+                }
+            }
+            I::Track {
+                dst,
+                track,
+                channel,
+                time,
+            } => {
+                v(Resource, track, Read);
+                v(Int, channel, Read);
+                v(Float, time, Read);
+                v(Float, dst, Write);
+            }
+            I::MarkText {
+                dst,
+                marks,
+                index,
+                char,
+            } => {
+                v(Resource, marks, Read);
+                v(Int, index, Read);
+                v(Int, char, Read);
+                v(Int, dst, Write);
+            }
+            I::Partition {
+                dst,
+                table,
+                len,
+                value,
+            } => {
+                v(Float, table, Read);
+                v(Int, len, Read);
+                v(Float, value, Read);
+                v(Int, dst, Write);
+            }
+            I::Glyph {
+                op,
+                dst,
+                font,
+                code,
+                x,
+                y,
+            } => {
+                v(Resource, font, Read);
+                if *op != GlyphOp::Height {
+                    v(Int, code, Read);
+                }
+                if *op == GlyphOp::Coverage {
+                    v(Float, x, Read);
+                    v(Float, y, Read);
+                }
+                v(Float, dst, Write);
+            }
+            I::Image {
+                op,
+                dst,
+                image,
+                frame,
+                x,
+                y,
+            } => {
+                v(Resource, image, Read);
+                match op {
+                    ImageOp::Color => {
+                        v(Int, frame, Read);
+                        v(Float, x, Read);
+                        v(Float, y, Read);
+                        v(Color, dst, Write);
+                    }
+                    ImageOp::Frames => v(Int, dst, Write),
+                    ImageOp::Width | ImageOp::Height | ImageOp::Rate => v(Float, dst, Write),
                 }
             }
             I::Length { dst, resource, .. } => {
@@ -1193,8 +1391,20 @@ impl BytecodeProgram {
         self.reads(|instruction| {
             matches!(instruction, Instruction::Context { read, .. } if read.reads_geometry())
                 || instruction.operands().reads.iter().any(|(_, slot)| {
-                    matches!(slot.kind(), SlotKind::Input(Input::PixelX | Input::PixelY))
+                    matches!(
+                        slot.kind(),
+                        SlotKind::Input(Input::PixelX | Input::PixelY | Input::PixelZ)
+                    )
                 })
+        })
+    }
+
+    /// Reads a pixel's depth or its place in its target's structure.
+    pub fn uses_structure(&self) -> bool {
+        self.reads(|instruction| {
+            instruction.operands().reads.iter().any(
+                |(_, slot)| matches!(slot.kind(), SlotKind::Input(input) if input.structural()),
+            )
         })
     }
 

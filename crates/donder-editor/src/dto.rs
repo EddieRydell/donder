@@ -45,21 +45,21 @@ pub use perform::{
     PerformButton, PerformConsole, PerformMidi, PerformOsc, PerformSession, PerformSnapshot,
 };
 pub use preview::{
-    FixtureGuiDocument, FixtureGuiEdit, GeometryRenderBounds, GuiFixtureElement, GuiFixtureHandle,
-    GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiGroupMember, GuiLayoutFixture,
-    GuiLayoutFixtureKind, GuiOwnedFixture, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance,
-    SpatialRenderPixel, SpatialRenderPlan,
+    FixtureGuiDocument, FixtureGuiEdit, GeometryRenderBounds, GuiCaptureController,
+    GuiFixtureCapture, GuiFixtureElement, GuiFixtureHandle, GuiFixtureShape, GuiGridAxis,
+    GuiGridCorner, GuiGroupMember, GuiLayoutFixture, GuiLayoutFixtureKind, GuiOwnedFixture,
+    LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance, SpatialRenderPixel, SpatialRenderPlan,
 };
 pub use problem::{GuiField, GuiMember, GuiProblem, GuiProblemSite};
 pub use sequence::{
-    SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip, SequenceClip,
-    SequenceClipDetails, SequenceClipDetailsResult, SequenceClipMatchRequest, SequenceClipParam,
-    SequenceClipParamMatch, SequenceClipRaster, SequenceClipRasterError, SequenceClipRasterRequest,
-    SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceCompositionGraph,
-    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffectDefinition,
-    SequenceEffectDefinitionParam, SequenceGradientLibraryItem, SequenceGraphNode,
-    SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGuiDocument, SequenceLane,
-    SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
+    DerivedDataStatus, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
+    SequenceClip, SequenceClipDetails, SequenceClipDetailsResult, SequenceClipMatchRequest,
+    SequenceClipParam, SequenceClipParamMatch, SequenceClipRaster, SequenceClipRasterError,
+    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
+    SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceDetachedAutomationBinding,
+    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceGradientLibraryItem,
+    SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGuiDocument,
+    SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
     SequenceParamOption, SequenceParamRange,
 };
 pub use setup::{
@@ -224,6 +224,12 @@ pub enum SequenceGuiEdit {
         collection_key: String,
         index: u32,
         target_collection_key: String,
+    },
+    /// Set how long a mark lasts; zero makes it instantaneous.
+    SetMarkDuration {
+        collection_key: String,
+        index: u32,
+        duration_seconds: f64,
     },
     /// Label a mark, or clear its label with `None` or a blank label.
     SetMarkLabel {
@@ -486,6 +492,35 @@ pub enum SequenceParamValue {
     Marks {
         key: Option<String>,
     },
+    Text {
+        value: String,
+    },
+    /// `None` is no font: every character is blank.
+    Font {
+        value: Option<SequenceFont>,
+    },
+    /// `None` is no image: every point is black.
+    Image {
+        value: Option<SequenceImage>,
+    },
+}
+
+/// An image file, by its project-relative path, scaled so its longer side
+/// is at most `size` pixels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceImage {
+    pub file: String,
+    pub size: u32,
+}
+
+/// A font file, by its project-relative path, drawn at a line height in
+/// pixels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceFont {
+    pub file: String,
+    pub height: u32,
 }
 
 /// An enum option's field and its value.
@@ -582,6 +617,9 @@ pub enum SequenceParamKind {
     CurveArray,
     GradientArray,
     Marks,
+    Text,
+    Font,
+    Image,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

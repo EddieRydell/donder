@@ -502,6 +502,21 @@ fn frame_h() -> float { (target.max_y - target.min_y) / frame_unit() + 1.0 }
 fn frame_x(scale: float) -> float { (frame_w() - 1.0) / 2.0 + (pixel.x - (target.min_x + target.max_x) / 2.0) / (frame_unit() * scale) }
 fn frame_y(scale: float) -> float { (frame_h() - 1.0) / 2.0 + (pixel.y - (target.min_y + target.max_y) / 2.0) / (frame_unit() * scale) }
 
+-- A point turned by `turns` about (pivot_x, pivot_y) and scaled by 1 / zoom,
+-- for an effect to sample in place of (x, y): its picture turns and zooms
+-- about the pivot, as xLights' rotation and roto-zoom do.
+fn turned_x(x: float, y: float, pivot_x: float, pivot_y: float, turns: float, zoom: float) -> float {
+  ((x - pivot_x) * cos(turns * TAU) + (y - pivot_y) * sin(turns * TAU)) / zoom + pivot_x
+}
+fn turned_y(x: float, y: float, pivot_x: float, pivot_y: float, turns: float, zoom: float) -> float {
+  ((y - pivot_y) * cos(turns * TAU) - (x - pivot_x) * sin(turns * TAU)) / zoom + pivot_y
+}
+
+-- `t` running forward over `period` and back over the next.
+fn ping_pong(t: float, period: float) -> float {
+  period - abs(t % (2.0 * period) - period)
+}
+
 
 -- BASIC: Set Level.
 effect SetLevel {

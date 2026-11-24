@@ -11,7 +11,7 @@ use donder_model::{
 use donder_runtime_types::PixelEncoding;
 use indexmap::IndexMap;
 
-use crate::OutputFrame;
+use crate::{CaptureCode, OutputFrame};
 
 /// Pixels a chase moves each second.
 const CHASE_PIXELS_PER_SECOND: f32 = 20.0;
@@ -39,6 +39,8 @@ pub enum TestPattern {
     /// A band sweeps from the selection's lowest layout pixel to its
     /// highest, whatever the wiring order.
     Rise,
+    /// Each pixel blinks its index for a fixture capture to film.
+    Code,
 }
 
 /// What a test lights.
@@ -471,6 +473,13 @@ fn color(pattern: TestPattern, pixel: u32, pixels: u32, height: f32, seconds: f3
     match pattern {
         TestPattern::Solid(color) => color,
         TestPattern::Order => [0, 0, 0],
+        TestPattern::Code => {
+            if CaptureCode::new(pixels).lit(pixel, seconds) {
+                [255, 255, 255]
+            } else {
+                [0, 0, 0]
+            }
+        }
         TestPattern::Count => {
             if pixel == 0 {
                 [255, 0, 0]

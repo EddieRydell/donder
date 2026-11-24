@@ -1,5 +1,5 @@
 use crate::Shared as Arc;
-use crate::values::{Color, Curve, Gradient, GradientSpace, Marks};
+use crate::values::{Color, Curve, Font, Gradient, GradientSpace, Image, Marks, Track};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -58,6 +58,12 @@ pub enum Type {
     Marks,
     Curve,
     Gradient,
+    Track,
+    /// Up to [`crate::TEXT_LENGTH`] characters, held as an array of their
+    /// codes.
+    Text,
+    Font,
+    Image,
     Array(Box<Type>),
     Enum(Vec<Identifier>),
 }
@@ -72,6 +78,9 @@ pub enum Value {
     Marks(Arc<Marks>),
     Curve(Arc<Curve>),
     Gradient(Arc<Gradient>),
+    Track(Arc<Track>),
+    Font(Arc<Font>),
+    Image(Arc<Image>),
     Array(Arc<[Value]>),
     Enum(Identifier),
 }
@@ -89,6 +98,9 @@ impl Value {
             (Self::Marks(a), Self::Marks(b)) => a == b,
             (Self::Curve(a), Self::Curve(b)) => a.same(b),
             (Self::Gradient(a), Self::Gradient(b)) => a.same(b),
+            (Self::Track(a), Self::Track(b)) => a == b,
+            (Self::Font(a), Self::Font(b)) => a == b,
+            (Self::Image(a), Self::Image(b)) => a == b,
             (Self::Array(a), Self::Array(b)) => {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a.same(b))
             }
@@ -110,6 +122,9 @@ impl Value {
             Self::Marks(value) => value.hash(state),
             Self::Curve(value) => value.hash_same(state),
             Self::Gradient(value) => value.hash_same(state),
+            Self::Track(value) => value.hash(state),
+            Self::Font(value) => value.hash(state),
+            Self::Image(value) => value.hash(state),
             Self::Array(values) => {
                 values.len().hash(state);
                 for value in values.iter() {
@@ -130,7 +145,16 @@ impl Type {
             | (Self::Color, Value::Color(_))
             | (Self::Marks, Value::Marks(_))
             | (Self::Curve, Value::Curve(_))
-            | (Self::Gradient, Value::Gradient(_)) => true,
+            | (Self::Gradient, Value::Gradient(_))
+            | (Self::Track, Value::Track(_))
+            | (Self::Font, Value::Font(_))
+            | (Self::Image, Value::Image(_)) => true,
+            (Self::Text, Value::Array(codes)) => {
+                codes.len() <= crate::TEXT_LENGTH
+                    && codes
+                        .iter()
+                        .all(|code| matches!(code, Value::Int(code) if *code > 0))
+            }
             (Self::Enum(options), Value::Enum(value)) => options.contains(value),
             (Self::Array(ty), Value::Array(values)) => {
                 values.iter().all(|value| ty.accepts_value(value))
@@ -156,6 +180,10 @@ impl Type {
                 space: GradientSpace::LinearRgb,
                 stops: Vec::new(),
             })),
+            Self::Track => Value::Track(Arc::new(Track::empty())),
+            Self::Text => Value::Array(Arc::from([])),
+            Self::Font => Value::Font(Arc::new(Font::empty())),
+            Self::Image => Value::Image(Arc::new(Image::empty())),
             Self::Array(_) => Value::Array(Arc::from([])),
             Self::Enum(options) => Value::Enum(options[0].clone()),
         }

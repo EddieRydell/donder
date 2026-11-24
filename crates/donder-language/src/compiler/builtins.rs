@@ -3,7 +3,7 @@
 //! checking, editor analysis and `docs/effect_builtins.md` all read these
 //! tables.
 use super::check::Checker;
-use super::ir::{Binary, Context, Node, Ternary, Unary};
+use super::ir::{Binary, Context, Node, Op, Quaternary, Reducer as Tabulation, Ternary, Unary};
 use super::syntax::ast::ReducerKind;
 use core::fmt::Write;
 use donder_runtime_types::{Identifier, Type};
@@ -19,10 +19,13 @@ pub enum BuiltinGroup {
     Sections,
     Random,
     Collections,
+    Audio,
+    Text,
+    Images,
 }
 
 impl BuiltinGroup {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 12] = [
         Self::Math,
         Self::Rounding,
         Self::MissingValues,
@@ -32,6 +35,9 @@ impl BuiltinGroup {
         Self::Sections,
         Self::Random,
         Self::Collections,
+        Self::Audio,
+        Self::Text,
+        Self::Images,
     ];
 
     fn title(self) -> &'static str {
@@ -45,6 +51,9 @@ impl BuiltinGroup {
             Self::Sections => "Sections",
             Self::Random => "Randomness",
             Self::Collections => "Collections",
+            Self::Audio => "Audio",
+            Self::Text => "Text",
+            Self::Images => "Images",
         }
     }
 }
@@ -56,6 +65,8 @@ pub enum ArgType {
     Is(Type),
     /// An array of any items.
     Array,
+    /// A text: a `text` value or a table of character codes.
+    Text,
 }
 
 /// How an argument fits an [`ArgType`].
@@ -72,6 +83,8 @@ impl ArgType {
             (Self::Is(expected), actual) if expected == actual => Some(Fit::Exact),
             (Self::Is(Type::Float), Type::Int) => Some(Fit::Widened),
             (Self::Array, Type::Array(_)) => Some(Fit::Exact),
+            (Self::Text, Type::Text) => Some(Fit::Exact),
+            (Self::Text, Type::Array(item)) if **item == Type::Int => Some(Fit::Exact),
             _ => None,
         }
     }
@@ -81,6 +94,7 @@ impl ArgType {
         match self {
             Self::Is(ty) => type_text(ty),
             Self::Array => format!("{ARRAY_WORD}<T>"),
+            Self::Text => "text".into(),
         }
     }
 
@@ -89,6 +103,7 @@ impl ArgType {
         match self {
             Self::Is(ty) => describe(ty),
             Self::Array => format!("an {ARRAY_WORD}"),
+            Self::Text => "a text".into(),
         }
     }
 }
@@ -103,6 +118,8 @@ pub(crate) enum Lowering {
     Expand(fn(&mut Checker, &[Node]) -> Node),
     /// The integral of the float parameter the argument names.
     Integral,
+    /// A read of an analysis of the sequence's audio.
+    Audio(super::audio::AudioKind),
 }
 
 /// One way to call a builtin: argument names with types, the result type,
@@ -170,7 +187,13 @@ const CURVE: ArgType = ArgType::Is(Type::Curve);
 const GRADIENT: ArgType = ArgType::Is(Type::Gradient);
 const MARKS: ArgType = ArgType::Is(Type::Marks);
 const ANY_ARRAY: ArgType = ArgType::Array;
+const TEXT: ArgType = ArgType::Text;
+const FONT: ArgType = ArgType::Is(Type::Font);
+const IMAGE: ArgType = ArgType::Is(Type::Image);
 const X: &[(&str, ArgType)] = &[("x", FLOAT)];
+
+/// The most characters a text holds, as tables count them.
+const TEXT_LENGTH: i32 = donder_runtime_types::TEXT_LENGTH as i32;
 
 use BuiltinGroup as G;
 use Lowering::{Binary as B, Expand as E, Ternary as T, Unary as U};
@@ -592,6 +615,194 @@ pub const BUILTINS: &[Builtin] = &[
         example: "let next = mark_at(beats, beat + 1);",
     },
     Builtin {
+        name: "image_color",
+        group: G::Images,
+        signatures: &[sig(
+            &[("image", IMAGE), ("frame", INT), ("x", FLOAT), ("y", FLOAT)],
+            Type::Color,
+            E(image_color),
+        )],
+        summary: "Frame `frame` of the image at `x` pixels right of its left edge and `y` up from its bottom.",
+        details: "Colors blend between the centers of its pixels, and fade to black past its edges. Frames repeat, so `frame` may count up forever; a still picture has one frame. The image is chosen once a frame, not per pixel. Black while the image is prepared, or when its file cannot be read.",
+        example: "image_color(picture, int(time * image_rate(picture)), pixel.x * 8.0, pixel.y * 8.0)",
+    },
+    Builtin {
+        name: "image_width",
+        group: G::Images,
+        signatures: &[sig(&[("image", IMAGE)], Type::Float, U(Unary::ImageWidth))],
+        summary: "How wide the image is in pixels.",
+        details: "0 while the image is prepared, or when its file cannot be read.",
+        example: "let x = pixel.fraction * image_width(picture);",
+    },
+    Builtin {
+        name: "image_height",
+        group: G::Images,
+        signatures: &[sig(&[("image", IMAGE)], Type::Float, U(Unary::ImageHeight))],
+        summary: "How tall the image is in pixels.",
+        details: "0 while the image is prepared, or when its file cannot be read.",
+        example: "let y = (pixel.y - target.min_y) / (target.max_y - target.min_y) * image_height(picture);",
+    },
+    Builtin {
+        name: "image_frames",
+        group: G::Images,
+        signatures: &[sig(&[("image", IMAGE)], Type::Int, U(Unary::ImageFrames))],
+        summary: "How many frames the image has: 1 for a still picture.",
+        details: "0 while the image is prepared, or when its file cannot be read.",
+        example: "let last = image_frames(picture) - 1;",
+    },
+    Builtin {
+        name: "image_rate",
+        group: G::Images,
+        signatures: &[sig(&[("image", IMAGE)], Type::Float, U(Unary::ImageRate))],
+        summary: "How many frames a second the image shows: 0 for a still picture.",
+        details: "",
+        example: "let shown = int(time * image_rate(picture)) % image_frames(picture);",
+    },
+    Builtin {
+        name: "glyph_coverage",
+        group: G::Text,
+        signatures: &[sig(
+            &[("font", FONT), ("text", TEXT), ("x", FLOAT), ("y", FLOAT)],
+            Type::Float,
+            E(glyph_coverage),
+        )],
+        summary: "How much of the point `x`, `y` the text covers, 0..1, in the font's pixels: x from the text's start, y up from the bottom of its line.",
+        details: "Characters are smoothed; `step(0.5, coverage)` makes them crisp. Points outside the text are 0. Sample several points for outlines and glow.",
+        example: "let ink = glyph_coverage(font, message, pixel.x * 10.0 - time * 20.0, pixel.y * 10.0);",
+    },
+    Builtin {
+        name: "text_width",
+        group: G::Text,
+        signatures: &[sig(
+            &[("font", FONT), ("text", TEXT)],
+            Type::Float,
+            E(text_width),
+        )],
+        summary: "How wide the text is in the font, in its pixels.",
+        details: "",
+        example: "let start = -text_width(font, message) * progress;",
+    },
+    Builtin {
+        name: "char_index",
+        group: G::Text,
+        signatures: &[sig(
+            &[("font", FONT), ("text", TEXT), ("x", FLOAT)],
+            Type::Int,
+            E(char_index),
+        )],
+        summary: "Which character of the text is at `x` in the font's pixels, counting from 0.",
+        details: "-1 before the text, and its length or more after it.",
+        example: "let color = colors[char_index(font, message, x) % len(colors)];",
+    },
+    Builtin {
+        name: "font_height",
+        group: G::Text,
+        signatures: &[sig(&[("font", FONT)], Type::Float, U(Unary::FontHeight))],
+        summary: "The height of the font's line in pixels.",
+        details: "0 while the font is prepared, or when its file cannot be read.",
+        example: "let y = pixel.fraction * font_height(font);",
+    },
+    Builtin {
+        name: "text_length",
+        group: G::Text,
+        signatures: &[sig(&[("text", TEXT)], Type::Int, E(text_length))],
+        summary: "How many characters the text has.",
+        details: "",
+        example: "guard text_length(message) > 0;",
+    },
+    Builtin {
+        name: "mark_text",
+        group: G::Text,
+        signatures: &[sig(
+            &[("marks", MARKS), ("index", INT)],
+            Type::Text,
+            E(mark_text),
+        )],
+        summary: "The label of the mark at `index`, as text: a lyric, word or phrase.",
+        details: "Empty for a mark without a label or an index outside the collection. The index is fixed for the frame, such as `mark_last_index(words, time)`.",
+        example: "let word = mark_text(words, mark_last_index(words, time));",
+    },
+    Builtin {
+        name: "number_text",
+        group: G::Text,
+        signatures: &[sig(
+            &[("value", FLOAT), ("digits", INT)],
+            Type::Text,
+            E(number_text),
+        )],
+        summary: "The whole part of `value` as decimal text, with leading zeros to at least `digits` digits.",
+        details: "A negative value starts with `-`. Values beyond about two billion read as their nearest int.",
+        example: "let clock = concat(number_text(minutes, 1), concat(\":\", number_text(seconds, 2)));",
+    },
+    Builtin {
+        name: "concat",
+        group: G::Text,
+        signatures: &[sig(&[("a", TEXT), ("b", TEXT)], Type::Text, E(concat))],
+        summary: "`a` followed by `b`, up to 64 characters.",
+        details: "",
+        example: "concat(\"Hello \", name)",
+    },
+    Builtin {
+        name: "audio_level",
+        group: G::Audio,
+        signatures: &[sig(
+            &[
+                ("time", FLOAT),
+                ("low", FLOAT),
+                ("high", FLOAT),
+                ("attack", FLOAT),
+                ("decay", FLOAT),
+            ],
+            Type::Float,
+            Lowering::Audio(super::audio::AudioKind::Level),
+        )],
+        summary: "How loud the sequence's audio is between `low` and `high` hertz at `time` seconds, 0..1 of its loudest.",
+        details: "The level rises toward louder sound over `attack` seconds and falls over `decay`. A low of 0 or less keeps the lowest frequencies, and a high at or above half the audio's sample rate the highest. The settings are numbers or parameters, fixed per clip, and a parameter that sets one cannot be automated. Time 0 is the clip's start; outside the audio, and while it is analyzed, the level is 0.",
+        example: "let bass = audio_level(time, 0.0, 200.0, 0.0, 0.2);",
+    },
+    Builtin {
+        name: "audio_band",
+        group: G::Audio,
+        signatures: &[sig(
+            &[
+                ("band", INT),
+                ("bands", INT),
+                ("time", FLOAT),
+                ("attack", FLOAT),
+                ("decay", FLOAT),
+            ],
+            Type::Float,
+            Lowering::Audio(super::audio::AudioKind::Band),
+        )],
+        summary: "How loud band `band` of `bands` (up to 128) is at `time` seconds, 0..1.",
+        details: "The bands are spaced evenly in pitch from 30 Hz to 16 kHz, band 0 the lowest; a band outside `0..bands` is 0. Each is measured in decibels: 0 is 60 dB below the loudest band of the audio and 1 is the loudest. `bands`, `attack` and `decay` are numbers or parameters, fixed per clip; `band` may vary by pixel.",
+        example: "let height = audio_band(pixel.index % 16, 16, time, 0.0, 0.1);",
+    },
+    Builtin {
+        name: "audio_wave",
+        group: G::Audio,
+        signatures: &[sig(
+            &[("time", FLOAT)],
+            Type::Float,
+            Lowering::Audio(super::audio::AudioKind::Wave),
+        )],
+        summary: "The sequence's audio signal at `time` seconds, -1..1 of its loudest.",
+        details: "Sampled 2000 times a second, so it follows the sound's shape up to 1 kHz.",
+        example: "let sample = audio_wave(time - pixel.fraction * 0.05);",
+    },
+    Builtin {
+        name: "mark_duration",
+        group: G::Events,
+        signatures: &[sig(
+            &[("marks", MARKS), ("index", INT)],
+            Type::Float,
+            B(Binary::MarkDuration),
+        )],
+        summary: "How long the mark at `index` lasts, in seconds.",
+        details: "Zero for an instantaneous mark and for every live mark; NaN outside `0..mark_count(marks)`.",
+        example: "let span = mark_duration(words, mark_last_index(words, time));",
+    },
+    Builtin {
         name: "mark_count",
         group: G::Events,
         signatures: &[sig(&[("marks", MARKS)], Type::Int, U(Unary::MarkCount))],
@@ -750,6 +961,163 @@ fn curve_clamped(checker: &mut Checker, args: &[Node]) -> Node {
         .ternary(Ternary::Clamp, value, args[2], args[3])
 }
 
+/// The running total of each character's advance: entry `k` is where
+/// character `k` starts, and the last entry the text's width.
+fn starts(checker: &mut Checker, font: Node, text: Node) -> Node {
+    let characters = checker.characters(text);
+    checker.tabulated(Tabulation::RunningSum, TEXT_LENGTH, |checker, index| {
+        let code = checker.graph.binary(Binary::Index, characters, index);
+        checker.graph.binary(Binary::GlyphAdvance, font, code)
+    })
+}
+
+/// The character at `x`: -1 before the text.
+fn placed(checker: &mut Checker, starts: Node, x: Node) -> Node {
+    let entries = checker.graph.int(TEXT_LENGTH + 1);
+    let placed = checker
+        .graph
+        .ternary(Ternary::Partition, starts, entries, x);
+    let one = checker.graph.int(1);
+    checker.graph.binary(Binary::IntSubtract, placed, one)
+}
+
+fn glyph_coverage(checker: &mut Checker, args: &[Node]) -> Node {
+    let (font, text, x, y) = (args[0], args[1], args[2], args[3]);
+    let characters = checker.characters(text);
+    let starts = starts(checker, font, characters);
+    let index = placed(checker, starts, x);
+    let graph = &mut checker.graph;
+    let zero = graph.int(0);
+    let before = graph.binary(Binary::IntLess, index, zero);
+    let code = graph.binary(Binary::Index, characters, index);
+    let code = graph.select(before, zero, code);
+    let pen = graph.binary(Binary::Index, starts, index);
+    let local = graph.binary(Binary::Subtract, x, pen);
+    graph.quaternary(Quaternary::GlyphCoverage, font, code, local, y)
+}
+
+fn image_color(checker: &mut Checker, args: &[Node]) -> Node {
+    let (image, frame, x, y) = (args[0], args[1], args[2], args[3]);
+    checker.require_per_frame(image, "an image is chosen once a frame, not per pixel");
+    checker
+        .graph
+        .quaternary(Quaternary::ImageColor, image, frame, x, y)
+}
+
+fn text_width(checker: &mut Checker, args: &[Node]) -> Node {
+    let starts = starts(checker, args[0], args[1]);
+    let last = checker.graph.int(TEXT_LENGTH);
+    checker.graph.binary(Binary::Index, starts, last)
+}
+
+fn char_index(checker: &mut Checker, args: &[Node]) -> Node {
+    let starts = starts(checker, args[0], args[1]);
+    placed(checker, starts, args[2])
+}
+
+fn text_length(checker: &mut Checker, args: &[Node]) -> Node {
+    let characters = checker.characters(args[0]);
+    let counts = checker.tabulated(Tabulation::RunningSum, TEXT_LENGTH, |checker, index| {
+        let graph = &mut checker.graph;
+        let code = graph.binary(Binary::Index, characters, index);
+        let zero = graph.int(0);
+        let present = graph.binary(Binary::NotEqual, code, zero);
+        let one = graph.int(1);
+        graph.select(present, one, zero)
+    });
+    let last = checker.graph.int(TEXT_LENGTH);
+    checker.graph.binary(Binary::Index, counts, last)
+}
+
+fn mark_text(checker: &mut Checker, args: &[Node]) -> Node {
+    let (marks, mark) = (args[0], args[1]);
+    checker.tabulated(Tabulation::Table, TEXT_LENGTH, |checker, index| {
+        checker.graph.ternary(Ternary::MarkText, marks, mark, index)
+    })
+}
+
+/// Decimal digits of an int: powers of ten up to the largest an int holds.
+const POWERS: [i32; 10] = [
+    1,
+    10,
+    100,
+    1_000,
+    10_000,
+    100_000,
+    1_000_000,
+    10_000_000,
+    100_000_000,
+    1_000_000_000,
+];
+
+fn number_text(checker: &mut Checker, args: &[Node]) -> Node {
+    let (value, digits) = (args[0], args[1]);
+    let graph = &mut checker.graph;
+    let whole = graph.unary(Unary::FloatToInt, value);
+    let magnitude = graph.unary(Unary::IntAbs, whole);
+    let zero = graph.int(0);
+    let negative = graph.binary(Binary::IntLess, whole, zero);
+    let powers: Vec<Node> = POWERS.iter().map(|&power| graph.int(power)).collect();
+    let powers = graph.add(Op::Items(powers.into()));
+    // Digits past the first: the powers of ten the magnitude reaches.
+    let reached = checker.tabulated(
+        Tabulation::RunningSum,
+        POWERS.len() as i32 - 1,
+        |checker, index| {
+            let graph = &mut checker.graph;
+            let one = graph.int(1);
+            let next = graph.binary(Binary::IntAdd, index, one);
+            let power = graph.binary(Binary::Index, powers, next);
+            let reaches = graph.binary(Binary::IntGreaterEqual, magnitude, power);
+            let zero = graph.int(0);
+            graph.select(reaches, one, zero)
+        },
+    );
+    let graph = &mut checker.graph;
+    let last = graph.int(POWERS.len() as i32 - 1);
+    let extra = graph.binary(Binary::Index, reached, last);
+    let one = graph.int(1);
+    let own = graph.binary(Binary::IntAdd, extra, one);
+    let most = graph.int(POWERS.len() as i32);
+    let digits = graph.binary(Binary::IntMin, digits, most);
+    let count = graph.binary(Binary::IntMax, own, digits);
+    let sign = graph.select(negative, one, zero);
+    let length = graph.binary(Binary::IntAdd, count, sign);
+    checker.tabulated(Tabulation::Table, TEXT_LENGTH, |checker, index| {
+        let graph = &mut checker.graph;
+        let zero = graph.int(0);
+        let one = graph.int(1);
+        let past = graph.binary(Binary::IntGreaterEqual, index, length);
+        let at_sign = graph.binary(Binary::IntLess, index, sign);
+        let place = graph.binary(Binary::IntSubtract, index, sign);
+        let from_end = graph.binary(Binary::IntSubtract, count, place);
+        let power_index = graph.binary(Binary::IntSubtract, from_end, one);
+        let power = graph.binary(Binary::Index, powers, power_index);
+        let shifted = graph.binary(Binary::IntFloorDivide, magnitude, power);
+        let ten = graph.int(10);
+        let digit = graph.binary(Binary::IntRemainder, shifted, ten);
+        let zero_code = graph.int(i32::from(b'0'));
+        let digit_code = graph.binary(Binary::IntAdd, digit, zero_code);
+        let minus = graph.int(i32::from(b'-'));
+        let character = graph.select(at_sign, minus, digit_code);
+        graph.select(past, zero, character)
+    })
+}
+
+fn concat(checker: &mut Checker, args: &[Node]) -> Node {
+    let first = checker.characters(args[0]);
+    let second = checker.characters(args[1]);
+    let length = text_length(checker, &[first]);
+    checker.tabulated(Tabulation::Table, TEXT_LENGTH, |checker, index| {
+        let graph = &mut checker.graph;
+        let within = graph.binary(Binary::IntLess, index, length);
+        let own = graph.binary(Binary::Index, first, index);
+        let after = graph.binary(Binary::IntSubtract, index, length);
+        let other = graph.binary(Binary::Index, second, after);
+        graph.select(within, own, other)
+    })
+}
+
 fn gradient_color_scaled(checker: &mut Checker, args: &[Node]) -> Node {
     let graph = &mut checker.graph;
     let (zero, one) = (graph.float(0.0), graph.float(1.0));
@@ -887,6 +1255,30 @@ pub const CONTEXT: &[ContextValue] = &[
         read: Read::Context(Context::PixelY),
     },
     ContextValue {
+        name: "pixel.z",
+        ty: Type::Float,
+        summary: "The pixel's layout z coordinate in meters, toward the viewer.",
+        read: Read::Context(Context::PixelZ),
+    },
+    ContextValue {
+        name: "pixel.member",
+        ty: Type::Int,
+        summary: "Which member of the clip's target the pixel belongs to, a fixture or slice, counting from 0 in member order.",
+        read: Read::Context(Context::PixelMember),
+    },
+    ContextValue {
+        name: "pixel.strand",
+        ty: Type::Int,
+        summary: "The strand the pixel lies on, counting from 0: each element of a fixture is one, and each row or column of a grid as it is wired. A whole target numbers its members' strands in member order; per fixture, each fixture's own.",
+        read: Read::Context(Context::PixelStrand),
+    },
+    ContextValue {
+        name: "pixel.along",
+        ty: Type::Int,
+        summary: "The pixel's place along its strand in wiring order, counting from 0.",
+        read: Read::Context(Context::PixelAlong),
+    },
+    ContextValue {
         name: "target.count",
         ty: Type::Int,
         summary: "How many pixels the target has; in an operator, its fixture instance.",
@@ -915,6 +1307,36 @@ pub const CONTEXT: &[ContextValue] = &[
         ty: Type::Float,
         summary: "The largest y coordinate of the target's pixels.",
         read: Read::Context(Context::TargetMaxY),
+    },
+    ContextValue {
+        name: "target.min_z",
+        ty: Type::Float,
+        summary: "The smallest z coordinate of the target's pixels.",
+        read: Read::Context(Context::TargetMinZ),
+    },
+    ContextValue {
+        name: "target.max_z",
+        ty: Type::Float,
+        summary: "The largest z coordinate of the target's pixels.",
+        read: Read::Context(Context::TargetMaxZ),
+    },
+    ContextValue {
+        name: "target.members",
+        ty: Type::Int,
+        summary: "How many members, fixtures or slices, the clip's target has, per fixture as for the whole target.",
+        read: Read::Context(Context::TargetMembers),
+    },
+    ContextValue {
+        name: "target.strands",
+        ty: Type::Int,
+        summary: "How many strands the target has: per fixture, the fixture's.",
+        read: Read::Context(Context::TargetStrands),
+    },
+    ContextValue {
+        name: "target.strand_length",
+        ty: Type::Int,
+        summary: "How many pixels the target's longest strand has.",
+        read: Read::Context(Context::TargetStrandLength),
     },
     ContextValue {
         name: "PI",
@@ -998,6 +1420,16 @@ pub const REDUCERS: &[Reducer] = &[
         summary: "The body at the last index whose guards pass, or `else`.",
         kind: ReducerKind::Last,
     },
+    Reducer {
+        name: "table",
+        summary: "An array of the body at each index of at most 128, computed once per frame from parameters, time and the target; index it with `[k]` from 0.",
+        kind: ReducerKind::Table,
+    },
+    Reducer {
+        name: "table sum",
+        summary: "The body's running sums over at most 127 indices: entry `k` sums the first `k` values, so entry 0 is zero and the last is the total.",
+        kind: ReducerKind::TableSum,
+    },
 ];
 
 pub(crate) fn reducer(kind: ReducerKind) -> &'static Reducer {
@@ -1009,7 +1441,7 @@ pub(crate) fn reducer(kind: ReducerKind) -> &'static Reducer {
 
 /// The type names scripts write; other types are `enum { ... }` and
 /// `array<...>`.
-pub const NAMED_TYPES: [(&str, Type); 7] = [
+pub const NAMED_TYPES: [(&str, Type); 10] = [
     ("int", Type::Int),
     ("float", Type::Float),
     ("bool", Type::Bool),
@@ -1017,6 +1449,9 @@ pub const NAMED_TYPES: [(&str, Type); 7] = [
     ("curve", Type::Curve),
     ("gradient", Type::Gradient),
     ("marks", Type::Marks),
+    ("text", Type::Text),
+    ("font", Type::Font),
+    ("image", Type::Image),
 ];
 pub const ENUM_WORD: &str = "enum";
 pub const ARRAY_WORD: &str = "array";

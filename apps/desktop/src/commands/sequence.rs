@@ -343,7 +343,7 @@ pub(crate) fn choose_sequence_audio(
         );
     };
     let snapshot = state.snapshot();
-    let import_path = match super::import_external_audio(&snapshot, &path) {
+    let import_path = match super::import_external_asset(&snapshot, &path, "audio") {
         Ok(path) => path,
         Err(message) => {
             let snapshot = state.update_snapshot(|snapshot| {
@@ -365,6 +365,36 @@ pub(crate) fn choose_sequence_audio(
             },
         },
     )
+}
+
+/// A font file the user chooses, by its project-relative path, copied into
+/// the project's `fonts` directory when it is outside the project; `None`
+/// when the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn choose_font_file(state: State<'_, DesktopState>) -> Result<Option<String>, String> {
+    let Some(path) = rfd::FileDialog::new()
+        .add_filter("Font", &["ttf", "otf"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    super::import_external_asset(&state.snapshot(), &path, "fonts").map(Some)
+}
+
+/// An image file the user chooses, by its project-relative path, copied
+/// into the project's `images` directory when it is outside the project;
+/// `None` when the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn choose_image_file(state: State<'_, DesktopState>) -> Result<Option<String>, String> {
+    let Some(path) = rfd::FileDialog::new()
+        .add_filter("Image", &["png", "jpg", "jpeg", "gif", "bmp", "webp"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    super::import_external_asset(&state.snapshot(), &path, "images").map(Some)
 }
 
 /// A view that lists Donder controllers opened (`true`) or closed (`false`);

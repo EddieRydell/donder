@@ -41,7 +41,7 @@ pub(crate) fn declared_from_gui<I: TryFrom<ObjectId>>(
 }
 
 /// The object a GUI reference addresses, as the id its kind takes.
-pub(crate) fn object_id_from_gui<I: TryFrom<ObjectId>>(
+pub fn object_id_from_gui<I: TryFrom<ObjectId>>(
     session: &ProjectSession,
     reference: &crate::dto::GuiObjectRef,
 ) -> Result<I, GuiMutationError> {
@@ -219,6 +219,41 @@ pub(crate) fn param_value_from_gui(
             key.map(|key| identifier(&key).map(|name| MarkCollectionKey { name }))
                 .transpose()?,
         ),
+        SequenceParamValue::Text { value } => ParamValue::Text(value),
+        SequenceParamValue::Font { value: None } => ParamValue::Font(None),
+        SequenceParamValue::Font { value: Some(font) } => {
+            let root = session.source.project_root().to_path_buf();
+            let file = donder_project_io::reference_asset(
+                &mut session.source.referenced_assets,
+                &root,
+                owner,
+                &font.file,
+            )
+            .map_err(|error| {
+                GuiMutationError::Invalid(format!("Font file {}: {error}", font.file))
+            })?;
+            ParamValue::Font(Some(donder_model::FontFace {
+                file,
+                height: font.height,
+            }))
+        }
+        SequenceParamValue::Image { value: None } => ParamValue::Image(None),
+        SequenceParamValue::Image { value: Some(image) } => {
+            let root = session.source.project_root().to_path_buf();
+            let file = donder_project_io::reference_asset(
+                &mut session.source.referenced_assets,
+                &root,
+                owner,
+                &image.file,
+            )
+            .map_err(|error| {
+                GuiMutationError::Invalid(format!("Image file {}: {error}", image.file))
+            })?;
+            ParamValue::Image(Some(donder_model::ImageSource {
+                file,
+                size: image.size,
+            }))
+        }
         SequenceParamValue::Curve { value } => ParamValue::Curve(
             match library_identity(session, owner, donder_model::ObjectKind::Curve, value.link)? {
                 Some(id) => OwnedCurve::Reference(library_id(id)?),

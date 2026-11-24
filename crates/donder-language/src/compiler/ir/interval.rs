@@ -247,7 +247,7 @@ fn compute(graph: &Graph, op: &Op, known: &mut impl Known) -> Interval {
                 nan,
             )
         }
-        Op::Ternary(..) => Interval::ANY,
+        Op::Ternary(..) | Op::Quaternary(..) => Interval::ANY,
         Op::Select(_, yes, no) => known.of(*yes).union(known.of(*no)),
     }
 }

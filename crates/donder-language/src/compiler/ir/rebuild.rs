@@ -94,6 +94,13 @@ impl<'a> Rebuild<'a> {
                     }
                 }
             }
+            Op::Quaternary(op, a, b, c, d) => {
+                let a = self.node(target, a, substitute)?;
+                let b = self.node(target, b, substitute)?;
+                let c = self.node(target, c, substitute)?;
+                let d = self.node(target, d, substitute)?;
+                target.quaternary(op, a, b, c, d)
+            }
             Op::Ternary(op, a, b, c) => {
                 let a = self.node(target, a, substitute)?;
                 let b = self.node(target, b, substitute)?;

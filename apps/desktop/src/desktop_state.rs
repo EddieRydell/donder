@@ -55,6 +55,7 @@ pub(crate) struct DesktopServices {
     working_copy: LatestScheduler<WorkingCopyPayload>,
     external_reconcile: LatestScheduler<(u32, Result<(), String>)>,
     render_refresh: LatestScheduler<RenderRefreshPayload>,
+    derivations: LatestScheduler<audio_analysis::DerivationPayload>,
     audio: Arc<Mutex<crate::audio::AudioEngine>>,
     sequence_render: Arc<Mutex<crate::rendering::SequenceRenderService>>,
     live_output: Mutex<crate::output::LiveOutputService>,
@@ -102,6 +103,7 @@ impl DesktopState {
             |weak: &std::sync::Weak<DesktopServices>| {
                 let analysis_state = weak.clone();
                 let render_state = weak.clone();
+                let derivation_state = weak.clone();
                 let external_state = weak.clone();
                 DesktopServices {
                     workspace: Mutex::new(WorkspaceState::new(empty_snapshot())),
@@ -151,6 +153,16 @@ impl DesktopState {
                             );
                             if let Some(state) = render_state.upgrade() {
                                 DesktopState(state).complete_render_refresh(request, result);
+                            }
+                        }
+                    }),
+                    derivations: LatestScheduler::new({
+                        // Owned by the derivation worker, which reuses earlier results.
+                        let mut results = audio_analysis::DerivedResults::default();
+                        move |request| {
+                            let (epoch, derived) = results.derive(request);
+                            if let Some(state) = derivation_state.upgrade() {
+                                DesktopState(state).complete_derivations(epoch, derived);
                             }
                         }
                     }),
@@ -473,8 +485,10 @@ impl DesktopState {
 }
 
 mod audio;
+mod audio_analysis;
 mod beat_detection;
 mod editor_projection;
+mod fixture_capture;
 pub(super) use editor_projection::{descriptor_for_path, generated_source_texts};
 mod device_playback;
 mod filesystem;

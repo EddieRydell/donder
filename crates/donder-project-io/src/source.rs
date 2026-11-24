@@ -320,6 +320,11 @@ impl ProjectSession {
         let donder_model::SequenceAudio::Asset(id) = audio else {
             return None;
         };
+        self.asset(id)
+    }
+
+    /// The asset `id` names.
+    pub fn asset(&self, id: &AssetId) -> Option<&ReferencedAsset> {
         self.source
             .referenced_assets
             .iter()

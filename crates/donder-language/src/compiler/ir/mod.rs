@@ -92,7 +92,7 @@ impl LoopSet {
     fn without(self, id: LoopId) -> Self {
         Self(self.0 & !(1 << id.0))
     }
-    fn contains(self, id: LoopId) -> bool {
+    pub(crate) fn contains(self, id: LoopId) -> bool {
         self.0 & (1 << id.0) != 0
     }
     pub(crate) fn is_empty(self) -> bool {
@@ -119,11 +119,20 @@ pub(crate) enum Context {
     PixelFraction,
     PixelX,
     PixelY,
+    PixelZ,
+    PixelMember,
+    PixelStrand,
+    PixelAlong,
     TargetCount,
     TargetMinX,
     TargetMinY,
     TargetMaxX,
     TargetMaxY,
+    TargetMinZ,
+    TargetMaxZ,
+    TargetMembers,
+    TargetStrands,
+    TargetStrandLength,
 }
 
 impl Context {
@@ -135,12 +144,24 @@ impl Context {
         match self {
             Self::Time | Self::Progress | Self::Frame => Domain::TIME,
             Self::Duration | Self::FrameRate => Domain::PARAM,
-            Self::PixelIndex | Self::PixelFraction | Self::PixelX | Self::PixelY => Domain::PIXEL,
+            Self::PixelIndex
+            | Self::PixelFraction
+            | Self::PixelX
+            | Self::PixelY
+            | Self::PixelZ
+            | Self::PixelMember
+            | Self::PixelStrand
+            | Self::PixelAlong => Domain::PIXEL,
             Self::TargetCount
             | Self::TargetMinX
             | Self::TargetMinY
             | Self::TargetMaxX
-            | Self::TargetMaxY => Domain::TARGET,
+            | Self::TargetMaxY
+            | Self::TargetMinZ
+            | Self::TargetMaxZ
+            | Self::TargetMembers
+            | Self::TargetStrands
+            | Self::TargetStrandLength => Domain::TARGET,
         }
     }
 }
@@ -176,6 +197,13 @@ pub(crate) enum Unary {
     Invert,
     Len,
     MarkCount,
+    /// A font's line height.
+    FontHeight,
+    /// An image's width, height and frames a second.
+    ImageWidth,
+    ImageHeight,
+    ImageRate,
+    ImageFrames,
     /// Sections of an integer width over the pixel's section population.
     SectionCount,
     SectionIndex,
@@ -219,7 +247,12 @@ pub(crate) enum Binary {
     CurveIntegral,
     GradientSample,
     Index,
+    /// A table's entry at an index within its length.
+    Entry,
+    /// How far a character moves the pen in a font.
+    GlyphAdvance,
     MarkAt,
+    MarkDuration,
     MarkLast,
     MarkLastIndex,
     CurveFirstCrossing,
@@ -260,6 +293,20 @@ pub(crate) enum Ternary {
     Rgb,
     Hsv,
     CurveLastCrossing,
+    /// A track's channel at a time.
+    TrackAt,
+    /// A character of a mark's label.
+    MarkText,
+    /// How many of an ascending table's first entries are at most a value.
+    Partition,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Quaternary {
+    /// A character's coverage in a font at a point.
+    GlyphCoverage,
+    /// An image frame's color at a point.
+    ImageColor,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -271,6 +318,19 @@ pub(crate) enum Reducer {
     All,
     First,
     Last,
+    /// An array of the body at each index, computed once per query or
+    /// target run.
+    Table,
+    /// An array one entry longer than the range: entry `k` sums the body at
+    /// the first `k` indices.
+    RunningSum,
+}
+
+impl Reducer {
+    /// Whether the reduction makes an array rather than one value.
+    pub(crate) fn tabulates(self) -> bool {
+        matches!(self, Self::Table | Self::RunningSum)
+    }
 }
 
 /// A typed constant compared and hashed by bit pattern, so NaN and signed zero
@@ -307,6 +367,7 @@ pub(crate) enum Op {
     Unary(Unary, Node),
     Binary(Binary, Node, Node),
     Ternary(Ternary, Node, Node, Node),
+    Quaternary(Quaternary, Node, Node, Node, Node),
     /// Pure choice. Whether an arm is evaluated lazily is a scheduling decision.
     Select(Node, Node, Node),
     Reduce(LoopId),
@@ -378,6 +439,7 @@ impl Op {
             Self::Unary(_, a) => vec![a],
             Self::Binary(_, a, b) => vec![a, b],
             Self::Ternary(_, a, b, c) | Self::Select(a, b, c) => vec![a, b, c],
+            Self::Quaternary(_, a, b, c, d) => vec![a, b, c, d],
             Self::Read { pixel, .. } => pixel.index().copied().into_iter().collect(),
             Self::Items(ref items) => items.to_vec(),
             Self::Pick { index, ref items } => {
@@ -465,6 +527,12 @@ impl Graph {
         }
     }
 
+    /// A parameter slot after the declared ones, its index.
+    pub(crate) fn add_param(&mut self, param: Param) -> u32 {
+        self.params.push(param);
+        self.params.len() as u32 - 1
+    }
+
     pub(crate) fn op(&self, node: Node) -> &Op {
         &self.nodes[node.index()].op
     }
@@ -549,6 +617,16 @@ impl Graph {
     pub(crate) fn ternary(&mut self, op: Ternary, a: Node, b: Node, c: Node) -> Node {
         self.add(Op::Ternary(op, a, b, c))
     }
+    pub(crate) fn quaternary(
+        &mut self,
+        op: Quaternary,
+        a: Node,
+        b: Node,
+        c: Node,
+        d: Node,
+    ) -> Node {
+        self.add(Op::Quaternary(op, a, b, c, d))
+    }
     pub(crate) fn select(&mut self, condition: Node, yes: Node, no: Node) -> Node {
         self.add(Op::Select(condition, yes, no))
     }
@@ -618,11 +696,19 @@ impl Graph {
                     domain = domain.union(self.domain(part));
                     loops = loops.union(self.loops_of(part));
                 }
-                (self.ty(data.body).clone(), (domain, loops.without(*id)))
+                let body = self.ty(data.body).clone();
+                let ty = if data.reducer.tabulates() {
+                    Type::array(body)
+                } else {
+                    body
+                };
+                (ty, (domain, loops.without(*id)))
             }
             Op::Unary(op, _) => (unary_type(*op), none),
             Op::Binary(op, a, _) => (binary_type(*op, self.ty(*a)), none),
             Op::Ternary(op, ..) => (ternary_type(*op), none),
+            Op::Quaternary(Quaternary::GlyphCoverage, ..) => (Type::Float, none),
+            Op::Quaternary(Quaternary::ImageColor, ..) => (Type::Color, none),
             Op::Select(_, a, _) => (self.ty(*a).clone(), none),
             Op::Items(items) => (Type::array(self.ty(items[0]).clone()), none),
             Op::Pick { items, .. } => (self.ty(items[0]).clone(), none),
@@ -728,6 +814,9 @@ fn value_type(value: &Value) -> Type {
         Value::Bool(_) => Type::Bool,
         Value::Color(_) => Type::Color,
         Value::Marks(_) => Type::Marks,
+        Value::Track(_) => Type::Track,
+        Value::Font(_) => Type::Font,
+        Value::Image(_) => Type::Image,
         Value::Curve(_) => Type::Curve,
         Value::Gradient(_) => Type::Gradient,
         Value::Array(items) => Type::array(items.first().map_or(Type::Void, value_type)),
@@ -742,9 +831,13 @@ fn unary_type(op: Unary) -> Type {
         | Unary::FloatToInt
         | Unary::Len
         | Unary::MarkCount
+        | Unary::ImageFrames
         | Unary::SectionCount
         | Unary::SectionIndex => Type::Int,
         Unary::Not => Type::Bool,
+        Unary::FontHeight | Unary::ImageWidth | Unary::ImageHeight | Unary::ImageRate => {
+            Type::Float
+        }
         Unary::Invert => Type::Color,
         Unary::Negate
         | Unary::Sin
@@ -783,6 +876,8 @@ fn binary_type(op: Binary, left: &Type) -> Type {
         | Binary::CurveSample
         | Binary::CurveIntegral
         | Binary::MarkAt
+        | Binary::MarkDuration
+        | Binary::GlyphAdvance
         | Binary::MarkLast
         | Binary::CurveFirstCrossing
         | Binary::SectionPosition
@@ -811,8 +906,9 @@ fn binary_type(op: Binary, left: &Type) -> Type {
         | Binary::ColorMax
         | Binary::ColorScale
         | Binary::GradientSample => Type::Color,
-        Binary::Index => match left {
+        Binary::Index | Binary::Entry => match left {
             Type::Array(item) => item.as_ref().clone(),
+            Type::Text => Type::Int,
             _ => Type::Void,
         },
     }
@@ -820,7 +916,10 @@ fn binary_type(op: Binary, left: &Type) -> Type {
 
 fn ternary_type(op: Ternary) -> Type {
     match op {
-        Ternary::Clamp | Ternary::Mix | Ternary::CurveLastCrossing => Type::Float,
+        Ternary::Clamp | Ternary::Mix | Ternary::CurveLastCrossing | Ternary::TrackAt => {
+            Type::Float
+        }
+        Ternary::MarkText | Ternary::Partition => Type::Int,
         Ternary::MixColor | Ternary::Rgb | Ternary::Hsv => Type::Color,
     }
 }
@@ -835,6 +934,9 @@ fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
         Value::Color(value) => value.hash(state),
         Value::Enum(value) => value.hash(state),
         Value::Marks(value) => value.hash(state),
+        Value::Track(value) => value.hash(state),
+        Value::Font(value) => value.hash(state),
+        Value::Image(value) => value.hash(state),
         Value::Curve(value) => {
             for point in &value.points {
                 point.position.to_bits().hash(state);

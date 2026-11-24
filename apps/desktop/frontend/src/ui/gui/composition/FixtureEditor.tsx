@@ -11,6 +11,7 @@ import type { FixtureGuiDocument, FixtureGuiEdit, GuiFixtureElement, GuiFixtureS
 import { fixtureMenuEntries, fixtureTools, type FixtureTool } from "./FixtureContextMenu";
 import { Placement } from "./FixtureFields";
 import { AddRow, Button, ContextMenuArea, Field, FieldGroup, IconButton, NumberField, TextField, Toggle } from "../../kit";
+import { FixtureCapture } from "./FixtureCapture";
 import { FixtureShapeFields } from "./FixtureShapeFields";
 import { SpatialCanvas } from "./SpatialCanvas";
 import { spatialUnits } from "./spatialSnapping";
@@ -130,6 +131,7 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
           {element.shape.type !== "pixel" && <Button icon={Grip} tip="Replace the shape with its individual pixels" onClick={() => { void edit({ type: "convertToPixels", id: element.id }).then((applied) => { if (applied) setSelected(null); }); }}>To pixels</Button>}
         </div>}
       </fieldset>
+      <FixtureCapture document={document} disabled={!editable} />
       <Toggle name="Show pixel order" label="Pixel order" checked={showOrder} onChange={setShowOrder} />
     </aside></ContextMenuArea>
     <SpatialCanvas reference={document.sourceRef} plan={document.renderPlan} documentKey={guiObjectKey(document.sourceRef)} selection={selection} items={items} onSelect={setSelection} onDelete={remove} onDuplicate={duplicate}

@@ -2,18 +2,18 @@ import { commands } from "../../../api";
 import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { EditorCommands } from "../../../shortcuts";
-import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Magnet, Monitor, Music, Pause, Play, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
+import { AudioLines, ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Magnet, Monitor, Music, Pause, Play, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
 import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 
-import type { AppSnapshot, AudioTransportState, SequenceGuiDocument, SequenceFollowMode } from "../../../types";
+import type { AppSnapshot, AudioTransportState, DerivedDataStatus, SequenceGuiDocument, SequenceFollowMode } from "../../../types";
 
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph, requestTapMark } from "../../uiEvents";
-import { IconButton, Tip } from "../../kit";
+import { Badge, IconButton, Tip } from "../../kit";
 import { LiveOutputButton } from "../../LiveOutputButton";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
 import { SequenceExportDialog } from "./SequenceExportDialog";
@@ -55,6 +55,7 @@ export function SequenceTransportControls({
       <IconButton icon={Scissors} label="Slice clips" command="sequence.toggleSliceTool" pressed={sliceTool} onClick={toggleSliceTool} />
       <IconButton icon={Magnet} label={snapping ? "Snap: on, Alt bypasses" : "Snap: off, Alt snaps"} pressed={snapping} onClick={() => { toggleSequenceSnap(); }} />
       <IconButton icon={Music} label="Choose audio" onClick={() => void chooseAudio(document)} />
+      <DerivedDataBadge status={document.derivedData} />
       <SequencePlaybackSpeedControls speed={transport.playbackSpeed} />
       <Tip label="Stop returns to Home. Click the ruler to move Home; drag in it to set a playback range.">
         <span className="sequence-time-readout">
@@ -83,6 +84,19 @@ function toggleSequenceSnap() {
   const settings = useAppStore.getState().snapshot?.settings;
   if (settings === undefined) return;
   void runSnapshotCommand(() => commands.updateAppSettings({ ...settings, sequenceSnap: !settings.sequenceSnap }));
+}
+
+/** Whether the audio and fonts the sequence's effects read are ready; until then audio is silent and text blank. */
+function DerivedDataBadge({ status }: { status: DerivedDataStatus }) {
+  switch (status.type) {
+    case "unused":
+    case "ready":
+      return null;
+    case "reading":
+      return <Badge icon={AudioLines} tip="Analyzing audio and drawing fonts; effects read silence and blank text until then">Reading</Badge>;
+    case "failed":
+      return <Badge icon={AudioLines} tip={`${status.file} could not be read: ${status.reason}`}>Asset failed</Badge>;
+  }
 }
 
 /** Chooses the sequence's audio, then fits the sequence to its length; undo reverts the resize. */

@@ -11,7 +11,7 @@ use donder_runtime_types::{
     AutomatedQuantity, AutomationMapping, BoundProgram, Curve, FixtureGeometry, Gradient,
     Identifier, InputHappening, Marks, OutputEncoding, PixelEncoding, PreparedAutomation, Program,
     SampleDuration, SampleTime, SequenceTiming, Shared, SpatialContext, TargetGeometry,
-    TargetScope, Type, Value,
+    TargetScope, Track, Type, Value,
 };
 
 use crate::targets::PreparedPixel;
@@ -116,6 +116,7 @@ pub enum PlayedSource {
 struct Target {
     pixels: Vec<PreparedPixel>,
     spatial: Vec<SpatialContext>,
+    structure: Vec<donder_runtime_types::PixelStructure>,
     source_pixels: Vec<(usize, u32)>,
     selection: Shared<[(usize, u32)]>,
     scope: TargetScope,
@@ -149,6 +150,10 @@ struct Interner {
     curves: Vec<(Shared<Curve>, u32)>,
     gradients: Vec<(Shared<Gradient>, u32)>,
     tracks: Vec<(Shared<[u32]>, Range)>,
+    audio_samples: Vec<(Shared<[u8]>, Range)>,
+    audio_tracks: Vec<format::AudioTrack>,
+    fonts: Vec<(Shared<donder_runtime_types::Font>, u32)>,
+    images: Vec<(Shared<donder_runtime_types::Image>, u32)>,
     marks: Vec<format::Marks>,
     arrays: Vec<(Range, u32)>,
 }
@@ -318,9 +323,10 @@ impl ShowBuilder<'_> {
         index
     }
 
-    fn marks(&mut self, marks: &Marks) -> u32 {
-        let track = marks.track();
-        let range = match self
+    /// `track`'s words in the shared track pool, written once per distinct
+    /// track.
+    fn track(&mut self, track: &Shared<[u32]>) -> Range {
+        match self
             .interner
             .tracks
             .iter()
@@ -328,14 +334,36 @@ impl ShowBuilder<'_> {
         {
             Some((_, range)) => *range,
             None => {
-                let range = push(&mut self.w.tracks, track.iter().copied());
+                let range = push(&mut self.w.mark_ticks, track.iter().copied());
                 self.interner.tracks.push((Shared::clone(track), range));
                 range
             }
+        }
+    }
+
+    fn marks(&mut self, marks: &Marks) -> u32 {
+        let track = self.track(marks.track());
+        // A collection of instantaneous marks stores no durations.
+        let durations = if marks.durations().iter().all(|&duration| duration == 0) {
+            Range::EMPTY
+        } else {
+            self.track(marks.durations())
+        };
+        // A collection without labels stores none.
+        let (label_codes, label_spans) = if marks.label_spans().is_empty() {
+            (Range::EMPTY, Range::EMPTY)
+        } else {
+            (
+                self.track(marks.label_codes()),
+                self.track(marks.label_spans()),
+            )
         };
         let (first, end, origin) = marks.bounds();
         let record = format::Marks {
-            track: range,
+            track,
+            durations,
+            label_codes,
+            label_spans,
             first,
             end,
             origin,
@@ -351,6 +379,85 @@ impl ShowBuilder<'_> {
         self.interner.marks.push(record);
         self.w.marks.push(record);
         (self.w.marks.len() - 1) as u32
+    }
+
+    fn audio(&mut self, track: &Track) -> u32 {
+        let samples = track.samples();
+        let range = match self
+            .interner
+            .audio_samples
+            .iter()
+            .find(|(existing, _)| Shared::ptr_eq(existing, samples) || **existing == **samples)
+        {
+            Some((_, range)) => *range,
+            None => {
+                let range = push(&mut self.w.audio_samples, samples.iter().copied());
+                self.interner
+                    .audio_samples
+                    .push((Shared::clone(samples), range));
+                range
+            }
+        };
+        let record = format::AudioTrack {
+            samples: range,
+            channels: u32::from(track.channels()),
+            signed: u32::from(track.signed()),
+            rate: track.rate(),
+            origin: track.origin(),
+        };
+        if let Some(index) = self
+            .interner
+            .audio_tracks
+            .iter()
+            .position(|known| *known == record)
+        {
+            return index as u32;
+        }
+        self.interner.audio_tracks.push(record);
+        self.w.audio_tracks.push(record);
+        (self.w.audio_tracks.len() - 1) as u32
+    }
+
+    fn font(&mut self, font: &Shared<donder_runtime_types::Font>) -> u32 {
+        if let Some((_, index)) = self
+            .interner
+            .fonts
+            .iter()
+            .find(|(existing, _)| Shared::ptr_eq(existing, font) || **existing == **font)
+        {
+            return *index;
+        }
+        let record = format::Font {
+            height: font.height,
+            glyphs: push(&mut self.w.glyphs, font.glyphs.iter().copied()),
+            coverage: push(&mut self.w.glyph_coverage, font.coverage.iter().copied()),
+        };
+        let index = self.w.fonts.len() as u32;
+        self.w.fonts.push(record);
+        self.interner.fonts.push((Shared::clone(font), index));
+        index
+    }
+
+    fn image(&mut self, image: &Shared<donder_runtime_types::Image>) -> u32 {
+        if let Some((_, index)) = self
+            .interner
+            .images
+            .iter()
+            .find(|(existing, _)| Shared::ptr_eq(existing, image) || **existing == **image)
+        {
+            return *index;
+        }
+        let record = format::Image {
+            width: image.width,
+            height: image.height,
+            frames: image.frames,
+            rate: image.rate,
+            pixels: push(&mut self.w.image_pixels, image.pixels.iter().copied()),
+        };
+        let index = self.w.images.len() as u32;
+        self.w.images.push(record);
+        self.interner.images.push((Shared::clone(image), index));
+        index
     }
 
     fn array(&mut self, items: &[Value], enums: &[Identifier]) -> u32 {
@@ -381,6 +488,9 @@ impl ShowBuilder<'_> {
             Value::Marks(marks) => (format::VALUE_MARKS, self.marks(marks)),
             Value::Curve(curve) => (format::VALUE_CURVE, self.curve(curve)),
             Value::Gradient(gradient) => (format::VALUE_GRADIENT, self.gradient(gradient)),
+            Value::Track(track) => (format::VALUE_TRACK, self.audio(track)),
+            Value::Font(font) => (format::VALUE_FONT, self.font(font)),
+            Value::Image(image) => (format::VALUE_IMAGE, self.image(image)),
             Value::Array(items) => (format::VALUE_ARRAY, self.array(items, enums)),
         };
         format::Value { kind, word }
@@ -392,6 +502,9 @@ impl ShowBuilder<'_> {
             Value::Curve(curve) => (format::RESOURCE_CURVE, self.curve(curve)),
             Value::Gradient(gradient) => (format::RESOURCE_GRADIENT, self.gradient(gradient)),
             Value::Marks(marks) => (format::RESOURCE_MARKS, self.marks(marks)),
+            Value::Track(track) => (format::RESOURCE_TRACK, self.audio(track)),
+            Value::Font(font) => (format::RESOURCE_FONT, self.font(font)),
+            Value::Image(image) => (format::RESOURCE_IMAGE, self.image(image)),
             Value::Array(items) => (format::RESOURCE_ARRAY, self.array(items, enums)),
             _ => unreachable!("resource parameters hold resources"),
         };
@@ -430,6 +543,7 @@ impl ShowBuilder<'_> {
                 format::PROGRAM_USES_PIXEL_CONTEXT,
             ),
             (stencil, format::PROGRAM_HAS_STENCIL),
+            (program.uses_structure(), format::PROGRAM_USES_STRUCTURE),
         ]
         .iter()
         .filter(|(set, _)| *set)
@@ -635,6 +749,7 @@ impl<'id> ShowBuilder<'id> {
     pub fn target(&mut self, domain: &TargetGeometry) -> TargetHandle<'id> {
         let mut pixels = Vec::with_capacity(domain.pixels().len());
         let mut spatial = Vec::with_capacity(domain.pixels().len());
+        let mut structure = Vec::with_capacity(domain.pixels().len());
         let mut source_pixels = Vec::with_capacity(domain.pixels().len());
         for pixel in domain.pixels() {
             let fixture = pixel.fixture();
@@ -653,11 +768,13 @@ impl<'id> ShowBuilder<'id> {
                 pixel_count: pixel.count(),
             });
             spatial.push(pixel.spatial());
+            structure.push(pixel.structure());
             source_pixels.push((fixture, pixel.source_cell()));
         }
         self.store_target(Target {
             pixels,
             spatial,
+            structure,
             source_pixels,
             selection: domain.selection().into(),
             scope: domain.scope(),
@@ -668,6 +785,7 @@ impl<'id> ShowBuilder<'id> {
         if let Some(index) = self.targets.iter().position(|existing| {
             existing.pixels == target.pixels
                 && existing.spatial == target.spatial
+                && existing.structure == target.structure
                 && existing.source_pixels == target.source_pixels
                 && existing.selection == target.selection
                 && existing.scope == target.scope
@@ -1010,9 +1128,11 @@ impl<'id> ShowBuilder<'id> {
         ));
         let mut needs_spatial = vec![false; self.targets.len()];
         let mut needs_sections = vec![false; self.targets.len()];
+        let mut needs_structure = vec![false; self.targets.len()];
         for clip in &self.w.clips {
             let flags = self.w.programs[clip.program as usize].flags;
             needs_spatial[clip.target as usize] |= flags & format::PROGRAM_USES_SPATIAL != 0;
+            needs_structure[clip.target as usize] |= flags & format::PROGRAM_USES_STRUCTURE != 0;
             needs_sections[clip.target as usize] |= flags & format::PROGRAM_USES_SECTIONS != 0;
         }
         for node in &self.nodes {
@@ -1021,6 +1141,7 @@ impl<'id> ShowBuilder<'id> {
             }
             let flags = self.w.programs[node.program as usize].flags;
             needs_spatial[full.index] |= flags & format::PROGRAM_USES_SPATIAL != 0;
+            needs_structure[full.index] |= flags & format::PROGRAM_USES_STRUCTURE != 0;
             needs_sections[full.index] |= flags & format::PROGRAM_USES_SECTIONS != 0;
         }
         let mut fixture_spatial = vec![false; self.fixtures.len()];
@@ -1038,8 +1159,8 @@ impl<'id> ShowBuilder<'id> {
                 self.fixtures[fixture].positions = push(
                     &mut w.positions,
                     geometry.cells().iter().map(|&cell| {
-                        let [x, y] = geometry.positions()[cell as usize];
-                        format::Position { x, y }
+                        let [x, y, z] = geometry.positions()[cell as usize];
+                        format::Position { x, y, z }
                     }),
                 );
             }
@@ -1065,6 +1186,7 @@ impl<'id> ShowBuilder<'id> {
                 target,
                 needs_spatial[index],
                 needs_sections[index],
+                needs_structure[index],
             );
             w.targets.push(record);
         }
@@ -1276,6 +1398,7 @@ fn write_target(
     target: &Target,
     spatial: bool,
     sections: bool,
+    structure: bool,
 ) -> format::Target {
     let pixels = &target.pixels;
     let mut runs = Vec::new();
@@ -1325,19 +1448,27 @@ fn write_target(
     };
     let spatial = if spatial {
         let mut runs = Vec::<format::SpatialRun>::new();
-        for (index, context) in target.spatial.iter().enumerate() {
+        for (index, (context, structure)) in
+            target.spatial.iter().zip(&target.structure).enumerate()
+        {
+            let next = format::SpatialRun {
+                end: index as u32 + 1,
+                min: context.min,
+                max: context.max,
+                members: structure.members,
+                strands: structure.strands,
+                strand_length: structure.strand_length,
+            };
             match runs.last_mut() {
                 Some(run)
-                    if run.min.map(f32::to_bits) == context.min.map(f32::to_bits)
-                        && run.max.map(f32::to_bits) == context.max.map(f32::to_bits) =>
+                    if run.min.map(f32::to_bits) == next.min.map(f32::to_bits)
+                        && run.max.map(f32::to_bits) == next.max.map(f32::to_bits)
+                        && (run.members, run.strands, run.strand_length)
+                            == (next.members, next.strands, next.strand_length) =>
                 {
-                    run.end = index as u32 + 1;
+                    run.end = next.end;
                 }
-                _ => runs.push(format::SpatialRun {
-                    end: index as u32 + 1,
-                    min: context.min,
-                    max: context.max,
-                }),
+                _ => runs.push(next),
             }
         }
         push(&mut w.spatial_runs, runs)
@@ -1366,6 +1497,18 @@ fn write_target(
         section_pixels,
         per_fixture: u32::from(target.scope == TargetScope::PerFixture),
         sample_count: sample_count as u32,
+        structure: if structure {
+            push(
+                &mut w.pixel_structure,
+                target.structure.iter().map(|pixel| format::PixelStructure {
+                    member: pixel.member,
+                    strand: pixel.strand,
+                    along: pixel.along,
+                }),
+            )
+        } else {
+            Range::EMPTY
+        },
     }
 }
 

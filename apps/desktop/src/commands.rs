@@ -17,6 +17,7 @@ use donder_editor::dto::{
 
 mod app;
 mod audio;
+mod capture;
 mod editor;
 mod learn;
 mod output;
@@ -28,6 +29,7 @@ mod workspace;
 
 pub(crate) use app::*;
 pub(crate) use audio::*;
+pub(crate) use capture::*;
 pub(crate) use editor::*;
 pub(crate) use learn::*;
 pub(crate) use output::*;
@@ -87,6 +89,8 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         cut_sequence_selection,
         paste_sequence,
         choose_sequence_audio,
+        choose_font_file,
+        choose_image_file,
         create_file,
         create_directory,
         delete_path,
@@ -106,6 +110,9 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         set_preview_appearance,
         set_live_output_active,
         start_output_test,
+        start_fixture_capture,
+        choose_capture_video,
+        capture_fixture,
         set_preview_window_open,
         get_perform_snapshot,
         start_performing,
@@ -173,10 +180,16 @@ fn start_audio_transport_poll(app: AppHandle) {
     );
 }
 
-fn import_external_audio(snapshot: &AppSnapshot, selected_path: &Path) -> Result<String, String> {
+/// The project-relative path of the file at `selected_path`, copied into the
+/// project's `directory` when it is outside the project.
+fn import_external_asset(
+    snapshot: &AppSnapshot,
+    selected_path: &Path,
+    directory: &str,
+) -> Result<String, String> {
     let selected = selected_path
         .canonicalize()
-        .map_err(|error| format!("Could not read selected audio file: {error}"))?;
+        .map_err(|error| format!("Could not read the selected file: {error}"))?;
     let project_root = snapshot
         .project_root
         .as_deref()
@@ -191,39 +204,39 @@ fn import_external_audio(snapshot: &AppSnapshot, selected_path: &Path) -> Result
             .ok()
             .and_then(|path| path.to_str())
             .map(|path| path.replace('\\', "/"))
-            .ok_or_else(|| "Selected audio path is not valid UTF-8".to_string());
+            .ok_or_else(|| "The selected path is not valid UTF-8".to_string());
     }
 
     let file_name = selected
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| "Selected audio file name is not valid UTF-8".to_string())?;
-    let audio_root = project_root.join("audio");
-    fs::create_dir_all(&audio_root)
-        .map_err(|error| format!("Could not create the project audio directory: {error}"))?;
+        .ok_or_else(|| "The selected file name is not valid UTF-8".to_string())?;
+    let asset_root = project_root.join(directory);
+    fs::create_dir_all(&asset_root)
+        .map_err(|error| format!("Could not create the project {directory} directory: {error}"))?;
 
-    let destination = unique_audio_destination(&audio_root, file_name, &selected)?;
+    let destination = unique_asset_destination(&asset_root, file_name, &selected)?;
     if destination != selected {
         fs::copy(&selected, &destination)
-            .map_err(|error| format!("Could not copy audio into the project: {error}"))?;
+            .map_err(|error| format!("Could not copy the file into the project: {error}"))?;
     }
 
     let relative_path = destination
         .strip_prefix(&project_root)
-        .map_err(|_| "Copied audio is outside the project directory.".to_string())?
+        .map_err(|_| "The copied file is outside the project directory.".to_string())?
         .to_str()
-        .ok_or_else(|| "Copied audio path is not valid UTF-8".to_string())?
+        .ok_or_else(|| "The copied path is not valid UTF-8".to_string())?
         .replace('\\', "/");
 
     Ok(relative_path)
 }
 
-fn unique_audio_destination(
-    audio_root: &Path,
+fn unique_asset_destination(
+    asset_root: &Path,
     file_name: &str,
     selected: &Path,
 ) -> Result<PathBuf, String> {
-    let candidate = audio_root.join(file_name);
+    let candidate = asset_root.join(file_name);
     if !candidate.exists() {
         return Ok(candidate);
     }
@@ -238,17 +251,17 @@ fn unique_audio_destination(
     let stem = source
         .file_stem()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| "Selected audio file name is not valid UTF-8".to_string())?;
+        .ok_or_else(|| "The selected file name is not valid UTF-8".to_string())?;
     let extension = source.extension().and_then(|value| value.to_str());
     for index in 1.. {
         let name = match extension {
             Some(extension) => format!("{stem}-{index}.{extension}"),
             None => format!("{stem}-{index}"),
         };
-        let candidate = audio_root.join(name);
+        let candidate = asset_root.join(name);
         if !candidate.exists() {
             return Ok(candidate);
         }
     }
-    Err("Could not choose a destination for the imported audio file.".to_string())
+    Err("Could not choose a destination for the imported file.".to_string())
 }

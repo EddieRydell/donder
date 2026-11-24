@@ -6,7 +6,10 @@ use crate::format::{
     NONE, ResourceRef,
 };
 use bytemuck::{Pod, Zeroable};
-use donder_runtime_types::{GradientSpace, MarkWindow, sampling};
+use donder_runtime_types::{
+    FontView, GradientSpace, ImageView, MarkDurations, MarkLabels, MarkWindow, SampleDuration,
+    TrackView, sampling,
+};
 
 use crate::view::Show;
 
@@ -233,6 +236,11 @@ impl<'a> ParamsView<'a> {
             let first = ticks.partition_point(|&mark| mark < slot.origin);
             return MarkWindow {
                 ticks: &ticks[first..],
+                durations: MarkDurations::Points,
+                labels: MarkLabels {
+                    codes: &[],
+                    spans: &[],
+                },
                 origin: slot.origin,
             };
         }
@@ -265,10 +273,60 @@ impl<'a> Show<'a> {
     pub(crate) fn marks(&self, index: u32) -> MarkWindow<'a> {
         let s = &self.s;
         let marks = &s.marks[index as usize];
-        let track = marks.track.get(s.tracks);
+        let window = marks.first as usize..marks.end as usize;
         MarkWindow {
-            ticks: &track[marks.first as usize..marks.end as usize],
+            ticks: &marks.track.get(s.mark_ticks)[window.clone()],
+            durations: match marks.durations.len {
+                0 => MarkDurations::Points,
+                _ => MarkDurations::Spans(&marks.durations.get(s.mark_ticks)[window.clone()]),
+            },
+            labels: MarkLabels {
+                codes: marks.label_codes.get(s.mark_ticks),
+                spans: match marks.label_spans.len {
+                    0 => &[],
+                    _ => &marks.label_spans.get(s.mark_ticks)[2 * window.start..2 * window.end],
+                },
+            },
             origin: marks.origin,
+        }
+    }
+
+    #[inline(never)]
+    pub(crate) fn font(&self, index: u32) -> FontView<'a> {
+        let s = &self.s;
+        let font = &s.fonts[index as usize];
+        FontView {
+            height: font.height,
+            glyphs: font.glyphs.get(s.glyphs),
+            coverage: font.coverage.get(s.glyph_coverage),
+        }
+    }
+
+    #[inline(never)]
+    pub(crate) fn image(&self, index: u32) -> ImageView<'a> {
+        let s = &self.s;
+        let image = &s.images[index as usize];
+        ImageView {
+            width: image.width,
+            height: image.height,
+            frames: image.frames,
+            rate: image.rate,
+            pixels: image.pixels.get(s.image_pixels),
+        }
+    }
+
+    #[inline(never)]
+    pub(crate) fn audio(&self, index: u32) -> TrackView<'a> {
+        let s = &self.s;
+        let track = &s.audio_tracks[index as usize];
+        TrackView {
+            samples: track.samples.get(s.audio_samples),
+            channels: track.channels as u16,
+            signed: track.signed != 0,
+            rate: track.rate as f32,
+            origin: donder_runtime_types::sample_duration_seconds_f32(SampleDuration::from_ticks(
+                track.origin,
+            )),
         }
     }
 

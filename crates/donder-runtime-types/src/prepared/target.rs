@@ -12,6 +12,25 @@ pub struct TargetPixel {
     index: usize,
     count: usize,
     spatial: SpatialContext,
+    structure: PixelStructure,
+}
+
+/// Where a pixel lies in its target's structure, and the structure's size
+/// in the pixel's sampling scope.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PixelStructure {
+    /// The target member, a fixture or slice, in member order.
+    pub member: u32,
+    /// The strand in the scope: each member's strands follow the members
+    /// before it.
+    pub strand: u32,
+    /// The place along the strand.
+    pub along: u32,
+    /// The target's members, whatever the scope.
+    pub members: u32,
+    pub strands: u32,
+    /// The longest strand's pixels.
+    pub strand_length: u32,
 }
 
 impl TargetPixel {
@@ -32,6 +51,9 @@ impl TargetPixel {
     }
     pub fn spatial(&self) -> SpatialContext {
         self.spatial
+    }
+    pub fn structure(&self) -> PixelStructure {
+        self.structure
     }
 }
 
@@ -83,10 +105,30 @@ impl TargetGeometry {
             bounds(parts.iter().flat_map(|(_, geometry, cells)| {
                 cells.iter().map(|&cell| position(geometry, cell))
             }));
+        let members = parts.len() as u32;
+        // Strands of each part, and the whole target's.
+        let strand_count = |geometry: &FixtureGeometry| geometry.strand_lengths().len() as u32;
+        let longest = |geometry: &FixtureGeometry| {
+            geometry.strand_lengths().iter().copied().max().unwrap_or(0)
+        };
+        let all_strands = parts
+            .iter()
+            .map(|(_, geometry, _)| strand_count(geometry))
+            .sum();
+        let all_longest = parts
+            .iter()
+            .map(|(_, geometry, _)| longest(geometry))
+            .max()
+            .unwrap_or(0);
         let mut pixels = Vec::with_capacity(total);
         let mut selection = Vec::with_capacity(total);
         let mut logical_offset = 0;
-        for (fixture, geometry, cells) in parts {
+        let mut strand_offset = 0;
+        for (member, (fixture, geometry, cells)) in parts.into_iter().enumerate() {
+            let (first_strand, strands, strand_length) = match scope {
+                TargetScope::PerFixture => (0, strand_count(geometry), longest(geometry)),
+                TargetScope::WholeTarget => (strand_offset, all_strands, all_longest),
+            };
             let extent = match scope {
                 TargetScope::PerFixture => {
                     bounds(cells.iter().map(|&cell| position(geometry, cell)))
@@ -114,10 +156,22 @@ impl TargetGeometry {
                             min,
                             max,
                         },
+                        structure: {
+                            let (strand, along) = geometry.strands()[cell as usize];
+                            PixelStructure {
+                                member: member as u32,
+                                strand: first_strand + strand,
+                                along,
+                                members,
+                                strands,
+                                strand_length,
+                            }
+                        },
                     });
                 }
             }
             logical_offset += cells.len();
+            strand_offset += strand_count(geometry);
         }
         pixels.sort_by_key(|pixel| (pixel.fixture, pixel.cell));
         Self {
@@ -164,11 +218,11 @@ impl TargetGeometry {
     }
 }
 
-fn bounds(points: impl IntoIterator<Item = [f32; 2]>) -> Option<([f32; 2], [f32; 2])> {
+fn bounds(points: impl IntoIterator<Item = [f32; 3]>) -> Option<([f32; 3], [f32; 3])> {
     let mut points = points.into_iter();
     let first = points.next()?;
     Some(points.fold((first, first), |(mut min, mut max), point| {
-        for axis in 0..2 {
+        for axis in 0..3 {
             min[axis] = min[axis].min(point[axis]);
             max[axis] = max[axis].max(point[axis]);
         }

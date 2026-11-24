@@ -1,4 +1,4 @@
-//! Song decoding, and beat and downbeat detection from song audio, entirely
+//! Song decoding, the audio analyses effects read, and beat and downbeat detection, entirely
 //! in-process.
 //!
 //! Audio is decoded, mixed to mono and resampled, turned into the log-mel
@@ -19,6 +19,7 @@
 )]
 
 mod decode;
+mod features;
 mod model;
 mod peaks;
 mod spectrogram;
@@ -27,6 +28,10 @@ use std::fmt;
 use std::path::Path;
 
 pub use decode::{DecodedAudio, decode_audio};
+pub use features::{
+    AudioFeature, AudioTrack, LEVEL_RATE, MAX_BANDS, SPECTRUM_HIGH, SPECTRUM_LOW, WAVE_RATE,
+    analyze_audio,
+};
 
 /// Beat and downbeat times in seconds, ascending. Every downbeat is also a beat.
 #[derive(Clone, Debug, Default, PartialEq)]

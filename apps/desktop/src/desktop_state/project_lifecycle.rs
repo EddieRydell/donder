@@ -155,6 +155,7 @@ impl DesktopState {
             }
         });
         if let Some(session) = session {
+            self.schedule_derivations(&session);
             self.schedule_render_refresh(session);
         }
     }

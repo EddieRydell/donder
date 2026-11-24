@@ -353,6 +353,7 @@ impl Parser<'_> {
             TokenKind::Keyword(Keyword::True) if !negative => LiteralKind::Bool(true),
             TokenKind::Keyword(Keyword::False) if !negative => LiteralKind::Bool(false),
             TokenKind::Color if !negative => self.color(token)?,
+            TokenKind::String if !negative => self.string(token)?,
             TokenKind::Identifier if !negative => LiteralKind::Name(
                 Identifier::new(self.text(token.span).to_string())
                     .unwrap_or_else(|_| unreachable!("identifier tokens are valid identifiers")),
@@ -376,6 +377,12 @@ impl Parser<'_> {
                 _ => return Err(Diagnostic::new(token.span, "float literal is out of range")),
             },
         })
+    }
+
+    fn string(&self, token: Token) -> Parsed<LiteralKind> {
+        crate::data::literal::string(self.text(token.span))
+            .map(LiteralKind::String)
+            .map_err(|message| Diagnostic::new(token.span, message))
     }
 
     fn color(&self, token: Token) -> Parsed<LiteralKind> {
@@ -561,6 +568,10 @@ impl Parser<'_> {
                 self.advance();
                 literal(self.color(token)?)
             }
+            TokenKind::String => {
+                self.advance();
+                literal(self.string(token)?)
+            }
             TokenKind::Keyword(Keyword::True) => {
                 self.advance();
                 literal(LiteralKind::Bool(true))
@@ -603,7 +614,10 @@ impl Parser<'_> {
             }
             TokenKind::Keyword(Keyword::If) => self.if_expression(),
             TokenKind::Keyword(Keyword::Match) => self.match_expression(),
-            TokenKind::Identifier if self.peek_at(1).kind == TokenKind::Keyword(Keyword::For) => {
+            TokenKind::Identifier
+                if self.peek_at(1).kind == TokenKind::Keyword(Keyword::For)
+                    || self.at_table_sum() =>
+            {
                 self.reduction()
             }
             TokenKind::Identifier if self.at_scan() => self.scan(),
@@ -706,13 +720,31 @@ impl Parser<'_> {
         })
     }
 
+    /// `table sum for`, the one reducer of two words.
+    fn at_table_sum(&self) -> bool {
+        let (first, second) = (self.peek(), self.peek_at(1));
+        first.kind == TokenKind::Identifier
+            && self.text(first.span) == "table"
+            && second.kind == TokenKind::Identifier
+            && self.text(second.span) == "sum"
+            && self.peek_at(2).kind == TokenKind::Keyword(Keyword::For)
+    }
+
     fn reduction(&mut self) -> Parsed<Expr> {
-        let name = self.name("a reducer")?;
-        let Some(reducer) = ReducerKind::from_name(name.name.as_str()) else {
+        let table_sum = self.at_table_sum();
+        let mut name = self.name("a reducer")?;
+        let reducer = if table_sum {
+            let sum = self.name("`sum`")?;
+            name.span = name.span.to(sum.span);
+            Some(ReducerKind::TableSum)
+        } else {
+            ReducerKind::from_name(name.name.as_str())
+        };
+        let Some(reducer) = reducer else {
             return Err(Diagnostic::new(
                 name.span,
                 format!(
-                    "`{}` is not a reducer; use max, min, sum, any, all, first or last",
+                    "`{}` is not a reducer; use max, min, sum, any, all, first, last, table or table sum",
                     name.name.as_str()
                 ),
             ));

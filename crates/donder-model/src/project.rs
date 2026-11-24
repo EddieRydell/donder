@@ -94,6 +94,9 @@ pub struct DonderProject {
     operators: Shared<IndexMap<OperatorDefinitionId, OperatorDefinition>>,
     next_id: u32,
     accepted_inputs: Arc<accepted::ProjectInputs>,
+    /// Data derived from asset files: not part of the project's documents
+    /// or equality.
+    derived: Arc<crate::derived::DerivedStore>,
     /// The repairs edits made since [`DonderProject::take_repairs`]; not
     /// part of the project.
     repairs: Vec<crate::validation::Repair>,
@@ -213,6 +216,7 @@ impl DonderProject {
             operators: data.operators.into(),
             next_id: data.next_id,
             accepted_inputs: Arc::default(),
+            derived: Arc::default(),
             repairs: Vec::new(),
         };
         crate::validation::validate_project(&project)?;
@@ -277,6 +281,102 @@ impl DonderProject {
             && self.operators.same_allocation(&other.operators)
             && self.curves.same_allocation(&other.curves)
             && self.gradients.same_allocation(&other.gradients)
+    }
+
+    /// What `derivation` derived, or `None` while it runs.
+    pub fn derived(&self, derivation: &crate::Derivation) -> Option<&crate::Derived> {
+        self.derived.get(derivation)
+    }
+
+    /// Each derivation the sequences' and consoles' clips and operators read
+    /// that has no result yet, once.
+    pub fn pending_derivations(&self) -> Vec<crate::Derivation> {
+        let sequences = self
+            .objects::<crate::Sequence>()
+            .map(|sequence| self.sequence_derivations(sequence));
+        let consoles = self.objects::<crate::Console>().map(|console| {
+            let clips = console
+                .clips
+                .iter()
+                .map(|clip| (&clip.definition, &clip.param_overrides));
+            self.derivations(
+                accepted::MarkOrigin::Live,
+                clips,
+                &console.composition_graph,
+            )
+        });
+        let mut pending = Vec::new();
+        for derivation in sequences.chain(consoles).flatten() {
+            if !self.derived.contains_key(&derivation) && !pending.contains(&derivation) {
+                pending.push(derivation);
+            }
+        }
+        pending
+    }
+
+    /// What `sequence`'s clips and operators read, once.
+    pub fn sequence_derivations(&self, sequence: &crate::Sequence) -> Vec<crate::Derivation> {
+        let clips = sequence
+            .clips
+            .iter()
+            .map(|clip| (&clip.definition, &clip.param_overrides));
+        let origin = accepted::MarkOrigin::Authored(sequence);
+        self.derivations(origin, clips, &sequence.composition_graph)
+    }
+
+    /// What the clips and operators of a sequence or console read, once.
+    fn derivations<'a>(
+        &'a self,
+        origin: accepted::MarkOrigin<'a>,
+        clips: impl Iterator<
+            Item = (
+                &'a crate::EffectDefinitionId,
+                &'a IndexMap<donder_runtime_types::Identifier, crate::ParamValue>,
+            ),
+        >,
+        graph: &'a crate::SequenceCompositionGraph,
+    ) -> Vec<crate::Derivation> {
+        let clips = clips.map(|(definition, overrides)| {
+            (
+                self.reusable::<crate::EffectDefinition>()[definition].compiled(),
+                overrides,
+            )
+        });
+        let operators = graph.nodes.iter().filter_map(|node| match &node.kind {
+            crate::CompositionGraphNodeKind::Operator(operator) => Some((
+                self.reusable::<crate::OperatorDefinition>()[&operator.operator].compiled(),
+                &operator.params,
+            )),
+            _ => None,
+        });
+        let mut derivations = Vec::new();
+        for (definition, overrides) in clips.chain(operators) {
+            for derivation in accepted::derivations(self, origin, definition, overrides) {
+                if !derivations.contains(&derivation) {
+                    derivations.push(derivation);
+                }
+            }
+        }
+        derivations
+    }
+
+    /// The project with `derived` for `derivation`; sequences and consoles
+    /// are admitted again, so their clips read it.
+    pub fn with_derived(
+        &self,
+        derivation: crate::Derivation,
+        derived: crate::Derived,
+    ) -> Result<Self, crate::validation::ProjectValidationError> {
+        let mut candidate = self.clone();
+        Arc::make_mut(&mut candidate.derived).insert(derivation, derived);
+        candidate.accepted_inputs =
+            Arc::new(accepted::ProjectInputs::admit(&candidate, Some(self))?);
+        Ok(candidate)
+    }
+
+    /// Whether both projects hold the same analyzed samples.
+    pub(crate) fn same_derived(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.derived, &other.derived)
     }
 
     /// A private transaction boundary for domain operations. Only changed stores

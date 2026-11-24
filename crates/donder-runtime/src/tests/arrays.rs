@@ -4,9 +4,9 @@ use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
 const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::SpatialContext {
-    position: [0.0; 2],
-    min: [0.0; 2],
-    max: [0.0; 2],
+    position: [0.0; 3],
+    min: [0.0; 3],
+    max: [0.0; 3],
 };
 
 use super::evaluation::StripWorkspace;

@@ -509,39 +509,45 @@ pub(crate) struct MarkCollection {
     pub times: Vec<MarkTime>,
 }
 
-/// A mark: its time alone, `12.5s`, or with a label, `(12.5s, "chorus")`.
+/// A mark: its time and duration, `(12.5s, 0s)`, or with a label,
+/// `(12.5s, 2s, "chorus")`.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MarkTime {
     pub time: Duration,
+    pub duration: Duration,
     pub label: Option<String>,
 }
 
 impl Data for MarkTime {
     fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
         match &value.value {
-            DataValue::Tuple(_) => {
-                let (time, label) = <(Duration, String)>::decode(value, decoder)?;
+            DataValue::Tuple(items) if items.len() == 3 => {
+                let (time, duration, label) =
+                    <(Duration, Duration, String)>::decode(value, decoder)?;
                 Some(Self {
                     time,
+                    duration,
                     label: Some(label),
                 })
             }
-            _ => Duration::decode(value, decoder).map(|time| Self { time, label: None }),
+            _ => <(Duration, Duration)>::decode(value, decoder).map(|(time, duration)| Self {
+                time,
+                duration,
+                label: None,
+            }),
         }
     }
     fn encode(&self) -> DataValue {
-        match &self.label {
-            None => self.time.encode(),
-            Some(label) => DataValue::Tuple(vec![
-                spanned(self.time.encode()),
-                spanned(label.clone().encode()),
-            ]),
+        let mut items = vec![spanned(self.time.encode()), spanned(self.duration.encode())];
+        if let Some(label) = &self.label {
+            items.push(spanned(label.clone().encode()));
         }
+        DataValue::Tuple(items)
     }
     fn shape(schema: &mut Schema) -> donder_language::data::Shape {
         donder_language::data::Shape::OneOf(vec![
-            Duration::shape(schema),
-            <(Duration, String)>::shape(schema),
+            <(Duration, Duration)>::shape(schema),
+            <(Duration, Duration, String)>::shape(schema),
         ])
     }
 }
@@ -798,6 +804,23 @@ model_choice!(PlayedQuantity(donder_model::PlayedQuantity) {
 pub(crate) struct Curve {
     pub description: Option<String>,
     pub points: Vec<(f32, f32)>,
+}
+
+/// A font parameter's font: a font file drawn at a line height in pixels.
+#[derive(Clone, Debug, PartialEq, Data)]
+#[data(name = "Font")]
+pub(crate) struct FontValue {
+    pub file: Path,
+    pub height: u32,
+}
+
+/// An image parameter's image: an image file and the longest side, in
+/// pixels, it is scaled to.
+#[derive(Clone, Debug, PartialEq, Data)]
+#[data(name = "Image")]
+pub(crate) struct ImageValue {
+    pub file: Path,
+    pub size: u32,
 }
 
 /// A curve written in place, where only its value matters: a declaration's

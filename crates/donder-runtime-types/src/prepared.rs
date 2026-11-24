@@ -5,7 +5,7 @@ use crate::automation::AutomationMapping;
 use crate::values::{Curve, SampleDuration, SampleTime};
 use alloc::boxed::Box;
 use core::num::NonZeroU32;
-pub use target::{TargetGeometry, TargetPixel};
+pub use target::{PixelStructure, TargetGeometry, TargetPixel};
 
 /// An accepted show clock.
 /// Cache this at project admission so host construction cannot fail on timing.
@@ -39,14 +39,28 @@ impl SequenceTiming {
 /// Finite geometry with representable fixture-local storage addresses.
 #[derive(Clone, Debug)]
 pub struct FixtureGeometry {
-    positions: Box<[[f32; 2]]>,
+    positions: Box<[[f32; 3]]>,
+    /// Each pixel's strand and its place along it.
+    strands: Box<[(u32, u32)]>,
+    /// Each strand's pixels.
+    strand_lengths: Box<[u32]>,
     cells: Box<[u32]>,
     retain_empty: bool,
 }
 
 impl FixtureGeometry {
-    pub fn positions(&self) -> &[[f32; 2]] {
+    pub fn positions(&self) -> &[[f32; 3]] {
         &self.positions
+    }
+
+    /// Each pixel's strand and its place along it, by cell.
+    pub fn strands(&self) -> &[(u32, u32)] {
+        &self.strands
+    }
+
+    /// Each strand's pixels.
+    pub fn strand_lengths(&self) -> &[u32] {
+        &self.strand_lengths
     }
 
     /// Original fixture-local cells retained in physical storage, in order.
@@ -64,6 +78,8 @@ impl FixtureGeometry {
     pub fn select(&self, mut keep: impl FnMut(u32) -> bool) -> Self {
         Self {
             positions: self.positions.clone(),
+            strands: self.strands.clone(),
+            strand_lengths: self.strand_lengths.clone(),
             retain_empty: false,
             cells: self
                 .cells
@@ -74,14 +90,27 @@ impl FixtureGeometry {
         }
     }
 
-    pub fn admit(positions: Box<[[f32; 2]]>) -> Option<Self> {
+    pub fn admit(positions: Box<[[f32; 3]]>, strands: Box<[(u32, u32)]>) -> Option<Self> {
         u32::try_from(positions.len()).ok()?;
-        if positions.iter().flatten().any(|value| !value.is_finite()) {
+        if positions.iter().flatten().any(|value| !value.is_finite())
+            || strands.len() != positions.len()
+        {
             return None;
+        }
+        let count = strands
+            .iter()
+            .map(|(strand, _)| strand + 1)
+            .max()
+            .unwrap_or(0);
+        let mut strand_lengths = alloc::vec![0; count as usize];
+        for &(strand, _) in strands.iter() {
+            strand_lengths[strand as usize] += 1;
         }
         let cells = (0..positions.len() as u32).collect();
         Some(Self {
             positions,
+            strands,
+            strand_lengths: strand_lengths.into(),
             cells,
             retain_empty: true,
         })
@@ -206,9 +235,9 @@ impl OutputEncoding {
 /// Layout-space position and the bounds of this sampling scope, in meters.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpatialContext {
-    pub position: [f32; 2],
-    pub min: [f32; 2],
-    pub max: [f32; 2],
+    pub position: [f32; 3],
+    pub min: [f32; 3],
+    pub max: [f32; 3],
 }
 
 #[derive(Clone, Debug)]

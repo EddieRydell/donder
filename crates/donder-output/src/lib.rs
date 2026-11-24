@@ -11,6 +11,7 @@
 )]
 
 mod artnet;
+mod capture_code;
 mod e131;
 mod fseq;
 mod test_pattern;
@@ -20,6 +21,7 @@ use std::collections::HashMap;
 use donder_model::{Controller, ControllerId, ControllerProtocol};
 
 pub use artnet::ArtNetSender;
+pub use capture_code::{CAPTURE_SLOT_SECONDS, CaptureCode, CaptureSlot};
 pub use e131::E131Sender;
 pub use fseq::{FseqError, FseqStep, encode_fseq, setup_fseq_channel};
 pub use test_pattern::{OutputTest, TestError, TestPattern, TestSelection};

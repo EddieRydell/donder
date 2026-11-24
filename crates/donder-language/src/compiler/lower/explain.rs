@@ -84,6 +84,7 @@ fn line(graph: &Graph, node: Node) -> String {
         Op::Unary(op, _) => format!("{op:?}"),
         Op::Binary(op, ..) => format!("{op:?}"),
         Op::Ternary(op, ..) => format!("{op:?}"),
+        Op::Quaternary(op, ..) => format!("{op:?}"),
         Op::Select(..) => "Select".into(),
         Op::Reduce(id) => format!("{:?} L{}", graph.loop_(*id).reducer, id.index()),
         Op::Read { input, pixel, .. } => format!("Sample input{input} {pixel:?}"),

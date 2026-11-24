@@ -338,6 +338,7 @@ fn paste_marks(
             super::checked_gui_time(anchor.time_seconds + mark.time.as_seconds_f64() - min_time)?;
         collection.marks.push(donder_model::Mark {
             time: time.clone(),
+            duration: mark.duration.clone(),
             label: mark.label.clone(),
         });
         collection.marks.sort_by_key(|mark| mark.time.0);

@@ -237,14 +237,31 @@ impl Single {
             let mut color = [Color::BLACK];
             strip.run(
                 context.pixel_count as usize,
-                spatial.min,
-                spatial.max,
+                crate::dsl::Extent {
+                    min: spatial.min,
+                    max: spatial.max,
+                    ..Default::default()
+                },
                 signals,
                 &mut color,
             );
             color[0]
         })
     }
+}
+
+/// A planar target's extent from its 2D bounds.
+pub(super) fn planar(min: [f32; 2], max: [f32; 2]) -> crate::dsl::Extent {
+    crate::dsl::Extent {
+        min: [min[0], min[1], 0.0],
+        max: [max[0], max[1], 0.0],
+        ..Default::default()
+    }
+}
+
+/// A 2D point in layout space.
+pub(super) fn point(point: [f32; 2]) -> [f32; 3] {
+    [point[0], point[1], 0.0]
 }
 
 /// The one-second show of a [`Single`].

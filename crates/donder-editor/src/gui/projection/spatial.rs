@@ -1,6 +1,6 @@
 use crate::dto::{
-    FixtureGuiDocument, GeometryRenderBounds, GuiDocument, GuiFixtureHandle, GuiLayoutFixture,
-    GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, LayoutGuiDocument, OwnedObjectSlot,
+    FixtureGuiDocument, GeometryRenderBounds, GuiCaptureController, GuiDocument, GuiFixtureHandle,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, LayoutGuiDocument,
     Point3Meters, SpatialRenderPixel, SpatialRenderPlan,
 };
 use crate::gui::{ResolvedGuiObject, blocked};
@@ -13,35 +13,9 @@ pub(in crate::gui) fn project_fixture(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let (definition, name) = match resolved.owned_path.as_slice() {
-        [] => {
-            let Some(value) = session
-                .project
-                .reusable::<donder_model::FixtureDefinition>()
-                .get(&resolved.id::<FixtureDefinitionId>())
-            else {
-                return blocked("Fixture was not found.", Vec::new());
-            };
-            (value, resolved.identity.object().to_string())
-        }
-        [.., OwnedObjectSlot::Fixture { id }] => {
-            let Some(placement) = session
-                .project
-                .get::<donder_model::Layout>(resolved.id::<LayoutId>())
-                .and_then(|layout| layout.fixture(donder_model::FixtureInstanceId(*id)))
-            else {
-                return blocked("Fixture was not found.", Vec::new());
-            };
-            let LayoutFixtureKind::Fixture {
-                definition: donder_model::OwnedFixture::Inline(value),
-                ..
-            } = &placement.kind
-            else {
-                return blocked("Fixture is not owned inline.", Vec::new());
-            };
-            (value, placement.name.as_str().to_string())
-        }
-        _ => return blocked("Unsupported owned fixture path.", Vec::new()),
+    let (definition, name) = match crate::gui::fixture::open_fixture_definition(session, resolved) {
+        Ok(open) => open,
+        Err(message) => return blocked(message, Vec::new()),
     };
     let pixels = donder_model::prepare_geometry(definition);
     let pixels = pixels
@@ -90,8 +64,37 @@ pub(in crate::gui) fn project_fixture(
                 .collect(),
             handles,
             render_plan: plan,
+            capture_controllers: capture_controllers(session),
         },
     }
+}
+
+/// The setup's controllers that stream, which can play the capture pattern.
+fn capture_controllers(session: &ProjectSession) -> Vec<GuiCaptureController> {
+    let Some(setup) = session
+        .project
+        .get::<donder_model::Setup>(*session.project.root().setup.id())
+    else {
+        return Vec::new();
+    };
+    setup
+        .controllers
+        .iter()
+        .filter_map(|controller| {
+            let id = *controller.id();
+            let universes = session
+                .project
+                .get::<donder_model::Controller>(id)?
+                .universes()?;
+            Some(GuiCaptureController {
+                label: crate::gui::model::object_address(session, id)
+                    .declared_name()
+                    .to_string(),
+                source_ref: crate::gui::model::object_ref(session, id),
+                channel_count: universes.channel_count(),
+            })
+        })
+        .collect()
 }
 
 pub(in crate::gui) fn project_layout(

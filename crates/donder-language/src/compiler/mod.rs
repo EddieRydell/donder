@@ -2,6 +2,7 @@
 //! (`ir`); preparation instantiates, rewrites and lowers it (`lower`) to the
 //! portable strip bytecode that playback runs (`donder_runtime_types::bytecode`).
 //! The pipeline is described in `docs/effect_compiler.md`.
+mod audio;
 pub(crate) mod builtins;
 pub use builtins::{
     ARRAY_WORD, AT, ArgType, BUILTINS, Builtin, BuiltinGroup, CONTEXT, ContextValue, ENUM_WORD,
@@ -17,6 +18,7 @@ mod ir;
 mod lower;
 pub(crate) mod syntax;
 
+pub use audio::{AudioSpec, Setting};
 pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange, program_values};
 pub use definition::{CompiledDefinition, Invocation, compile_script};
 pub use diagnostic::Diagnostic;
