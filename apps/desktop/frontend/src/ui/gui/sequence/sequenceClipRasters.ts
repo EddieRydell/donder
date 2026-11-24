@@ -19,10 +19,9 @@ type DecodedClipRaster = {
 };
 
 export type ClipRasterState = {
-  // Changes whenever a raster is decoded, failed or dropped.
+  // Changes whenever a raster is decoded or dropped.
   version: number;
   raster: (clipId: number) => DecodedClipRaster | undefined;
-  failed: (clipId: number) => boolean;
 };
 
 const CLIP_RASTER_REQUEST_THROTTLE_MS = 50;
@@ -49,7 +48,6 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
     for (const id of [...cache.known.keys()]) {
       if (ids.has(id)) continue;
       cache.known.delete(id);
-      cache.failed.delete(id);
       forgetDecoded(cache, id);
     }
   }, [documentKey, clips]);
@@ -72,13 +70,13 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
       cache.since = batch.revision;
       let changed = false;
       for (const raster of batch.rasters) {
-        cache.known.set(raster.clipId, raster);
-        changed = cache.failed.delete(raster.clipId) || changed;
-      }
-      for (const error of batch.errors) {
-        cache.known.delete(error.clipId);
-        cache.failed.add(error.clipId);
-        changed = forgetDecoded(cache, error.clipId) || changed;
+        // A target with no pixels has no rows, and draws nothing.
+        if (raster.rows === 0) {
+          cache.known.delete(raster.clipId);
+          changed = forgetDecoded(cache, raster.clipId) || changed;
+        } else {
+          cache.known.set(raster.clipId, raster);
+        }
       }
       if (changed) publish();
       scheduleDecode(cache, publish);
@@ -102,8 +100,7 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
 
   return useMemo(() => ({
     version,
-    raster: (clipId: number) => usedRaster(documentKey, clipId),
-    failed: (clipId: number) => rasterCache(documentKey).failed.has(clipId)
+    raster: (clipId: number) => usedRaster(documentKey, clipId)
   }), [documentKey, version]);
 }
 
@@ -129,7 +126,6 @@ type RasterCache = {
   // The latest raster of each clip, decoded or not.
   known: Map<number, SequenceClipRaster>;
   decoded: Map<number, DecodedClipRaster>;
-  failed: Set<number>;
   decodedBytes: number;
   access: number;
   decoding: boolean;
@@ -138,7 +134,7 @@ type RasterCache = {
 };
 
 function newRasterCache(documentKey: string): RasterCache {
-  return { documentKey, since: 0, known: new Map(), decoded: new Map(), failed: new Set(), decodedBytes: 0, access: 0, decoding: false, visible: [] };
+  return { documentKey, since: 0, known: new Map(), decoded: new Map(), decodedBytes: 0, access: 0, decoding: false, visible: [] };
 }
 
 function forgetDecoded(cache: RasterCache, clipId: number): boolean {
@@ -181,9 +177,8 @@ function scheduleDecode(cache: RasterCache, published: () => void) {
         cache.decodedBytes += byteLength;
         decodedAny = true;
       } catch {
+        // The pixels were rendered again or evicted since the results named them; the new raster arrives with later results.
         cache.known.delete(raster.clipId);
-        cache.failed.add(raster.clipId);
-        decodedAny = true;
       }
     }
     evictDecoded(cache, new Set(cache.visible));

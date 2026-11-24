@@ -9,7 +9,7 @@ use donder_model::{
 use donder_project_io::{
     IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, TextRange, check_project,
 };
-use std::fs;
+use fs_err as fs;
 use std::sync::OnceLock;
 use std::time::Duration;
 

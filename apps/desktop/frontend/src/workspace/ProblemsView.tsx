@@ -5,7 +5,7 @@ import { runSnapshotCommand } from "../store";
 import { THEME_METRICS } from "../theme";
 import type { AppSnapshot } from "../types";
 import type { AppStaticSnapshot } from "../store";
-import { sameWorkspacePath } from "./helpers";
+import { sameWorkspacePath, severityCounts } from "./helpers";
 import { navigateToText } from "./navigation";
 import { Badge, Button } from "../ui/kit";
 import { countOf } from "../ui/count";
@@ -38,8 +38,7 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
       })
     ] as const);
   }, [snapshot.diagnostics, snapshot.projectEntries, snapshot.projectRoot]);
-  const errors = snapshot.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
-  const warnings = snapshot.diagnostics.length - errors;
+  const { errorCount: errors, warningCount: warnings } = severityCounts(snapshot.diagnostics);
   return (
     <section className="sidebar-view problems-view" aria-label="Problems">
       <header className="sidebar-view-header">

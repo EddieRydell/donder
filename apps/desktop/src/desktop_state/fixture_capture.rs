@@ -48,7 +48,7 @@ impl DesktopState {
         let resolved = donder_editor::resolve_request(&session, request)?;
         let (definition, _) = donder_editor::open_fixture_definition(&session, &resolved)?;
         let video =
-            std::fs::read(path).map_err(|error| format!("Couldn't read the video: {error}."))?;
+            fs_err::read(path).map_err(|error| format!("Couldn't read the video: {error}."))?;
         let capture = donder_fixture_capture::capture_fixture(&video, pixels, definition)
             .map_err(|error| error.to_string())?;
         Ok(GuiFixtureCapture {

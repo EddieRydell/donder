@@ -96,7 +96,7 @@ impl DesktopState {
             }
             Err(error) => {
                 self.stop_live_output();
-                self.set_render_error_if_changed(format!("Render refresh failed: {error:?}"));
+                self.set_render_error_if_changed(format!("Render refresh failed: {error}"));
             }
         }
         self.preview_wake.notify();

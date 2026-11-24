@@ -63,8 +63,8 @@ fn main() {
         }
         checksums.push_str(&format!("{} {}\n", time.as_ticks(), crc.finalize()));
     }
-    std::fs::write(&args[1], &bytes).unwrap();
-    std::fs::write(format!("{}.checksums", args[1]), checksums).unwrap();
+    fs_err::write(&args[1], &bytes).unwrap();
+    fs_err::write(format!("{}.checksums", args[1]), checksums).unwrap();
     println!(
         "sequence={} outputs={} pixels={} effects={} payload_bytes={}",
         session

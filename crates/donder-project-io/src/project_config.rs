@@ -1,5 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use std::{fs, io, io::Write};
+use fs_err as fs;
+use std::{io, io::Write};
 
 pub const PROJECT_ROOT_FILE: &str = "project.data.donder";
 /// The root `Project` declaration's `format`. Any change to a document
@@ -14,9 +15,7 @@ pub struct ProjectWorkspace {
 
 impl ProjectWorkspace {
     pub(crate) fn new(root: &Utf8Path) -> Result<Self, String> {
-        let root = root
-            .canonicalize_utf8()
-            .map_err(|error| error.to_string())?;
+        let root = crate::canonicalize(root).map_err(|error| error.to_string())?;
         if !root.is_dir() {
             return Err("Project root must be a directory".into());
         }
@@ -75,7 +74,18 @@ pub fn atomic_write(path: &Utf8Path, bytes: &[u8]) -> io::Result<()> {
     fs::create_dir_all(parent)?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
     temporary.write_all(bytes)?;
-    temporary.as_file().sync_all()?;
-    temporary.persist(path).map_err(|error| error.error)?;
+    // The temporary file's own errors name it; syncing and renaming it name the replaced file.
+    let replacing = |error: io::Error| {
+        io::Error::new(error.kind(), format!("failed to replace `{path}`: {error}"))
+    };
+    temporary.as_file().sync_all().map_err(replacing)?;
+    temporary
+        .persist(path)
+        .map_err(|error| replacing(error.error))?;
     Ok(())
+}
+
+/// The canonical form of `path`; the error names it.
+pub(crate) fn canonicalize(path: &Utf8Path) -> io::Result<Utf8PathBuf> {
+    Utf8PathBuf::try_from(fs::canonicalize(path)?).map_err(|error| error.into_io_error())
 }

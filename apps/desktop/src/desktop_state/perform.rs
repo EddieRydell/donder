@@ -1049,9 +1049,7 @@ mod tests {
         let (_temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
         // Stream the starter's controller to this test over Art-Net.
         let path = root.join("setups/setup.data.donder");
-        let text = std::fs::read_to_string(&path)
-            .unwrap()
-            .replace("\r\n", "\n");
+        let text = fs_err::read_to_string(&path).unwrap().replace("\r\n", "\n");
         let start = text.find("  protocol: E131 {").unwrap();
         let end = start + text[start..].find("\n  },\n").unwrap() + "\n  },\n".len();
         let universes = text[start..end]
@@ -1075,7 +1073,7 @@ mod tests {
             receiver.local_addr().unwrap(),
             &text[end..],
         );
-        std::fs::write(&path, text).unwrap();
+        fs_err::write(&path, text).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         assert!(

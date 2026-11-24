@@ -5,9 +5,10 @@ use crate::{
     ProjectCheckReport, ProjectWorkspace, analysis,
 };
 use camino::{Utf8Path, Utf8PathBuf};
+use fs_err as fs;
 use indexmap::IndexSet;
 use std::collections::HashMap;
-use std::{fs, io};
+use std::io;
 
 pub type SourceOverrides = std::collections::BTreeMap<Utf8PathBuf, String>;
 

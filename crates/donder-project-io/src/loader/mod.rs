@@ -273,7 +273,7 @@ impl Loader {
         crate::diagnostics::invalid_document(
             address.document().to_path_buf(),
             span.and_then(|span| self.range(root.document_id(), span)),
-            format!("{address}: {}", error.problem),
+            crate::address::object_problem(&address, &error.problem),
         )
     }
 
@@ -399,8 +399,7 @@ impl Loader {
         })?;
         let path = self.workspace.root.join(document_id.path());
         if path.exists() {
-            let absolute = path
-                .canonicalize_utf8()
+            let absolute = crate::canonicalize(&path)
                 .map_err(|source| crate::diagnostics::read_error(path.clone(), &source))?;
             if !absolute.starts_with(&self.workspace.root) {
                 return Err(crate::diagnostics::invalid_document(

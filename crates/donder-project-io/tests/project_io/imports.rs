@@ -31,14 +31,14 @@ const EXTRA: &str = "effects/import-test.donder";
 fn tiny_project(imports: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
-    std::fs::create_dir(root.join("effects")).unwrap();
-    std::fs::write(
+    fs_err::create_dir(root.join("effects")).unwrap();
+    fs_err::write(
         root.join(EFFECT),
         "effect Burst { sample { hsv(0.0, 1.0, 1.0) } }",
     )
     .unwrap();
-    std::fs::write(root.join(EXTRA), extra).unwrap();
-    std::fs::write(
+    fs_err::write(root.join(EXTRA), extra).unwrap();
+    fs_err::write(
         root.join(PROJECT_ROOT_FILE),
         common::root_document(
             imports,

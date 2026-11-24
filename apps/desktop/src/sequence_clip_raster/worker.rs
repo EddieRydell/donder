@@ -1,4 +1,4 @@
-use super::render::{RasterRenderFailure, RenderedRaster, render_clip_raster};
+use super::render::{RenderedRaster, render_clip_raster};
 use crate::state_tasks::LatestScheduler;
 use donder_editor::dto::ClipRasterSettings;
 use donder_elaboration::{PreparationCache, Retain, prepare_cached};
@@ -23,7 +23,7 @@ pub(super) struct RasterJob {
 pub(super) struct RasterOutcome {
     pub(super) clip_id: u32,
     pub(super) clip: Arc<Clip>,
-    pub(super) result: Result<RenderedRaster, String>,
+    pub(super) raster: RenderedRaster,
 }
 
 /// Renders on the desktop's latest-request scheduler: a submitted job
@@ -118,17 +118,15 @@ fn render(
         if !current() {
             break;
         }
-        let result = match render_clip_raster(sequence, clip_id, &job.settings, &current) {
-            Ok(raster) => Ok(raster),
-            Err(RasterRenderFailure::Cancelled) => break,
-            Err(RasterRenderFailure::Error(message)) => Err(message),
+        let Ok(raster) = render_clip_raster(sequence, clip_id, &job.settings, &current) else {
+            break;
         };
         // A closed receiver means the service is gone; nothing reads results.
         if results
             .send(RasterOutcome {
                 clip_id,
                 clip,
-                result,
+                raster,
             })
             .is_err()
         {

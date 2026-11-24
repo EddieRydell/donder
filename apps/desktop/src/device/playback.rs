@@ -64,7 +64,7 @@ fn udp_clock_sample(socket: &UdpSocket, origin: Instant) -> Result<ClockSample, 
         }
         socket
             .set_read_timeout(Some(remaining))
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| format!("UDP clock timeout could not be set: {error}"))?;
         let mut reply = [0; clock::Reply::BYTES + 1];
         let length = socket
             .recv(&mut reply)
@@ -574,17 +574,16 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
     } else {
         "[::]:0"
     };
-    let clock_socket =
-        UdpSocket::bind(bind_address).map_err(|error| format!("Clock socket: {error}"))?;
+    let address = client.address;
+    let clock_socket = UdpSocket::bind(bind_address)
+        .map_err(|error| format!("Could not open a clock socket for {address}: {error}"))?;
     clock_socket
-        .connect(client.address)
-        .map_err(|error| format!("Clock endpoint: {error}"))?;
+        .connect(address)
+        .map_err(|error| format!("Could not connect the clock socket to {address}: {error}"))?;
     clock_socket
         .set_read_timeout(Some(Duration::from_secs(2)))
-        .map_err(|error| error.to_string())?;
-    clock_socket
-        .set_write_timeout(Some(Duration::from_secs(2)))
-        .map_err(|error| error.to_string())?;
+        .and_then(|()| clock_socket.set_write_timeout(Some(Duration::from_secs(2))))
+        .map_err(|error| format!("Could not set the clock timeout for {address}: {error}"))?;
     // Changing clock masters while a show runs would move its time origin.
     let stopped = client.transport(true)?;
     let mut binding = Binding {

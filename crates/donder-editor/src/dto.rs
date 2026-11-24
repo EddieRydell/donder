@@ -54,12 +54,12 @@ pub use problem::{GuiField, GuiMember, GuiProblem, GuiProblemSite};
 pub use sequence::{
     DerivedDataStatus, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
     SequenceClip, SequenceClipDetails, SequenceClipDetailsResult, SequenceClipMatchRequest,
-    SequenceClipParam, SequenceClipParamMatch, SequenceClipRaster, SequenceClipRasterError,
-    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
-    SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceDetachedAutomationBinding,
-    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceGradientLibraryItem,
-    SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGuiDocument,
-    SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
+    SequenceClipParam, SequenceClipParamMatch, SequenceClipRaster, SequenceClipRasterRequest,
+    SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceCompositionGraph,
+    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffectDefinition,
+    SequenceEffectDefinitionParam, SequenceGradientLibraryItem, SequenceGraphNode,
+    SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGuiDocument, SequenceLane,
+    SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
     SequenceParamOption, SequenceParamRange,
 };
 pub use setup::{

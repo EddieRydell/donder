@@ -1,4 +1,4 @@
-use std::fs;
+use fs_err as fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -187,15 +187,13 @@ fn import_external_asset(
     selected_path: &Path,
     directory: &str,
 ) -> Result<String, String> {
-    let selected = selected_path
-        .canonicalize()
+    let selected = fs::canonicalize(selected_path)
         .map_err(|error| format!("Could not read the selected file: {error}"))?;
     let project_root = snapshot
         .project_root
         .as_deref()
-        .map(PathBuf::from)
+        .map(fs::canonicalize)
         .ok_or_else(|| "No project is loaded.".to_string())?
-        .canonicalize()
         .map_err(|error| format!("Could not resolve project directory: {error}"))?;
 
     if selected.starts_with(&project_root) {
@@ -240,10 +238,7 @@ fn unique_asset_destination(
     if !candidate.exists() {
         return Ok(candidate);
     }
-    if candidate
-        .canonicalize()
-        .is_ok_and(|existing| existing == selected)
-    {
+    if fs::canonicalize(&candidate).is_ok_and(|existing| existing == selected) {
         return Ok(candidate);
     }
 

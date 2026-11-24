@@ -30,6 +30,7 @@ mod ownership_edit;
 pub use ownership_edit::{maintain_ownership_sources, remove_documents};
 mod project_config;
 mod project_loading;
+pub(crate) use project_config::canonicalize;
 pub use project_config::{
     PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE, ProjectWorkspace, atomic_write,
     validate_document_path, validate_relative_path,
@@ -44,7 +45,7 @@ mod source_copy;
 pub use analysis::{ProjectRecovery, RecoveryDocument, RecoveryObject};
 pub use diagnostics::{
     IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoFix, IoRelatedLocation,
-    ProjectCheckReport, TextPosition, TextRange,
+    ProjectCheckReport, TextPosition, TextRange, dsl_diagnostic,
 };
 pub use document::{DECLARATION_TYPE_NAMES, document_schema, param_refers, reference_targets};
 pub use errors::ExportProjectError;

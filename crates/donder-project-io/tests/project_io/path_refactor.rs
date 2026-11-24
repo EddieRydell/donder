@@ -1,4 +1,4 @@
-use std::fs;
+use fs_err as fs;
 
 use crate::common::starter_copy;
 use camino::Utf8Path;

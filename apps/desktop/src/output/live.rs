@@ -307,7 +307,7 @@ fn worker(
                         active = Some((generation, transports, snapshot, feed));
                     }
                     Err(error) => {
-                        fail_snapshot(&mut snapshot, format!("{error:?}"));
+                        fail_snapshot(&mut snapshot, format!("Output could not start: {error}"));
                         let _ = updates.send(Update {
                             generation,
                             snapshot,
@@ -360,7 +360,7 @@ fn worker(
                     &mut active,
                     &mut stop_error,
                     generation,
-                    Some(format!("Output failed: {error:?}")),
+                    Some(format!("Output failed: {error}")),
                 );
                 let _ = updates.send(Update {
                     generation,
@@ -378,7 +378,7 @@ fn worker(
                     &mut active,
                     &mut stop_error,
                     generation,
-                    Some(format!("Output failed: {error:?}")),
+                    Some(format!("Output failed: {error}")),
                 );
                 let _ = updates.send(Update {
                     generation,
@@ -408,7 +408,7 @@ fn worker(
                         &mut active,
                         &mut stop_error,
                         generation,
-                        Some(format!("Output failed: {error:?}")),
+                        Some(format!("Output failed: {error}")),
                     );
                     let _ = updates.send(Update {
                         generation,
@@ -435,7 +435,7 @@ fn worker(
                     &mut active,
                     &mut stop_error,
                     generation,
-                    Some(format!("Output rendering failed: {error:?}")),
+                    Some(format!("Output rendering failed: {error}")),
                 );
                 let _ = updates.send(Update {
                     generation,
@@ -463,7 +463,7 @@ fn stop_output(
         );
     };
     let termination = transports.blackout_and_terminate().err().map(|error| {
-        format!("Could not send blackout or terminate output: {error:?}. Check the controller connection; lights may retain their last values.")
+        format!("Could not send blackout or terminate output: {error}. Check the controller connection; lights may retain their last values.")
     });
     let message = match (failure, termination) {
         (Some(failure), Some(termination)) => Some(format!("{failure} {termination}")),
@@ -578,7 +578,7 @@ mod tests {
         let message = stopped.last_error.unwrap();
         assert!(message.contains("Original render failure."));
         assert!(message.contains("Could not send blackout or terminate output"));
-        assert!(message.contains("ControllerId(0)"));
+        assert!(message.contains("127.0.0.1:6454"));
         let repeated = stop_output(&mut active, &mut stop_error, 5, None);
         assert_eq!(repeated.state, LiveOutputState::Error);
         assert_eq!(repeated.generation, 5);

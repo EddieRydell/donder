@@ -470,7 +470,7 @@ impl DesktopState {
             .get::<donder_model::Sequence>(sequence)
             .ok_or("Sequence is missing")?;
         let duration = donder_language::sample_duration_from_donder_duration(&model.duration)
-            .map_err(|error| format!("Invalid sequence duration: {error:?}"))?
+            .map_err(|error| format!("Invalid sequence duration: {error}"))?
             .as_ticks();
         let mut cache = self.take_preparation();
         let prepared = self.device_playback.prepare(
@@ -504,5 +504,5 @@ impl DesktopState {
 fn seconds_to_micros(seconds: f64) -> Result<u32, String> {
     donder_language::sample_time_from_seconds_f64(seconds)
         .map(|time| time.as_ticks())
-        .map_err(|error| format!("Invalid playback position: {error:?}"))
+        .map_err(|error| format!("Invalid playback position: {error}"))
 }

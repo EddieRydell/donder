@@ -49,7 +49,7 @@ pub(crate) fn run(session: &ProjectSession) -> Result<(), String> {
                             stop(&mut active)?;
                             let ids = test.controllers().keys().copied().collect::<Vec<_>>();
                             let transports = OutputTransports::open(test.controllers(), &ids)
-                                .map_err(|error| format!("{error:?}"))?;
+                                .map_err(|error| format!("Output could not start: {error}"))?;
                             eprintln!("testing {} on {} controller(s)", line.trim(), ids.len());
                             active = Some((test, transports, Instant::now()));
                         }
@@ -63,7 +63,7 @@ pub(crate) fn run(session: &ProjectSession) -> Result<(), String> {
         if let Some((test, transports, started)) = &mut active {
             transports
                 .send(&test.frames(started.elapsed()))
-                .map_err(|error| format!("{error:?}"))?;
+                .map_err(|error| format!("Output failed: {error}"))?;
         }
     }
     stop(&mut active)
@@ -73,7 +73,7 @@ fn stop(active: &mut Option<(OutputTest, OutputTransports, Instant)>) -> Result<
     match active.take() {
         Some((_, mut transports, _)) => transports
             .blackout_and_terminate()
-            .map_err(|error| format!("{error:?}")),
+            .map_err(|error| format!("Could not send blackout or terminate output: {error}")),
         None => Ok(()),
     }
 }

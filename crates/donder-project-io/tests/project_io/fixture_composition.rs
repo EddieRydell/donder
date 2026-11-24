@@ -32,9 +32,9 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     let (_temporary, root) = common::starter_copy();
     let root = root.as_path();
     let fixture_path = root.join("fixtures/vertical.data.donder");
-    let mut source = std::fs::read_to_string(&fixture_path).unwrap();
+    let mut source = fs_err::read_to_string(&fixture_path).unwrap();
     source.push_str(ASSEMBLY);
-    std::fs::write(&fixture_path, source).unwrap();
+    fs_err::write(&fixture_path, source).unwrap();
     // The extra definition is indexed even though no layout uses it yet.
     let mut loaded = check_project(root, &Default::default(), &mut Default::default())
         .into_session()

@@ -1,4 +1,4 @@
-use std::fs;
+use fs_err as fs;
 
 use camino::Utf8Path;
 use donder_project_io::{PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE};

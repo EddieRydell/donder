@@ -1,4 +1,4 @@
-use std::fs;
+use fs_err as fs;
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -458,7 +458,7 @@ impl DesktopState {
             write_new_project_files(&root, &files).and_then(|()| {
                 let imported = import_profile(&root, Utf8Path::new(profile_path));
                 if imported.is_err() {
-                    let _ = std::fs::remove_dir_all(&root);
+                    let _ = fs_err::remove_dir_all(&root);
                 }
                 imported
             })
@@ -665,7 +665,7 @@ fn import_profile(
     )
     .map_err(|error| error.to_string())?;
     donder_project_io::save_project(&session).map_err(|error| error.to_string())?;
-    std::fs::write(root.join(IMPORT_REPORT_FILE), report.to_string())
+    fs_err::write(root.join(IMPORT_REPORT_FILE), report.to_string())
         .map_err(|error| error.to_string())?;
     Ok(report)
 }

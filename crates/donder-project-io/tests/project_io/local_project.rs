@@ -2,7 +2,7 @@ use crate::common;
 use crate::common::starter_copy as starter;
 use camino::Utf8Path;
 use donder_project_io::{PROJECT_ROOT_FILE, check_project, plan_path_change};
-use std::fs;
+use fs_err as fs;
 
 #[test]
 fn local_audio_needs_no_inventory_or_configuration_update() {

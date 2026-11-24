@@ -38,7 +38,7 @@ pub fn derive(path: &Path, derivations: &[Derivation]) -> Vec<Derived> {
             }
             Derivation::Font(raster) => {
                 let bytes = bytes
-                    .get_or_insert_with(|| std::fs::read(path).map_err(|error| error.to_string()));
+                    .get_or_insert_with(|| fs_err::read(path).map_err(|error| error.to_string()));
                 match bytes {
                     Ok(bytes) => rasterize(bytes, raster)
                         .map_or_else(Derived::Failed, |font| Derived::Font(Arc::new(font))),
@@ -76,7 +76,7 @@ fn decode_frames(path: &Path) -> Result<Vec<(image::RgbaImage, u32)>, String> {
             .collect()
     };
     let file = || {
-        std::fs::File::open(path)
+        fs_err::File::open(path)
             .map(std::io::BufReader::new)
             .map_err(|error| error.to_string())
     };

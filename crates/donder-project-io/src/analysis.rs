@@ -1,8 +1,8 @@
 use donder_language::compiler::{DeclarationKind, partial_declaration_spans};
 use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
+use fs_err as fs;
 use std::collections::HashSet;
-use std::fs;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use indexmap::IndexMap;

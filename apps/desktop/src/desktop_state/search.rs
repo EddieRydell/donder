@@ -1,6 +1,6 @@
 use super::lock_unpoisoned;
+use fs_err as fs;
 use std::collections::BTreeMap;
-use std::fs;
 
 use ignore::WalkBuilder;
 

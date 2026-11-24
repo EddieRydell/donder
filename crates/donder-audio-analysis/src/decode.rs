@@ -32,8 +32,8 @@ impl DecodedAudio {
 
 /// Decode the default audio track of the file at `path`.
 pub fn decode_audio(path: &Path) -> Result<DecodedAudio, AnalysisError> {
-    let file = std::fs::File::open(path).map_err(AnalysisError::Open)?;
-    let stream = MediaSourceStream::new(Box::new(file), Default::default());
+    let file = fs_err::File::open(path).map_err(AnalysisError::Open)?;
+    let stream = MediaSourceStream::new(Box::new(file.into_file()), Default::default());
     let mut hint = Hint::new();
     if let Some(extension) = path.extension().and_then(|extension| extension.to_str()) {
         hint.with_extension(extension);

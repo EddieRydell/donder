@@ -183,16 +183,7 @@ impl DesktopState {
             media,
             |completed, total| progress(ExportProgress::Rendering { completed, total }),
         )
-        .map_err(|error| match error {
-            donder_output::FseqError::Unplaced(index) => {
-                format!("{} has no FSEQ channel.", labels[index])
-            }
-            donder_output::FseqError::Overlap(first, second) => format!(
-                "{} and {} take some of the same FSEQ channels.",
-                labels[first], labels[second]
-            ),
-            error => error.to_string(),
-        })
+        .map_err(|error| error.describe(|index| &labels[index]).to_string())
     }
 
     /// Render the sequence as an MP4 of the Preview's front view with its song.

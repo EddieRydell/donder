@@ -122,7 +122,6 @@ export const THEME_COLORS = {
   clipMarqueeFill: cssColor("--donder-clip-marquee-fill"),
   sequenceSliceLine: cssColor("--donder-sequence-slice-line"),
   sequenceSliceGuide: cssColor("--donder-sequence-slice-guide"),
-  rasterWarningOverlay: cssColor("--donder-raster-warning-overlay"),
   emptyGradient: cssColor("--donder-empty-gradient")
 } as const;
 
@@ -260,9 +259,6 @@ export const THEME_METRICS = {
   timelineLabelY: cssNumber("--donder-timeline-label-y"),
   timelineMinLabelWidth: cssNumber("--donder-timeline-min-label-width"),
   timelineMinGridWidth: cssNumber("--donder-timeline-min-grid-width"),
-  rasterWarningSizeMin: cssNumber("--donder-raster-warning-size-min"),
-  rasterWarningSizeMax: cssNumber("--donder-raster-warning-size-max"),
-  rasterWarningInset: cssNumber("--donder-raster-warning-inset"),
   sequenceDragThreshold: cssNumber("--donder-sequence-drag-threshold"),
   sequenceWheelZoomScale: cssNumber("--donder-sequence-wheel-zoom-scale"),
   sequencePinchZoomScale: cssNumber("--donder-sequence-pinch-zoom-scale"),

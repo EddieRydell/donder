@@ -186,7 +186,7 @@ impl DesktopState {
             }
             for (relative, change) in changes {
                 if !workspace.documents.contains_key(&relative) {
-                    let text = std::fs::read_to_string(root.join(&relative))
+                    let text = fs_err::read_to_string(root.join(&relative))
                         .map_err(|error| format!("{relative}: {error}"))?;
                     workspace
                         .documents
@@ -635,7 +635,7 @@ impl DesktopState {
 }
 
 pub(super) fn read_disk(path: &Utf8Path) -> Result<Option<Vec<u8>>, String> {
-    match std::fs::read(path) {
+    match fs_err::read(path) {
         Ok(bytes) => Ok(Some(bytes)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(format!("{path}: {error}")),
@@ -708,7 +708,7 @@ mod tests {
     #[test]
     fn unsaved_text_is_the_gui_baseline_and_gui_edits_share_autosave() {
         let (_temporary, root, state) = project();
-        let original = std::fs::read_to_string(root.join(SEQUENCE)).unwrap();
+        let original = fs_err::read_to_string(root.join(SEQUENCE)).unwrap();
         edit(
             &state,
             original.replace("frame_rate: 144", "frame_rate: 90"),
@@ -716,7 +716,7 @@ mod tests {
         state.set_editor_view_mode(EditorViewMode::Gui);
         assert_eq!(state.snapshot().project_health, ProjectHealth::Ready);
         assert_eq!(
-            std::fs::read_to_string(root.join(SEQUENCE)).unwrap(),
+            fs_err::read_to_string(root.join(SEQUENCE)).unwrap(),
             original
         );
         let request = gui_request(&state);
@@ -741,7 +741,7 @@ mod tests {
         state.working_copy.finish_pending();
         assert!(state.snapshot().active_buffer.unwrap().dirty);
         assert_eq!(
-            std::fs::read_to_string(root.join(SEQUENCE)).unwrap(),
+            fs_err::read_to_string(root.join(SEQUENCE)).unwrap(),
             original
         );
         let mut settings = state.snapshot().settings;
@@ -752,7 +752,7 @@ mod tests {
         assert!(!buffer.dirty);
         assert_eq!(buffer.document_revision, buffer.saved_revision);
         assert_eq!(
-            std::fs::read_to_string(root.join(SEQUENCE)).unwrap(),
+            fs_err::read_to_string(root.join(SEQUENCE)).unwrap(),
             state.active_working_text()
         );
     }
@@ -787,7 +787,7 @@ mod tests {
                 .is_none()
         );
         assert_eq!(
-            std::fs::read_to_string(root.join(SEQUENCE)).unwrap(),
+            fs_err::read_to_string(root.join(SEQUENCE)).unwrap(),
             invalid
         );
         assert!(
@@ -946,7 +946,7 @@ mod tests {
         state.set_active_file_path(SEQUENCE);
         assert_eq!(state.active_working_text(), text);
         let snapshot = state.save_all().unwrap();
-        assert_eq!(std::fs::read_to_string(root.join(SEQUENCE)).unwrap(), text);
+        assert_eq!(fs_err::read_to_string(root.join(SEQUENCE)).unwrap(), text);
         assert!(!snapshot.active_buffer.unwrap().dirty);
     }
 
@@ -955,14 +955,14 @@ mod tests {
         let (_temporary, root, state) = project();
         let original = state.active_working_text();
         let external = format!("{original}\n# external\n");
-        std::fs::write(root.join(SEQUENCE), &external).unwrap();
+        fs_err::write(root.join(SEQUENCE), &external).unwrap();
         state.reconcile_external_files().unwrap();
         state.working_copy.finish_pending();
         assert_eq!(state.active_working_text(), external);
         let mine = format!("{original}\n# mine\n");
         edit(&state, mine.clone());
         state.working_copy.finish_pending();
-        std::fs::write(root.join(SEQUENCE), &original).unwrap();
+        fs_err::write(root.join(SEQUENCE), &original).unwrap();
         // No watcher event: the save boundary must still detect the conflict.
         assert!(state.save_all().is_err());
         let snapshot = state.snapshot();
@@ -971,7 +971,7 @@ mod tests {
             BufferExternalState::ChangedOnDisk
         );
         assert_eq!(state.active_working_text(), mine);
-        std::fs::remove_file(root.join(SEQUENCE)).unwrap();
+        fs_err::remove_file(root.join(SEQUENCE)).unwrap();
         state.reconcile_external_files().unwrap();
         assert_eq!(
             state.snapshot().active_buffer.unwrap().external_state,
@@ -987,7 +987,7 @@ mod tests {
             )
             .unwrap();
         state.save_all().unwrap();
-        assert_eq!(std::fs::read_to_string(root.join(SEQUENCE)).unwrap(), mine);
+        assert_eq!(fs_err::read_to_string(root.join(SEQUENCE)).unwrap(), mine);
     }
 
     #[test]
@@ -1032,7 +1032,7 @@ mod tests {
             .unwrap(),
             TransitionResult::Applied { .. }
         ));
-        assert_eq!(std::fs::read_to_string(root.join(SEQUENCE)).unwrap(), text);
+        assert_eq!(fs_err::read_to_string(root.join(SEQUENCE)).unwrap(), text);
         state.open_file_path(SEQUENCE);
         edit(&state, format!("{text}\n# discard me\n"));
         transition(
@@ -1143,11 +1143,11 @@ mod tests {
         state.working_copy.finish_pending();
         state.complete_working_copy(request, None);
         assert_eq!(
-            std::fs::read_to_string(root.join(SEQUENCE)).unwrap(),
+            fs_err::read_to_string(root.join(SEQUENCE)).unwrap(),
             original
         );
-        std::fs::remove_file(root.join(SEQUENCE)).unwrap();
-        std::fs::create_dir(root.join(SEQUENCE)).unwrap();
+        fs_err::remove_file(root.join(SEQUENCE)).unwrap();
+        fs_err::create_dir(root.join(SEQUENCE)).unwrap();
         assert!(state.save_all().is_err());
         let failed = state.snapshot().active_buffer.unwrap();
         assert!(failed.dirty);
@@ -1172,7 +1172,7 @@ mod tests {
         let original = state.active_working_text();
         let updated = original.replace("frame_rate: 144", "frame_rate: 90");
         assert_ne!(updated, original);
-        std::fs::write(root.join(SEQUENCE), &updated).unwrap();
+        fs_err::write(root.join(SEQUENCE), &updated).unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         loop {
             let snapshot = receiver
@@ -1194,7 +1194,7 @@ mod tests {
         let original = state.active_working_text();
         edit(&state, format!("{original}\n# mine\n"));
         state.working_copy.finish_pending();
-        std::fs::write(root.join(SEQUENCE), format!("{original}\n# theirs\n")).unwrap();
+        fs_err::write(root.join(SEQUENCE), format!("{original}\n# theirs\n")).unwrap();
         state.reconcile_external_files().unwrap();
         state.working_copy.finish_pending();
         assert!(

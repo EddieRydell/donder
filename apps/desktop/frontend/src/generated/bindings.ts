@@ -1527,12 +1527,6 @@ export type SequenceClipRaster = {
 	pixelsRgbaToken: string,
 };
 
-export type SequenceClipRasterError = {
-	clipId: number,
-	revision: number,
-	message: string,
-};
-
 /**
  *  The clips the editor shows, in the order their rasters should render.
  *  Every clip of the sequence gets a raster; visible clips render first.
@@ -1551,7 +1545,6 @@ export type SequenceClipRasterResultBatch = {
 	/**  The newest raster revision; the next request asks for later ones. */
 	revision: number,
 	rasters: SequenceClipRaster[],
-	errors: SequenceClipRasterError[],
 	pending: number,
 };
 
@@ -1973,6 +1966,10 @@ export type TextDocumentSyntax =
 /**  A `*.donder` script. */
 "script" | "plain";
 
+/**
+ *  A zero-based line and the UTF-16 code units before the position on it,
+ *  as LSP and Monaco count them.
+ */
 export type TextPosition = {
 	line: number,
 	character: number,

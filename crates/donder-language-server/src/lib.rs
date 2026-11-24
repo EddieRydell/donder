@@ -18,7 +18,10 @@ use std::sync::Arc;
 use donder_language::analysis::{
     Completion, CompletionKind, SymbolKind, script_completions, script_signature,
 };
-use donder_project_io::{IoFix, PROJECT_ROOT_FILE, include_document};
+use donder_project_io::{
+    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoFix, PROJECT_ROOT_FILE, dsl_diagnostic,
+    include_document,
+};
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CompletionItem,
     CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
@@ -74,6 +77,34 @@ fn notification(method: &str, params: impl Serialize) -> Value {
 
 /// A diagnostic's fix as the client returns it in code action requests. An
 /// inclusion is looked up again in the project check when it is applied.
+/// A project diagnostic as LSP publishes it; its range already counts UTF-16
+/// code units.
+fn lsp_diagnostic(diagnostic: IoDiagnostic) -> Diagnostic {
+    let position = |position: &donder_project_io::TextPosition| {
+        lsp_types::Position::new(position.line, position.character)
+    };
+    Diagnostic {
+        range: diagnostic
+            .range
+            .as_ref()
+            .map_or_else(Range::default, |range| {
+                Range::new(position(&range.start), position(&range.end))
+            }),
+        severity: Some(match diagnostic.severity {
+            IoDiagnosticSeverity::Error => DiagnosticSeverity::ERROR,
+            IoDiagnosticSeverity::Warning => DiagnosticSeverity::WARNING,
+        }),
+        // The code's one spelling is its serialized form.
+        code: serde_json::to_value(diagnostic.code)
+            .and_then(serde_json::from_value)
+            .ok(),
+        source: Some("donder".into()),
+        message: diagnostic.message,
+        data: fix_data(diagnostic.fix),
+        ..Diagnostic::default()
+    }
+}
+
 fn fix_data(fix: Option<IoFix>) -> Option<Value> {
     match fix? {
         IoFix::Replace(text) => Some(json!({ "fix": text })),
@@ -248,68 +279,36 @@ impl Server {
     fn publish(&mut self) -> Vec<Value> {
         let mut by_uri = HashMap::<String, Vec<Diagnostic>>::new();
         for (uri, diagnostics) in self.workspace.project_diagnostics() {
-            let Some(document) = self.workspace.document(&uri) else {
-                continue;
-            };
-            let (text, lines) = (document.text(), document.lines());
-            by_uri
-                .entry(uri)
-                .or_default()
-                .extend(diagnostics.into_iter().map(|diagnostic| {
-                    let range = diagnostic
-                        .range
-                        .as_ref()
-                        .map_or_else(Range::default, |range| {
-                            Range::new(
-                                lines.character_position(
-                                    text,
-                                    range.start.line,
-                                    range.start.character,
-                                ),
-                                lines.character_position(text, range.end.line, range.end.character),
-                            )
-                        });
-                    Diagnostic {
-                        range,
-                        severity: Some(match diagnostic.severity {
-                            donder_project_io::IoDiagnosticSeverity::Error => {
-                                DiagnosticSeverity::ERROR
-                            }
-                            donder_project_io::IoDiagnosticSeverity::Warning => {
-                                DiagnosticSeverity::WARNING
-                            }
-                        }),
-                        // The code's one spelling is its serialized form.
-                        code: serde_json::to_value(diagnostic.code)
-                            .and_then(serde_json::from_value)
-                            .ok(),
-                        source: Some("donder".into()),
-                        message: diagnostic.message,
-                        data: fix_data(diagnostic.fix),
-                        ..Diagnostic::default()
-                    }
-                }));
+            if self.workspace.document(&uri).is_some() {
+                by_uri
+                    .entry(uri)
+                    .or_default()
+                    .extend(diagnostics.into_iter().map(lsp_diagnostic));
+            }
         }
         // Open documents outside a project are checked on their own.
         for (uri, document) in &self.workspace.open {
             if self.workspace.in_project(uri) && self.workspace.check.is_some() {
                 continue;
             }
-            let diagnostics = match document.kind() {
-                workspace::Kind::Script => document.script().diagnostics.clone(),
-                workspace::Kind::Data => document.parsed().1.clone(),
-                workspace::Kind::Other => Vec::new(),
+            let Some(path) = uri_path(uri) else {
+                continue;
+            };
+            let (diagnostics, code) = match document.kind() {
+                workspace::Kind::Script => (
+                    document.script().diagnostics.clone(),
+                    IoDiagnosticCode::ScriptCompile,
+                ),
+                workspace::Kind::Data => {
+                    (document.parsed().1.clone(), IoDiagnosticCode::DataSyntax)
+                }
+                workspace::Kind::Other => continue,
             };
             by_uri
                 .entry(uri.clone())
                 .or_default()
-                .extend(diagnostics.into_iter().map(|diagnostic| Diagnostic {
-                    range: document.range(diagnostic.span),
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    source: Some("donder".into()),
-                    message: diagnostic.message,
-                    data: diagnostic.fix.map(|fix| json!({ "fix": fix })),
-                    ..Diagnostic::default()
+                .extend(diagnostics.into_iter().map(|diagnostic| {
+                    lsp_diagnostic(dsl_diagnostic(&path, document.text(), diagnostic, code))
                 }));
         }
         let mut out = Vec::new();

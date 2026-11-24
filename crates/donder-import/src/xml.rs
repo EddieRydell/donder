@@ -10,7 +10,7 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 
 fn read_text(path: &Utf8Path) -> Result<String, ImportError> {
-    let bytes = std::fs::read(path).map_err(|error| ImportError::Read {
+    let bytes = fs_err::read(path).map_err(|error| ImportError::Read {
         path: path.to_owned(),
         message: error.to_string(),
     })?;

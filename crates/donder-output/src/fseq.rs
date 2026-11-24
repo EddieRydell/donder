@@ -64,13 +64,18 @@ pub enum FseqError {
     Compression(std::io::Error),
 }
 
-impl fmt::Display for FseqError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unplaced(_) => formatter.write_str("An output has no FSEQ channel."),
-            Self::Overlap(_, _) => {
-                formatter.write_str("Two outputs take some of the same FSEQ channels.")
-            }
+impl FseqError {
+    /// This error as the user reads it, naming each output by `label` of its
+    /// index in the prepared show's outputs.
+    pub fn describe<L: fmt::Display>(&self, label: impl Fn(usize) -> L) -> impl fmt::Display {
+        fmt::from_fn(move |formatter| match self {
+            Self::Unplaced(index) => write!(formatter, "{} has no FSEQ channel.", label(*index)),
+            Self::Overlap(first, second) => write!(
+                formatter,
+                "{} and {} take some of the same FSEQ channels.",
+                label(*first),
+                label(*second)
+            ),
             Self::TooManyChannels => {
                 formatter.write_str("The selected outputs have too many channels for FSEQ.")
             }
@@ -83,7 +88,7 @@ impl fmt::Display for FseqError {
             Self::Compression(error) => {
                 write!(formatter, "Could not compress FSEQ frames: {error}")
             }
-        }
+        })
     }
 }
 

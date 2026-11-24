@@ -7,6 +7,7 @@ authors = ["Donder"]
 license = "MIT"
 
 [dependencies]
+fs-err.workspace = true
 camino = { workspace = true, features = ["serde1"] }
 donder-data-derive.workspace = true
 donder-language.workspace = true

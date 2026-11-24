@@ -90,9 +90,9 @@ impl Timeline {
     fn new() -> Self {
         let (temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
         let path = root.join("effects/standard.donder");
-        let mut source = std::fs::read_to_string(&path).unwrap();
+        let mut source = fs_err::read_to_string(&path).unwrap();
         source.push_str("\neffect RowTest { param level: float in 0.0..1.0 = 0.5; sample { rgb(level, level, level) } }\n");
-        std::fs::write(path, source).unwrap();
+        fs_err::write(path, source).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let mut settings = state.snapshot().settings;

@@ -299,7 +299,8 @@ struct EncodedSong {
 
 /// Decode the song to stereo and encode it as AAC-LC.
 fn encode_song(path: &Utf8Path) -> Result<EncodedSong, String> {
-    let audio_error = |message: String| format!("Could not read the sequence audio: {message}");
+    let audio_error =
+        |message: String| format!("Could not read the sequence audio {path}: {message}");
     let audio = donder_audio_analysis::decode_audio(path.as_std_path())
         .map_err(|error| audio_error(error.to_string()))?;
     let encoder = Encoder::new(EncoderParams {

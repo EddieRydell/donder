@@ -264,6 +264,9 @@ pub struct ReferencedAsset {
 pub enum AssetError {
     /// The path is not a project-relative path.
     Path(String),
+    /// No file exists at the path.
+    Missing,
+    /// The file cannot be read; the error names it.
     Read(std::io::Error),
     /// The path names no file inside the project.
     Outside,
@@ -273,6 +276,7 @@ impl std::fmt::Display for AssetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Path(message) => f.write_str(message),
+            Self::Missing => f.write_str("the file does not exist"),
             Self::Read(error) => error.fmt(f),
             Self::Outside => f.write_str("the asset is not a file inside the project"),
         }
@@ -297,10 +301,10 @@ pub fn reference_asset(
         existing.referenced_by.insert(document.clone());
         return Ok(existing.id.clone());
     }
-    let absolute = root
-        .join(path)
-        .canonicalize_utf8()
-        .map_err(AssetError::Read)?;
+    let absolute = crate::canonicalize(&root.join(path)).map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound => AssetError::Missing,
+        _ => AssetError::Read(error),
+    })?;
     if !absolute.is_file() || !absolute.starts_with(root) {
         return Err(AssetError::Outside);
     }

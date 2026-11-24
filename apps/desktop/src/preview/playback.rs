@@ -206,3 +206,16 @@ pub(crate) enum PreviewPlaybackError {
     PixelCount { sequence: usize, scene: usize },
     ClockPosition,
 }
+
+impl std::fmt::Display for PreviewPlaybackError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Decode(error) => write!(formatter, "{error}"),
+            Self::PixelCount { sequence, scene } => write!(
+                formatter,
+                "the sequence drives {sequence} pixels but the Preview shows {scene}"
+            ),
+            Self::ClockPosition => formatter.write_str("the playback position is out of range"),
+        }
+    }
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { commands } from "../api";
+import { commands, errorMessage } from "../api";
 import { runSnapshotCommand, useAppStore } from "../store";
 import type { AppSettings, SequenceFollowMode, SequenceInitialZoomMode } from "../types";
 import { KeybindingsSettings } from "./KeybindingsSettings";
@@ -35,7 +35,7 @@ export function SettingsDialog() {
     try {
       await runSnapshotCommand(() => commands.updateAppSettings(next));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(errorMessage(caught));
     }
   }
 

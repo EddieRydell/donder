@@ -162,7 +162,7 @@ impl Workspace {
                 .and_then(|relative| source.text(&relative)),
             Checker::Own(_) => None,
         };
-        let text = host.or_else(|| std::fs::read_to_string(uri_path(uri)?).ok())?;
+        let text = host.or_else(|| fs_err::read_to_string(uri_path(uri)?).ok())?;
         let document = Arc::new(Document::new(kind(uri), text));
         self.read
             .borrow_mut()

@@ -1,5 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use std::fs;
+use fs_err as fs;
 
 /// A root document declaring `Project main` with a fresh project id and no
 /// consoles. `fields` are written after `description`; imports come first.
@@ -107,8 +107,8 @@ pub(crate) fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf) {
 }
 
 fn copy_tree(source: &Utf8Path, destination: &Utf8Path) {
-    for entry in source.read_dir_utf8().unwrap() {
-        let path = entry.unwrap().into_path();
+    for entry in fs::read_dir(source).unwrap() {
+        let path = Utf8PathBuf::try_from(entry.unwrap().path()).unwrap();
         let target = destination.join(path.file_name().unwrap());
         if path.is_dir() {
             copy_tree(&path, &target);

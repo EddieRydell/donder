@@ -1,5 +1,5 @@
+use fs_err as fs;
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
@@ -510,7 +510,7 @@ mod tests {
         service
             .record_sequence_viewport("project", update(state.clone()))
             .unwrap();
-        let saved = std::fs::read_to_string(&path).unwrap();
+        let saved = fs_err::read_to_string(&path).unwrap();
         let reopened = decode_store(&saved).unwrap();
         let key = sequence_viewport_key("show.data.donder", "show", &[]).unwrap();
         assert_eq!(
@@ -523,7 +523,7 @@ mod tests {
                 .record_sequence_viewport("project", update(state))
                 .is_err()
         );
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+        assert_eq!(fs_err::read_to_string(&path).unwrap(), saved);
     }
 
     #[test]

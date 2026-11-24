@@ -313,13 +313,7 @@ fn export_fseq(
         .audio_asset(&sequence.audio)
         .and_then(|asset| asset.relative_path.file_name());
     let bytes = donder_output::encode_fseq(prepared, fseq_channel, step, media, |_, _| {})
-        .map_err(|error| match error {
-            donder_output::FseqError::Overlap(first, second) => format!(
-                "{} and {} take some of the same FSEQ channels.",
-                labels[first].1, labels[second].1
-            ),
-            error => error.to_string(),
-        })?;
+        .map_err(|error| error.describe(|index| &labels[index].1).to_string())?;
     donder_project_io::atomic_write(output, &bytes).map_err(|error| error.to_string())?;
     println!("Wrote {output} at {} ms per frame:", step.millis());
     labels.sort_by_key(|(first, _, _)| *first);

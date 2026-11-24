@@ -8,6 +8,7 @@ license = "MIT"
 default-run = "donder-desktop"
 
 [dependencies]
+fs-err.workspace = true
 camino.workspace = true
 bytemuck.workspace = true
 donder-project-io.workspace = true

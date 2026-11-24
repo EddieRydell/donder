@@ -59,6 +59,30 @@ the build still succeeds but video export encodes several times slower.
 `pnpm firmware:build` and `pnpm firmware:cargo` select ESP tools in child
 processes using `DONDER_ESP_LIBCLANG_PATH` and `DONDER_ESP_TOOLCHAIN_BIN`.
 
+## Errors
+
+Every error a person reads says what failed and where. There are three
+channels, chosen by what the error is about:
+
+- **Project problems** are `IoDiagnostic`s: a document path, a text range
+  where one exists, a severity, a code and a message. Loading, syntax,
+  scripts, project rules and referenced assets all report this way, and the
+  Problems view, the language server and the CLI read the same records. An
+  error about something a document references, such as a missing audio file,
+  sits at the referencing field, not at the referenced file. Positions count
+  UTF-16 code units, as LSP and Monaco do.
+- **Refused GUI edits** are `GuiProblem`s, at the field of the open editor
+  the model's problem site names. They are built from typed state; an edit
+  never prints document text to locate its problem.
+- **Activity failures** (export, output, device, audio playback, preview,
+  render) are messages shown at the control that ran them. Their error types
+  implement `Display` with a plain sentence that names the file, controller
+  or device; never show an error's `Debug` form.
+
+Filesystem calls go through `fs_err`, whose errors name the path and the
+operation; the root `clippy.toml` bans the `std::fs`, `Path` and `camino`
+calls it replaces.
+
 ## Firmware runtime constraints
 
 The runtime is 32-bit: `donder-runtime` and `donder-runtime-types` never use

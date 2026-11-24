@@ -119,7 +119,7 @@ impl PreviewStyle {
             minimum_radius_pixels: appearance.minimum_radius_pixels,
         }
         .validate()
-        .map_err(|error| format!("Preview appearance is invalid: {error:?}"))
+        .map_err(|error| format!("Preview appearance is invalid: {error}"))
     }
 
     fn validate(self) -> Result<Self, PreviewStyleError> {
@@ -144,6 +144,15 @@ impl PreviewStyle {
 pub(crate) enum PreviewStyleError {
     CanvasFillRatio,
     MinimumRadius,
+}
+
+impl std::fmt::Display for PreviewStyleError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::CanvasFillRatio => "the canvas fill ratio must be above 0 and at most 1",
+            Self::MinimumRadius => "the minimum radius must be zero or more pixels",
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

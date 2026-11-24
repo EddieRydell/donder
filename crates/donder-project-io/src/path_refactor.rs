@@ -1,5 +1,5 @@
+use fs_err as fs;
 use std::collections::BTreeMap;
-use std::fs;
 
 use crate::address::DocumentId;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -250,13 +250,8 @@ fn normalize_relative(path: &Utf8Path) -> Result<Utf8PathBuf, String> {
 }
 
 fn checked_existing_path(root: &Utf8Path, relative: &Utf8Path) -> Result<Utf8PathBuf, String> {
-    let canonical_root = root
-        .canonicalize_utf8()
-        .map_err(|error| error.to_string())?;
-    let canonical = root
-        .join(relative)
-        .canonicalize_utf8()
-        .map_err(|error| error.to_string())?;
+    let canonical_root = crate::canonicalize(root).map_err(|error| error.to_string())?;
+    let canonical = crate::canonicalize(&root.join(relative)).map_err(|error| error.to_string())?;
     if !canonical.starts_with(&canonical_root) {
         return Err("Source path escapes the project root.".to_string());
     }
@@ -264,16 +259,12 @@ fn checked_existing_path(root: &Utf8Path, relative: &Utf8Path) -> Result<Utf8Pat
 }
 
 fn checked_destination(root: &Utf8Path, relative: &Utf8Path) -> Result<Utf8PathBuf, String> {
-    let canonical_root = root
-        .canonicalize_utf8()
-        .map_err(|error| error.to_string())?;
+    let canonical_root = crate::canonicalize(root).map_err(|error| error.to_string())?;
     let destination = root.join(relative);
     let parent = destination
         .parent()
         .ok_or_else(|| "Destination has no parent directory.".to_string())?;
-    let canonical_parent = parent
-        .canonicalize_utf8()
-        .map_err(|error| error.to_string())?;
+    let canonical_parent = crate::canonicalize(parent).map_err(|error| error.to_string())?;
     if !canonical_parent.starts_with(&canonical_root) {
         return Err("Destination path escapes the project root.".to_string());
     }

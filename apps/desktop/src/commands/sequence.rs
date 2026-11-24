@@ -76,7 +76,7 @@ pub(crate) async fn export_video_file(
         // The video streams into a sibling file that replaces the destination
         // only once it is complete, and is removed if the export fails.
         let partial = camino::Utf8PathBuf::from(format!("{path}.part"));
-        let file = std::fs::File::create(&partial)
+        let file = fs_err::File::create(&partial)
             .map_err(|error| format!("Could not save the video: {error}"))?;
         let mut writer = std::io::BufWriter::new(file);
         let exported = state
@@ -95,11 +95,11 @@ pub(crate) async fn export_video_file(
                     .map_err(|error| format!("Could not save the video: {error}"))
             })
             .and_then(|()| {
-                std::fs::rename(&partial, &path)
+                fs_err::rename(&partial, &path)
                     .map_err(|error| format!("Could not save the video: {error}"))
             });
         if let Err(error) = exported {
-            let _ = std::fs::remove_file(&partial);
+            let _ = fs_err::remove_file(&partial);
             return Err(error);
         }
         Ok(Some(path.to_string()))

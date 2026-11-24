@@ -9,7 +9,7 @@ use sacn::packet::{
 };
 use uuid::Uuid;
 
-use crate::OutputError;
+use crate::{OutputError, codec_error, socket_error};
 
 /// Sends E1.31 data packets on one socket. The `sacn` crate's `SacnSource` is not used: its
 /// discovery thread makes every drop wait up to a second, which stalls disabling output.
@@ -26,8 +26,13 @@ pub struct E131Sender {
 
 impl E131Sender {
     pub(crate) fn open(id: ControllerId, config: &E131Config) -> Result<Self, OutputError> {
-        let socket = UdpSocket::bind(SocketAddr::new(config.bind_address, 0))
-            .map_err(|error| socket_error(&id, error))?;
+        let socket = UdpSocket::bind(SocketAddr::new(config.bind_address, 0)).map_err(|error| {
+            socket_error(
+                id,
+                format_args!("could not open a socket on {}", config.bind_address),
+                error,
+            )
+        })?;
         Ok(Self {
             id,
             socket,
@@ -110,13 +115,21 @@ impl E131Sender {
                 }),
             },
         };
-        let bytes = packet
-            .pack_alloc()
-            .map_err(|error| socket_error(&self.id, error))?;
         let destination = self.destination(universe)?;
-        self.socket
-            .send_to(&bytes, destination)
-            .map_err(|error| socket_error(&self.id, error))?;
+        let bytes = packet.pack_alloc().map_err(|error| {
+            codec_error(
+                self.id,
+                format_args!("could not encode an E1.31 packet for {destination}"),
+                error,
+            )
+        })?;
+        self.socket.send_to(&bytes, destination).map_err(|error| {
+            socket_error(
+                self.id,
+                format_args!("could not send to {destination}"),
+                error,
+            )
+        })?;
         Ok(())
     }
 
@@ -130,18 +143,21 @@ impl E131Sender {
                     IpAddr::V4(_) => universe_to_ipv4_multicast_addr(universe),
                     IpAddr::V6(_) => universe_to_ipv6_multicast_addr(universe),
                 }
-                .map_err(|error| socket_error(&self.id, error))?;
-                address
-                    .as_socket()
-                    .ok_or_else(|| socket_error(&self.id, "multicast address is not IP"))
+                .map_err(|error| {
+                    socket_error(
+                        self.id,
+                        format_args!("universe {universe} has no multicast address"),
+                        error,
+                    )
+                })?;
+                address.as_socket().ok_or_else(|| {
+                    socket_error(
+                        self.id,
+                        format_args!("universe {universe} has no multicast address"),
+                        "it is not an IP address",
+                    )
+                })
             }
         }
-    }
-}
-
-fn socket_error(id: &ControllerId, error: impl std::fmt::Debug) -> OutputError {
-    OutputError::Socket {
-        controller: *id,
-        message: format!("{error:?}"),
     }
 }

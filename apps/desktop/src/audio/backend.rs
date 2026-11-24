@@ -78,7 +78,7 @@ impl AudioDriver for KiraAudioDriver {
             .map(|sound| AudioMetadata {
                 duration_seconds: sound.duration().as_secs_f64(),
             })
-            .map_err(|error| error.to_string())
+            .map_err(|error| format!("{path}: {error}"))
     }
 
     fn play(
@@ -89,7 +89,7 @@ impl AudioDriver for KiraAudioDriver {
         bounds: PlaybackBounds,
     ) -> Result<Box<dyn AudioHandle>, String> {
         let mut sound = StreamingSoundData::from_file(path)
-            .map_err(|error| error.to_string())?
+            .map_err(|error| format!("{path}: {error}"))?
             .start_position(position_seconds)
             .playback_rate(f64::from(rate.speed()));
         // A slice that starts at zero keeps reported positions in source seconds.
@@ -151,7 +151,7 @@ impl AudioHandle for KiraAudioHandle {
 }
 
 pub(super) fn canonical_audio_path(path: &str) -> Result<String, std::io::Error> {
-    std::fs::canonicalize(path).map(|path| path.to_string_lossy().into_owned())
+    fs_err::canonicalize(path).map(|path| path.to_string_lossy().into_owned())
 }
 
 fn instant_tween() -> Tween {

@@ -56,6 +56,7 @@ export function SequenceTransportControls({
       <IconButton icon={Magnet} label={snapping ? "Snap: on, Alt bypasses" : "Snap: off, Alt snaps"} pressed={snapping} onClick={() => { toggleSequenceSnap(); }} />
       <IconButton icon={Music} label="Choose audio" onClick={() => void chooseAudio(document)} />
       <DerivedDataBadge status={document.derivedData} />
+      {transport.state === "error" && transport.lastError !== null && <Badge icon={AudioLines} tip={transport.lastError}>Audio failed</Badge>}
       <SequencePlaybackSpeedControls speed={transport.playbackSpeed} />
       <Tip label="Stop returns to Home. Click the ruler to move Home; drag in it to set a playback range.">
         <span className="sequence-time-readout">

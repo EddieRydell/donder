@@ -1746,6 +1746,7 @@ dependencies = [
 name = "donder-audio-analysis"
 version = "0.2.3"
 dependencies = [
+ "fs-err",
  "realfft",
  "rubato",
  "symphonia",
@@ -1800,6 +1801,7 @@ dependencies = [
  "donder-runtime",
  "donder-runtime-types",
  "fdk-aac",
+ "fs-err",
  "glam",
  "ignore",
  "indexmap 2.14.2",
@@ -1868,6 +1870,7 @@ dependencies = [
  "donder-runtime",
  "donder-runtime-types",
  "donder-test-support",
+ "fs-err",
  "image",
  "indexmap 2.14.2",
 ]
@@ -1894,6 +1897,7 @@ dependencies = [
  "donder-model",
  "donder-project-io",
  "donder-runtime-types",
+ "fs-err",
  "glam",
  "quick-xml 0.42.0",
  "tempfile",
@@ -1916,6 +1920,7 @@ dependencies = [
  "donder-language",
  "donder-project-io",
  "donder-runtime-types",
+ "fs-err",
  "indexmap 2.14.2",
  "lsp-types",
  "serde",
@@ -1958,6 +1963,7 @@ dependencies = [
  "donder-language",
  "donder-model",
  "donder-runtime-types",
+ "fs-err",
  "indexmap 2.14.2",
  "serde",
  "specta",
@@ -2319,6 +2325,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "fs-err"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5c95b673b8f6f7235229ae11c5642d81b04c2e64c1e2fb417bc0cf73ca45f29"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]

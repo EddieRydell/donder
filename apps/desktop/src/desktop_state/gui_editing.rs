@@ -317,7 +317,7 @@ impl DesktopState {
                 .map_err(GuiProblem::without_site)?;
         {
             let _filesystem = lock_unpoisoned(&self.filesystem);
-            std::fs::remove_file(edited.source.absolute_path(document))
+            fs_err::remove_file(edited.source.absolute_path(document))
                 .map_err(|error| GuiProblem::without_site(error.to_string()))?;
         }
         lock_unpoisoned(&self.gui_history).clear();

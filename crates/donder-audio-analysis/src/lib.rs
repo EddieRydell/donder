@@ -54,7 +54,7 @@ pub enum AnalysisError {
 impl fmt::Display for AnalysisError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Open(error) => write!(formatter, "Could not open the audio file: {error}"),
+            Self::Open(error) => error.fmt(formatter),
             Self::NoAudioTrack => formatter.write_str("The file has no audio track."),
             Self::UnsupportedLayout => formatter.write_str(
                 "The audio has no channels, or changes its channel count or sample rate.",

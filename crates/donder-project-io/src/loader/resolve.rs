@@ -1632,14 +1632,8 @@ impl DomainResolver<'_> {
     ) -> Result<AssetId, LoadError> {
         let root = &self.loader.workspace.root;
         let mut assets = self.loader.referenced_assets.borrow_mut();
-        crate::source::reference_asset(&mut assets, root, document, path).map_err(|error| {
-            match error {
-                crate::AssetError::Read(source) => {
-                    crate::diagnostics::read_error(root.join(path), &source)
-                }
-                error => self.invalid(document, span, format!("{kind} asset {path}: {error}")),
-            }
-        })
+        crate::source::reference_asset(&mut assets, root, document, path)
+            .map_err(|error| self.invalid(document, span, format!("{kind} asset {path}: {error}")))
     }
 
     /// Parameter values, typed by their declarations and written in

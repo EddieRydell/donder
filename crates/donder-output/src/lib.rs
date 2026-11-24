@@ -60,6 +60,53 @@ pub enum OutputError {
     NotStreamed(ControllerId),
 }
 
+impl std::fmt::Display for OutputError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingController(_) => {
+                formatter.write_str("a controller to stream to is missing from the project")
+            }
+            Self::InvalidFrameLength {
+                expected, actual, ..
+            } => write!(
+                formatter,
+                "a frame of {actual} channels was sent to a controller of {expected} channels"
+            ),
+            Self::Socket { message, .. } | Self::Codec { message, .. } => {
+                formatter.write_str(message)
+            }
+            Self::NotStreamed(_) => {
+                formatter.write_str("Donder controllers play uploaded shows and are not streamed")
+            }
+        }
+    }
+}
+
+/// A controller's network failure: what it could not do, naming the address
+/// when there is one, and why.
+fn socket_error(
+    controller: ControllerId,
+    action: impl std::fmt::Display,
+    error: impl std::fmt::Display,
+) -> OutputError {
+    OutputError::Socket {
+        controller,
+        message: format!("{action}: {error}"),
+    }
+}
+
+/// A controller's packet that could not be encoded, and why.
+fn codec_error(
+    controller: ControllerId,
+    action: impl std::fmt::Display,
+    error: impl std::fmt::Display,
+) -> OutputError {
+    OutputError::Codec {
+        controller,
+        message: format!("{action}: {error}"),
+    }
+}
+
 pub enum ControllerSender {
     E131(E131Sender),
     ArtNet(ArtNetSender),

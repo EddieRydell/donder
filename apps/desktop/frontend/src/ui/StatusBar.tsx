@@ -5,7 +5,7 @@ import { focusSidebar } from "./uiEvents";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { THEME_METRICS } from "../theme";
 import { useAppStore, type AppStaticSnapshot } from "../store";
-import { displayedProjectHealth } from "../workspace/helpers";
+import { displayedProjectHealth, severityCounts } from "../workspace/helpers";
 import { countOf } from "./count";
 import { useUnplacedRefusal } from "./gui/problems";
 
@@ -26,8 +26,7 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const saveTooltip = pending.length > 0
     ? pending.map((document) => `${document.path}: ${document.state.type === "failed" ? document.state.message : document.state.type}`).join(" · ")
     : localDirty ? "The active editor has unsaved changes." : "All project files are saved.";
-  const errors = snapshot.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
-  const warnings = snapshot.diagnostics.filter((diagnostic) => diagnostic.severity === "warning").length;
+  const { errorCount: errors, warningCount: warnings } = severityCounts(snapshot.diagnostics);
   const projectParts = snapshot.projectRoot?.replace(/\\/g, "/").split("/") ?? [];
   const projectName = projectParts[projectParts.length - 1] ?? "No project";
   const health = displayedProjectHealth(snapshot);

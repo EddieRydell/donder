@@ -39,6 +39,7 @@ donder-runtime-types = { path = "crates/donder-runtime-types" }
 donder-test-support = { path = "crates/donder-test-support" }
 donder-import = { path = "crates/donder-import" }
 donder-fixture-capture = { path = "crates/donder-fixture-capture" }
+fs-err = "3.3.2"
 glam = "0.33.7"
 fdk-aac = "0.8.0"
 ignore = "0.4.33"

@@ -1,6 +1,6 @@
 import { FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
-import { commands } from "../api";
+import { commands, errorMessage } from "../api";
 import { useAppStore } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { THEME_COLORS } from "../theme";
@@ -143,8 +143,4 @@ function validateDirectoryName(name: string): string | null {
   if (name === "." || name === "..") return "Not a folder name";
   if (name.includes("/") || name.includes("\\")) return "Name, not a path";
   return null;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

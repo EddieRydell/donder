@@ -4,7 +4,7 @@ use crate::OutputFrame;
 use artnet_protocol::{ArtCommand, Output, PaddedData, PortAddress};
 use donder_model::{ArtNetConfig, ArtNetMode, ControllerId};
 
-use crate::OutputError;
+use crate::{OutputError, codec_error, socket_error};
 
 pub struct ArtNetSender {
     id: ControllerId,
@@ -15,11 +15,22 @@ pub struct ArtNetSender {
 
 impl ArtNetSender {
     pub(crate) fn open(id: ControllerId, config: &ArtNetConfig) -> Result<Self, OutputError> {
-        let socket =
-            UdpSocket::bind(config.bind_address).map_err(|error| socket_error(&id, error))?;
+        let socket = UdpSocket::bind(config.bind_address).map_err(|error| {
+            socket_error(
+                id,
+                format_args!("could not open a socket on {}", config.bind_address),
+                error,
+            )
+        })?;
         socket
             .set_broadcast(config.mode == ArtNetMode::Broadcast)
-            .map_err(|error| socket_error(&id, error))?;
+            .map_err(|error| {
+                socket_error(
+                    id,
+                    format_args!("could not enable broadcast on {}", config.bind_address),
+                    error,
+                )
+            })?;
         Ok(Self {
             id,
             socket,
@@ -45,19 +56,40 @@ impl ArtNetSender {
                 let command = ArtCommand::Output(Output {
                     sequence: self.sequence,
                     physical: 0,
-                    port_address: PortAddress::try_from(address)
-                        .map_err(|error| codec_error(&self.id, error))?,
+                    port_address: PortAddress::try_from(address).map_err(|error| {
+                        codec_error(
+                            self.id,
+                            format_args!(
+                                "could not address Art-Net universe {address} for {}",
+                                self.config.destination
+                            ),
+                            error,
+                        )
+                    })?,
                     data: PaddedData::from(
                         frame.slots[channels.start as usize..channels.end as usize].to_vec(),
                     ),
                     ..Output::default()
                 });
-                let bytes = command
-                    .write_to_buffer()
-                    .map_err(|error| codec_error(&self.id, error))?;
+                let bytes = command.write_to_buffer().map_err(|error| {
+                    codec_error(
+                        self.id,
+                        format_args!(
+                            "could not encode an Art-Net packet for {}",
+                            self.config.destination
+                        ),
+                        error,
+                    )
+                })?;
                 self.socket
                     .send_to(&bytes, self.config.destination)
-                    .map_err(|error| socket_error(&self.id, error))?;
+                    .map_err(|error| {
+                        socket_error(
+                            self.id,
+                            format_args!("could not send to {}", self.config.destination),
+                            error,
+                        )
+                    })?;
             }
         }
         self.sequence = if self.sequence == u8::MAX {
@@ -73,19 +105,6 @@ impl ArtNetSender {
             controller: self.id,
             slots: vec![0; self.config.universes.channel_count() as usize],
         }])
-    }
-}
-
-fn socket_error(id: &ControllerId, error: impl std::fmt::Display) -> OutputError {
-    OutputError::Socket {
-        controller: *id,
-        message: error.to_string(),
-    }
-}
-fn codec_error(id: &ControllerId, error: impl std::fmt::Debug) -> OutputError {
-    OutputError::Codec {
-        controller: *id,
-        message: format!("{error:?}"),
     }
 }
 

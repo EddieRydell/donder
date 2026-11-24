@@ -159,7 +159,7 @@ fn same_file_references_share_geometry_and_survive_placement_removal() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
     write_new_project_files(&root, &new_test_project_files("Composition").unwrap()).unwrap();
-    std::fs::create_dir_all(root.join("layouts")).unwrap();
+    fs_err::create_dir_all(root.join("layouts")).unwrap();
     write_root_content(
         &root,
         "import layout from <layouts/main.data.donder>;",
@@ -172,7 +172,7 @@ fn same_file_references_share_geometry_and_survive_placement_removal() {
   },
   sequences: [],",
     );
-    std::fs::write(
+    fs_err::write(
         root.join("layouts/main.data.donder"),
         r#"
 FixtureDefinition assembly {
@@ -755,7 +755,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
     assert_eq!(*state.project_session().unwrap(), *after);
     state.save_all().unwrap();
     crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
-    let text = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
+    let text = fs_err::read_to_string(root.join("project.data.donder")).unwrap();
     assert!(!text.contains("fixture_1"));
     assert!(root.join("fixtures/my_strip.data.donder").exists());
 }
@@ -946,7 +946,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
     let accepted = state.project_session().unwrap();
     state.save_all().unwrap();
     crate::desktop_foundation_tests::tests::assert_reloads(&root, &accepted);
-    let authored = std::fs::read_to_string(root.join(address(&state, id).document())).unwrap();
+    let authored = fs_err::read_to_string(root.join(address(&state, id).document())).unwrap();
     assert!(authored.contains("operators/standard.donder"));
     assert!(authored.contains("operators.HueShift"));
     assert!(matches!(
@@ -1584,7 +1584,7 @@ fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
         "{imports}\nProject show {{\n  format: {},\n  description: none,\n{fields}\n  consoles: [],\n}}\n",
         donder_project_io::PROJECT_FORMAT_VERSION
     );
-    std::fs::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
+    fs_err::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
 }
 
 /// Where an object of the state's session is written.
@@ -1828,9 +1828,9 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
     state.save_all().unwrap();
     let saved = state.project_session().unwrap();
     crate::desktop_foundation_tests::tests::assert_reloads(&root, &saved);
-    let jam = std::fs::read_to_string(root.join("consoles/jam.data.donder")).unwrap();
+    let jam = fs_err::read_to_string(root.join("consoles/jam.data.donder")).unwrap();
     assert!(jam.contains("devices.keyboard.hit"));
-    let live = std::fs::read_to_string(root.join("consoles/live.data.donder")).unwrap();
+    let live = fs_err::read_to_string(root.join("consoles/live.data.donder")).unwrap();
     assert!(live.contains("name: flash"));
     assert!(live.contains("copies: 3"));
     assert!(live.contains("length: Fixed { duration: 0.5s }"));

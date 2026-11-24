@@ -20,6 +20,18 @@ pub enum LoadError {
     Capacity { needed: usize, capacity: usize },
 }
 
+impl core::fmt::Display for LoadError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Version => formatter.write_str("the show was prepared for another show format"),
+            Self::Capacity { needed, capacity } => write!(
+                formatter,
+                "the show needs {needed} bytes of memory and {capacity} are available"
+            ),
+        }
+    }
+}
+
 /// A show's playback bytes, borrowed in place.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Show<'a> {

@@ -1,6 +1,6 @@
 import { AlertTriangle, FileText, FolderOpen, ListX, RefreshCw, Save, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { commands } from "../api";
+import { commands, errorMessage } from "../api";
 import { SequenceAudioSync, sequenceAudioKey } from "../sequenceAudioSync";
 import type { PersistedEditorViewState, SequenceSelection, WorkspaceLayoutState } from "../types";
 import { runCommand } from "../commandRegistry";
@@ -97,7 +97,7 @@ export function EditorPane({
       })
       .catch((error: unknown) => {
         if (isCurrent() && useAppStore.getState().guiDocumentRevision !== activeGuiRequest.projectRevision) {
-          setGuiDocument({ type: "blocked", reason: String(error), diagnostics: [] });
+          setGuiDocument({ type: "blocked", reason: errorMessage(error), diagnostics: [] });
         }
       });
     return () => {

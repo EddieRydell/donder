@@ -1,6 +1,6 @@
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::fs;
+    use fs_err as fs;
 
     use camino::{Utf8Path, Utf8PathBuf};
     use donder_project_io::check_project;

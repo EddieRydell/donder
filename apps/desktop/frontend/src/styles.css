@@ -99,7 +99,7 @@
   --donder-sequence-slice-line: var(--donder-warning);
   --donder-sequence-slice-guide: rgb(240 196 107 / 45%);
   --donder-clip-marquee-fill: rgb(240 196 107 / 12%);
-  --donder-raster-warning-overlay: rgb(17 18 20 / 72%);
+  --donder-minimap-mask: rgb(17 18 20 / 72%);
   --donder-empty-gradient: #17181b;
   --donder-text-secondary: #d8d2c9;
   --donder-project-file-project: var(--donder-text-strong);
@@ -461,9 +461,6 @@
   --donder-timeline-label-y: 18px;
   --donder-timeline-min-label-width: 110px;
   --donder-timeline-min-grid-width: 24px;
-  --donder-raster-warning-size-min: 6px;
-  --donder-raster-warning-size-max: 12px;
-  --donder-raster-warning-inset: 4px;
   --donder-sequence-drag-threshold: 4px;
   --donder-unsaved-indicator-delay-ms: 400;
   --donder-sequence-wheel-zoom-scale: 0.002;
@@ -2624,7 +2621,7 @@ html.donder-app-shell body {
 }
 
 .graph-flow-minimap .react-flow__minimap-mask {
-  fill: var(--donder-raster-warning-overlay);
+  fill: var(--donder-minimap-mask);
 }
 
 .graph-flow-minimap .react-flow__minimap-node {

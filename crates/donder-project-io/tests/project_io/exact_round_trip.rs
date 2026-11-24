@@ -2,7 +2,7 @@ use crate::common;
 
 use camino::Utf8PathBuf;
 use donder_project_io::{ProjectSession, save_project, source_document_text};
-use std::fs;
+use fs_err as fs;
 
 fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf, ProjectSession) {
     let (temporary, root) = common::starter_copy();

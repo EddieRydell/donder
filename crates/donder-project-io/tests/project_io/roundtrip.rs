@@ -3,7 +3,7 @@ use crate::common;
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::DonderDuration;
 use donder_project_io::{check_project, save_project};
-use std::fs;
+use fs_err as fs;
 use std::time::Duration;
 
 use crate::common::load_project as load_local_project;

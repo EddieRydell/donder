@@ -52,22 +52,6 @@ impl LineIndex {
             self.position(text, span.end),
         )
     }
-
-    /// A position counted in characters, as project diagnostics count them.
-    pub(crate) fn character_position(&self, text: &str, line: u32, characters: u32) -> Position {
-        let Some(&start) = self.starts.get(line as usize) else {
-            return self.position(text, text.len());
-        };
-        let offset = text[start..]
-            .char_indices()
-            .take_while(|(_, character)| *character != '\n')
-            .nth(characters as usize)
-            .map_or_else(
-                || start + text[start..].find('\n').unwrap_or(text.len() - start),
-                |(index, _)| start + index,
-            );
-        self.position(text, offset)
-    }
 }
 
 /// The `file:` URI of an absolute path.

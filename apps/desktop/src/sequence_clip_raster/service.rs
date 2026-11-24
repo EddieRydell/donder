@@ -1,7 +1,7 @@
 use super::worker::RasterWorker;
 use donder_editor::dto::{
-    ClipRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,
-    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
+    ClipRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterRequest,
+    SequenceClipRasterResponse, SequenceClipRasterResultBatch,
 };
 use donder_model::{AutomationTarget, Clip, Sequence, SequenceId};
 use donder_project_io::ProjectSession;
@@ -52,7 +52,6 @@ enum RasterState {
         rows: u32,
         pixels_rgba: Arc<[u8]>,
     },
-    Failed(String),
 }
 
 impl SequenceClipRasterService {
@@ -127,7 +126,7 @@ impl SequenceClipRasterService {
         SequenceClipRasterResponse { pending }
     }
 
-    /// The rasters rendered or failed after revision `since`.
+    /// The rasters rendered after revision `since`.
     pub(crate) fn take_results(
         &mut self,
         request: GuiDocumentRequest,
@@ -147,22 +146,17 @@ impl SequenceClipRasterService {
             }
             self.revision = self.revision.wrapping_add(1);
             entry.revision = self.revision;
-            entry.state = match outcome.result {
-                Ok(raster) => {
-                    open.bytes += raster.pixels_rgba.len();
-                    RasterState::Ready {
-                        columns: raster.columns,
-                        rows: raster.rows,
-                        pixels_rgba: raster.pixels_rgba,
-                    }
-                }
-                Err(message) => RasterState::Failed(message),
+            let raster = outcome.raster;
+            open.bytes += raster.pixels_rgba.len();
+            entry.state = RasterState::Ready {
+                columns: raster.columns,
+                rows: raster.rows,
+                pixels_rgba: raster.pixels_rgba,
             };
         }
         let mut batch = SequenceClipRasterResultBatch {
             revision: self.revision,
             rasters: Vec::new(),
-            errors: Vec::new(),
             pending: 0,
         };
         let Some(open) = self
@@ -186,14 +180,7 @@ impl SequenceClipRasterService {
                         pixels_rgba_token: format!("{clip_id}-{}", entry.revision),
                     })
                 }
-                RasterState::Failed(message) if entry.revision > since => {
-                    batch.errors.push(SequenceClipRasterError {
-                        clip_id,
-                        revision: entry.revision,
-                        message: message.clone(),
-                    })
-                }
-                RasterState::Ready { .. } | RasterState::Failed(_) => {}
+                RasterState::Ready { .. } => {}
             }
         }
         batch
@@ -293,7 +280,7 @@ impl OpenSequence {
             self.clips.get(id).filter(|entry| match entry.state {
                 RasterState::Pending => true,
                 RasterState::Evicted => include_evicted,
-                RasterState::Ready { .. } | RasterState::Failed(_) => false,
+                RasterState::Ready { .. } => false,
             })
         };
         self.visible

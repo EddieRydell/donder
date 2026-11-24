@@ -245,7 +245,7 @@ impl PreviewHostApplication {
     ) -> Result<(), String> {
         self.playback
             .replace_content(show.as_deref(), instances.len())
-            .map_err(|error| format!("Cannot load Preview content: {error:?}"))?;
+            .map_err(|error| format!("Cannot load Preview content: {error}"))?;
         self.scene = PreviewScene::new(
             revision,
             instances
@@ -314,7 +314,7 @@ impl PreviewHostApplication {
         let changed = self
             .playback
             .evaluate(shown_at)
-            .map_err(|error| format!("Cannot evaluate Preview frame: {error:?}"))?;
+            .map_err(|error| format!("Cannot evaluate Preview frame: {error}"))?;
         // The minimum radius is authored in logical pixels; the surface is in physical pixels.
         let style = PreviewStyle {
             minimum_radius_pixels: self.style.minimum_radius_pixels * window.scale_factor() as f32,

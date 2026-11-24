@@ -47,6 +47,17 @@ pub enum SampleTimeError {
     OutOfRange,
 }
 
+impl core::fmt::Display for SampleTimeError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidFrameRate => "the frame rate is zero",
+            Self::NotFinite => "the time is not a finite number",
+            Self::Negative => "the time is negative",
+            Self::OutOfRange => "the time is past the 71-minute limit of the show clock",
+        })
+    }
+}
+
 /// `a * b` as its high and low 32-bit halves.
 #[inline]
 const fn wide_mul(a: u32, b: u32) -> (u32, u32) {

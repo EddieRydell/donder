@@ -9,7 +9,7 @@ use donder_editor::dto::{
 fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     use crate::desktop_foundation_tests::tests::starter_copy;
     use donder_project_io::check_project;
-    use std::fs;
+    use fs_err as fs;
     let (_temporary, root) = starter_copy();
     fs::write(
         root.join("effects/array-values.donder"),

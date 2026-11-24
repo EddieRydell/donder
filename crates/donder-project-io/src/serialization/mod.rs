@@ -250,7 +250,8 @@ pub(crate) fn missing_typed_object(
     }
 }
 
-use std::{fs, io};
+use fs_err as fs;
+use std::io;
 
 use crate::address::{DeclaredObject, DocumentId};
 use camino::{Utf8Path, Utf8PathBuf};

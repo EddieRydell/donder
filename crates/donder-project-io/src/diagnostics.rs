@@ -99,6 +99,8 @@ pub struct TextRange {
     pub end: TextPosition,
 }
 
+/// A zero-based line and the UTF-16 code units before the position on it,
+/// as LSP and Monaco count them.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize, Type)]
 pub struct TextPosition {
     pub line: u32,
@@ -184,7 +186,8 @@ pub(crate) fn data_diagnostic(
     dsl_diagnostic(path, text, diagnostic, IoDiagnosticCode::DataSyntax)
 }
 
-pub(crate) fn dsl_diagnostic(
+/// A language diagnostic in the document at `path`, whose text is `text`.
+pub fn dsl_diagnostic(
     path: &Utf8Path,
     text: &str,
     diagnostic: DslDiagnostic,
@@ -231,6 +234,6 @@ fn byte_position(text: &str, byte_offset: usize) -> TextPosition {
     }
     TextPosition {
         line,
-        character: text[line_start..clamped].chars().count() as u32,
+        character: text[line_start..clamped].encode_utf16().count() as u32,
     }
 }

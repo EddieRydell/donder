@@ -119,7 +119,7 @@ fn inline_project() -> String {
 }
 
 fn write_inline_project(root: &Utf8Path) {
-    std::fs::write(root.join(PROJECT_ROOT_FILE), inline_project()).unwrap();
+    fs_err::write(root.join(PROJECT_ROOT_FILE), inline_project()).unwrap();
 }
 
 #[test]
@@ -177,7 +177,7 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     assert_eq!(output.outputs().len(), 2);
     save_project(&session).unwrap();
     common::load_project(root);
-    let text = std::fs::read_to_string(root.join(PROJECT_ROOT_FILE)).unwrap();
+    let text = fs_err::read_to_string(root.join(PROJECT_ROOT_FILE)).unwrap();
     let (document, diagnostics) = donder_language::data::parse(&text);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(document.declarations.len(), 1);
@@ -221,7 +221,7 @@ fn ownership_rejects_duplicate_names_malformed_types_and_dangling_addresses() {
     ] {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(temporary.path()).unwrap();
-        std::fs::write(
+        fs_err::write(
             root.join(PROJECT_ROOT_FILE),
             common::root_document("", &text),
         )
@@ -252,7 +252,7 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
             .trim_end_matches(',')
             .replace("Controller spare_8", "Controller spare");
         let (imports, reference) = if separate_file {
-            std::fs::write(root.join("controllers.data.donder"), format!("{spare}\n")).unwrap();
+            fs_err::write(root.join("controllers.data.donder"), format!("{spare}\n")).unwrap();
             (
                 "import controllers from <controllers.data.donder>;\n",
                 "controllers.spare",
@@ -269,7 +269,7 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
         if !separate_file {
             text.push_str(&format!("\n{spare}\n"));
         }
-        std::fs::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
+        fs_err::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
         let mut session = common::load_project(root);
         assert_eq!(
             session.project.reusable::<donder_model::Controller>().len(),

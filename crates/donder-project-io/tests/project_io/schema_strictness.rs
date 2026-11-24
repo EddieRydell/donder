@@ -181,7 +181,7 @@ Sequence show {
 fn small_project() -> (tempfile::TempDir, Utf8PathBuf) {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
-    std::fs::write(
+    fs_err::write(
         root.join(PROJECT_ROOT_FILE),
         common::root_document(
             "import fx from <effect.donder>;\n",
@@ -189,7 +189,7 @@ fn small_project() -> (tempfile::TempDir, Utf8PathBuf) {
         ) + SMALL_PROJECT,
     )
     .unwrap();
-    std::fs::write(
+    fs_err::write(
         root.join("effect.donder"),
         "effect Defaults { param level: float in 0.0..1.0 = 0.5; param tint: color = #ffffff; sample { rgb(level, level, level) } }",
     )

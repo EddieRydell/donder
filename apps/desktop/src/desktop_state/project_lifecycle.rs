@@ -60,7 +60,7 @@ impl DesktopState {
             .collect::<std::collections::BTreeMap<_, _>>();
         for path in &paths {
             if !documents.contains_key(Utf8Path::new(path))
-                && let Ok(text) = std::fs::read_to_string(root.join(path))
+                && let Ok(text) = fs_err::read_to_string(root.join(path))
             {
                 documents.insert(
                     Utf8PathBuf::from(path),

@@ -844,12 +844,8 @@ export function SequenceCanvas({
       ctx.fillStyle = SEQUENCE_COLORS.textFaint;
       ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
       const raster = clipRasters.raster(clip.clip.id);
-      const rasterError = clipRasters.failed(clip.clip.id);
       if (raster !== undefined) {
         drawClipRaster(ctx, raster, clip.rect);
-      }
-      if (rasterError) {
-        drawClipRasterWarning(ctx, clip.rect);
       }
       const automationTargeted = activeAutomationTargetClipIds.has(clip.clip.id);
       if (automationTargeted) {
@@ -2332,22 +2328,6 @@ function minSequencePxPerSecond(timelineWidth: number, durationSeconds: number):
 
 function initialSequenceLaneHeight(settings: AppSettings | null): number {
   return clamp(settings?.sequenceInitialLaneHeightPx ?? SEQUENCE_CANVAS.initialLaneHeightPx, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx);
-}
-
-function drawClipRasterWarning(
-  ctx: CanvasRenderingContext2D,
-  rect: { x: number; y: number; width: number; height: number }
-) {
-  const size = Math.min(THEME_METRICS.rasterWarningSizeMax, Math.max(THEME_METRICS.rasterWarningSizeMin, rect.height - THEME_METRICS.rasterWarningSizeMin));
-  ctx.fillStyle = THEME_COLORS.rasterWarningOverlay;
-  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-  ctx.fillStyle = SEQUENCE_COLORS.warning;
-  ctx.beginPath();
-  ctx.moveTo(rect.x + rect.width - size - THEME_METRICS.rasterWarningInset, rect.y + THEME_METRICS.rasterWarningInset);
-  ctx.lineTo(rect.x + rect.width - THEME_METRICS.rasterWarningInset, rect.y + THEME_METRICS.rasterWarningInset);
-  ctx.lineTo(rect.x + rect.width - THEME_METRICS.rasterWarningInset, rect.y + size + THEME_METRICS.rasterWarningInset);
-  ctx.closePath();
-  ctx.fill();
 }
 
 function drawTimelineGrid(

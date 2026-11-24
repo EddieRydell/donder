@@ -28,8 +28,7 @@ export function buildSemanticTree(
     );
     const node: WorkspaceTreeNode = {
       ...entry,
-      errorCount: matching.filter((diagnostic) => diagnostic.severity === "error").length,
-      warningCount: matching.filter((diagnostic) => diagnostic.severity === "warning").length
+      ...severityCounts(matching)
     };
     if (entry.kind === "directory") node.children = [];
     nodes.set(entry.path, node);
@@ -61,6 +60,12 @@ export function remapWorkspacePath(path: string, source: string, destination: st
   if (path === source) return destination;
   if (path.startsWith(`${source}/`)) return `${destination}${path.slice(source.length)}`;
   return path;
+}
+
+/** How many of `diagnostics` are errors and how many warnings. */
+export function severityCounts(diagnostics: readonly IoDiagnostic[]): { errorCount: number; warningCount: number } {
+  const errorCount = diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
+  return { errorCount, warningCount: diagnostics.length - errorCount };
 }
 
 export function sameWorkspacePath(left: string, right: string, projectRoot: string | null): boolean {

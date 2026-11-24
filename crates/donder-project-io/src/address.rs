@@ -148,13 +148,21 @@ impl std::fmt::Display for ObjectAddress {
     }
 }
 
+/// `problem`, prefixed with the object at `address` it concerns.
+pub(crate) fn object_problem(
+    address: &ObjectAddress,
+    problem: &donder_model::ValidationProblem,
+) -> String {
+    format!("{address}: {problem}")
+}
+
 /// A validation error's message, prefixed with the object it concerns.
 pub fn validation_message(
     session: &ProjectSession,
     error: &donder_model::ProjectValidationError,
 ) -> String {
     match session.address_of(error.object) {
-        Some(address) => format!("{address}: {}", error.problem),
+        Some(address) => object_problem(&address, &error.problem),
         None => error.problem.to_string(),
     }
 }

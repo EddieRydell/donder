@@ -178,7 +178,7 @@ impl AudioEngine {
         if !audio.exists {
             self.reset_loaded_audio();
             self.state = AudioTransportState::Error;
-            self.last_error = Some("Audio file does not exist.".to_string());
+            self.last_error = Some(format!("Audio file not found: {}", audio.resolved_path));
             self.bump_generation();
             return self.current_snapshot();
         }

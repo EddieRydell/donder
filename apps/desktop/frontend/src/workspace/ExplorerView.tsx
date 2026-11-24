@@ -105,7 +105,7 @@ export function ExplorerView({
       }
       setInlineEdit(null);
     } catch (error) {
-      setInlineEdit({ ...inlineEdit, value: typed, error: String(error) });
+      setInlineEdit({ ...inlineEdit, value: typed, error: errorMessage(error) });
     }
   };
   const reload = () => void runWorkspaceTransition({ type: "reloadProject" });

@@ -88,6 +88,22 @@ pub(crate) enum SequenceRenderError {
     InvalidPlaybackSpeed(String),
 }
 
+impl std::fmt::Display for SequenceRenderError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoSequenceRenderSession => formatter.write_str("no sequence is prepared"),
+            Self::ClockUnavailable {
+                state: AudioTransportState::Unloaded,
+            } => formatter.write_str("the sequence audio is not loaded"),
+            Self::ClockUnavailable { .. } => formatter.write_str("the sequence audio failed"),
+            Self::InvalidClock(error) => {
+                write!(formatter, "the playback position is invalid: {error}")
+            }
+            Self::InvalidPlaybackSpeed(message) => formatter.write_str(message),
+        }
+    }
+}
+
 impl SequenceRenderService {
     pub(crate) fn new() -> Self {
         Self {

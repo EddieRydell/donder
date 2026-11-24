@@ -35,7 +35,7 @@ fn load(root: &Utf8Path) -> ProjectSession {
 fn imported(options: &ImportOptions) -> (tempfile::TempDir, ProjectSession, ImportReport) {
     let directory = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(directory.path().to_path_buf()).unwrap();
-    std::fs::write(root.join("project.data.donder"), EMPTY_PROJECT).unwrap();
+    fs_err::write(root.join("project.data.donder"), EMPTY_PROJECT).unwrap();
     let mut session = load(&root);
     let report = donder_import::import_profile(&mut session, &show(), options).unwrap();
     donder_project_io::save_project(&session).unwrap();

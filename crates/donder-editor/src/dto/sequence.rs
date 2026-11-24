@@ -111,7 +111,6 @@ pub struct SequenceClipRasterResultBatch {
     /// The newest raster revision; the next request asks for later ones.
     pub revision: u32,
     pub rasters: Vec<SequenceClipRaster>,
-    pub errors: Vec<SequenceClipRasterError>,
     pub pending: u32,
 }
 
@@ -127,14 +126,6 @@ pub struct SequenceClipRaster {
     pub columns: u32,
     pub rows: u32,
     pub pixels_rgba_token: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceClipRasterError {
-    pub clip_id: u32,
-    pub revision: u32,
-    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

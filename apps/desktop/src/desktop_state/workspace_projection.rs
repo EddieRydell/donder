@@ -1,5 +1,5 @@
+use fs_err as fs;
 use std::collections::BTreeMap;
-use std::fs;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
