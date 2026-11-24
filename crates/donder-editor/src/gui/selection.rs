@@ -4,13 +4,10 @@
 /// was copied, with the counts of items copied and of selected items missing.
 pub(super) fn copy_sequence_selection(
     session: &ProjectSession,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     selection: &SequenceSelection,
 ) -> Result<(Option<String>, u32, u32), GuiMutationError> {
-    let sequence = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
+    let sequence = resolved.view::<donder_model::Sequence>(session).object();
     let mut copied = sequence.clone();
     copied.description = None;
     copied.audio = donder_model::SequenceAudio::None;
@@ -81,14 +78,13 @@ pub(super) fn copy_sequence_selection(
 
 pub(super) fn delete_sequence_selection(
     session: &mut ProjectSession,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     selection: &SequenceSelection,
 ) -> Result<(), GuiMutationError> {
-    let mut draft = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let mut draft = resolved
+        .view::<donder_model::Sequence>(session)
+        .object()
+        .clone();
     let sequence = &mut draft;
     match selection {
         SequenceSelection::Clips { clips } => {
@@ -109,7 +105,7 @@ pub(super) fn delete_sequence_selection(
             }
         }
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(())
 }
 
@@ -121,27 +117,24 @@ pub(super) fn delete_sequence_selection(
 /// binds.
 pub(super) fn paste_sequence_clipboard(
     session: &mut ProjectSession,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     anchor: SequencePasteAnchor,
     text: &str,
     texts: &mut donder_project_io::DocumentTextCache,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
     let pasted = donder_project_io::read_sequence_clipboard(session, text, texts)
         .map_err(GuiMutationError::Invalid)?;
-    let mut draft = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let mut draft = resolved
+        .view::<donder_model::Sequence>(session)
+        .object()
+        .clone();
     super::checked_gui_time(anchor.time_seconds)?;
     let outcome = if pasted.clips.is_empty() && pasted.automation_clips.is_empty() {
         paste_marks(&mut draft, &pasted, &anchor)?
     } else {
         paste_clips(session, &mut draft, &pasted, &anchor)?
     };
-    session.project.put(draft).map_err(GuiMutationError::from)?;
-    donder_project_io::maintain_ownership_sources(session)
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(outcome)
 }
 
@@ -151,8 +144,7 @@ fn paste_clips(
     pasted: &donder_model::Sequence,
     anchor: &SequencePasteAnchor,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
-    let targets = lane_targets(session)
-        .ok_or_else(|| GuiMutationError::Invalid("This sequence has no rows.".into()))?;
+    let targets = lane_targets(session);
     let anchor_lane = anchor
         .lane
         .ok_or_else(|| GuiMutationError::Invalid("Select a row to paste into.".into()))?
@@ -363,15 +355,14 @@ fn paste_marks(
 pub(super) fn edit_clip_selection(
     session: &mut ProjectSession,
     owner: &donder_project_io::DocumentId,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     clip_ids: &[u32],
     edit: SequenceClipCommonEdit,
 ) -> Result<(), GuiMutationError> {
-    let mut draft = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let mut draft = resolved
+        .view::<donder_model::Sequence>(session)
+        .object()
+        .clone();
     if clip_ids.is_empty() {
         return Err(GuiMutationError::Invalid(
             "At least one clip must be selected.".into(),
@@ -380,22 +371,16 @@ pub(super) fn edit_clip_selection(
 
     let param_edit = if let SequenceClipCommonEdit::Param { name, value } = &edit {
         let name = identifier(name)?;
-        let sequence = session
-            .project
-            .get::<donder_model::Sequence>(*sequence_id)
-            .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+        let sequence = resolved.view::<donder_model::Sequence>(session).object();
         for id in clip_ids {
             let clip = sequence
                 .clips
                 .iter()
                 .find(|clip| clip.id.0 == *id)
                 .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".into()))?;
-            let definition = session
-                .project
-                .get::<donder_model::EffectDefinition>(clip.definition)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Effect definition was not found.".into())
-                })?;
+            let definition = &session
+                .project()
+                .reusable::<donder_model::EffectDefinition>()[&clip.definition];
             if !definition.params().iter().any(|param| param.name == name) {
                 return Err(GuiMutationError::Invalid(format!(
                     "The clip's effect has no parameter {}.",
@@ -450,8 +435,9 @@ pub(super) fn edit_clip_selection(
             }
         }
         SequenceClipCommonEdit::Param { .. } => {
-            let (name, value) = param_edit
-                .ok_or_else(|| GuiMutationError::Invalid("Parameter edit is missing.".into()))?;
+            let Some((name, value)) = param_edit else {
+                unreachable!("a parameter edit prepares its parameter and value")
+            };
             for id in clip_ids {
                 clip_mut(sequence, *id)?
                     .param_overrides
@@ -459,26 +445,24 @@ pub(super) fn edit_clip_selection(
             }
         }
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(())
 }
 
 pub(super) fn move_clip_selection(
     session: &mut ProjectSession,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     clip_ids: &[u32],
     automation_ids: &[u32],
     time_delta_seconds: f64,
     anchor_lane: usize,
     lane_delta: i32,
 ) -> Result<(), GuiMutationError> {
-    let mut draft = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-    let targets = lane_targets(session)
-        .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
+    let mut draft = resolved
+        .view::<donder_model::Sequence>(session)
+        .object()
+        .clone();
+    let targets = lane_targets(session);
     let destination = |target: &FixtureTarget| -> Result<FixtureTarget, GuiMutationError> {
         let index = nearest_lane(&targets, target, anchor_lane)
             .ok_or_else(|| GuiMutationError::Invalid("Clip row target is missing.".into()))?;
@@ -506,7 +490,7 @@ pub(super) fn move_clip_selection(
         clip.row_target = destination(&clip.row_target)?;
         clip.start = shifted_time(&clip.start, time_delta_seconds)?;
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(())
 }
 
@@ -516,18 +500,17 @@ fn shifted_time(time: &DonderTime, delta: f64) -> Result<DonderTime, GuiMutation
 
 pub(super) fn resize_clip_selection(
     session: &mut ProjectSession,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     clip_ids: &[u32],
     automation_ids: &[u32],
     edge: SequenceResizeEdge,
     automation: SequenceAutomationResize,
     time_delta_seconds: f64,
 ) -> Result<(), GuiMutationError> {
-    let mut draft = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let mut draft = resolved
+        .view::<donder_model::Sequence>(session)
+        .object()
+        .clone();
     let resize =
         |start: &mut DonderTime, duration: &mut DonderDuration| -> Result<(), GuiMutationError> {
             let seconds = duration.as_seconds_f64()
@@ -562,21 +545,20 @@ pub(super) fn resize_clip_selection(
             }
         }
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(())
 }
 
 pub(super) fn move_mark_selection(
     session: &mut ProjectSession,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     marks: &[SequenceMarkRef],
     time_delta_seconds: f64,
 ) -> Result<Vec<SequenceMarkRef>, GuiMutationError> {
-    let mut draft = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let mut draft = resolved
+        .view::<donder_model::Sequence>(session)
+        .object()
+        .clone();
     let sequence = &mut draft;
     let mut moved = Vec::new();
     for (collection_key, indexes) in mark_indexes_by_collection(marks) {
@@ -599,7 +581,7 @@ pub(super) fn move_mark_selection(
             }
         }
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(moved)
 }
 
@@ -631,17 +613,15 @@ fn mark_indexes_by_collection(marks: &[SequenceMarkRef]) -> BTreeMap<String, Vec
 }
 
 /// The target of every timeline lane, in display order.
-pub(super) fn lane_targets(session: &ProjectSession) -> Option<Vec<FixtureTarget>> {
-    let layout = active_layout(session)?;
-    Some(
-        super::projection::lane_walk(layout)
-            .into_iter()
-            .map(|(fixture, _)| FixtureTarget {
-                layout: layout.id,
-                fixture: fixture.id,
-            })
-            .collect(),
-    )
+pub(super) fn lane_targets(session: &ProjectSession) -> Vec<FixtureTarget> {
+    let layout = session.project().active_layout();
+    super::projection::lane_walk(&layout)
+        .into_iter()
+        .map(|(fixture, _)| FixtureTarget {
+            layout: layout.id,
+            fixture: fixture.id,
+        })
+        .collect()
 }
 
 /// The lane of `target` nearest `anchor`; the earlier one on a tie.
@@ -660,26 +640,25 @@ pub(super) fn nearest_lane(
 
 /// A target's first lane, which clipboard entries use as their row.
 fn target_lane_index(session: &ProjectSession, target: &FixtureTarget) -> Option<usize> {
-    nearest_lane(&lane_targets(session)?, target, 0)
+    nearest_lane(&lane_targets(session), target, 0)
 }
 
 pub(super) fn target_for_lane(
     session: &ProjectSession,
     lane_index: usize,
 ) -> Option<FixtureTarget> {
-    lane_targets(session)?.into_iter().nth(lane_index)
+    lane_targets(session).into_iter().nth(lane_index)
 }
 use std::collections::BTreeMap;
 
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::ClipId;
 use donder_model::FixtureTarget;
-use donder_model::{AutomationTarget, SequenceId, SequenceLayerId};
+use donder_model::{AutomationTarget, SequenceLayerId};
 use donder_project_io::ProjectSession;
 
 use super::model::{clip_mut, clip_scope, identifier, mark_collection_mut, param_value_from_gui};
-use super::projection::active_layout;
-use super::{GuiEditOutcome, GuiMutationError, IdAllocator};
+use super::{GuiEditOutcome, GuiMutationError, IdAllocator, ResolvedGuiObject};
 use crate::dto::{
     SequenceAutomationResize, SequenceClipCommonEdit, SequenceClipRef, SequenceMarkRef,
     SequencePasteAnchor, SequenceResizeEdge, SequenceSelection,

@@ -2,9 +2,9 @@
 //! document beside the project's that declares one `Sequence` holding them,
 //! with the imports its references need. Copying prints it with the
 //! canonical printer; pasting reads it as the loader reads any document.
-use crate::address::{DeclaredObject, DocumentId};
+use crate::address::DocumentId;
 use crate::loader::Loader;
-use crate::{DocumentTextCache, ProjectCheckCache, ProjectSession, SourceDocument};
+use crate::{DocumentTextCache, ProjectCheckCache, ProjectSession, SessionEditError};
 use camino::Utf8PathBuf;
 use donder_model::{Sequence, SequenceId};
 use donder_runtime_types::Identifier;
@@ -20,20 +20,18 @@ pub fn write_sequence_clipboard(
 ) -> Result<String, String> {
     let mut session = session.clone();
     let document = clipboard_document(&session);
-    sequence.id = SequenceId(session.project.new_id());
     let name = Identifier::new(DECLARED.to_string()).map_err(|error| format!("{error:?}"))?;
-    session.source.documents.insert(
-        document.clone(),
-        SourceDocument::data(
-            Vec::new(),
-            vec![DeclaredObject::new(sequence.id.into(), name)],
-        )?,
-    );
     session
-        .project
-        .put(sequence)
+        .edit(|edit| {
+            sequence.id = SequenceId(edit.project_mut().new_id());
+            edit.add_data_document(
+                document.path().to_path_buf(),
+                vec![(sequence.id.into(), name)],
+            )?;
+            edit.project_mut().put(sequence)?;
+            Ok::<_, SessionEditError>(())
+        })
         .map_err(|error| error.to_string())?;
-    crate::maintain_ownership_sources(&mut session).map_err(|error| error.to_string())?;
     crate::source_document_text(&session, &document)
         .map_err(|error| error.to_string())?
         .ok_or_else(|| unreachable!("the clipboard document was just added"))

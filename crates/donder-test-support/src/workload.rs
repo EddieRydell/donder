@@ -216,12 +216,11 @@ pub fn apply_operator(show: &mut Workload, operator: &CompiledDefinition, reuse:
 pub fn edit(program: &BoundProgram, edit: impl FnOnce(&mut BytecodeProgram)) -> BoundProgram {
     let mut edited = Program::clone(program.program());
     edit(&mut edited.bytecode);
-    BoundProgram::bind(
+    BoundProgram::new(
         edited,
         program.params().values().to_vec(),
         program.automation().into(),
     )
-    .unwrap()
 }
 
 /// Edit the first effect's lowered bytecode.

@@ -48,7 +48,13 @@ assigns every object a fresh session identity, an opaque id from one
 project-wide counter, so references and the objects they name agree whatever
 order they are read in. The model knows objects only by id: a declared object's
 document and name live in the source inventory alone, and an owned object's
-address is its owner's address and slot. Moving a document or making an object
+address is its owner's address and slot. A session's documents declare exactly
+the project's reusable objects, each once, so every object has an address and
+lookups by a project id cannot fail. The loader builds a session that way. A
+`ProjectSession`'s state is private and changes only through
+`ProjectSession::edit`: it edits a candidate, which the session takes only
+when that still holds, then adds the imports the project's references need,
+so editors never add imports themselves. Moving a document or making an object
 reusable changes where it is written, not the references to it; making one
 independent copies it under fresh ids. Saving prints names back from the ids,
 so data documents are exactly the typed state: saving prints the canonical text
@@ -83,7 +89,18 @@ is one lookup for every kind. Every model edit is a batch of `ProjectEdit`s:
 `Put(Object)` writes an object under the id it carries, in place of the object
 with that id or as a new reusable object, and `Remove(ObjectId)` removes a
 reusable one and its place in the project's and setups' member lists; the batch
-is validated as one change. Every domain rule lives once
+is validated as one change.
+
+A `DonderProject` exists only validated, so every reference it holds
+resolves. It hands out objects as `View`s (`project/view.rs`): an object with
+its id and project, whose methods follow its references without failing, such
+as a setup's layout, patch and controllers. `active_setup`, `active_layout`
+and `active_patch` are the root's setup and what it names. An id from outside
+the project, such as a request, stale UI state or a CLI flag, is checked once
+with `view(id)`, which is `None` when the project lacks it; from then on the
+view's references are followed, not looked up again.
+
+Every domain rule lives once
 in the model's validation. A broken rule is a `ProjectValidationError`: the
 object it concerns and a typed `ValidationProblem` that names the member
 (a clip, layer, voice, control, port, layout item, ...) and the parameter or
@@ -216,7 +233,8 @@ once. Equal programs are written once.
 
 Evaluation pushes whole frames through the signal graph. The nodes run in
 topological order, each into a frame buffer that is reused once its last
-reader has run (at most 16 at once): a layer max-composites its active clips,
+reader has run; the playback buffer holds as many as the show uses at once,
+one after another: a layer max-composites its active clips,
 found by a binary search over its clips' start order and latest ends; an
 operator runs over every pixel and reads its inputs' frames of this frame at
 any pixel; a mix keeps each channel's maximum. A layer with no active clip
@@ -229,7 +247,6 @@ channel to 0..1 and reads it through the route's table, interpolated, as a
 level in 1/256 of a byte, then rounds it to the nearest byte or, on a dithered
 route, against a threshold that cycles over eight frames and is offset per
 pixel, so the bytes average to the exact level.
-The builder asserts the limits on frame buffers and scans per program (8).
 
 The same `PreparedShow` runs in three places. All three map wall time to
 show time and choose rendered frames through the runtime's `PlaybackRate`, so a

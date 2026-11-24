@@ -104,7 +104,7 @@ fn render(
         Arc::ptr_eq(project, &job.project) && sequence == &job.sequence_id
     }) {
         let sequence = prepare_cached(
-            &job.project.project,
+            job.project.project(),
             &job.sequence_id,
             Retain::All,
             preparation,

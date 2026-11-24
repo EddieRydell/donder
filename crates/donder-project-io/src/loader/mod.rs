@@ -174,15 +174,15 @@ impl Loader {
             .unwrap_or_else(|_| unreachable!("a project has fewer than 2^32 objects"));
         let project =
             DonderProject::try_new(project).map_err(|error| self.validation_error(&error))?;
-        Ok(ProjectSession {
+        Ok(ProjectSession::loaded(
             project,
-            source: SourceProject {
+            SourceProject {
                 workspace: self.workspace.clone(),
-                entrypoint: Some(entrypoint),
+                entrypoint,
                 documents: std::mem::take(&mut self.documents),
                 referenced_assets: self.referenced_assets.take(),
             },
-        })
+        ))
     }
 
     /// The one sequence `document` declares, read beside `session`'s

@@ -1,9 +1,8 @@
 use donder_elaboration::{PreparationCache, Retain, prepare_cached};
 use donder_language::sample_time_from_seconds_f64;
-use donder_model::ControllerId;
+use donder_model::Controller;
 use donder_model::DonderProject;
 use donder_model::SequenceId;
-use donder_model::SetupId;
 use donder_output::OutputFrame;
 use donder_runtime::{PlaybackRate, SequenceFrame, ShowPlayback};
 use donder_runtime_types::{Color, SampleTime, SampleTimeError};
@@ -19,10 +18,14 @@ pub(crate) struct SequenceRenderService {
 /// Desktop ownership around portable playback: document identities, network
 /// output identities and an audio-generation cache are not elaboration concerns.
 pub(crate) struct PreparedRenderSession {
-    setup_id: SetupId,
+    #[cfg(test)]
+    setup_id: donder_model::SetupId,
+    #[cfg(test)]
     sequence_id: SequenceId,
     playback: ShowPlayback,
-    controllers: Vec<ControllerId>,
+    /// The controllers of the setup the show was prepared on, in the order
+    /// its outputs index them.
+    controllers: Vec<Controller>,
     cached: Option<AudioClockRenderedFrame>,
 }
 
@@ -189,7 +192,8 @@ impl SequenceRenderService {
         })
     }
 
-    pub(crate) fn active_target(&self) -> Option<(SetupId, SequenceId)> {
+    #[cfg(test)]
+    pub(crate) fn active_target(&self) -> Option<(donder_model::SetupId, SequenceId)> {
         self.session
             .as_ref()
             .map(|session| (session.setup_id, session.sequence_id))
@@ -199,21 +203,26 @@ impl SequenceRenderService {
         self.session_generation
     }
 
-    pub(crate) fn encode_preview_sequence(&self) -> Result<Option<EncodedPreviewSequence>, String> {
+    /// The prepared session's generation and the controllers its frames are
+    /// for, which live output opens its transports to.
+    pub(crate) fn streamed_session(&self) -> Option<(u64, Vec<Controller>)> {
         self.session
             .as_ref()
-            .map(|session| {
-                let sequence = session.playback.prepared();
-                Ok(EncodedPreviewSequence {
-                    bytes: sequence.encode(),
-                    fixtures: sequence
-                        .fixtures()
-                        .iter()
-                        .map(|fixture| (fixture.id, fixture.pixel_count as usize))
-                        .collect(),
-                })
-            })
-            .transpose()
+            .map(|session| (self.session_generation, session.controllers.clone()))
+    }
+
+    pub(crate) fn encode_preview_sequence(&self) -> Option<EncodedPreviewSequence> {
+        self.session.as_ref().map(|session| {
+            let sequence = session.playback.prepared();
+            EncodedPreviewSequence {
+                bytes: sequence.encode(),
+                fixtures: sequence
+                    .fixtures()
+                    .iter()
+                    .map(|fixture| (fixture.id, fixture.pixel_count as usize))
+                    .collect(),
+            }
+        })
     }
 
     pub(crate) fn apply_prepared(&mut self, session: PreparedRenderSession) {
@@ -241,12 +250,12 @@ pub(crate) fn prepare_render_session_cached(
 ) -> Result<PreparedRenderSession, RenderSessionPrepareError> {
     let sequence = prepare_cached(project, sequence_id, Retain::All, cache)
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
-    let setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
+    let setup = project.active_setup();
     let controllers = setup_controllers(setup);
     Ok(PreparedRenderSession {
+        #[cfg(test)]
         setup_id: setup.id,
+        #[cfg(test)]
         sequence_id: *sequence_id,
         playback: sequence.into_playback(),
         controllers,
@@ -261,23 +270,24 @@ pub(crate) fn prepare_render_session_cached(
 /// there.
 pub(crate) fn controller_frames(
     frame: &SequenceFrame<'_>,
-    controllers: &[ControllerId],
+    controllers: &[Controller],
 ) -> Vec<OutputFrame> {
     frame
         .outputs()
         .map(|output| OutputFrame {
-            controller: controllers[output.output.controller_index as usize],
+            controller: controllers[output.output.controller_index as usize].id,
             slots: output.bytes.to_vec(),
         })
         .collect()
 }
 
 /// The setup's controllers, in the order prepared output indexes them.
-pub(crate) fn setup_controllers(setup: &donder_model::Setup) -> Vec<ControllerId> {
+pub(crate) fn setup_controllers(
+    setup: donder_model::View<'_, donder_model::Setup>,
+) -> Vec<Controller> {
     setup
-        .controllers
-        .iter()
-        .map(|source| *source.id())
+        .controllers()
+        .map(|controller| (*controller).clone())
         .collect()
 }
 

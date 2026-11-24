@@ -7,7 +7,8 @@ use donder_model::{
     RegionProblem, SequenceValidationError, TimingProblem, ValidationProblem,
 };
 use donder_project_io::{
-    IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, TextRange, check_project,
+    IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, SessionEditError, TextRange,
+    check_project,
 };
 use fs_err as fs;
 use std::sync::OnceLock;
@@ -25,7 +26,7 @@ fn starter_session() -> &'static donder_project_io::ProjectSession {
 fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
     let session = starter_session();
     let mut sequence = session
-        .project
+        .project()
         .reusable::<donder_model::Sequence>()
         .values()
         .find(|sequence| !sequence.clips.is_empty())
@@ -33,7 +34,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
         .clone();
     sequence.frame_rate = 1;
     sequence.duration = DonderDuration(Duration::from_secs(4_300));
-    let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
+    let error = donder_model::validate_sequence(session.project(), &sequence).unwrap_err();
     assert!(
         matches!(
             error,
@@ -46,7 +47,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
     let effect = std::sync::Arc::make_mut(&mut sequence.clips[0]);
     effect.start = DonderTime(Duration::from_nanos(500));
     effect.duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
-    let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
+    let error = donder_model::validate_sequence(session.project(), &sequence).unwrap_err();
     assert!(
         matches!(
             error,
@@ -63,7 +64,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
 fn project_validation_rejects_invalid_edited_curve_definitions() {
     let mut session = starter_session().clone();
     let (id, mut definition) = session
-        .project
+        .project()
         .reusable::<donder_model::CurveDefinition>()
         .iter()
         .next()
@@ -71,7 +72,6 @@ fn project_validation_rejects_invalid_edited_curve_definitions() {
         .unwrap();
     definition.curve.points[0].position = f32::NAN;
     let error = session
-        .project
         .apply_edits([donder_model::ProjectEdit::Put(donder_model::Object::Curve(
             id, definition,
         ))])
@@ -79,10 +79,10 @@ fn project_validation_rejects_invalid_edited_curve_definitions() {
     assert!(
         matches!(
             error,
-            EditError::Invalid(ProjectValidationError {
+            SessionEditError::Model(EditError::Invalid(ProjectValidationError {
                 problem: ValidationProblem::Curve(_),
                 ..
-            })
+            }))
         ),
         "{error:?}"
     );
@@ -108,7 +108,7 @@ fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
 
     let mut session = starter_session().clone();
     let (id, mut definition) = session
-        .project
+        .project()
         .reusable::<donder_model::GradientDefinition>()
         .iter()
         .next()
@@ -116,7 +116,6 @@ fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
         .unwrap();
     definition.gradient.stops[0].position = f32::NAN;
     let error = session
-        .project
         .apply_edits([donder_model::ProjectEdit::Put(
             donder_model::Object::Gradient(id, definition),
         )])
@@ -124,10 +123,10 @@ fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
     assert!(
         matches!(
             error,
-            EditError::Invalid(ProjectValidationError {
+            SessionEditError::Model(EditError::Invalid(ProjectValidationError {
                 problem: ValidationProblem::Gradient(_),
                 ..
-            })
+            }))
         ),
         "{error:?}"
     );
@@ -144,27 +143,24 @@ fn edited_operator_parameters_validate_inline_resources() {
     use donder_runtime_types::Identifier;
     use donder_runtime_types::{Color, Gradient, GradientStop};
 
-    let mut session = starter_session().clone();
-    let id = OperatorDefinitionId(session.project.new_id());
+    let mut project = starter_session().project().clone();
+    let id = OperatorDefinitionId(project.new_id());
     let compiled = compile_script(
         "operator GradientProbe { input source; param colors: gradient; sample { source } }",
     )
     .unwrap()
     .remove(0);
-    session
-        .project
+    project
         .apply_edits([donder_model::ProjectEdit::Put(
             donder_model::Object::OperatorDefinition(OperatorDefinition::new(id, compiled)),
         )])
         .unwrap();
-    let sequence_id = *session
-        .project
+    let sequence_id = *project
         .reusable::<donder_model::Sequence>()
         .keys()
         .next()
         .unwrap();
-    let mut sequence = session
-        .project
+    let mut sequence = project
         .get::<donder_model::Sequence>(sequence_id)
         .unwrap()
         .clone();
@@ -188,8 +184,8 @@ fn edited_operator_parameters_validate_inline_resources() {
         position: GraphNodePosition { x: 0.0, y: 0.0 },
         kind: CompositionGraphNodeKind::Operator(operator),
     });
-    let accepted = session.project.clone();
-    let error = session.project.put(sequence).unwrap_err();
+    let accepted = project.clone();
+    let error = project.put(sequence).unwrap_err();
     assert!(
         matches!(
             error,
@@ -205,7 +201,7 @@ fn edited_operator_parameters_validate_inline_resources() {
         ),
         "{error:?}"
     );
-    assert_eq!(session.project, accepted);
+    assert_eq!(project, accepted);
 }
 
 #[test]
@@ -247,7 +243,7 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
     let session = report.session.unwrap();
     assert!(
         session
-            .project
+            .project()
             .reusable::<donder_model::Sequence>()
             .values()
             .any(|sequence| sequence.frame_rate == 90)

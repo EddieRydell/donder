@@ -1,39 +1,23 @@
-use donder_model::SetupId;
 use donder_model::{ControllerId, InputDeviceId};
 use donder_project_io::ProjectSession;
 
 use super::model::{object_id_from_gui, object_ref};
-use super::{GuiMutationError, ResolvedGuiObject, blocked};
+use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{GuiDocument, SetupGuiDocument, SetupGuiEdit};
 
 pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
-    let Some(setup) = session
-        .project
-        .get::<donder_model::Setup>(resolved.id::<SetupId>())
-    else {
-        return blocked("The requested setup is missing.", Vec::new());
-    };
+    let setup = resolved.view::<donder_model::Setup>(session);
     let available_controllers =
         donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Controller])
             .into_iter()
             .filter_map(|id| ControllerId::try_from(id).ok())
             .collect::<std::collections::HashSet<_>>();
     let controllers = setup
-        .controllers
-        .iter()
-        .map(|source| {
-            let id = source.id();
-            session
-                .project
-                .get::<donder_model::Controller>(*id)
-                .map(|controller| super::controller::project_controller(session, id, controller))
-                .ok_or_else(|| "Controller was not found.".to_string())
+        .controllers()
+        .map(|controller| {
+            super::controller::project_controller(session, &controller.id(), &controller)
         })
-        .collect::<Result<_, _>>();
-    let controllers = match controllers {
-        Ok(controllers) => controllers,
-        Err(error) => return blocked(error, Vec::new()),
-    };
+        .collect();
     let available_devices = donder_project_io::available_declarations(
         session,
         &[donder_model::ObjectKind::InputDevice],
@@ -42,21 +26,9 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
     .filter_map(|id| InputDeviceId::try_from(id).ok())
     .collect::<std::collections::HashSet<_>>();
     let input_devices = setup
-        .input_devices
-        .iter()
-        .map(|source| {
-            let id = source.id();
-            session
-                .project
-                .get::<donder_model::InputDevice>(*id)
-                .map(|device| super::input_device::project_input_device(session, id, device))
-                .ok_or_else(|| "Input device was not found.".to_string())
-        })
-        .collect::<Result<_, _>>();
-    let input_devices = match input_devices {
-        Ok(input_devices) => input_devices,
-        Err(error) => return blocked(error, Vec::new()),
-    };
+        .input_devices()
+        .map(|device| super::input_device::project_input_device(session, &device.id(), &device))
+        .collect();
     GuiDocument::Setup {
         document: SetupGuiDocument {
             description: setup.description.clone(),
@@ -65,7 +37,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
             patch_ref: object_ref(session, *setup.patch.id()),
             controllers,
             available_controllers: session
-                .project
+                .project()
                 .reusable::<donder_model::Controller>()
                 .iter()
                 .filter(|(id, _)| {
@@ -78,7 +50,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
                 .collect(),
             input_devices,
             available_input_devices: session
-                .project
+                .project()
                 .reusable::<donder_model::InputDevice>()
                 .iter()
                 .filter(|(id, _)| {
@@ -106,23 +78,23 @@ pub(super) fn edit_setup(
     resolved: &ResolvedGuiObject,
     edit: SetupGuiEdit,
 ) -> Result<(), GuiMutationError> {
-    let mut setup = session
-        .project
-        .get::<donder_model::Setup>(resolved.id::<SetupId>())
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("The requested setup is missing.".to_string()))?;
+    let mut setup = donder_model::Setup::clone(&resolved.view(session));
     match edit {
         SetupGuiEdit::AttachController { controller } => {
             let id: ControllerId = object_id_from_gui(session, &controller)?;
-            donder_model::attach_controller(&mut session.project, &setup.id, id)
-                .map_err(GuiMutationError::from)?;
+            session.edit_project(|project| {
+                donder_model::attach_controller(project, &setup.id, id)
+                    .map_err(GuiMutationError::from)
+            })?;
             donder_project_io::link_declaration(session, resolved.document_id(), id.into())
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
         SetupGuiEdit::AttachInputDevice { device } => {
             let id: InputDeviceId = object_id_from_gui(session, &device)?;
-            donder_model::attach_input_device(&mut session.project, &setup.id, id)
-                .map_err(GuiMutationError::from)?;
+            session.edit_project(|project| {
+                donder_model::attach_input_device(project, &setup.id, id)
+                    .map_err(GuiMutationError::from)
+            })?;
             donder_project_io::link_declaration(session, resolved.document_id(), id.into())
                 .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
@@ -131,14 +103,14 @@ pub(super) fn edit_setup(
             controls,
             name,
         } => {
-            let id = InputDeviceId(session.project.new_id());
+            let id = InputDeviceId(session.new_id());
             let device = super::input_device::domain_input_device(id, None, driver, controls)?;
             setup.input_devices.push(donder_model::OwnedMember::Inline {
                 name: super::model::typed_name(&name)?,
                 value: Box::new(device),
             });
             let owner = setup.id.into();
-            session.project.put(setup).map_err(GuiMutationError::from)?;
+            session.put(setup).map_err(GuiMutationError::from)?;
             super::ownership::store_new_member(session, owner, id.into(), &name)?;
         }
         SetupGuiEdit::AddController {
@@ -146,14 +118,14 @@ pub(super) fn edit_setup(
             ports,
             name,
         } => {
-            let id = ControllerId(session.project.new_id());
+            let id = ControllerId(session.new_id());
             let controller = super::controller::domain_controller(id, None, config, ports)?;
             setup.controllers.push(donder_model::OwnedMember::Inline {
                 name: super::model::typed_name(&name)?,
                 value: Box::new(controller),
             });
             let owner = setup.id.into();
-            session.project.put(setup).map_err(GuiMutationError::from)?;
+            session.put(setup).map_err(GuiMutationError::from)?;
             super::ownership::store_new_member(session, owner, id.into(), &name)?;
         }
     }

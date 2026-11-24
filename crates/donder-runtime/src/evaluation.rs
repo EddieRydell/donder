@@ -19,7 +19,8 @@ use crate::resources::{LiveView, ParamsView};
 use crate::sections::SectionsView;
 use crate::targets::{PreparedPixel, TargetCursor, TargetView};
 use crate::view::{ProgramView, Show};
-use crate::workspace::{CachedClipColor, ConsoleState, MAX_BUFFERS, Timing, Workspace};
+use crate::workspace::{CachedClipColor, ConsoleState, Timing, Workspace};
+use core::cell::Cell;
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 /// One clip at one time, evaluated over any selection of pixel coordinates.
@@ -323,41 +324,69 @@ fn base(show: Show<'_>, fixture: usize, cell: u32) -> usize {
     show.s.fixtures[fixture].offset as usize + cell as usize
 }
 
-/// The frame a program reads as `input`: an input node's frame of this frame.
-#[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn input_frame<'f>(
-    buffers: &'f [&mut [Color]],
-    nodes: &[format::Node],
-    inputs: &[u32],
-    input: usize,
-) -> &'f [Color] {
-    buffers[nodes[inputs[input] as usize].buffer as usize]
+/// The frames a node reads. The buffer it writes splits the frame buffers
+/// into those before it and those after it; each input's entry, set once per
+/// node, names its half and where its frame starts there, so a read indexes
+/// rather than branches.
+#[derive(Clone, Copy)]
+struct InputFrames<'f> {
+    halves: [&'f [Color]; 2],
+    inputs: &'f [[u32; 2]],
+    pixels: usize,
+}
+
+impl<'f> InputFrames<'f> {
+    /// Pixel `index` of input `input`'s frame.
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn pixel(&self, input: usize, index: usize) -> Color {
+        let [half, start] = self.inputs[input];
+        self.halves[half as usize & 1][start as usize + index]
+    }
+
+    /// Input `input`'s frame.
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn frame(&self, input: usize) -> &'f [Color] {
+        let [half, start] = self.inputs[input];
+        let start = start as usize;
+        &self.halves[half as usize & 1][start..start + self.pixels]
+    }
 }
 
 /// Signal reads of a strip, from frames this frame already evaluated. Pixel
 /// `n` of the strip is plan-target pixel `first + n`.
-pub(crate) struct FrameSignals<'g, 'w> {
+pub(crate) struct FrameSignals<'g> {
     plan: TargetView<'g>,
-    nodes: &'g [format::Node],
-    inputs: &'g [u32],
-    buffers: &'g [&'w mut [Color]],
-    scans: &'g mut [&'w mut [Color]],
-    /// The running program's scans computed this frame, by bit.
-    scanned: u32,
+    frames: InputFrames<'g>,
+    /// One frame per scan cache, one after another.
+    scans: &'g mut [Color],
+    /// Which of the running program's scans are computed this frame.
+    scanned: &'g [Cell<bool>],
     first: usize,
     count: usize,
 }
 
-impl FrameSignals<'_, '_> {
+impl FrameSignals<'_> {
+    /// The frame a program reads as `input`: an input node's frame of this
+    /// frame.
     #[inline(always)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn frame(&self, input: usize) -> &[Color] {
-        input_frame(self.buffers, self.nodes, self.inputs, input)
+        self.frames.frame(input)
+    }
+
+    /// Before each node and clip: its program's scans are not computed yet.
+    #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn forget_scans(&self) {
+        for scanned in self.scanned {
+            scanned.set(false);
+        }
     }
 }
 
-impl StripSignals for FrameSignals<'_, '_> {
+impl StripSignals for FrameSignals<'_> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn read_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
         let (first, count) = (self.first, self.count);
@@ -367,7 +396,7 @@ impl StripSignals for FrameSignals<'_, '_> {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn read_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color {
         match signal_pixel(self.plan, self.first + offset, pixel) {
-            Some(index) => self.frame(input)[index],
+            Some(index) => self.frames.pixel(input, index),
             None => black(),
         }
     }
@@ -379,14 +408,16 @@ impl StripSignals for FrameSignals<'_, '_> {
         weights: &mut dyn NeighborWeights,
         output: &mut [Color; STRIP],
     ) {
-        let bit = 1 << query.cache;
-        if self.scanned & bit == 0 {
-            let input = input_frame(self.buffers, self.nodes, self.inputs, query.input);
-            crate::scan::scan_frame(self.plan, query, weights, input, self.scans[query.cache]);
-            self.scanned |= bit;
+        let pixels = self.frames.pixels;
+        let start = query.cache * pixels;
+        if !self.scanned[query.cache].get() {
+            let input = self.frames.frame(query.input);
+            let scan = &mut self.scans[start..start + pixels];
+            crate::scan::scan_frame(self.plan, query, weights, input, scan);
+            self.scanned[query.cache].set(true);
         }
-        let (first, count) = (self.first, self.count);
-        output[..count].copy_from_slice(&self.scans[query.cache][first..first + count]);
+        let first = start + self.first;
+        output[..self.count].copy_from_slice(&self.scans[first..first + self.count]);
     }
 
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
@@ -492,7 +523,7 @@ fn evaluate_layer(
     layer: &format::Layer,
     timeline: Timeline<'_>,
     rendered: &mut [Color],
-    signals: &mut FrameSignals<'_, '_>,
+    signals: &mut FrameSignals<'_>,
     programs: &mut Programs<'_, '_>,
     gather: &mut [[u32; 2]],
     clip_colors: &mut [CachedClipColor],
@@ -521,7 +552,7 @@ fn evaluate_layer(
         );
         let sampler = clip_evaluator(show, clip, timing, time, params);
         let target = sampler.target;
-        signals.scanned = 0;
+        signals.forget_scans();
         if sampler.uniform() {
             let mut color = None;
             let cursor = target.cursor();
@@ -602,7 +633,7 @@ fn run_gathered(
     strip: &mut Strip<'_, '_>,
     cells: &[[u32; 2]],
     rendered: &mut [Color],
-    signals: &mut FrameSignals<'_, '_>,
+    signals: &mut FrameSignals<'_>,
     mut samples: Option<&mut [CachedClipColor]>,
 ) {
     // Gathered indices ascend, so both lookups follow the target's runs.
@@ -643,7 +674,7 @@ fn evaluate_operator(
     node: &format::Node,
     plan: TargetView<'_>,
     rendered: &mut [Color],
-    signals: &mut FrameSignals<'_, '_>,
+    signals: &mut FrameSignals<'_>,
     programs: &mut Programs<'_, '_>,
 ) {
     let program = show.program(node.program);
@@ -710,6 +741,23 @@ mod frames {
     #[allow(clippy::wildcard_imports)]
     use super::*;
 
+    /// Point `entries` at the frames of `inputs`, the buffers a node writing
+    /// buffer `written` reads: each one's half and where its frame starts.
+    fn locate_inputs(
+        entries: &mut [[u32; 2]],
+        nodes: &[format::Node],
+        inputs: &[u32],
+        written: u32,
+        pixels: usize,
+    ) {
+        for (entry, &input) in entries.iter_mut().zip(inputs) {
+            let buffer = nodes[input as usize].buffer;
+            let after = u32::from(buffer > written);
+            let index = (buffer - after * (written + 1)) as usize;
+            *entry = [after, (index * pixels) as u32];
+        }
+    }
+
     /// Sort a layer's clips by start and record, for each, the latest end of
     /// it and every clip before it. Clips before the first end after a time
     /// have all ended by then.
@@ -739,13 +787,17 @@ mod frames {
         time: SampleTime,
     ) -> usize {
         let result = root_buffer(show);
+        let pixels = workspace.pixels;
         if show.root().is_none() || time.as_ticks() >= show.duration().as_ticks() {
-            workspace.buffers[result].fill(black());
+            workspace.buffers[result * pixels..(result + 1) * pixels].fill(black());
             return result;
         }
         let Workspace {
             buffers,
+            black: black_frames,
             scans,
+            scanned,
+            input_frames,
             strip,
             scratch,
             gather,
@@ -773,26 +825,29 @@ mod frames {
             },
             time,
         };
-        // Whether each buffer holds a frame known to be black.
-        let mut black_frames = [false; MAX_BUFFERS];
         for node in show.s.nodes {
             let buffer = node.buffer as usize;
-            let rendered = core::mem::take(&mut buffers[buffer]);
+            let (before, rest) = buffers.split_at_mut(buffer * pixels);
+            let (rendered, after) = rest.split_at_mut(pixels);
             let inputs = show.inputs(node);
             let inputs_black = inputs
                 .iter()
-                .all(|&input| black_frames[show.s.nodes[input as usize].buffer as usize]);
-            black_frames[buffer] = {
+                .all(|&input| black_frames[show.s.nodes[input as usize].buffer as usize].get());
+            locate_inputs(input_frames, show.s.nodes, inputs, node.buffer, pixels);
+            let is_black = {
                 let mut signals = FrameSignals {
                     plan,
-                    nodes: show.s.nodes,
-                    inputs: show.inputs(node),
-                    buffers,
+                    frames: InputFrames {
+                        halves: [before, after],
+                        inputs: &input_frames[..inputs.len()],
+                        pixels,
+                    },
                     scans,
-                    scanned: 0,
+                    scanned,
                     first: 0,
                     count: 0,
                 };
+                signals.forget_scans();
                 match node.kind {
                     format::NODE_LAYER => !evaluate_layer(
                         show,
@@ -816,7 +871,7 @@ mod frames {
                     _ => {
                         rendered.fill(black());
                         if !inputs_black {
-                            for input in 0..signals.inputs.len() {
+                            for input in 0..inputs.len() {
                                 for (target, &color) in
                                     rendered.iter_mut().zip(signals.frame(input))
                                 {
@@ -828,7 +883,7 @@ mod frames {
                     }
                 }
             };
-            buffers[buffer] = rendered;
+            black_frames[buffer].set(is_black);
         }
         result
     }

@@ -18,8 +18,8 @@ use donder_editor::dto::{
 pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditResult {
     let session = state.project_session().unwrap();
     let layout = *session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
+        .project()
+        .get::<donder_model::Setup>(*session.project().root().setup.id())
         .unwrap()
         .layout
         .id();
@@ -89,7 +89,7 @@ fn setup_edit(state: &DesktopState, edit: SetupGuiEdit) -> SetupGuiDocument {
 
 fn setup_command(state: &DesktopState, command: GuiEditCommand) -> SetupGuiDocument {
     let session = state.project_session().unwrap();
-    let id = session.project.root().setup.id();
+    let id = session.project().root().setup.id();
     state.open_file_path(address(state, *id).document().as_str());
     match state
         .apply_gui_edit(
@@ -114,7 +114,7 @@ fn setup_command(state: &DesktopState, command: GuiEditCommand) -> SetupGuiDocum
 
 fn project_edit(state: &DesktopState, edit: ProjectGuiEdit) -> ProjectGuiDocument {
     let session = state.project_session().unwrap();
-    let id = address(state, session.project.root().id);
+    let id = address(state, session.project().root().id);
     let id = id.root_source();
     state.open_file_path(id.document().as_str());
     match state
@@ -261,10 +261,10 @@ Layout main {
         donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
             .into_session()
             .unwrap();
-    assert_eq!(reloaded.project, accepted.project);
+    assert_eq!(reloaded.project(), accepted.project());
     assert_eq!(
-        reloaded.source.documents.len(),
-        accepted.source.documents.len()
+        reloaded.source().documents().len(),
+        accepted.source().documents().len()
     );
     layout_document(
         edit_layout(
@@ -280,7 +280,7 @@ Layout main {
         state
             .project_session()
             .unwrap()
-            .project
+            .project()
             .reusable::<donder_model::FixtureDefinition>()
             .len(),
         1
@@ -303,9 +303,9 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     let initial = state.project_session().unwrap();
-    let sequence_id = *initial.project.root().sequences[0].id();
+    let sequence_id = *initial.project().root().sequences[0].id();
     let initial_color = initial
-        .project
+        .project()
         .get::<donder_model::Sequence>(sequence_id)
         .unwrap()
         .layers[0]
@@ -533,8 +533,8 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     );
     let final_session = state.project_session().unwrap();
     let prepared = donder_elaboration::prepare(
-        &final_session.project,
-        final_session.project.root().sequences[0].id(),
+        final_session.project(),
+        final_session.project().root().sequences[0].id(),
         donder_elaboration::Retain::All,
     )
     .unwrap();
@@ -651,13 +651,13 @@ fn shape_handles_conversion_and_undo_preserve_output_order() {
     let after_conversion = state.project_session().unwrap();
     state.undo_active_edit();
     assert_eq!(
-        state.project_session().unwrap().project,
-        before_conversion.project
+        state.project_session().unwrap().project(),
+        before_conversion.project()
     );
     state.redo_active_edit();
     assert_eq!(
-        state.project_session().unwrap().project,
-        after_conversion.project
+        state.project_session().unwrap().project(),
+        after_conversion.project()
     );
     state.save_all().unwrap();
     crate::desktop_foundation_tests::tests::assert_reloads(&root, &after_conversion);
@@ -724,7 +724,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         state
             .project_session()
             .unwrap()
-            .project
+            .project()
             .reusable::<donder_model::FixtureDefinition>()
             .len(),
         1
@@ -744,7 +744,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
     let after = state.project_session().unwrap();
     assert_eq!(
         after
-            .project
+            .project()
             .reusable::<donder_model::FixtureDefinition>()
             .len(),
         1
@@ -815,10 +815,15 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     assert_eq!(document.name, "owned_strip");
     assert_eq!(document.render_plan.pixels.len(), 1);
     let after = state.project_session().unwrap();
-    assert!(after.project.reusable::<donder_model::Layout>().is_empty());
+    assert!(
+        after
+            .project()
+            .reusable::<donder_model::Layout>()
+            .is_empty()
+    );
     assert_eq!(
         after
-            .project
+            .project()
             .reusable::<donder_model::FixtureDefinition>()
             .len(),
         1
@@ -843,9 +848,9 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     let initial = state.project_session().unwrap();
-    let id = *initial.project.root().sequences[0].id();
+    let id = *initial.project().root().sequences[0].id();
     let color = initial
-        .project
+        .project()
         .get::<donder_model::Sequence>(id)
         .unwrap()
         .layers[0]
@@ -906,7 +911,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         state
             .project_session()
             .unwrap()
-            .project
+            .project()
             .get::<donder_model::Sequence>(id)
             .unwrap()
             .composition_graph
@@ -919,8 +924,8 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
     );
     state.redo_active_edit();
     assert_eq!(
-        state.project_session().unwrap().project,
-        disconnected.project
+        state.project_session().unwrap().project(),
+        disconnected.project()
     );
     let GuiDocument::Sequence { document } = edit(CompositionGuiEdit::UpdateGraphOperatorParam {
         node_id: node.id,
@@ -1016,8 +1021,8 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
     ));
     let current = state.project_session().unwrap();
     let layout_id = current
-        .project
-        .get::<donder_model::Setup>(*current.project.root().setup.id())
+        .project()
+        .get::<donder_model::Setup>(*current.project().root().setup.id())
         .unwrap()
         .layout
         .id();
@@ -1083,8 +1088,12 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
     assert!(matches!(definition, GuiOwnedFixture::Inline { .. }));
     assert_eq!(placement.position.x_meters, 2.0);
     assert_eq!(
-        after.project.reusable::<donder_model::FixtureDefinition>(),
-        before.project.reusable::<donder_model::FixtureDefinition>()
+        after
+            .project()
+            .reusable::<donder_model::FixtureDefinition>(),
+        before
+            .project()
+            .reusable::<donder_model::FixtureDefinition>()
     );
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);
@@ -1106,21 +1115,23 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
     let changed = state.project_session().unwrap();
     assert_eq!(
         changed
-            .project
+            .project()
             .get::<donder_model::Layout>(*layout_id)
             .unwrap()
             .fixtures[0],
         before
-            .project
+            .project()
             .get::<donder_model::Layout>(*layout_id)
             .unwrap()
             .fixtures[0]
     );
     assert_eq!(
         changed
-            .project
+            .project()
             .reusable::<donder_model::FixtureDefinition>(),
-        before.project.reusable::<donder_model::FixtureDefinition>()
+        before
+            .project()
+            .reusable::<donder_model::FixtureDefinition>()
     );
     state.save_all().unwrap();
     crate::desktop_foundation_tests::tests::assert_reloads(&root, &changed);
@@ -1186,14 +1197,14 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
     );
     let initial = state.project_session().unwrap();
     let layout_id = initial
-        .project
-        .get::<donder_model::Setup>(*initial.project.root().setup.id())
+        .project()
+        .get::<donder_model::Setup>(*initial.project().root().setup.id())
         .unwrap()
         .layout
         .id();
     let fixture_id = donder_model::FixtureInstanceId;
     let original_first = initial
-        .project
+        .project()
         .get::<donder_model::Layout>(*layout_id)
         .unwrap()
         .fixture(fixture_id(1))
@@ -1239,7 +1250,7 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
         let after = state.project_session().unwrap();
         assert_eq!(
             after
-                .project
+                .project()
                 .get::<donder_model::Layout>(*layout_id)
                 .unwrap()
                 .fixture(fixture_id(1))
@@ -1247,9 +1258,11 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
             &original_first
         );
         assert_eq!(
-            after.project.reusable::<donder_model::FixtureDefinition>(),
+            after
+                .project()
+                .reusable::<donder_model::FixtureDefinition>(),
             initial
-                .project
+                .project()
                 .reusable::<donder_model::FixtureDefinition>()
         );
         state.undo_active_edit();
@@ -1259,7 +1272,7 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
     }
     let current = state.project_session().unwrap();
     let layout = current
-        .project
+        .project()
         .get::<donder_model::Layout>(*layout_id)
         .unwrap();
     assert_eq!(layout.root, [fixture_id(2), fixture_id(3)]);
@@ -1434,8 +1447,12 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
     }
     let after = state.project_session().unwrap();
     assert_eq!(
-        after.project.reusable::<donder_model::FixtureDefinition>(),
-        before.project.reusable::<donder_model::FixtureDefinition>()
+        after
+            .project()
+            .reusable::<donder_model::FixtureDefinition>(),
+        before
+            .project()
+            .reusable::<donder_model::FixtureDefinition>()
     );
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);
@@ -1455,7 +1472,7 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
             vec![2],
             vec![
                 Point3Meters {
-                    x_meters: 2000.0,
+                    x_meters: 2146.0,
                     y_meters: 0.0,
                     z_meters: 0.0,
                 },
@@ -1592,11 +1609,7 @@ fn address(
     state: &DesktopState,
     id: impl Into<donder_model::ObjectId>,
 ) -> donder_project_io::ObjectAddress {
-    state
-        .project_session()
-        .unwrap()
-        .address_of(id.into())
-        .unwrap()
+    state.project_session().unwrap().address_of(id)
 }
 
 fn object_request(
@@ -1640,8 +1653,8 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
     state.update_app_settings(settings);
     let session = state.project_session().unwrap();
     let setup = session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
+        .project()
+        .get::<donder_model::Setup>(*session.project().root().setup.id())
         .unwrap();
     let keyboard = *setup.input_devices[0].id();
 
@@ -1709,7 +1722,7 @@ fn live_input_editors_author_devices_and_consoles_and_roundtrip() {
         },
     );
     assert_eq!(project.consoles.len(), 2);
-    let console = *state.project_session().unwrap().project.root().consoles[1].id();
+    let console = *state.project_session().unwrap().project().root().consoles[1].id();
     let GuiDocument::Console { document } = state
         .get_gui_document(object_request(&state, console))
         .document

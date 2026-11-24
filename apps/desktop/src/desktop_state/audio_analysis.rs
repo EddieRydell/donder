@@ -54,7 +54,7 @@ impl DesktopState {
     /// Derive the data `session`'s effects read that it has no result for.
     pub(super) fn schedule_derivations(&self, session: &ProjectSession) {
         let mut files: Vec<(Utf8PathBuf, Vec<Derivation>)> = Vec::new();
-        for derivation in session.project.pending_derivations() {
+        for derivation in session.project().pending_derivations() {
             let Some(asset) = session.asset(derivation.asset()) else {
                 continue;
             };
@@ -88,18 +88,15 @@ impl DesktopState {
         let Some(session) = self.project_session() else {
             return;
         };
-        let pending = session.project.pending_derivations();
-        let mut project = session.project.clone();
+        let pending = session.project().pending_derivations();
+        let mut candidate = (*session).clone();
         let mut changed = false;
         for (derivation, derived) in results {
             if !pending.contains(&derivation) {
                 continue;
             }
-            match project.with_derived(derivation, derived) {
-                Ok(next) => {
-                    project = next;
-                    changed = true;
-                }
+            match candidate.with_derived(derivation, derived) {
+                Ok(()) => changed = true,
                 Err(error) => {
                     self.snapshot_with_error(&error.to_string());
                     return;
@@ -109,13 +106,11 @@ impl DesktopState {
         if !changed {
             return;
         }
-        let session = Arc::new(ProjectSession {
-            project,
-            ..(*session).clone()
-        });
-        if let Err(error) =
-            self.accept_gui_sources(session, BTreeMap::new(), "Read the effects' assets")
-        {
+        if let Err(error) = self.accept_gui_sources(
+            Arc::new(candidate),
+            BTreeMap::new(),
+            "Read the effects' assets",
+        ) {
             self.snapshot_with_error(&error);
         }
     }

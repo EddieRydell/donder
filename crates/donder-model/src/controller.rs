@@ -251,14 +251,20 @@ impl Controller {
 
     /// The channel stream a port plays in: an E1.31 or Art-Net controller's
     /// universes, which all its ports share, or a Donder port's own.
+    /// `None` when the controller has no port `id`.
     pub fn port_output(&self, id: ControllerPortId) -> Option<ControllerOutput> {
         self.port(id)?;
-        Some(match self.protocol {
+        Some(self.own_port_output(id))
+    }
+
+    /// The channel stream one of the controller's own ports plays in.
+    pub(crate) fn own_port_output(&self, id: ControllerPortId) -> ControllerOutput {
+        match self.protocol {
             ControllerProtocol::E131(_) | ControllerProtocol::ArtNet(_) => {
                 ControllerOutput::Universes
             }
             ControllerProtocol::Donder(_) => ControllerOutput::Port(id),
-        })
+        }
     }
 
     /// A Donder controller's ports with their physical outputs; other
@@ -302,51 +308,52 @@ impl Controller {
 
     /// The output a prepared show's output record names by its port number.
     pub fn runtime_output(&self, port: u32) -> ControllerOutput {
-        match self.protocol {
-            ControllerProtocol::Donder(_) => ControllerOutput::Port(ControllerPortId(port)),
-            ControllerProtocol::E131(_) | ControllerProtocol::ArtNet(_) => {
-                ControllerOutput::Universes
-            }
-        }
+        self.own_port_output(ControllerPortId(port))
     }
 
-    /// How people name one of the controller's outputs: its universes, such
-    /// as `universes 1–30`, or a Donder port's name.
-    pub fn output_label(&self, output: ControllerOutput) -> Option<String> {
+    /// One of the controller's own Donder ports, by an output of it.
+    fn own_port(&self, id: ControllerPortId) -> &ControllerPort {
+        let Some(port) = self.port(id) else {
+            unreachable!("the controller's own outputs name its ports")
+        };
+        port
+    }
+
+    /// How people name one of the controller's own outputs: its universes,
+    /// such as `universes 1–30`, or a Donder port's name.
+    pub fn output_label(&self, output: ControllerOutput) -> String {
         match (self.universes(), output) {
             (Some(universes), ControllerOutput::Universes) if universes.count == 1 => {
-                Some(format!("universe {}", universes.start))
+                format!("universe {}", universes.start)
             }
-            (Some(universes), ControllerOutput::Universes) => Some(format!(
+            (Some(universes), ControllerOutput::Universes) => format!(
                 "universes {}–{}",
                 universes.start,
                 u32::from(universes.start) + u32::from(universes.count) - 1
-            )),
-            (None, ControllerOutput::Port(id)) => self.port(id).map(|port| port.name.clone()),
-            _ => None,
+            ),
+            (None, ControllerOutput::Port(id)) => self.own_port(id).name.clone(),
+            _ => unreachable!("a controller's own outputs follow its protocol"),
         }
     }
 
-    /// Where the nonempty zero-based `channels` of `output` land.
+    /// Where the nonempty zero-based `channels` of one of the controller's
+    /// own outputs land; `None` for no channels.
     pub fn place(&self, output: ControllerOutput, channels: Range<u32>) -> Option<ChannelPlace> {
         if channels.is_empty() {
             return None;
         }
-        match (self.universes(), output) {
-            (Some(universes), ControllerOutput::Universes) => Some(ChannelPlace::Universes {
+        Some(match (self.universes(), output) {
+            (Some(universes), ControllerOutput::Universes) => ChannelPlace::Universes {
                 first: universes.locate(channels.start),
                 last: universes.locate(channels.end - 1),
-            }),
-            (None, ControllerOutput::Port(id)) => {
-                let port = self.port(id)?;
-                Some(ChannelPlace::Port {
-                    port: port.name.clone(),
-                    first: channels.start + 1,
-                    last: channels.end,
-                })
-            }
-            _ => None,
-        }
+            },
+            (None, ControllerOutput::Port(id)) => ChannelPlace::Port {
+                port: self.own_port(id).name.clone(),
+                first: channels.start + 1,
+                last: channels.end,
+            },
+            _ => unreachable!("a controller's own outputs follow its protocol"),
+        })
     }
 
     pub fn validate(&self) -> Result<(), ControllerValidationError> {

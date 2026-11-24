@@ -37,11 +37,6 @@ impl fmt::Display for ProjectValidationError {
 /// Why an object breaks a project rule.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ValidationProblem {
-    MissingSetup,
-    MissingLayout,
-    MissingPatch,
-    MissingController,
-    MissingInputDevice,
     Ownership(OwnershipProblem),
     /// A script definition is stored under an id its declaration does not carry.
     DefinitionMismatch,
@@ -132,7 +127,6 @@ pub enum SetupProblem {
 /// A sequence that cannot be played as written.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SequenceValidationError {
-    MissingActiveSetup,
     Timing(TimingProblem),
     Name(NameProblem),
     Composition(CompositionProblem),
@@ -154,7 +148,6 @@ pub enum SequenceValidationError {
 /// A console that cannot be played as written.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConsoleValidationError {
-    MissingActiveSetup,
     Timing(TimingProblem),
     Name(NameProblem),
     Composition(CompositionProblem),
@@ -338,7 +331,6 @@ pub enum EventProblem {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AdmissionProblem {
     GeometryOutOfRange,
-    InvalidEncoding(PixelRouteId),
     UnplacedRoute(PixelRouteId),
     Binding(Member, BindingError),
     LiveMarksInOperator(CompositionGraphNodeId),
@@ -432,12 +424,7 @@ impl ValidationProblem {
             Self::Admission(AdmissionProblem::LiveMarksInOperator(node)) => {
                 Some(ProblemSite::of(Member::Node(node.clone())))
             }
-            Self::MissingSetup
-            | Self::MissingLayout
-            | Self::MissingPatch
-            | Self::MissingController
-            | Self::MissingInputDevice
-            | Self::Ownership(_)
+            Self::Ownership(_)
             | Self::DefinitionMismatch
             | Self::Curve(_)
             | Self::CurveNotNormalized
@@ -461,7 +448,7 @@ impl SequenceValidationError {
                 Some(ProblemSite::of(Member::Marks(name.clone())))
             }
             Self::Clip { clip, problem, .. } => Some(problem.site(Member::Clip(clip.clone()))),
-            Self::MissingActiveSetup | Self::Timing(_) => None,
+            Self::Timing(_) => None,
         }
     }
 }
@@ -501,7 +488,7 @@ impl ConsoleValidationError {
                 Member::ConsoleClip(*clip),
                 MemberPart::PlayedValue(param.clone()),
             )),
-            Self::MissingActiveSetup | Self::Timing(_) | Self::MissingAlwaysClip => None,
+            Self::Timing(_) | Self::MissingAlwaysClip => None,
         }
     }
 }
@@ -563,11 +550,6 @@ impl ParamProblem {
 impl fmt::Display for ValidationProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingSetup => f.write_str("the project setup is missing"),
-            Self::MissingLayout => f.write_str("the referenced layout is missing"),
-            Self::MissingPatch => f.write_str("the setup patch is missing"),
-            Self::MissingController => f.write_str("a referenced controller is missing"),
-            Self::MissingInputDevice => f.write_str("a referenced input device is missing"),
             Self::Ownership(problem) => problem.fmt(f),
             Self::DefinitionMismatch => f.write_str("the definition doesn't match its script"),
             Self::Curve(error) => write!(f, "invalid curve: {}", curve_error(error)),
@@ -774,7 +756,6 @@ impl Member {
 impl fmt::Display for SequenceValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingActiveSetup => f.write_str("the project's setup is missing"),
             Self::Timing(problem) => problem.fmt(f),
             Self::Name(problem) => problem.fmt(f),
             Self::Composition(problem) => problem.fmt(f),
@@ -803,7 +784,6 @@ impl fmt::Display for SequenceValidationError {
 impl fmt::Display for ConsoleValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingActiveSetup => f.write_str("the project's setup is missing"),
             Self::Timing(problem) => problem.fmt(f),
             Self::Name(problem) => problem.fmt(f),
             Self::Composition(problem) => problem.fmt(f),
@@ -1019,7 +999,6 @@ impl fmt::Display for AdmissionProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::GeometryOutOfRange => f.write_str("a fixture is placed too far out"),
-            Self::InvalidEncoding(_) => f.write_str("an output's encoding is invalid"),
             Self::UnplacedRoute(_) => f.write_str("an output's channels cannot be placed"),
             Self::Binding(_, error) => f.write_str(&error.message),
             Self::LiveMarksInOperator(_) => {

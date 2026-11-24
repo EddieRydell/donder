@@ -22,6 +22,7 @@ pub(super) fn edit_fixture(
 }
 
 /// Update the open fixture definition, declared or owned by a layout fixture.
+/// [`super::resolve_request`] found an owned one inline in its layout.
 pub(super) fn update_fixture_definition(
     session: &mut ProjectSession,
     resolved: &super::ResolvedGuiObject,
@@ -29,47 +30,31 @@ pub(super) fn update_fixture_definition(
 ) -> Result<(), GuiMutationError> {
     match resolved.owned_path.as_slice() {
         [] => {
-            let id = resolved.id::<FixtureDefinitionId>();
-            let mut fixture = session
-                .project
-                .reusable::<donder_model::FixtureDefinition>()
-                .get(&id)
-                .cloned()
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Fixture definition was not loaded.".into())
-                })?;
+            let mut fixture = FixtureDefinition::clone(&resolved.view(session));
             update(&mut fixture)?;
             session
-                .project
                 .apply_edits([donder_model::ProjectEdit::Put(
-                    donder_model::Object::FixtureDefinition(id, fixture),
+                    donder_model::Object::FixtureDefinition(resolved.id(), fixture),
                 )])
                 .map_err(GuiMutationError::from)
         }
         [.., crate::dto::OwnedObjectSlot::Fixture { id }] => {
-            let mut layout = session
-                .project
-                .get::<donder_model::Layout>(resolved.id::<donder_model::LayoutId>())
-                .cloned()
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
-            let placement = layout
-                .fixture_mut(donder_model::FixtureInstanceId(*id))
-                .ok_or_else(|| GuiMutationError::Invalid("Fixture was not found.".into()))?;
-            let donder_model::LayoutFixtureKind::Fixture {
-                definition: OwnedFixture::Inline(value),
+            let mut layout = donder_model::Layout::clone(&resolved.view(session));
+            let Some(donder_model::LayoutFixture {
+                kind:
+                    donder_model::LayoutFixtureKind::Fixture {
+                        definition: OwnedFixture::Inline(value),
+                        ..
+                    },
                 ..
-            } = &mut placement.kind
+            }) = layout.fixture_mut(donder_model::FixtureInstanceId(*id))
             else {
-                return Err(GuiMutationError::Invalid(
-                    "Fixture is not owned inline.".into(),
-                ));
+                unreachable!("resolved owned fixtures are inline in their layout");
             };
             update(value)?;
-            session.project.put(layout).map_err(GuiMutationError::from)
+            session.put(layout).map_err(GuiMutationError::from)
         }
-        _ => Err(GuiMutationError::Invalid(
-            "Unsupported owned fixture path.".into(),
-        )),
+        _ => unreachable!("only a layout fixture owns a fixture definition"),
     }
 }
 
@@ -212,20 +197,14 @@ fn domain_element(element: GuiFixtureElement) -> Result<FixtureElement, GuiMutat
             serpentine,
         },
     };
-    let element = FixtureElement {
+    Ok(FixtureElement {
         id: FixtureElementId(element.id),
         name: super::model::typed_name(&element.name)?,
         transform: checked_transform(element.transform)?,
         diameter: pixel_diameter(element.diameter_meters)?,
         reverse: element.reverse,
         shape,
-    };
-    if !element.is_valid() {
-        return Err(GuiMutationError::Invalid(
-            "Invalid shape geometry, name, or pixel count.".into(),
-        ));
-    }
-    Ok(element)
+    })
 }
 
 pub fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
@@ -422,7 +401,7 @@ pub(super) fn reference_definition(
     let id: FixtureDefinitionId =
         super::model::declared_from_gui(session, &reference.path, &reference.object_key)?;
     if !session
-        .project
+        .project()
         .reusable::<donder_model::FixtureDefinition>()
         .contains_key(&id)
     {
@@ -465,10 +444,10 @@ pub(crate) fn checked_point(
 ) -> Result<donder_language::Point3, GuiMutationError> {
     if [point.x_meters, point.y_meters, point.z_meters]
         .iter()
-        .any(|value| !value.is_finite() || value.abs() > 2_000.0)
+        .any(|value| !value.is_finite() || value.abs() > 2_147.0)
     {
         return Err(GuiMutationError::Invalid(
-            "Coordinates must be finite and within 2,000 meters of the origin.".into(),
+            "Coordinates must be finite and within 2,147 meters of the origin.".into(),
         ));
     }
     Ok(domain_point3_meters(point))
@@ -479,29 +458,29 @@ pub(crate) fn checked_point(
 pub fn open_fixture_definition<'a>(
     session: &'a ProjectSession,
     resolved: &ResolvedGuiObject,
-) -> Result<(&'a FixtureDefinition, String), &'static str> {
+) -> (&'a FixtureDefinition, String) {
     match resolved.owned_path.as_slice() {
-        [] => session
-            .project
-            .reusable::<FixtureDefinition>()
-            .get(&resolved.id::<FixtureDefinitionId>())
-            .map(|value| (value, resolved.identity.object().to_string()))
-            .ok_or("Fixture was not found."),
+        [] => (
+            resolved.view::<FixtureDefinition>(session).object(),
+            resolved.identity.object().to_string(),
+        ),
         [.., crate::dto::OwnedObjectSlot::Fixture { id }] => {
-            let placement = session
-                .project
-                .get::<donder_model::Layout>(resolved.id::<donder_model::LayoutId>())
-                .and_then(|layout| layout.fixture(donder_model::FixtureInstanceId(*id)))
-                .ok_or("Fixture was not found.")?;
-            let donder_model::LayoutFixtureKind::Fixture {
-                definition: OwnedFixture::Inline(value),
-                ..
-            } = &placement.kind
+            let layout = resolved.view::<donder_model::Layout>(session).object();
+            let Some(
+                placement @ donder_model::LayoutFixture {
+                    kind:
+                        donder_model::LayoutFixtureKind::Fixture {
+                            definition: OwnedFixture::Inline(value),
+                            ..
+                        },
+                    ..
+                },
+            ) = layout.fixture(donder_model::FixtureInstanceId(*id))
             else {
-                return Err("Fixture is not owned inline.");
+                unreachable!("resolved owned fixtures are inline in their layout");
             };
-            Ok((value, placement.name.as_str().to_string()))
+            (value, placement.name.as_str().to_string())
         }
-        _ => Err("Unsupported owned fixture path."),
+        _ => unreachable!("only a layout fixture owns a fixture definition"),
     }
 }

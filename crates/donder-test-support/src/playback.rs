@@ -116,7 +116,7 @@ pub fn try_invoke(
 /// `instance` lowered and bound.
 pub fn bind(instance: &Instance) -> BoundProgram {
     let lowered = instance.lower();
-    BoundProgram::bind(lowered.program, lowered.values, lowered.automation).unwrap()
+    BoundProgram::new(lowered.program, lowered.values, lowered.automation)
 }
 
 /// `invocation` lowered with nothing known about its placement, so the

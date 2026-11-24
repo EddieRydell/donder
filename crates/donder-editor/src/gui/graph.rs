@@ -7,12 +7,12 @@ use donder_model::{
     EffectDefinitionId, EffectGraphEdge, GraphNodePosition, GraphOperatorNode, MarkCollectionKey,
     ParamValue, Sequence, SequenceCompositionGraph, SequenceLayer, SequenceLayerId,
 };
-use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
+use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::Identifier;
 use indexmap::IndexMap;
 
 use super::model::{
-    fresh_name, graph_operator_from_gui, identifier, imported_effect, names_marks,
+    chosen_effect, fresh_name, graph_operator_from_gui, identifier, names_marks,
     param_value_from_gui, parse_color, replace_marks, required_param_values, typed_name,
 };
 use super::{GuiMutationError, next_id};
@@ -187,22 +187,19 @@ pub(super) struct NewClip {
     pub(super) param_overrides: Params,
 }
 
-/// A new clip on `composition` of the effect `reference` names, which
-/// `owner` then imports.
+/// A new clip on `composition` of the effect `reference` names.
 pub(super) fn new_clip(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
+    session: &ProjectSession,
     composition: &impl Composition,
     reference: SequenceEffectReference,
     initial_color: &str,
 ) -> Result<NewClip, GuiMutationError> {
-    let layer_id = composition
-        .layers()
-        .first()
-        .map(|layer| layer.id.clone())
-        .ok_or_else(|| GuiMutationError::Invalid("A clip needs a layer to go on.".into()))?;
+    let Some(layer) = composition.layers().first() else {
+        unreachable!("validation proved every sequence and console has a layer");
+    };
+    let layer_id = layer.id.clone();
     let (definition, effect_name, param_overrides) =
-        imported_effect(session, owner, reference, initial_color)?;
+        chosen_effect(session, reference, initial_color)?;
     Ok(NewClip {
         id: next_id(composition.clips().map(|(id, _)| id))?,
         name: fresh_name(&effect_name, |candidate| {
@@ -242,15 +239,11 @@ pub(super) fn edit_composition(
         } => {
             let initial_color = parse_color(&initial_color)?;
             let operator = graph_operator_from_gui(session, &operator)?;
+            // The session's inventory declares exactly its project's objects.
             let definition = session
-                .project
-                .get::<donder_model::OperatorDefinition>(operator)
-                .cloned()
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Operator definition was not found.".to_string())
-                })?;
-            ensure_document_can_reference_object(session, owner, operator.into())
-                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+                .project()
+                .reusable::<donder_model::OperatorDefinition>()[&operator]
+                .clone();
             let params = required_param_values(definition.params(), initial_color)?;
             let id = next_node_id(composition)?;
             let name = fresh_name(definition.name(), |candidate| {
@@ -374,15 +367,15 @@ fn create_layer(
     connect_to_root: bool,
 ) -> Result<String, GuiMutationError> {
     let next_layer_id = next_id(composition.layers().iter().map(|layer| layer.id.0))?;
-    let root_node_id = composition
+    let Some(root) = composition
         .graph()
         .nodes
         .iter()
         .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
-        .map(|node| node.id.clone())
-        .ok_or_else(|| {
-            GuiMutationError::Invalid("Composition graph root was not found.".to_string())
-        })?;
+    else {
+        unreachable!("validation proved every composition graph has a root");
+    };
+    let root_node_id = root.id.clone();
     let layer_node_id = next_node_id(composition)?;
     typed_name(&name)?;
     let name = fresh_name(&name, |candidate| layer_name_taken(composition, candidate));

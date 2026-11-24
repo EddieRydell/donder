@@ -1,6 +1,7 @@
 //! A show's bytes borrowed for playback: the records preparation wrote, read in
 //! place. The show is trusted: only its producer writes it, so playback
-//! checks nothing but its format version.
+//! checks nothing but its format version and length, once, when it admits
+//! the show.
 use crate::format::{self, NONE, Sections};
 use crate::workspace::Timing;
 use donder_runtime_types::bytecode::Banks;
@@ -39,18 +40,20 @@ pub(crate) struct Show<'a> {
 }
 
 impl<'a> Show<'a> {
-    /// Borrow a show of this format. `bytes` must be 4-byte aligned.
+    /// Borrow a show of this format whose bytes are exactly its header,
+    /// section table and payload. `bytes` must be 4-byte aligned.
     pub(crate) fn open(bytes: &'a [u8]) -> Result<Self, LoadError> {
-        format::open(bytes, FORMAT_VERSION)
-            .map(|s| Self { s })
-            .ok_or(LoadError::Version)
+        if format::version(bytes) != Some(FORMAT_VERSION) || format::show_len(bytes) != bytes.len()
+        {
+            return Err(LoadError::Version);
+        }
+        Ok(Self::trusted(bytes))
     }
 
-    /// A show this build wrote.
+    /// A show this build wrote, or one [`Self::open`] admitted before.
     pub(crate) fn trusted(bytes: &'a [u8]) -> Self {
-        match Self::open(bytes) {
-            Ok(show) => show,
-            Err(_) => unreachable!("the host builds shows of its format"),
+        Self {
+            s: format::sections(bytes),
         }
     }
 
@@ -68,6 +71,18 @@ impl<'a> Show<'a> {
 
     pub(crate) fn duration(&self) -> SampleDuration {
         SampleDuration::from_ticks(self.meta().duration)
+    }
+
+    /// The start of frame `frame`, one of the show's frames.
+    pub(crate) fn frame_time(&self, frame: u32) -> SampleTime {
+        let Some((ticks, _)) = donder_runtime_types::mul_div(
+            frame,
+            donder_runtime_types::MICROS_PER_SECOND,
+            self.frame_rate(),
+        ) else {
+            unreachable!("a show's frames start within its clock at a nonzero frame rate")
+        };
+        SampleTime::from_ticks(ticks)
     }
 
     pub(crate) fn pixel_count(&self) -> usize {

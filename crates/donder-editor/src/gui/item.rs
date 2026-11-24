@@ -42,22 +42,14 @@ fn edit_item(
             super::description::edit(session, resolved, description)
         }
         (ObjectKind::Sequence, item, verb) => {
-            let mut draft = session
-                .project
-                .get::<Sequence>(resolved.id())
-                .cloned()
-                .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+            let mut draft = Sequence::clone(&resolved.view(session));
             sequence_item(&mut draft, item, verb)?;
-            session.project.put(draft).map_err(GuiMutationError::from)
+            session.put(draft).map_err(GuiMutationError::from)
         }
         (ObjectKind::Console, item, verb) => {
-            let mut draft = session
-                .project
-                .get::<Console>(resolved.id())
-                .cloned()
-                .ok_or_else(|| GuiMutationError::Invalid("Console was not found.".into()))?;
+            let mut draft = Console::clone(&resolved.view(session));
             console_item(&mut draft, item, verb)?;
-            session.project.put(draft).map_err(GuiMutationError::from)
+            session.put(draft).map_err(GuiMutationError::from)
         }
         _ => Err(unsupported()),
     }

@@ -17,7 +17,7 @@ const SETUP: &str = "setups/setup.data.donder";
 #[test]
 fn starter_keyboard_and_jam_console_load_typed() {
     let session = common::load_project(&common::starter_root());
-    let project = &session.project;
+    let project = session.project();
     let setup = project
         .get::<donder_model::Setup>(*project.root().setup.id())
         .unwrap();
@@ -82,7 +82,7 @@ fn starter_keyboard_and_jam_console_save_byte_exactly() {
         let path = Utf8PathBuf::from(path);
         assert_eq!(before[&path], after[&path], "{path}");
     }
-    assert_eq!(session.project, common::load_project(&root).project);
+    assert_eq!(session.project(), common::load_project(&root).project());
 }
 
 /// Each edit of a starter document is rejected with a ranged diagnostic
@@ -223,7 +223,7 @@ fn invalid_consoles_are_rejected_at_the_reference() {
 fn console_edits_are_validated_like_loading() {
     let mut session = common::load_project(&common::starter_root());
     let console = session
-        .project
+        .project()
         .reusable::<donder_model::Console>()
         .values()
         .next()
@@ -233,7 +233,7 @@ fn console_edits_are_validated_like_loading() {
                     expected: &dyn Fn(&ConsoleValidationError) -> bool| {
         let mut value = console.clone();
         edit(&mut value);
-        let error = session.project.clone().put(value).unwrap_err();
+        let error = session.project().clone().put(value).unwrap_err();
         assert!(
             matches!(&error, EditError::Invalid(ProjectValidationError { problem: ValidationProblem::Console(problem), .. }) if expected(problem)),
             "{error:?}"
@@ -330,15 +330,15 @@ fn console_edits_are_validated_like_loading() {
     );
     // A console of the project reads only the input devices of the project's
     // setup: removing them removes the events that read them.
-    let setup_id = *session.project.root().setup.id();
+    let setup_id = *session.project().root().setup.id();
     let mut setup = session
-        .project
+        .project()
         .get::<donder_model::Setup>(setup_id)
         .unwrap()
         .clone();
     setup.input_devices.clear();
-    session.project.put(setup).unwrap();
-    let repairs = session.project.take_repairs();
+    session.put(setup).unwrap();
+    let repairs = session.take_repairs();
     assert!(
         !repairs.is_empty()
             && repairs

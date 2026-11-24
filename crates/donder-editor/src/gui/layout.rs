@@ -17,7 +17,7 @@ pub(super) fn edit_layout(
             from,
             to,
             before,
-        } => update_layout(session, &id, |layout| {
+        } => update_layout(session, resolved, |layout| {
             layout.move_member(
                 FixtureInstanceId(member),
                 from.map(FixtureInstanceId),
@@ -29,7 +29,7 @@ pub(super) fn edit_layout(
             id: member,
             to,
             before,
-        } => update_layout(session, &id, |layout| {
+        } => update_layout(session, resolved, |layout| {
             layout.add_member(
                 FixtureInstanceId(member),
                 to.map(FixtureInstanceId),
@@ -37,20 +37,18 @@ pub(super) fn edit_layout(
             )
         })?,
         LayoutGuiEdit::RemoveMember { id: member, from } => {
-            update_layout(session, &id, |layout| {
+            update_layout(session, resolved, |layout| {
                 layout.remove_member(FixtureInstanceId(member), from.map(FixtureInstanceId))
             })?
         }
-        LayoutGuiEdit::RemoveItems { ids } => update_layout(session, &id, |layout| {
+        LayoutGuiEdit::RemoveItems { ids } => update_layout(session, resolved, |layout| {
             layout.remove_items(&ids.into_iter().map(FixtureInstanceId).collect::<Vec<_>>())
         })?,
         LayoutGuiEdit::DuplicateFixture { id: fixture_id } => {
-            donder_model::duplicate_layout_fixture(
-                &mut session.project,
-                &id,
-                FixtureInstanceId(fixture_id),
-            )
-            .map_err(GuiMutationError::from)?;
+            session.edit_project(|project| {
+                donder_model::duplicate_layout_fixture(project, &id, FixtureInstanceId(fixture_id))
+                    .map_err(GuiMutationError::from)
+            })?;
         }
         LayoutGuiEdit::RepeatFixtures { ids, offsets } => {
             if ids.is_empty()
@@ -61,10 +59,7 @@ pub(super) fn edit_layout(
                     "Repeat requires a selection and at most 1,000 copies.".into(),
                 ));
             }
-            let layout = session
-                .project
-                .get::<donder_model::Layout>(id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+            let layout = resolved.view::<Layout>(session);
             // Copies of overlapping selections would duplicate a fixture twice.
             let mut seen = std::collections::BTreeSet::new();
             for fixture_id in &ids {
@@ -89,32 +84,27 @@ pub(super) fn edit_layout(
             for offset in offsets.into_iter().rev() {
                 super::fixture::checked_point(offset.clone())?;
                 for fixture_id in &ids {
-                    let copy = donder_model::duplicate_layout_fixture(
-                        &mut session.project,
-                        &id,
-                        FixtureInstanceId(*fixture_id),
-                    )
-                    .map_err(GuiMutationError::from)?;
-                    let mut layout = session
-                        .project
-                        .get::<donder_model::Layout>(id)
-                        .cloned()
-                        .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+                    let copy = session.edit_project(|project| {
+                        donder_model::duplicate_layout_fixture(
+                            project,
+                            &id,
+                            FixtureInstanceId(*fixture_id),
+                        )
+                        .map_err(GuiMutationError::from)
+                    })?;
+                    let mut layout = Layout::clone(&resolved.view(session));
                     let mut moved = Vec::new();
                     for part in layout.members(copy) {
                         if moved.contains(&part.fixture) {
                             continue;
                         }
                         moved.push(part.fixture);
-                        let fixture = layout.fixture_mut(part.fixture).ok_or_else(|| {
-                            GuiMutationError::Invalid("Copied fixture was not found.".into())
-                        })?;
+                        let Some(fixture) = layout.fixture_mut(part.fixture) else {
+                            unreachable!("a copy's members are in its layout");
+                        };
                         translate_fixture(fixture, &offset)?;
                     }
-                    session
-                        .project
-                        .put(layout)
-                        .map_err(GuiMutationError::from)?;
+                    session.put(layout).map_err(GuiMutationError::from)?;
                 }
             }
         }
@@ -123,33 +113,29 @@ pub(super) fn edit_layout(
             parent,
             transform,
         } => {
-            let definition = donder_model::FixtureDefinitionId(session.project.new_id());
-            super::model::create_object_document(session, definition.into(), &name)?;
-            session
-                .project
-                .put(donder_model::Object::FixtureDefinition(
-                    definition,
-                    FixtureDefinition {
-                        description: None,
-                        elements: Vec::new(),
-                    },
-                ))
-                .map_err(GuiMutationError::from)?;
-            donder_project_io::ensure_document_can_reference_object(
-                session,
-                resolved.document_id(),
-                definition.into(),
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+            let definition = donder_model::FixtureDefinitionId(session.new_id());
+            let declared = super::model::typed_name(&name)?;
+            session.edit(|edit| {
+                edit.add_object_document(definition.into(), declared)?;
+                edit.project_mut()
+                    .put(donder_model::Object::FixtureDefinition(
+                        definition,
+                        FixtureDefinition {
+                            description: None,
+                            elements: Vec::new(),
+                        },
+                    ))?;
+                Ok::<_, GuiMutationError>(())
+            })?;
             let definition = OwnedFixture::Reference(definition);
-            add_instance(session, &id, name, definition, parent, transform)?;
+            add_instance(session, resolved, name, definition, parent, transform)?;
         }
         LayoutGuiEdit::SetFixtures { fixtures, root } => {
             let fixtures = fixtures
                 .into_iter()
-                .map(|fixture| domain_fixture(session, &id, fixture))
+                .map(|fixture| domain_fixture(session, resolved, fixture))
                 .collect::<Result<_, _>>()?;
-            update_layout(session, &id, |layout| {
+            update_layout(session, resolved, |layout| {
                 layout.fixtures = fixtures;
                 layout.root = root.into_iter().map(FixtureInstanceId).collect();
                 Ok(())
@@ -160,11 +146,7 @@ pub(super) fn edit_layout(
             id: fixture_id,
             delta,
         } => {
-            let mut layout = session
-                .project
-                .get::<donder_model::Layout>(id)
-                .cloned()
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+            let mut layout = Layout::clone(&resolved.view(session));
             let fixture = layout
                 .fixture_mut(FixtureInstanceId(fixture_id))
                 .ok_or_else(|| {
@@ -176,10 +158,7 @@ pub(super) fn edit_layout(
                 ));
             }
             translate_fixture(fixture, &delta)?;
-            session
-                .project
-                .put(layout)
-                .map_err(GuiMutationError::from)?;
+            session.put(layout).map_err(GuiMutationError::from)?;
         }
     }
     Ok(())
@@ -187,28 +166,23 @@ pub(super) fn edit_layout(
 
 fn update_layout(
     session: &mut ProjectSession,
-    id: &LayoutId,
+    resolved: &ResolvedGuiObject,
     update: impl FnOnce(&mut Layout) -> Result<(), donder_model::EditRejection>,
 ) -> Result<(), GuiMutationError> {
-    let mut layout = session
-        .project
-        .get::<donder_model::Layout>(*id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+    let mut layout = Layout::clone(&resolved.view(session));
     update(&mut layout)?;
-    session.project.put(layout).map_err(GuiMutationError::from)
+    session.put(layout).map_err(GuiMutationError::from)
 }
 
 fn domain_fixture(
     session: &mut ProjectSession,
-    layout: &LayoutId,
+    resolved: &ResolvedGuiObject,
     fixture: GuiLayoutFixture,
 ) -> Result<LayoutFixture, GuiMutationError> {
     // The layout view edits shapes of an owned definition, not its description.
-    let owned_description = session
-        .project
-        .get::<donder_model::Layout>(*layout)
-        .and_then(|current| current.fixture(FixtureInstanceId(fixture.id)))
+    let owned_description = resolved
+        .view::<Layout>(session)
+        .fixture(FixtureInstanceId(fixture.id))
         .and_then(|current| match &current.kind {
             LayoutFixtureKind::Fixture {
                 definition: OwnedFixture::Inline(definition),
@@ -228,9 +202,7 @@ fn domain_fixture(
                     OwnedFixture::Inline(definition)
                 }
                 crate::dto::GuiOwnedFixture::Reference { object } => {
-                    let owner = super::model::object_address(session, *layout)
-                        .document_id()
-                        .clone();
+                    let owner = session.address_of(resolved.object).document_id().clone();
                     OwnedFixture::Reference(reference_definition(session, &owner, object)?)
                 }
             },
@@ -265,7 +237,7 @@ fn domain_fixture(
 
 fn add_instance(
     session: &mut ProjectSession,
-    layout_id: &LayoutId,
+    resolved: &ResolvedGuiObject,
     name: String,
     definition: OwnedFixture,
     parent: Option<u32>,
@@ -273,13 +245,9 @@ fn add_instance(
 ) -> Result<(), GuiMutationError> {
     let name = super::model::typed_name(&name)?;
     let transform = checked_transform(transform)?;
-    let fixtures = session
-        .project
-        .get::<Layout>(*layout_id)
-        .into_iter()
-        .flat_map(Layout::iter_fixtures);
+    let fixtures = resolved.view::<Layout>(session).object().iter_fixtures();
     let id = FixtureInstanceId(next_id(fixtures.map(|fixture| fixture.id.0))?);
-    update_layout(session, layout_id, |layout| {
+    update_layout(session, resolved, |layout| {
         layout.fixtures.push(LayoutFixture {
             id,
             name,

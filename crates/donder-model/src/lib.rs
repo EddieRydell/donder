@@ -59,7 +59,7 @@ pub use geometry::{
 pub use identity::{
     ConsoleId, ControllerId, CurveId, EffectDefinitionId, FixtureDefinitionId, GradientId,
     InputDeviceId, LayoutId, ObjectId, ObjectKind, OperatorDefinitionId, PatchId, ProjectId,
-    SequenceId, SetupId,
+    SequenceId, SetupId, TypedId,
 };
 pub use input_device::{
     AxisInput, ButtonInput, ControlInput, ControlRef, InputControl, InputControlId,
@@ -86,7 +86,7 @@ pub use patch::{
 pub use project::{
     AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
     AcceptedSequence, CONSOLE_SESSION, ConsoleBinding, DonderProject, EditError, EditRejection,
-    Object, PlaybackRoute, ProjectData, ProjectEdit, ProjectObject, ProjectRoot, Reusable,
+    Object, PlaybackRoute, ProjectData, ProjectEdit, ProjectObject, ProjectRoot, Reusable, View,
 };
 pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationEnvelope,

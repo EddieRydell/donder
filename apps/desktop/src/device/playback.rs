@@ -176,26 +176,24 @@ impl Binding {
         sequence: &ObjectAddress,
         compile: &mut impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<(), String> {
-        if self
-            .prepared
-            .as_ref()
-            .is_none_or(|prepared| prepared.sequence != *sequence || prepared.revision != revision)
-        {
-            let show = compile(&self.ports)?;
-            if let Some(reason) = super::show_size::too_large(&show.size()) {
-                return Err(reason);
+        let prepared = match &mut self.prepared {
+            Some(prepared) if prepared.sequence == *sequence && prepared.revision == revision => {
+                prepared
             }
-            self.prepared = Some(Prepared {
-                revision,
-                sequence: sequence.clone(),
-                bytes: show.encode(),
-                id: show.id(),
-            });
-        }
-        let prepared = self
-            .prepared
-            .as_ref()
-            .ok_or("Prepared sequence is missing")?;
+            slot => {
+                let show = compile(&self.ports)?;
+                if let Some(reason) = super::show_size::too_large(&show.size()) {
+                    return Err(reason);
+                }
+                slot.insert(Prepared {
+                    revision,
+                    sequence: sequence.clone(),
+                    bytes: show.encode(),
+                    id: show.id(),
+                })
+            }
+        };
+        let prepared = &*prepared;
         if self
             .held
             .as_ref()
@@ -234,6 +232,9 @@ impl Binding {
             .prepared
             .as_ref()
             .ok_or("Prepare the show before scheduling it")?;
+        let Ok(show_bytes) = u32::try_from(prepared.bytes.len()) else {
+            unreachable!("a prepared show fits a controller's show region")
+        };
         let sample = self
             .sample
             .ok_or("The controller's clock is not synchronized")?;
@@ -251,7 +252,7 @@ impl Binding {
             position_micros,
             rate,
             show_id: prepared.id,
-            show_bytes: u32::try_from(prepared.bytes.len()).map_err(|_| "Show is too large")?,
+            show_bytes,
         })
     }
 

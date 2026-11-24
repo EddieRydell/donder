@@ -7,7 +7,7 @@
 use core::fmt;
 use core::num::{NonZeroU8, NonZeroU32};
 
-use donder_model::{Controller, DonderProject, Setup};
+use donder_model::DonderProject;
 use donder_runtime::{Output, PreparedShow};
 use donder_runtime_types::SampleTime;
 
@@ -40,7 +40,10 @@ impl FseqStep {
     /// The whole-millisecond step closest to an authored frame rate.
     pub fn nearest(frame_rate: u32) -> Self {
         let millis = (MILLIS_PER_SECOND + frame_rate / 2) / frame_rate.max(1);
-        Self(NonZeroU8::new(millis.clamp(1, u32::from(u8::MAX)) as u8).unwrap_or(NonZeroU8::MIN))
+        let Some(millis) = NonZeroU8::new(millis.clamp(1, u32::from(u8::MAX)) as u8) else {
+            unreachable!("the step is clamped to 1..=255 ms")
+        };
+        Self(millis)
     }
 
     pub fn millis(self) -> u8 {
@@ -115,7 +118,7 @@ pub fn encode_fseq(
         let end = start
             .checked_add(output.width)
             .ok_or(FseqError::TooManyChannels)?;
-        places.push((index, start as usize..end as usize));
+        places.push((index, start..end));
     }
     places.sort_by_key(|(_, range)| range.start);
     for pair in places.windows(2) {
@@ -124,8 +127,8 @@ pub fn encode_fseq(
         }
     }
     places.sort_by_key(|(index, _)| *index);
-    let channels = places.iter().map(|(_, range)| range.end).max().unwrap_or(0);
-    let channel_count = u32::try_from(channels).map_err(|_| FseqError::TooManyChannels)?;
+    let channel_count = places.iter().map(|(_, range)| range.end).max().unwrap_or(0);
+    let channels = channel_count as usize;
     let step_micros = u32::from(step.millis()) * MICROS_PER_MILLI;
     let frame_count = sequence.duration().as_ticks().div_ceil(step_micros);
     let frames_per_block = frame_count.div_ceil(MAX_BLOCKS).max(1);
@@ -137,14 +140,13 @@ pub fn encode_fseq(
     for first in (0..frame_count).step_by(frames_per_block as usize) {
         raw.clear();
         for frame in first..frame_count.min(first + frames_per_block) {
-            let ticks = frame
-                .checked_mul(step_micros)
-                .ok_or(FseqError::TooManyFrames)?;
-            let rendered = playback.evaluate(SampleTime::from_ticks(ticks));
+            // Below the duration: `frame_count` steps cover it.
+            let rendered = playback.evaluate(SampleTime::from_ticks(frame * step_micros));
             let offset = raw.len();
             raw.resize(offset + channels, 0);
             for (output, (_, range)) in rendered.outputs().zip(&places) {
-                raw[offset + range.start..offset + range.end].copy_from_slice(output.bytes);
+                raw[offset + range.start as usize..offset + range.end as usize]
+                    .copy_from_slice(output.bytes);
             }
         }
         let compressed = zstd::bulk::compress(&raw, ZSTD_LEVEL).map_err(FseqError::Compression)?;
@@ -188,14 +190,12 @@ pub fn encode_fseq(
     Ok(file)
 }
 
-/// Each prepared output's FSEQ channel from 1: its setup controller's, for
-/// an E1.31 or Art-Net controller's universes.
+/// Each output's FSEQ channel from 1, of a show prepared on `project`'s
+/// active setup: its controller's, for an E1.31 or Art-Net controller's
+/// universes.
 pub fn setup_fseq_channel(project: &DonderProject) -> impl Fn(&Output) -> Option<NonZeroU32> + '_ {
-    let setup = project.get::<Setup>(*project.root().setup.id());
-    move |output| {
-        let source = setup?.controllers.get(output.controller_index as usize)?;
-        project.get::<Controller>(*source.id())?.fseq_channel()
-    }
+    let controllers = project.active_setup().controllers().collect::<Vec<_>>();
+    move |output| controllers[output.controller_index as usize].fseq_channel()
 }
 
 /// A variable header: its length including this prefix, a two-letter code and

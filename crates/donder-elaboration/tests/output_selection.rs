@@ -17,7 +17,8 @@ fn starter() -> DonderProject {
     let mut project = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap()
-        .project;
+        .project()
+        .clone();
     port_per_universe(&mut project);
     project
 }
@@ -73,24 +74,25 @@ fn port_per_universe(project: &mut DonderProject) {
 /// The starter and its `layer_test` sequence.
 fn starter_with_layer_test() -> (DonderProject, SequenceId) {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let mut session = check_project(&root, &Default::default(), &mut Default::default())
+    let session = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap();
-    port_per_universe(&mut session.project);
+    let mut project = session.project().clone();
+    port_per_universe(&mut project);
     let id = session
-        .project
+        .project()
         .root()
         .sequences
         .iter()
         .map(|source| *source.id())
         .find(|id| {
             session
-                .source
+                .source()
                 .declared_name((*id).into())
                 .is_some_and(|name| name.as_str() == "layer_test")
         })
         .unwrap();
-    (session.project, id)
+    (project, id)
 }
 
 fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerOutput)> {

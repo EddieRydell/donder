@@ -219,7 +219,7 @@ impl DesktopState {
         let Some(session) = self.project_session() else {
             return;
         };
-        let Some(address) = session.address_of(performance.console.into()) else {
+        let Some(address) = session.find_address(performance.console.into()) else {
             return;
         };
         let mut cache = self.take_preparation();
@@ -229,7 +229,7 @@ impl DesktopState {
             &address,
             |ports| {
                 donder_elaboration::arm(
-                    &session.project,
+                    session.project(),
                     &performance.console,
                     donder_elaboration::Retain::Outputs(ports),
                     &mut cache,
@@ -392,14 +392,10 @@ impl DesktopState {
         let Some(session) = self.project_session() else {
             return Vec::new();
         };
-        let project = &session.project;
-        let Some(setup) = project.get::<donder_model::Setup>(*project.root().setup.id()) else {
-            return Vec::new();
-        };
-        setup
-            .controllers
-            .iter()
-            .filter_map(|source| project.get::<donder_model::Controller>(*source.id()))
+        let project = session.project();
+        project
+            .active_setup()
+            .controllers()
             .filter_map(|controller| {
                 let ControllerProtocol::Donder(config) = &controller.protocol else {
                     return None;
@@ -465,12 +461,12 @@ impl DesktopState {
             .clone()
             .ok_or("Open a sequence before starting devices")?;
         let sequence = target.resolve(&session).ok_or("Sequence is missing")?;
-        let model = session
-            .project
-            .get::<donder_model::Sequence>(sequence)
-            .ok_or("Sequence is missing")?;
-        let duration = donder_language::sample_duration_from_donder_duration(&model.duration)
-            .map_err(|error| format!("Invalid sequence duration: {error}"))?
+        let duration = session
+            .project()
+            .accepted_sequence(&sequence)
+            .ok_or("Sequence is missing")?
+            .timing()
+            .duration()
             .as_ticks();
         let mut cache = self.take_preparation();
         let prepared = self.device_playback.prepare(
@@ -479,7 +475,7 @@ impl DesktopState {
             &target.sequence,
             |ports| {
                 donder_elaboration::prepare_cached(
-                    &session.project,
+                    session.project(),
                     &sequence,
                     donder_elaboration::Retain::Outputs(ports),
                     &mut cache,

@@ -1271,18 +1271,6 @@ impl<'id> ShowBuilder<'id> {
             });
         }
         let buffers = buffers.max(1);
-        assert!(
-            buffers as usize <= crate::workspace::MAX_BUFFERS,
-            "a show's graph holds at most {} frames at once",
-            crate::workspace::MAX_BUFFERS
-        );
-        assert!(
-            w.programs
-                .iter()
-                .all(|program| program.scans as usize <= crate::workspace::MAX_SCANS),
-            "a program runs at most {} scans",
-            crate::workspace::MAX_SCANS
-        );
         let mut offset = 0;
         for output in &self.outputs {
             w.outputs.push(format::Output {

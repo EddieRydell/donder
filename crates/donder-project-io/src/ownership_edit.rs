@@ -1,4 +1,4 @@
-//! Source/import bookkeeping after typed ownership edits. No serialization or reload.
+//! Source/import bookkeeping after typed edits. No serialization or reload.
 use crate::address::{DocumentId, ObjectAddress};
 use crate::imports::ensure_document_can_reference_address;
 use crate::{ExportProjectError, ProjectSession};
@@ -6,17 +6,15 @@ use donder_model::ObjectId;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Preserve the visibility of typed references after values change owners.
-/// The caller owns the candidate session and transaction boundary.
-pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), ExportProjectError> {
+/// The session edit owns the candidate session and transaction boundary.
+pub(crate) fn maintain_ownership_sources(
+    session: &mut ProjectSession,
+) -> Result<(), ExportProjectError> {
     let addresses = session.addresses();
     let address = |id: ObjectId| {
         addresses
             .get(&id)
-            .ok_or_else(|| ExportProjectError::InvalidReference {
-                path: crate::PROJECT_ROOT_FILE.into(),
-                reference: format!("{:?}", id.kind()),
-                message: "An object is missing from the source inventory.".into(),
-            })
+            .unwrap_or_else(|| unreachable!("every object of a session has an address"))
     };
     // Each object and the objects it refers to.
     let mut references: Vec<(ObjectId, ObjectId)> = Vec::new();
@@ -26,9 +24,9 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
     let mut visible: BTreeMap<DocumentId, BTreeSet<ObjectAddress>> = BTreeMap::new();
     for (from, target) in references {
         visible
-            .entry(address(from)?.document_id().clone())
+            .entry(address(from).document_id().clone())
             .or_default()
-            .insert(address(target)?.clone());
+            .insert(address(target).clone());
     }
     for (from, targets) in visible {
         for target in targets {
@@ -45,7 +43,7 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
         asset.referenced_by.clear();
     }
     for (user, id) in uses {
-        let document = address(user)?.document_id().clone();
+        let document = address(user).document_id().clone();
         let asset = session
             .source
             .referenced_assets

@@ -29,9 +29,7 @@ impl fmt::Debug for AdmittedPatch {
 pub(super) fn admit(
     project: &DonderProject,
 ) -> Result<IndexMap<PatchId, AdmittedPatch>, ProjectValidationError> {
-    let counts =
-        crate::fixture::fixture_pixel_counts(project.reusable::<crate::FixtureDefinition>())
-            .unwrap_or_default();
+    let counts = project.fixture_pixel_counts();
     project
         .objects::<crate::Patch>()
         .map(|patch| {
@@ -40,9 +38,9 @@ pub(super) fn admit(
                 .routes
                 .iter()
                 .map(|route| {
-                    let encoding = OutputEncoding::admit(route.encoding).ok_or(
-                        ValidationProblem::Admission(AdmissionProblem::InvalidEncoding(route.id)),
-                    )?;
+                    let Some(encoding) = OutputEncoding::admit(route.encoding) else {
+                        unreachable!("validation proved every route's color order");
+                    };
                     let placement =
                         placements
                             .remove(&route.id)

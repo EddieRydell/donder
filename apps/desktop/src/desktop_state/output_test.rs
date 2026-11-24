@@ -46,7 +46,7 @@ impl DesktopState {
                 OutputTestPattern::Chase => TestPattern::Chase,
                 OutputTestPattern::Rise => TestPattern::Rise,
             };
-            let mut test = OutputTest::new(&session.project, selection, pattern)
+            let mut test = OutputTest::new(session.project(), selection, pattern)
                 .map_err(|error| error.to_string())?;
             if reversed {
                 test.reverse();
@@ -104,12 +104,8 @@ mod tests {
         write_new_project_files(&root, &new_test_project_files("Output test").unwrap()).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
-        let setup = *state.project_session().unwrap().project.root().setup.id();
-        let setup_address = state
-            .project_session()
-            .unwrap()
-            .address_of(setup.into())
-            .unwrap();
+        let setup = *state.project_session().unwrap().project().root().setup.id();
+        let setup_address = state.project_session().unwrap().address_of(setup);
         state.open_file_path(setup_address.document().as_str());
         let setup_request = || GuiDocumentRequest {
             owned_path: setup_address.owned_path().iter().map(Into::into).collect(),
@@ -145,16 +141,12 @@ mod tests {
         let controller = *state
             .project_session()
             .unwrap()
-            .project
+            .project()
             .get::<donder_model::Setup>(setup)
             .unwrap()
             .controllers[0]
             .id();
-        let controller_address = state
-            .project_session()
-            .unwrap()
-            .address_of(controller.into())
-            .unwrap();
+        let controller_address = state.project_session().unwrap().address_of(controller);
         let request = || GuiDocumentRequest {
             owned_path: controller_address
                 .owned_path()

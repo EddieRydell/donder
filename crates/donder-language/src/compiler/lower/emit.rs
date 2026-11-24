@@ -1233,8 +1233,9 @@ impl<'a> Emitter<'a> {
         let one = self.float_constant(1.0);
         let decay = self.operand(decay);
         let (mut weights, weight) = self.weight_block(input, weight, one);
+        // The instruction names its frame cache in one byte.
         let cache = u8::try_from(self.scan_count).unwrap_or_else(|_| {
-            self.fail(LowerError::Code);
+            self.fail(LowerError::Scans);
             0
         });
         self.scan_count += 1;

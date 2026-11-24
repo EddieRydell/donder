@@ -1,5 +1,6 @@
 //! A show's playback workspace, carved from one buffer: the nodes' frame
-//! buffers, the one strip workspace programs run in, scan scratch frames, the automation scratch and a console's state. [`Layout`]
+//! buffers, the one strip workspace programs run in, scan scratch frames, the
+//! automation scratch and a console's state. [`Layout`]
 //! counts every region once; [`Layout::size`] and [`carve`] walk them in the
 //! same order.
 use crate::format::{self, CrossingSegment, CurvePoint, NONE};
@@ -10,11 +11,8 @@ use crate::arena::{Carve, Size};
 use crate::dsl::{Override, STRIP, Scratch, StripSlots, StripWorkspace, scratch_shape};
 use crate::resources::{LiveTrack, ResourceSlot, WindowState};
 use crate::view::Show;
+use core::cell::Cell;
 
-/// The most frame buffers a show's nodes use at once.
-pub(crate) const MAX_BUFFERS: usize = 16;
-/// The most whole-frame scans one program runs.
-pub(crate) const MAX_SCANS: usize = 8;
 /// The most marks a live collection keeps; older marks are dropped.
 pub(crate) const LIVE_MARK_CAPACITY: usize = 1024;
 /// A dormant voice starts at the end of time, so it is never active and
@@ -59,8 +57,19 @@ pub(crate) struct ConsoleState<'w> {
 }
 
 pub(crate) struct Workspace<'w> {
-    pub(crate) buffers: [&'w mut [Color]; MAX_BUFFERS],
-    pub(crate) scans: [&'w mut [Color]; MAX_SCANS],
+    /// The nodes' frame buffers, one after another.
+    pub(crate) buffers: &'w mut [Color],
+    /// Whether each buffer holds a frame known to be black.
+    pub(crate) black: &'w [Cell<bool>],
+    /// One frame per scan of the program that runs the most, one after
+    /// another.
+    pub(crate) scans: &'w mut [Color],
+    /// Which scans the running clip or operator has computed this frame.
+    pub(crate) scanned: &'w [Cell<bool>],
+    /// Where the running node's inputs' frames are; see `InputFrames`.
+    pub(crate) input_frames: &'w mut [[u32; 2]],
+    /// Colors of one frame.
+    pub(crate) pixels: usize,
     pub(crate) outputs: &'w mut [u8],
     pub(crate) strip: StripWorkspace<'w>,
     pub(crate) scratch: Scratch<'w>,
@@ -80,6 +89,8 @@ pub(crate) struct Layout {
     output_bytes: usize,
     buffers: usize,
     scans: usize,
+    /// The most inputs a node reads.
+    inputs: usize,
     slots: StripSlots,
     scratch: [usize; 4],
     sample_count: usize,
@@ -123,6 +134,12 @@ impl Layout {
             output_bytes: s.outputs.iter().map(|output| output.width as usize).sum(),
             buffers: meta.buffers as usize,
             scans,
+            inputs: s
+                .nodes
+                .iter()
+                .map(|node| node.inputs.len as usize)
+                .max()
+                .unwrap_or(0),
             slots,
             scratch,
             sample_count: s
@@ -147,10 +164,13 @@ impl Layout {
     /// Bytes of the frames playback holds.
     pub(crate) fn frame_bytes(&self) -> usize {
         let mut size = Size::default();
-        for _ in 0..self.frames() {
-            size.values::<Color>(self.pixels);
-        }
+        self.frames_size(&mut size);
         size.bytes
+    }
+
+    fn frames_size(&self, size: &mut Size) {
+        size.values::<Color>(self.buffers * self.pixels);
+        size.values::<Color>(self.scans * self.pixels);
     }
 
     /// Bytes of the strip interpreter's slots.
@@ -168,9 +188,10 @@ impl Layout {
     /// Bytes of the buffer [`carve`] needs.
     fn size(&self) -> usize {
         let mut size = Size::default();
-        for _ in 0..self.buffers + self.scans {
-            size.values::<Color>(self.pixels);
-        }
+        self.frames_size(&mut size);
+        size.flags(self.buffers);
+        size.flags(self.scans);
+        size.values::<[u32; 2]>(self.inputs);
         size.values::<u8>(self.output_bytes);
         self.slots.size(&mut size);
         scratch_size(&mut size, self.scratch);
@@ -201,28 +222,16 @@ pub(crate) fn scratch_size(size: &mut Size, [words, resources, windows, points]:
 pub(crate) fn carve_scratch<'w>(
     arena: &mut Carve<'w>,
     [words, resources, windows, points]: [usize; 4],
-) -> Option<Scratch<'w>> {
-    Some(Scratch {
-        words: arena.values(words, 0)?,
-        resources: arena.values(resources, ResourceSlot::default())?,
-        windows: arena.values(windows, WindowState::default())?,
-        points: arena.values(points, CurvePoint::default())?,
-        crossings: arena.values(points, CrossingSegment::default())?,
-        areas: arena.values(points, 0.0)?,
-        slopes: arena.values(points, 0.0)?,
-    })
-}
-
-fn frames<'w, const N: usize>(
-    arena: &mut Carve<'w>,
-    count: usize,
-    pixels: usize,
-) -> Option<[&'w mut [Color]; N]> {
-    let mut frames: [&'w mut [Color]; N] = core::array::from_fn(|_| Default::default());
-    for frame in frames.iter_mut().take(count) {
-        *frame = arena.values(pixels, Color::BLACK)?;
+) -> Scratch<'w> {
+    Scratch {
+        words: arena.values(words, 0),
+        resources: arena.values(resources, ResourceSlot::default()),
+        windows: arena.values(windows, WindowState::default()),
+        points: arena.values(points, CurvePoint::default()),
+        crossings: arena.values(points, CrossingSegment::default()),
+        areas: arena.values(points, 0.0),
+        slopes: arena.values(points, 0.0),
     }
-    Some(frames)
 }
 
 /// The workspace of `show` in `buffer`, which holds [`Layout::size`] bytes:
@@ -233,7 +242,7 @@ pub(crate) fn carve<'w>(
     layout: &Layout,
     buffer: &'w mut [u8],
     fresh: bool,
-) -> Option<Workspace<'w>> {
+) -> Workspace<'w> {
     let s = &show.s;
     let pixels = layout.pixels;
     let mut arena = if fresh {
@@ -241,20 +250,23 @@ pub(crate) fn carve<'w>(
     } else {
         Carve::again(buffer)
     };
-    let buffers = frames(&mut arena, layout.buffers, pixels)?;
-    let scans = frames(&mut arena, layout.scans, pixels)?;
-    let outputs = arena.values(layout.output_bytes, 0)?;
-    let strip = layout.slots.carve(&mut arena)?;
-    let scratch = carve_scratch(&mut arena, layout.scratch)?;
-    let gather = arena.values(STRIP, [0, 0])?;
-    let clip_colors = arena.values(layout.sample_count, CachedClipColor::default())?;
-    let timing = arena.values(layout.clips, Timing::default())?;
-    let layer_order = arena.values(layout.layer_order, 0)?;
-    let layer_ends = arena.values(layout.layer_order, 0)?;
-    let overrides = arena.values(layout.bindings, Override::default())?;
-    let live_tracks = arena.values(layout.collections, LiveTrack::default())?;
-    let live_ticks = arena.values(layout.collections * LIVE_MARK_CAPACITY, 0)?;
-    let frame = <&mut [u32; 2]>::try_from(arena.values(2, NONE)?).ok()?;
+    let buffers = arena.values(layout.buffers * pixels, Color::BLACK);
+    let scans = arena.values(layout.scans * pixels, Color::BLACK);
+    let black = arena.flags(layout.buffers);
+    let scanned = arena.flags(layout.scans);
+    let input_frames = arena.values(layout.inputs, [0, 0]);
+    let outputs = arena.values(layout.output_bytes, 0);
+    let strip = layout.slots.carve(&mut arena);
+    let scratch = carve_scratch(&mut arena, layout.scratch);
+    let gather = arena.values(STRIP, [0, 0]);
+    let clip_colors = arena.values(layout.sample_count, CachedClipColor::default());
+    let timing = arena.values(layout.clips, Timing::default());
+    let layer_order = arena.values(layout.layer_order, 0);
+    let layer_ends = arena.values(layout.layer_order, 0);
+    let overrides = arena.values(layout.bindings, Override::default());
+    let live_tracks = arena.values(layout.collections, LiveTrack::default());
+    let live_ticks = arena.values(layout.collections * LIVE_MARK_CAPACITY, 0);
+    let frame = arena.array(NONE);
     if fresh {
         if layout.console {
             for (timing, clip) in timing.iter_mut().zip(s.clips) {
@@ -278,9 +290,13 @@ pub(crate) fn carve<'w>(
             };
         }
     }
-    Some(Workspace {
+    Workspace {
         buffers,
+        black,
         scans,
+        scanned,
+        input_frames,
+        pixels,
         outputs,
         strip,
         scratch,
@@ -295,5 +311,5 @@ pub(crate) fn carve<'w>(
             live_ticks,
         },
         frame,
-    })
+    }
 }

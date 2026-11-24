@@ -30,12 +30,9 @@ pub(in crate::gui) fn invocation_params(
     overrides: &indexmap::IndexMap<Identifier, ParamValue>,
     mut automation: impl FnMut(&Identifier, &mut SequenceParamValue) -> Option<SequenceParamAutomation>,
 ) -> Vec<SequenceClipParam> {
-    let Some(definition) = session
-        .project
-        .get::<donder_model::EffectDefinition>(*definition)
-    else {
-        return Vec::new();
-    };
+    let definition = &session
+        .project()
+        .reusable::<donder_model::EffectDefinition>()[definition];
     definition
         .params()
         .iter()
@@ -64,7 +61,7 @@ pub(in crate::gui) fn composition_graph(
 ) -> SequenceCompositionGraph {
     SequenceCompositionGraph {
         operator_catalog: session
-            .project
+            .project()
             .reusable::<donder_model::OperatorDefinition>()
             .iter()
             .map(|(id, definition)| graph_operator_definition_to_gui(session, *id, definition))
@@ -147,12 +144,9 @@ fn graph_operator_params(
     node_id: &CompositionGraphNodeId,
     operator: &GraphOperatorNode,
 ) -> Vec<SequenceClipParam> {
-    let Some(definition) = session
-        .project
-        .get::<donder_model::OperatorDefinition>(operator.operator)
-    else {
-        return Vec::new();
-    };
+    let definition = &session
+        .project()
+        .reusable::<donder_model::OperatorDefinition>()[&operator.operator];
     definition
         .params()
         .iter()
@@ -263,7 +257,7 @@ pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCur
     let available =
         donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Curve]);
     session
-        .project
+        .project()
         .reusable::<donder_model::CurveDefinition>()
         .iter()
         .filter(|(id, _)| available.contains(&(**id).into()))
@@ -286,7 +280,7 @@ pub(in crate::gui) fn gradient_library(
     let available =
         donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Gradient]);
     session
-        .project
+        .project()
         .reusable::<donder_model::GradientDefinition>()
         .iter()
         .filter(|(id, _)| available.contains(&(**id).into()))
@@ -466,7 +460,10 @@ fn param_value_to_gui(
                 points: curve_points(match source {
                     OwnedCurve::Inline(curve) => curve,
                     OwnedCurve::Reference(id) => {
-                        &session.project.reusable::<donder_model::CurveDefinition>()[id].curve
+                        &session
+                            .project()
+                            .reusable::<donder_model::CurveDefinition>()[id]
+                            .curve
                     }
                 }),
                 link: match source {
@@ -483,7 +480,7 @@ fn param_value_to_gui(
                     OwnedGradient::Inline(gradient) => gradient,
                     OwnedGradient::Reference(id) => {
                         &session
-                            .project
+                            .project()
                             .reusable::<donder_model::GradientDefinition>()[id]
                             .gradient
                     }

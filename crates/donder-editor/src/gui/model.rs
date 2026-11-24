@@ -143,23 +143,20 @@ pub(super) fn required_param_values(
         .collect()
 }
 
-/// An effect definition `owner` may name, which it then imports, with its
-/// name and the values a new clip of it gives its parameters without defaults.
-pub(super) fn imported_effect(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
+/// A chosen effect definition, with its name and the values a new clip of
+/// it gives its parameters without defaults.
+pub(super) fn chosen_effect(
+    session: &ProjectSession,
     reference: SequenceEffectReference,
     initial_color: &str,
 ) -> Result<(EffectDefinitionId, String, IndexMap<Identifier, ParamValue>), GuiMutationError> {
     let definition = effect_ref_from_gui(session, reference)?;
-    let effect = session
-        .project
-        .get::<donder_model::EffectDefinition>(definition)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect definition was not found.".to_string()))?;
+    // The session's inventory declares exactly its project's objects.
+    let effect = &session
+        .project()
+        .reusable::<donder_model::EffectDefinition>()[&definition];
     let name = effect.name().to_string();
     let params = required_param_values(effect.params(), parse_color(initial_color)?)?;
-    donder_project_io::ensure_document_can_reference_object(session, owner, definition.into())
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok((definition, name, params))
 }
 
@@ -222,16 +219,11 @@ pub(crate) fn param_value_from_gui(
         SequenceParamValue::Text { value } => ParamValue::Text(value),
         SequenceParamValue::Font { value: None } => ParamValue::Font(None),
         SequenceParamValue::Font { value: Some(font) } => {
-            let root = session.source.project_root().to_path_buf();
-            let file = donder_project_io::reference_asset(
-                &mut session.source.referenced_assets,
-                &root,
-                owner,
-                &font.file,
-            )
-            .map_err(|error| {
-                GuiMutationError::Invalid(format!("Font file {}: {error}", font.file))
-            })?;
+            let file = session
+                .reference_asset(owner, &font.file)
+                .map_err(|error| {
+                    GuiMutationError::Invalid(format!("Font file {}: {error}", font.file))
+                })?;
             ParamValue::Font(Some(donder_model::FontFace {
                 file,
                 height: font.height,
@@ -239,16 +231,11 @@ pub(crate) fn param_value_from_gui(
         }
         SequenceParamValue::Image { value: None } => ParamValue::Image(None),
         SequenceParamValue::Image { value: Some(image) } => {
-            let root = session.source.project_root().to_path_buf();
-            let file = donder_project_io::reference_asset(
-                &mut session.source.referenced_assets,
-                &root,
-                owner,
-                &image.file,
-            )
-            .map_err(|error| {
-                GuiMutationError::Invalid(format!("Image file {}: {error}", image.file))
-            })?;
+            let file = session
+                .reference_asset(owner, &image.file)
+                .map_err(|error| {
+                    GuiMutationError::Invalid(format!("Image file {}: {error}", image.file))
+                })?;
             ParamValue::Image(Some(donder_model::ImageSource {
                 file,
                 size: image.size,
@@ -494,24 +481,7 @@ use crate::dto::{
 
 /// The name a new object of `kind` is offered.
 pub fn new_object_name(session: &ProjectSession, kind: donder_model::ObjectKind) -> String {
-    session.source.new_object_name(kind).as_str().to_string()
-}
-
-/// A file of its own declaring `id` as `name`; refused when that file exists.
-pub(super) fn create_object_document(
-    session: &mut ProjectSession,
-    id: ObjectId,
-    name: &str,
-) -> Result<donder_project_io::SourceIdentity, GuiMutationError> {
-    let name = typed_name(name)?;
-    let document = session
-        .source
-        .add_object_document(id, name.clone())
-        .map_err(GuiMutationError::Invalid)?;
-    Ok(donder_project_io::SourceIdentity::from_document(
-        document,
-        name.as_str().to_string(),
-    ))
+    session.source().new_object_name(kind).as_str().to_string()
 }
 
 fn object_identity_from_gui(
@@ -526,24 +496,13 @@ fn object_identity_from_gui(
     )
 }
 
-/// Where an object of the session is written. Every object of an accepted
-/// session is declared or owned by a declared object.
-pub(crate) fn object_address(
-    session: &ProjectSession,
-    id: impl Into<ObjectId>,
-) -> donder_project_io::ObjectAddress {
-    session
-        .address_of(id.into())
-        .unwrap_or_else(|| unreachable!("every object of a session has an address"))
-}
-
 /// The GUI's reference to an object of the session.
 pub(crate) fn object_ref(
     session: &ProjectSession,
     id: impl Into<ObjectId>,
 ) -> crate::dto::GuiObjectRef {
     let id = id.into();
-    address_ref(&object_address(session, id), id.kind())
+    address_ref(&session.address_of(id), id.kind())
 }
 
 /// The GUI's reference to the object of `kind` at `address`.

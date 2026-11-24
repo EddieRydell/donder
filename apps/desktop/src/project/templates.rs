@@ -186,7 +186,7 @@ mod tests {
                 .unwrap();
         for (name, _) in operators {
             let definition = session
-                .project
+                .project()
                 .reusable::<donder_model::OperatorDefinition>()
                 .values()
                 .find(|definition| definition.name() == name)

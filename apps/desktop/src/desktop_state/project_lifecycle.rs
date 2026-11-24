@@ -220,11 +220,6 @@ impl DesktopState {
         }
         let project = self.project_session()?;
         let resolved = donder_editor::resolve_request(&project, request).ok()?;
-        let id = donder_model::SequenceId::try_from(resolved.object).ok()?;
-        project
-            .project
-            .get::<donder_model::Sequence>(id)
-            .is_some()
-            .then_some(id)
+        donder_model::SequenceId::try_from(resolved.object).ok()
     }
 }

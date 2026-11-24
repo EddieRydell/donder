@@ -93,12 +93,6 @@ pub(crate) fn project_problems(
             problems.push(at(*id)(ValidationProblem::Gradient(error)));
         }
     }
-    if project
-        .get::<crate::Setup>(*project.root.setup.id())
-        .is_none()
-    {
-        problems.push(at(project.root.id)(ValidationProblem::MissingSetup));
-    }
     let mut counts = IndexMap::new();
     for (id, definition) in project.reusable::<crate::FixtureDefinition>() {
         match definition.validate(id) {
@@ -136,7 +130,7 @@ pub(crate) fn project_problems(
     }
     for setup in project.objects::<crate::Setup>() {
         let mut found = Vec::new();
-        if let Err(problem) = validate_setup(project, setup, &mut found) {
+        if let Err(problem) = validate_setup(project.referenced(setup.id), &mut found) {
             found.push(problem);
         }
         problems.extend(found.into_iter().map(at(setup.id)));
@@ -358,14 +352,14 @@ fn place_route<'a>(
             _ => Ok(()),
         };
     };
-    let Some(controller) = project.get::<crate::Controller>(route.controller) else {
-        return Err(fail(RouteProblem::MissingController));
-    };
+    // check_route found the controller and its port, whose output the
+    // placement is on.
+    let controller = project.referenced::<crate::Controller>(route.controller);
     let output = placement.output;
     let (start, end) = (placement.channels.start, placement.channels.end);
-    let available = controller
-        .output_width(output)
-        .ok_or_else(|| fail(RouteProblem::MissingPort))?;
+    let Some(available) = controller.output_width(output) else {
+        unreachable!("a route is placed on its port's output");
+    };
     let pixels = pixels.clone();
     if end > available {
         return Err(fail(RouteProblem::PastLastChannel {
@@ -388,7 +382,7 @@ fn place_route<'a>(
             other: other.fixture.clone(),
             place: controller
                 .place(output, shared)
-                .ok_or_else(|| fail(RouteProblem::MissingPort))?,
+                .unwrap_or_else(|| unreachable!("overlapping channels are on the route's output")),
         }));
     }
     if let Some(fixture) = fixture {
@@ -408,42 +402,30 @@ fn route_fixture(project: &DonderProject, route: &crate::patch::PixelRoute) -> O
         .map(|fixture| fixture.name.clone())
 }
 
-/// The setup's members exist and are distinct by ownership validation. A
-/// missing member stops the checks; each other problem is pushed to
-/// `problems`.
+/// The setup's members exist and are distinct by ownership validation. Each
+/// problem is pushed to `problems`.
 fn validate_setup(
-    project: &DonderProject,
-    setup: &crate::setup::Setup,
+    setup: crate::View<'_, crate::Setup>,
     problems: &mut Vec<ValidationProblem>,
 ) -> Result<(), ValidationProblem> {
     if setup.controllers.len() as u128 > u128::from(u32::MAX) + 1 {
         return Err(ValidationProblem::Setup(SetupProblem::TooManyControllers));
     }
-    if project.get::<crate::Layout>(*setup.layout.id()).is_none() {
-        return Err(ValidationProblem::MissingLayout);
-    }
-    let patch = project
-        .get::<crate::Patch>(*setup.patch.id())
-        .ok_or(ValidationProblem::MissingPatch)?;
-    let mut controllers = HashSet::new();
-    for controller in &setup.controllers {
-        if project.get::<crate::Controller>(*controller.id()).is_none() {
-            return Err(ValidationProblem::MissingController);
-        }
-        controllers.insert(controller.id());
-    }
+    let project = setup.project();
+    let controllers = setup
+        .controllers
+        .iter()
+        .map(|controller| controller.id())
+        .collect::<HashSet<_>>();
     let mut osc_ports = HashSet::new();
-    for device in &setup.input_devices {
-        let Some(input_device) = project.get::<crate::InputDevice>(*device.id()) else {
-            return Err(ValidationProblem::MissingInputDevice);
-        };
+    for input_device in setup.input_devices() {
         if let crate::InputDriver::Osc { port } = input_device.driver
             && !osc_ports.insert(port)
         {
             problems.push(ValidationProblem::Setup(SetupProblem::SharedOscPort(port)));
         }
     }
-    for route in &patch.routes {
+    for route in &setup.patch().routes {
         if &route.target.layout != setup.layout.id() {
             problems.push(ValidationProblem::Setup(SetupProblem::RouteOnOtherLayout {
                 route: route.id,
@@ -496,9 +478,7 @@ fn validate_sequence_since(
                 .collect::<HashMap<_, _>>()
         })
         .unwrap_or_default();
-    let setup = project
-        .get::<crate::Setup>(*project.root.setup.id())
-        .ok_or(Error::MissingActiveSetup)?;
+    let setup = project.active_setup();
     let active_layout = setup.layout.id();
     let active = project
         .root
@@ -908,9 +888,7 @@ fn console_problems(
     problems: &mut Vec<ConsoleValidationError>,
 ) -> Result<(), ConsoleValidationError> {
     use ConsoleValidationError as Error;
-    let setup = project
-        .get::<crate::Setup>(*project.root.setup.id())
-        .ok_or(Error::MissingActiveSetup)?;
+    let setup = project.active_setup();
     let active = project
         .root
         .consoles

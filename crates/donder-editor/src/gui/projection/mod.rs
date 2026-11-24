@@ -12,11 +12,7 @@ pub(super) fn sequence_clip_details(
     resolved: &ResolvedGuiObject,
     clip_ids: &[u32],
 ) -> Result<Vec<SequenceClipDetails>, String> {
-    let id = resolved.id::<SequenceId>();
-    let sequence = session
-        .project
-        .get::<donder_model::Sequence>(id)
-        .ok_or("Sequence is not available in the checked project model.")?;
+    let sequence = resolved.view::<donder_model::Sequence>(session).object();
     Ok(clip_ids
         .iter()
         .filter_map(|id| sequence.clips.iter().find(|clip| clip.id.0 == *id))
@@ -41,14 +37,8 @@ pub(super) fn project_sequence_clips(
     resolved: &ResolvedGuiObject,
     include: &dyn Fn(&std::sync::Arc<donder_model::Clip>) -> bool,
 ) -> GuiDocument {
-    let id = resolved.id::<SequenceId>();
-    let Some(sequence) = session.project.get::<donder_model::Sequence>(id) else {
-        return blocked(
-            "Sequence is not available in the checked project model.",
-            Vec::new(),
-        );
-    };
-    let lanes = active_layout(session).map(layout_lanes).unwrap_or_default();
+    let sequence = resolved.view::<donder_model::Sequence>(session).object();
+    let lanes = layout_lanes(&session.project().active_layout());
     let clips = sequence
         .clips
         .iter()
@@ -69,10 +59,10 @@ pub(super) fn project_sequence_clips(
                 ClipScope::WholeTarget => SequenceClipScope::WholeTarget,
             },
             effect: session
-                .project
-                .get::<donder_model::EffectDefinition>(clip.definition)
-                .map(|definition| definition.name().to_string())
-                .unwrap_or_else(|| "Missing effect".to_string()),
+                .project()
+                .reusable::<donder_model::EffectDefinition>()[&clip.definition]
+                .name()
+                .to_string(),
         })
         .collect();
     let composition_graph = composition_graph(
@@ -203,20 +193,6 @@ pub(super) fn automation_target_to_gui<Clip: GuiClipId>(
     }
 }
 
-pub(super) fn active_setup(session: &ProjectSession) -> Option<&donder_model::Setup> {
-    session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
-}
-
-pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
-    active_setup(session).and_then(|setup| {
-        session
-            .project
-            .get::<donder_model::Layout>(*setup.layout.id())
-    })
-}
-
 fn sequence_audio(
     session: &ProjectSession,
     audio: &donder_model::SequenceAudio,
@@ -288,13 +264,14 @@ pub(super) fn target_to_gui(target: &DomainFixtureTarget) -> FixtureTarget {
     }
 }
 
+/// The name of the fixture or group a validated clip targets.
 pub(super) fn target_label(session: &ProjectSession, target: &DomainFixtureTarget) -> String {
     session
-        .project
+        .project()
         .get::<donder_model::Layout>(target.layout)
         .and_then(|layout| layout.fixture(target.fixture))
         .map(|fixture| fixture.name.as_str().to_string())
-        .unwrap_or_else(|| format!("Missing fixture {}", target.fixture.0))
+        .unwrap_or_else(|| unreachable!("validation proved every clip target"))
 }
 
 pub(super) fn effect_ref_to_gui(
@@ -310,7 +287,7 @@ pub(super) fn effect_ref_to_gui(
 
 pub(super) fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition> {
     session
-        .project
+        .project()
         .reusable::<donder_model::EffectDefinition>()
         .iter()
         .map(|(id, definition)| {
@@ -324,13 +301,13 @@ pub(super) fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffect
         })
         .collect()
 }
-use donder_model::{AutomationTarget, SequenceId};
+use donder_model::AutomationTarget;
+use donder_model::FixtureTarget as DomainFixtureTarget;
 use donder_model::{ClipScope, EffectDefinitionId};
-use donder_model::{FixtureTarget as DomainFixtureTarget, Layout};
 use donder_project_io::ProjectSession;
 
 mod spatial;
-use super::{ResolvedGuiObject, blocked};
+use super::ResolvedGuiObject;
 use crate::dto::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
     SequenceAutomationTarget, SequenceClip, SequenceClipDetails, SequenceClipScope,

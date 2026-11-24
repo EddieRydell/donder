@@ -43,15 +43,7 @@ impl ArtNetSender {
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
-        let expected = self.config.universes.channel_count() as usize;
         for frame in frames {
-            if frame.slots.len() != expected {
-                return Err(OutputError::InvalidFrameLength {
-                    controller: self.id,
-                    expected,
-                    actual: frame.slots.len(),
-                });
-            }
             for (address, channels) in self.config.universes.iter() {
                 let command = ArtCommand::Output(Output {
                     sequence: self.sequence,

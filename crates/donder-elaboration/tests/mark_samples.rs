@@ -87,7 +87,7 @@ fn configured_project(
     chase_position: ParamValue,
 ) -> (DonderProject, SequenceId) {
     let session = project;
-    let mut project = session.project.clone();
+    let mut project = session.project().clone();
     let name = effect.name();
     let definition = *project
         .reusable::<donder_model::EffectDefinition>()
@@ -99,7 +99,7 @@ fn configured_project(
         .objects::<donder_model::Sequence>()
         .find(|sequence| {
             session
-                .source
+                .source()
                 .declared_name(sequence.id.into())
                 .is_some_and(|name| name.as_str() == "layer_test")
         })

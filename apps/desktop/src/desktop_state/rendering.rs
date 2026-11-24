@@ -11,12 +11,7 @@ impl DesktopState {
         let Some(target) = lock_unpoisoned(&self.workspace).render_target.clone() else {
             return;
         };
-        let Some(sequence_id) = target.resolve(&project).filter(|sequence| {
-            project
-                .project
-                .get::<donder_model::Sequence>(*sequence)
-                .is_some()
-        }) else {
+        let Some(sequence_id) = target.resolve(&project) else {
             self.unload_render_session();
             return;
         };
@@ -36,11 +31,7 @@ impl DesktopState {
         sequence_id: donder_model::SequenceId,
     ) {
         let target = RenderTarget::new(&project, sequence_id);
-        let missing = target.is_none()
-            || project
-                .project
-                .get::<donder_model::Sequence>(sequence_id)
-                .is_none();
+        let missing = target.is_none();
         lock_unpoisoned(&self.workspace).render_target = target;
         if missing {
             self.unload_render_session();

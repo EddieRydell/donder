@@ -22,8 +22,8 @@ impl DesktopState {
         let session = self.project_session().ok_or("No project is loaded.")?;
         let identity = donder_editor::source_identity_from_gui(path, object_key);
         let object = session
-            .source
-            .documents
+            .source()
+            .documents()
             .get(identity.document_id())
             .and_then(|document| {
                 document
@@ -307,8 +307,8 @@ impl DesktopState {
             ..
         } = prepared;
         let paths = edited
-            .source
-            .documents
+            .source()
+            .documents()
             .keys()
             .map(|document| document.path().to_string())
             .collect();
@@ -317,7 +317,7 @@ impl DesktopState {
                 .map_err(GuiProblem::without_site)?;
         {
             let _filesystem = lock_unpoisoned(&self.filesystem);
-            fs_err::remove_file(edited.source.absolute_path(document))
+            fs_err::remove_file(edited.source().absolute_path(document))
                 .map_err(|error| GuiProblem::without_site(error.to_string()))?;
         }
         lock_unpoisoned(&self.gui_history).clear();
@@ -494,7 +494,7 @@ impl DesktopState {
             donder_editor::affected_paths(&edited, request)
                 .map_err(|error| refused(&edited, error))?,
         );
-        let repairs = edited.project.take_repairs();
+        let repairs = edited.take_repairs();
         let changes = donder_editor::repair_changes(&before, &repairs);
         Ok((
             PreparedGuiEdit {

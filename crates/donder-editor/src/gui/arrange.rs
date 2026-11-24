@@ -2,12 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::dto::{SequenceClipArrangement, SequenceClipRef};
 use donder_language::{DonderDuration, DonderTime};
-use donder_model::{FixtureTarget, Sequence, SequenceId};
+use donder_model::{FixtureTarget, Sequence};
 use donder_project_io::ProjectSession;
 
-use super::GuiMutationError;
 use super::model::{automation_clip_mut, clip_mut};
 use super::selection::{lane_targets, nearest_lane};
+use super::{GuiMutationError, ResolvedGuiObject};
 
 /// A clip's timing in whole nanoseconds, so aligned edges are exactly equal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,7 +65,7 @@ fn sequence_clips(
     session: &ProjectSession,
     sequence: &Sequence,
 ) -> Result<Vec<Clip>, GuiMutationError> {
-    let lanes = lane_targets(session).ok_or_else(|| invalid("Active layout is missing."))?;
+    let lanes = lane_targets(session);
     let row = |target: &FixtureTarget, kind| {
         nearest_lane(&lanes, target, 0)
             .map(|lane| Row { lane, kind })
@@ -90,15 +90,12 @@ fn sequence_clips(
 
 pub(super) fn arrange_clip_selection(
     session: &mut ProjectSession,
-    sequence_id: &SequenceId,
+    resolved: &ResolvedGuiObject,
     clip_ids: &[u32],
     automation_ids: &[u32],
     arrangement: &SequenceClipArrangement,
 ) -> Result<(), GuiMutationError> {
-    let sequence = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .ok_or_else(|| invalid("Sequence was not found."))?;
+    let sequence = resolved.view::<Sequence>(session).object();
     let all = sequence_clips(session, sequence)?;
     let selected: Vec<&Clip> = clip_ids
         .iter()
@@ -150,7 +147,7 @@ pub(super) fn arrange_clip_selection(
             }
         }
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(())
 }
 

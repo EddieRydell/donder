@@ -45,20 +45,10 @@ pub(crate) fn render(
     targets: &[String],
 ) -> Result<String, String> {
     let times = times.expand()?;
-    let project = &session.project;
-    let name = |id: donder_model::ObjectId| {
-        session
-            .address_of(id)
-            .map(|address| address.declared_name().to_string())
-            .ok_or("An object is missing from the source inventory.")
-    };
-    let setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .ok_or("Project setup is missing.")?;
-    let layout = project
-        .get::<donder_model::Layout>(*setup.layout.id())
-        .ok_or("Setup layout is missing.")?;
-    let selected = selected_fixtures(layout, &name(layout.id.into())?, targets)?;
+    let project = session.project();
+    let name = |id: donder_model::ObjectId| session.address_of(id).declared_name().to_string();
+    let layout = project.active_layout().object();
+    let selected = selected_fixtures(layout, &name(layout.id.into()), targets)?;
     let prepared = donder_elaboration::prepare(project, id, donder_elaboration::Retain::All)
         .ok_or("The sequence cannot be played on the active setup.")?;
     let rate = prepared.frame_rate();
@@ -90,7 +80,7 @@ pub(crate) fn render(
         .map(|(label, _)| label.len())
         .max()
         .unwrap_or(0);
-    let sequence = name((*id).into())?;
+    let sequence = name((*id).into());
     let mut playback = prepared.into_playback();
     let mut text = String::new();
     for time in times {

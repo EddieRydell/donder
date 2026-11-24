@@ -94,7 +94,7 @@ impl DesktopState {
             .contains_key(&relative);
         if !known {
             let absolute = match (&project, &source_document) {
-                (Some(project), Some(document)) => Some(project.source.absolute_path(document)),
+                (Some(project), Some(document)) => Some(project.source().absolute_path(document)),
                 _ => absolute_root_path(&root, &relative),
             };
             let Some(absolute) = absolute else {
@@ -224,7 +224,7 @@ impl DesktopState {
             let _filesystem = lock_unpoisoned(&self.filesystem);
             donder_project_io::apply_path_change(&project, &plan)?
         };
-        let root = candidate.source.project_root().to_string();
+        let root = candidate.source().project_root().to_string();
         let candidate = Arc::new(candidate);
         lock_unpoisoned(&self.gui_history).clear();
         let entries = super::workspace_entries(&candidate);
@@ -512,9 +512,7 @@ impl DesktopState {
         let project = self.project_session().ok_or("No project is loaded.")?;
         let (before, edited) = self.deleted_documents(&project, path)?;
         Ok(match edited {
-            Some(mut edited) => {
-                donder_editor::repair_changes(&before, &edited.project.take_repairs())
-            }
+            Some(mut edited) => donder_editor::repair_changes(&before, &edited.take_repairs()),
             None => Vec::new(),
         })
     }
@@ -546,8 +544,8 @@ impl DesktopState {
         let texts = match &edited {
             Some(edited) => {
                 let paths = edited
-                    .source
-                    .documents
+                    .source()
+                    .documents()
                     .keys()
                     .map(|document| document.path().to_string())
                     .collect();
@@ -574,7 +572,7 @@ impl DesktopState {
             return self.snapshot_with_error(&error.to_string());
         }
         if let (Some(mut edited), Some(texts)) = (edited, texts) {
-            edited.project.take_repairs();
+            edited.take_repairs();
             // Undo cannot bring the deleted files back.
             lock_unpoisoned(&self.gui_history).clear();
             if let Err(message) = self.accept_gui_sources(Arc::new(edited), texts, "Deleted") {
@@ -597,17 +595,12 @@ impl DesktopState {
         ),
         String,
     > {
-        if project
-            .source
-            .entrypoint
-            .as_ref()
-            .is_some_and(|entrypoint| path_matches_or_is_child(entrypoint.path().as_str(), path))
-        {
+        if path_matches_or_is_child(project.source().entrypoint().path().as_str(), path) {
             return Err("The project entrypoint cannot be deleted.".into());
         }
         let documents = project
-            .source
-            .documents
+            .source()
+            .documents()
             .keys()
             .filter(|document| path_matches_or_is_child(document.path().as_str(), path))
             .cloned()

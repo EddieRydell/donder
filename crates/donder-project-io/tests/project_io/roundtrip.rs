@@ -93,7 +93,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
 
     let loaded = load_local_project(&root);
     let identities = loaded
-        .project
+        .project()
         .reusable::<donder_model::EffectDefinition>()
         .keys()
         .filter_map(|id| loaded.declaration((*id).into()))
@@ -111,7 +111,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
     );
     save_project(&loaded).unwrap();
     let reloaded = load_local_project(&root);
-    assert_eq!(loaded.project, reloaded.project);
+    assert_eq!(loaded.project(), reloaded.project());
 }
 
 #[test]
@@ -120,31 +120,30 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
     let mut session = load_local_project(&root);
 
     let color = session
-        .project
+        .project()
         .reusable::<donder_model::Sequence>()
         .values()
         .next()
         .unwrap()
         .layers[0]
         .color;
-    let index = session.project.root().sequences.len();
-    donder_model::add_sequence(
-        &mut session.project,
-        DonderDuration(Duration::from_secs(30)),
-        60,
-        color,
-    )
-    .unwrap();
-    let site = common::sequence_site(&session.project, index);
-    let destination = donder_model::make_reusable(&mut session.project, &site).unwrap();
-    let document = session
-        .source
-        .add_data_document(
-            "sequences/nested/new.data.donder".into(),
-            vec![(destination, donder_language::object_name("nested_sequence"))],
-        )
+    let index = session.project().root().sequences.len();
+    session
+        .edit_project(|project| {
+            donder_model::add_sequence(project, DonderDuration(Duration::from_secs(30)), 60, color)
+                .map_err(donder_project_io::SessionEditError::from)
+        })
         .unwrap();
-    donder_project_io::maintain_ownership_sources(&mut session).unwrap();
+    let site = common::sequence_site(session.project(), index);
+    let document = session
+        .edit(|edit| {
+            let destination = donder_model::make_reusable(edit.project_mut(), &site)?;
+            edit.add_data_document(
+                "sequences/nested/new.data.donder".into(),
+                vec![(destination, donder_language::object_name("nested_sequence"))],
+            )
+        })
+        .unwrap();
     save_project(&session).unwrap();
 
     let reloaded = load_local_project(&root);
@@ -158,13 +157,13 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
         .unwrap();
     assert!(
         reloaded
-            .project
+            .project()
             .reusable::<donder_model::Sequence>()
             .contains_key(&id)
     );
     assert!(
         reloaded
-            .project
+            .project()
             .root()
             .sequences
             .iter()

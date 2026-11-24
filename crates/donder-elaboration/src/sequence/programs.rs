@@ -73,8 +73,7 @@ impl<'cache> Programs<'cache> {
     pub(crate) fn lower(&mut self, instance: &Instance) -> BoundProgram {
         let lowered = instance.lower();
         let program = self.intern(&Shared::new(lowered.program));
-        BoundProgram::bind(program, lowered.values, lowered.automation)
-            .unwrap_or_else(|_| unreachable!("lowered values match their program"))
+        BoundProgram::new(program, lowered.values, lowered.automation)
     }
 
     /// The program of `invocation` with `constants`, lowered once per

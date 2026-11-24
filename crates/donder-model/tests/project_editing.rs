@@ -105,7 +105,10 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     )
     .unwrap();
     let before = project.clone();
-    let original = before.playback_geometry(&layout_id).unwrap();
+    let original = before
+        .view::<donder_model::Layout>(layout_id)
+        .unwrap()
+        .playback_geometry();
     let mut sequence = project
         .get::<donder_model::Sequence>(sequence_id)
         .unwrap()
@@ -114,7 +117,10 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     project.put(sequence).unwrap();
     assert!(std::ptr::eq(
         original,
-        project.playback_geometry(&layout_id).unwrap()
+        project
+            .view::<donder_model::Layout>(layout_id)
+            .unwrap()
+            .playback_geometry()
     ));
 
     fixture.elements[0].shape = FixtureShape::Line {
@@ -129,10 +135,16 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
         .unwrap();
     assert!(!std::ptr::eq(
         original,
-        project.playback_geometry(&layout_id).unwrap()
+        project
+            .view::<donder_model::Layout>(layout_id)
+            .unwrap()
+            .playback_geometry()
     ));
     let accepted = project.clone();
-    let current = accepted.playback_geometry(&layout_id).unwrap();
+    let current = accepted
+        .view::<donder_model::Layout>(layout_id)
+        .unwrap()
+        .playback_geometry();
     let mut layout = project
         .get::<donder_model::Layout>(layout_id)
         .unwrap()
@@ -141,11 +153,17 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     project.put(layout).unwrap();
     assert!(!std::ptr::eq(
         current,
-        project.playback_geometry(&layout_id).unwrap()
+        project
+            .view::<donder_model::Layout>(layout_id)
+            .unwrap()
+            .playback_geometry()
     ));
 
     let accepted = project.clone();
-    let current = accepted.playback_geometry(&layout_id).unwrap();
+    let current = accepted
+        .view::<donder_model::Layout>(layout_id)
+        .unwrap()
+        .playback_geometry();
     fixture.elements[0].shape = FixtureShape::Line {
         length: 1.0,
         count: 0,
@@ -159,7 +177,10 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     );
     assert!(std::ptr::eq(
         current,
-        project.playback_geometry(&layout_id).unwrap()
+        project
+            .view::<donder_model::Layout>(layout_id)
+            .unwrap()
+            .playback_geometry()
     ));
 }
 

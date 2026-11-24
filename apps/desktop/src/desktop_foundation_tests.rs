@@ -32,8 +32,8 @@ pub(crate) mod tests {
             .unwrap();
         let documents = |session: &donder_project_io::ProjectSession| {
             session
-                .source
-                .documents
+                .source()
+                .documents()
                 .keys()
                 .map(|id| {
                     (

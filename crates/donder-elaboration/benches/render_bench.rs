@@ -73,7 +73,7 @@ fn bench_render(c: &mut Criterion) {
     .into_session()
     .expect("benchmark project should load");
     let sequence_id = session
-        .project
+        .project()
         .root()
         .sequences
         .iter()
@@ -87,9 +87,9 @@ fn bench_render(c: &mut Criterion) {
                 })
         })
         .expect("benchmark project should include the layer_test sequence");
-    let output = prepare(&session.project, sequence_id, Retain::All)
+    let output = prepare(session.project(), sequence_id, Retain::All)
         .expect("benchmark controller output should prepare");
-    let logical_project = render_only_project(&session.project);
+    let logical_project = render_only_project(session.project());
     let renderer = prepare(&logical_project, sequence_id, Retain::All)
         .expect("benchmark logical fixtures should prepare");
     assert!(renderer.outputs().is_empty());
@@ -111,7 +111,7 @@ fn bench_render(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 prepare(
-                    black_box(&session.project),
+                    black_box(session.project()),
                     black_box(sequence_id),
                     Retain::All,
                 )
@@ -183,14 +183,14 @@ fn bench_large_show(c: &mut Criterion) {
         .into_session()
         .expect("rydell_house should load; it needs its uncommitted audio/dingdong.mp3");
     let sequence_id = session
-        .project
+        .project()
         .root()
         .sequences
         .iter()
         .map(|source| source.id())
         .find(|id| {
             session
-                .source
+                .source()
                 .declared_name((**id).into())
                 .is_some_and(|name| name.as_str() == "ding_dong")
         })
@@ -200,7 +200,7 @@ fn bench_large_show(c: &mut Criterion) {
         b.iter(|| {
             black_box(
                 prepare(
-                    black_box(&session.project),
+                    black_box(session.project()),
                     black_box(sequence_id),
                     Retain::All,
                 )
@@ -210,13 +210,13 @@ fn bench_large_show(c: &mut Criterion) {
     });
 
     let mut cache = PreparationCache::default();
-    prepare_cached(&session.project, sequence_id, Retain::All, &mut cache)
+    prepare_cached(session.project(), sequence_id, Retain::All, &mut cache)
         .expect("large show should prepare");
     c.bench_function("prepare_large_show_warm", |b| {
         b.iter(|| {
             black_box(
                 prepare_cached(
-                    black_box(&session.project),
+                    black_box(session.project()),
                     black_box(sequence_id),
                     Retain::All,
                     &mut cache,
@@ -227,7 +227,7 @@ fn bench_large_show(c: &mut Criterion) {
     });
 
     let output =
-        prepare(&session.project, sequence_id, Retain::All).expect("large show should prepare");
+        prepare(session.project(), sequence_id, Retain::All).expect("large show should prepare");
     let frame_rate = output.frame_rate();
     let start = output.frame_count() / 2;
     let mut workspace = output.into_playback();
@@ -257,7 +257,7 @@ fn bench_mark_playback(c: &mut Criterion) {
     )
     .into_session()
     .unwrap();
-    let source_project = render_only_project(&session.project);
+    let source_project = render_only_project(session.project());
     for (name, pulse) in [("pulse", true), ("chase", false)] {
         let mut project = source_project.clone();
         let id = *project
@@ -267,7 +267,7 @@ fn bench_mark_playback(c: &mut Criterion) {
             .map(|source| source.id())
             .find(|id| {
                 session
-                    .source
+                    .source()
                     .declared_name((**id).into())
                     .is_some_and(|name| name.as_str() == "layer_test")
             })

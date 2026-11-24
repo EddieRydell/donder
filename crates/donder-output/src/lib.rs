@@ -16,8 +16,6 @@ mod e131;
 mod fseq;
 mod test_pattern;
 
-use std::collections::HashMap;
-
 use donder_model::{Controller, ControllerId, ControllerProtocol};
 
 pub use artnet::ArtNetSender;
@@ -42,12 +40,6 @@ impl AsMut<[u8]> for OutputFrame {
 
 #[derive(Debug)]
 pub enum OutputError {
-    MissingController(ControllerId),
-    InvalidFrameLength {
-        controller: ControllerId,
-        expected: usize,
-        actual: usize,
-    },
     Socket {
         controller: ControllerId,
         message: String,
@@ -56,27 +48,13 @@ pub enum OutputError {
         controller: ControllerId,
         message: String,
     },
-    /// Donder controllers play uploaded shows; they are never streamed.
-    NotStreamed(ControllerId),
 }
 
 impl std::fmt::Display for OutputError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MissingController(_) => {
-                formatter.write_str("a controller to stream to is missing from the project")
-            }
-            Self::InvalidFrameLength {
-                expected, actual, ..
-            } => write!(
-                formatter,
-                "a frame of {actual} channels was sent to a controller of {expected} channels"
-            ),
             Self::Socket { message, .. } | Self::Codec { message, .. } => {
                 formatter.write_str(message)
-            }
-            Self::NotStreamed(_) => {
-                formatter.write_str("Donder controllers play uploaded shows and are not streamed")
             }
         }
     }
@@ -113,12 +91,15 @@ pub enum ControllerSender {
 }
 
 impl ControllerSender {
-    fn open(id: ControllerId, controller: &Controller) -> Result<Self, OutputError> {
-        match &controller.protocol {
+    /// A sender to an E1.31 or Art-Net controller; Donder controllers play
+    /// uploaded shows and are not streamed.
+    fn open(controller: &Controller) -> Option<Result<Self, OutputError>> {
+        let id = controller.id;
+        Some(match &controller.protocol {
             ControllerProtocol::E131(config) => E131Sender::open(id, config).map(Self::E131),
             ControllerProtocol::ArtNet(config) => ArtNetSender::open(id, config).map(Self::ArtNet),
-            ControllerProtocol::Donder(_) => Err(OutputError::NotStreamed(id)),
-        }
+            ControllerProtocol::Donder(_) => return None,
+        })
     }
 
     fn send<'a>(
@@ -146,25 +127,28 @@ impl ControllerSender {
     }
 }
 
+/// Senders to controllers, each sending the frames prepared for that very
+/// controller: a frame's channels are its controller's.
 pub struct OutputTransports {
-    senders: HashMap<ControllerId, ControllerSender>,
+    senders: Vec<(ControllerId, ControllerSender)>,
 }
 
 impl OutputTransports {
-    pub fn open(
-        controllers: &indexmap::IndexMap<ControllerId, Controller>,
-        active: &[ControllerId],
+    /// Senders to the E1.31 and Art-Net controllers among `controllers`:
+    /// the controllers the frames to send are prepared for.
+    pub fn open<'a>(
+        controllers: impl IntoIterator<Item = &'a Controller>,
     ) -> Result<Self, OutputError> {
-        let mut senders = HashMap::new();
-        for id in active {
-            let definition = controllers
-                .get(id)
-                .ok_or(OutputError::MissingController(*id))?;
-            senders.insert(*id, ControllerSender::open(*id, definition)?);
-        }
+        let senders = controllers
+            .into_iter()
+            .filter_map(|controller| {
+                ControllerSender::open(controller).map(|sender| Ok((controller.id, sender?)))
+            })
+            .collect::<Result<_, _>>()?;
         Ok(Self { senders })
     }
 
+    /// Send frames prepared for the controllers the transports opened.
     pub fn send(&mut self, frames: &[OutputFrame]) -> Result<(), OutputError> {
         for (id, sender) in &mut self.senders {
             sender.send(frames.iter().filter(|frame| &frame.controller == id))?;
@@ -174,7 +158,7 @@ impl OutputTransports {
 
     pub fn blackout_and_terminate(&mut self) -> Result<(), OutputError> {
         let mut first_error = None;
-        for sender in self.senders.values_mut() {
+        for (_, sender) in &mut self.senders {
             let blackout = sender.blackout();
             let termination = sender.terminate();
             if let Err(error) = blackout.and(termination)

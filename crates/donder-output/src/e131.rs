@@ -48,15 +48,7 @@ impl E131Sender {
         &mut self,
         frames: impl IntoIterator<Item = &'a OutputFrame>,
     ) -> Result<(), OutputError> {
-        let expected = self.config.universes.channel_count() as usize;
         for frame in frames {
-            if frame.slots.len() != expected {
-                return Err(OutputError::InvalidFrameLength {
-                    controller: self.id,
-                    expected,
-                    actual: frame.slots.len(),
-                });
-            }
             for (index, (universe, channels)) in self.config.universes.iter().enumerate() {
                 self.universe_data[1..]
                     .copy_from_slice(&frame.slots[channels.start as usize..channels.end as usize]);

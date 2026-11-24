@@ -10,6 +10,8 @@ const ALIGN: usize = 4;
 pub(crate) type Row<T> = [Cell<T>; crate::dsl::STRIP];
 
 /// Hands out regions of a buffer, front to back. Every region is filled.
+/// The buffer holds at least the bytes [`Size`] counts for the same
+/// regions; that is the one invariant carving relies on.
 pub(crate) struct Carve<'w> {
     rest: &'w mut [u8],
     /// Whether regions are filled; a re-borrowed buffer keeps its contents.
@@ -33,54 +35,53 @@ impl<'w> Carve<'w> {
         }
     }
 
-    fn bytes(&mut self, len: usize) -> Option<&'w mut [u8]> {
+    fn bytes(&mut self, len: usize) -> &'w mut [u8] {
         let rest = core::mem::take(&mut self.rest);
         let padding = rest.as_ptr().align_offset(ALIGN);
-        if padding > rest.len() {
-            return None;
-        }
-        let (_, rest) = rest.split_at_mut(padding);
-        if rest.len() < len {
-            return None;
-        }
-        let (taken, rest) = rest.split_at_mut(len);
+        let Some((taken, rest)) = rest
+            .get_mut(padding..)
+            .and_then(|rest| rest.split_at_mut_checked(len))
+        else {
+            unreachable!("the buffer holds the bytes Size counts for its regions")
+        };
         self.rest = rest;
-        Some(taken)
+        taken
     }
 
-    pub(crate) fn values<T: bytemuck::Pod>(
-        &mut self,
-        count: usize,
-        fill: T,
-    ) -> Option<&'w mut [T]> {
-        let bytes = self.bytes(count.checked_mul(size_of::<T>())?)?;
-        let values: &mut [T] = bytemuck::try_cast_slice_mut(bytes).ok()?;
+    pub(crate) fn values<T: bytemuck::Pod>(&mut self, count: usize, fill: T) -> &'w mut [T] {
+        let values: &mut [T] = bytemuck::cast_slice_mut(self.bytes(count * size_of::<T>()));
         if self.fill {
             values.fill(fill);
         }
-        Some(values)
+        values
     }
 
-    pub(crate) fn cells<T: bytemuck::Pod>(
-        &mut self,
-        count: usize,
-        fill: T,
-    ) -> Option<&'w [Cell<T>]> {
-        Some(Cell::from_mut(self.values(count, fill)?).as_slice_of_cells())
+    pub(crate) fn array<T: bytemuck::Pod, const N: usize>(&mut self, fill: T) -> &'w mut [T; N] {
+        let Ok(array) = <&mut [T; N]>::try_from(self.values(N, fill)) else {
+            unreachable!("the region holds N values")
+        };
+        array
     }
 
-    pub(crate) fn row<T: bytemuck::Pod>(&mut self, fill: T) -> Option<&'w Row<T>> {
-        <&Row<T>>::try_from(self.cells(crate::dsl::STRIP, fill)?).ok()
+    pub(crate) fn cells<T: bytemuck::Pod>(&mut self, count: usize, fill: T) -> &'w [Cell<T>] {
+        Cell::from_mut(self.values(count, fill)).as_slice_of_cells()
+    }
+
+    pub(crate) fn row<T: bytemuck::Pod>(&mut self, fill: T) -> &'w Row<T> {
+        let Ok(row) = <&Row<T>>::try_from(self.cells(crate::dsl::STRIP, fill)) else {
+            unreachable!("the region holds a strip of cells")
+        };
+        row
     }
 
     /// `count` cleared flags.
-    pub(crate) fn flags(&mut self, count: usize) -> Option<&'w [Cell<bool>]> {
-        let bytes = self.bytes(count)?;
+    pub(crate) fn flags(&mut self, count: usize) -> &'w [Cell<bool>] {
+        let bytes = self.bytes(count);
         if self.fill {
             bytes.fill(0);
         }
-        let flags: &mut [bool] = bytemuck::checked::try_cast_slice_mut(bytes).ok()?;
-        Some(Cell::from_mut(flags).as_slice_of_cells())
+        let flags: &mut [bool] = bytemuck::checked::cast_slice_mut(bytes);
+        Cell::from_mut(flags).as_slice_of_cells()
     }
 }
 

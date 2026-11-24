@@ -44,7 +44,7 @@ fn imported(options: &ImportOptions) -> (tempfile::TempDir, ProjectSession, Impo
 
 fn layout(session: &ProjectSession) -> &Layout {
     session
-        .project
+        .project()
         .reusable::<Layout>()
         .values()
         .next()
@@ -104,7 +104,12 @@ fn imports_the_house() {
     );
     let layout = layout(&session);
     assert_eq!(layout.fixtures.len(), 262 + 63);
-    let patch = session.project.reusable::<Patch>().values().next().unwrap();
+    let patch = session
+        .project()
+        .reusable::<Patch>()
+        .values()
+        .next()
+        .unwrap();
     assert_eq!(patch.routes.len(), 291);
 }
 
@@ -145,7 +150,12 @@ fn shapes_follow_the_models() {
 fn routes_follow_the_channels() {
     let (_directory, session, _) = imported(&ImportOptions::default());
     let layout = layout(&session);
-    let patch = session.project.reusable::<Patch>().values().next().unwrap();
+    let patch = session
+        .project()
+        .reusable::<Patch>()
+        .values()
+        .next()
+        .unwrap();
     let penguin = layout
         .fixtures
         .iter()
@@ -163,17 +173,17 @@ fn routes_follow_the_channels() {
         panic!("the penguin has {} routes", routes.len());
     };
     assert_eq!(route.pixels, None);
-    let universes = *session.project.reusable::<donder_model::Controller>()[&route.controller]
+    let universes = *session.project().reusable::<donder_model::Controller>()[&route.controller]
         .universes()
         .unwrap();
     assert_eq!(
         universes.locate(
             donder_model::patch_placements(
-                &session.project,
+                session.project(),
                 patch,
                 &donder_model::fixture_pixel_counts(
                     session
-                        .project
+                        .project()
                         .reusable::<donder_model::FixtureDefinition>()
                 )
                 .unwrap()

@@ -30,24 +30,58 @@ pub fn source_document_format(path: &Utf8Path) -> SourceDocumentFormat {
     }
 }
 
+/// A typed project and the documents it is written in. The documents declare
+/// exactly the project's reusable objects, each once, so every object has an
+/// address: its declaration, or its owner's address and slot. The loader
+/// builds a session and the edits in `session_edit` are the only ways one
+/// changes, each keeping this so.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectSession {
-    pub project: DonderProject,
-    pub source: SourceProject,
+    pub(crate) project: DonderProject,
+    pub(crate) source: SourceProject,
+}
+
+impl ProjectSession {
+    /// A session the loader read: every declaration it resolved is a reusable
+    /// object of `project`, and every reusable object came from one.
+    pub(crate) fn loaded(project: DonderProject, source: SourceProject) -> Self {
+        Self { project, source }
+    }
+
+    pub fn project(&self) -> &DonderProject {
+        &self.project
+    }
+
+    pub fn source(&self) -> &SourceProject {
+        &self.source
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SourceProject {
     pub(crate) workspace: crate::ProjectWorkspace,
-    pub entrypoint: Option<DocumentId>,
-    pub documents: IndexMap<DocumentId, SourceDocument>,
-    pub referenced_assets: Vec<ReferencedAsset>,
+    pub(crate) entrypoint: DocumentId,
+    pub(crate) documents: IndexMap<DocumentId, SourceDocument>,
+    pub(crate) referenced_assets: Vec<ReferencedAsset>,
 }
 
 impl SourceProject {
-    /// Register a new project-owned data document and its typed object inventory.
-    /// The caller inserts the corresponding typed values into the same candidate session.
-    pub fn add_data_document(
+    /// The project's root document.
+    pub fn entrypoint(&self) -> &DocumentId {
+        &self.entrypoint
+    }
+
+    pub fn documents(&self) -> &IndexMap<DocumentId, SourceDocument> {
+        &self.documents
+    }
+
+    pub fn referenced_assets(&self) -> &[ReferencedAsset] {
+        &self.referenced_assets
+    }
+
+    /// Register a new project-owned data document declaring `objects`. The
+    /// session edit inserts their typed values beside it.
+    pub(crate) fn add_data_document(
         &mut self,
         path: Utf8PathBuf,
         objects: Vec<(ObjectId, Identifier)>,
@@ -70,8 +104,8 @@ impl SourceProject {
     }
 
     /// Register a new named object in an existing project-owned data document.
-    /// The caller inserts its typed value into the same candidate session.
-    pub fn add_object(
+    /// The session edit inserts its typed value beside it.
+    pub(crate) fn add_object(
         &mut self,
         document: &DocumentId,
         id: ObjectId,
@@ -116,7 +150,7 @@ impl SourceProject {
 
     /// Declare `id` as `name`; refused when its document already declares
     /// that name. References print the new name when their documents are saved.
-    pub fn rename_object(&mut self, id: ObjectId, name: Identifier) -> Result<(), String> {
+    pub(crate) fn rename_object(&mut self, id: ObjectId, name: Identifier) -> Result<(), String> {
         let source = self
             .documents
             .values_mut()
@@ -137,9 +171,9 @@ impl SourceProject {
         Ok(())
     }
 
-    /// Stop declaring `id`. The caller removes its typed object from the same
-    /// candidate session.
-    pub fn remove_object(&mut self, id: ObjectId) {
+    /// Stop declaring `id`. The session edit removes its typed object beside
+    /// it.
+    pub(crate) fn remove_object(&mut self, id: ObjectId) {
         for source in self.documents.values_mut() {
             source.objects.retain(|object| object.id != id);
         }
@@ -167,24 +201,27 @@ pub struct SourceDocument {
     pub(crate) objects: Vec<DeclaredObject>,
     /// A script's text, kept exactly; the GUI never rewrites code. A data
     /// document has none: saving prints it from typed state.
-    script: Option<String>,
+    script: Option<std::sync::Arc<str>>,
 }
 
 impl SourceDocument {
     /// A data document with its imports and the objects it declares.
-    pub fn data(imports: Vec<ImportEdge>, objects: Vec<DeclaredObject>) -> Result<Self, String> {
+    pub(crate) fn data(
+        imports: Vec<ImportEdge>,
+        objects: Vec<DeclaredObject>,
+    ) -> Result<Self, String> {
         Self::new(imports, objects, None)
     }
 
     /// A script with its text and the definitions it declares.
     pub(crate) fn script(objects: Vec<DeclaredObject>, source: String) -> Result<Self, String> {
-        Self::new(Vec::new(), objects, Some(source))
+        Self::new(Vec::new(), objects, Some(source.into()))
     }
 
     fn new(
         imports: Vec<ImportEdge>,
         objects: Vec<DeclaredObject>,
-        script: Option<String>,
+        script: Option<std::sync::Arc<str>>,
     ) -> Result<Self, String> {
         let mut object_ids = IndexSet::new();
         for object in &objects {
@@ -286,7 +323,7 @@ impl std::fmt::Display for AssetError {
 /// Reference the file at `path`, relative to the project `root`, from
 /// `document`. An asset already referenced at that path gains the document; a
 /// new one takes the next id.
-pub fn reference_asset(
+pub(crate) fn reference_asset(
     assets: &mut Vec<ReferencedAsset>,
     root: &Utf8Path,
     document: &DocumentId,

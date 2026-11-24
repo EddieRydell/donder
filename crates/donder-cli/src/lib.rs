@@ -87,7 +87,7 @@ fn load(path: &camino::Utf8Path) -> Result<donder_project_io::ProjectSession, St
             .into_session()
             .map_err(|diagnostics| diagnostics_text(&diagnostics))?;
     let mut files: Vec<(donder_model::AssetId, Vec<donder_model::Derivation>)> = Vec::new();
-    for derivation in session.project.pending_derivations() {
+    for derivation in session.project().pending_derivations() {
         match files
             .iter_mut()
             .find(|(asset, _)| asset == derivation.asset())
@@ -104,8 +104,7 @@ fn load(path: &camino::Utf8Path) -> Result<donder_project_io::ProjectSession, St
             if let donder_model::Derived::Failed(reason) = &derived {
                 return Err(format!("Could not read {path}: {reason}"));
             }
-            session.project = session
-                .project
+            session
                 .with_derived(derivation, derived)
                 .map_err(|error| error.to_string())?;
         }
@@ -138,7 +137,7 @@ pub fn run(cli: Cli) -> Result<(), String> {
             }
             println!(
                 "Project is valid ({} loaded documents)",
-                session.source.documents.len()
+                session.source().documents().len()
             );
             Ok(())
         }
@@ -204,18 +203,15 @@ fn find_sequence(
     name: &str,
 ) -> Result<donder_model::SequenceId, String> {
     let sequences = session
-        .project
+        .project()
         .root()
         .sequences
         .iter()
         .map(|source| {
             let id = *source.id();
-            session
-                .address_of(id.into())
-                .map(|address| (id, address.declared_name().to_string()))
-                .ok_or("A sequence is missing from the source inventory.")
+            (id, session.address_of(id).declared_name().to_string())
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
     sequences
         .iter()
         .find(|(_, declared)| declared == name)
@@ -241,7 +237,7 @@ fn export_fseq(
     step_ms: Option<u8>,
 ) -> Result<(), String> {
     let session = load(path)?;
-    let project = &session.project;
+    let project = session.project();
     let id = &find_sequence(&session, name)?;
     let sequence = project
         .get::<donder_model::Sequence>(*id)
@@ -259,18 +255,11 @@ fn export_fseq(
             donder_output::FseqStep::SMOOTH_MILLIS
         );
     }
-    let setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .ok_or("Project setup is missing.")?;
-    let placed = setup
-        .controllers
+    let controllers = project.active_setup().controllers().collect::<Vec<_>>();
+    let placed = controllers
         .iter()
-        .map(|source| *source.id())
-        .filter(|id| {
-            project
-                .get::<donder_model::Controller>(*id)
-                .is_some_and(|controller| controller.fseq_channel().is_some())
-        })
+        .filter(|controller| controller.fseq_channel().is_some())
+        .map(|controller| controller.id())
         .collect::<Vec<_>>();
     if placed.is_empty() {
         return Err("No setup controller has an FSEQ channel.".into());
@@ -284,20 +273,14 @@ fn export_fseq(
     let fseq_channel = donder_output::setup_fseq_channel(project);
     let mut labels = Vec::new();
     for prepared_output in prepared.outputs() {
-        let controller = setup
-            .controllers
-            .get(prepared_output.controller_index as usize)
-            .and_then(|source| project.get::<donder_model::Controller>(*source.id()))
-            .ok_or("Setup controller is missing.")?;
-        let output = controller
-            .output_label(controller.runtime_output(prepared_output.port))
-            .ok_or("Controller output is missing.")?;
+        let Some(controller) = controllers.get(prepared_output.controller_index as usize) else {
+            unreachable!("the show was prepared on the active setup's controllers");
+        };
+        let output = controller.output_label(controller.runtime_output(prepared_output.port));
         let first = fseq_channel(prepared_output)
             .ok_or("A controller has no FSEQ channel.")?
             .get();
-        let address = session
-            .address_of(controller.id.into())
-            .ok_or("A controller is missing from the source inventory.")?;
+        let address = session.address_of(controller.id);
         labels.push((
             first,
             format!(

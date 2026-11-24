@@ -47,10 +47,13 @@ pub(crate) fn run(session: &ProjectSession) -> Result<(), String> {
                     [pattern, targets @ ..] => match test(session, pattern, targets) {
                         Ok(test) => {
                             stop(&mut active)?;
-                            let ids = test.controllers().keys().copied().collect::<Vec<_>>();
-                            let transports = OutputTransports::open(test.controllers(), &ids)
+                            let transports = OutputTransports::open(test.controllers().values())
                                 .map_err(|error| format!("Output could not start: {error}"))?;
-                            eprintln!("testing {} on {} controller(s)", line.trim(), ids.len());
+                            eprintln!(
+                                "testing {} on {} controller(s)",
+                                line.trim(),
+                                test.controllers().len()
+                            );
                             active = Some((test, transports, Instant::now()));
                         }
                         Err(error) => eprintln!("{error}"),
@@ -90,7 +93,7 @@ fn test(session: &ProjectSession, pattern: &str, targets: &[&str]) -> Result<Out
             None => (false, *target),
         };
         let selection = selection(session, target)?;
-        let mut test = OutputTest::new(&session.project, selection, pattern)
+        let mut test = OutputTest::new(session.project(), selection, pattern)
             .map_err(|error| format!("{target}: {error}"))?;
         if reversed {
             test.reverse();
@@ -125,7 +128,7 @@ fn parse_pattern(word: &str) -> Result<TestPattern, String> {
 }
 
 fn selection(session: &ProjectSession, target: &str) -> Result<TestSelection, String> {
-    let project = &session.project;
+    let project = session.project();
     let setup = project
         .get::<Setup>(*project.root().setup.id())
         .ok_or("The project's setup is missing.")?;
@@ -200,9 +203,5 @@ fn setup_controller(
         .controllers
         .iter()
         .map(|source| *source.id())
-        .find(|id| {
-            session
-                .address_of((*id).into())
-                .is_some_and(|address| address.declared_name() == name)
-        })
+        .find(|id| session.address_of(*id).declared_name() == name)
 }

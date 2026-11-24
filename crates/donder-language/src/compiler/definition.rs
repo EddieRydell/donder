@@ -63,6 +63,10 @@ pub(crate) fn lowering_diagnostics(definitions: &[Definition]) -> Vec<Diagnostic
                 "`{name}` nests {depth} per-pixel choices and reductions; a program has at most {}",
                 donder_runtime_types::bytecode::MAX_DEPTH
             )),
+            Err(LowerError::Scans) => Some(format!(
+                "`{name}` runs more than {} scans; a program runs at most {0}",
+                usize::from(u8::MAX) + 1
+            )),
             Err(LowerError::Slots | LowerError::Code) => Some(format!("`{name}` is too large")),
             Err(LowerError::Loops) | Ok(_) => None,
         };

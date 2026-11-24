@@ -5,13 +5,13 @@ use donder_project_io::ProjectSession;
 use crate::dto::DerivedDataStatus;
 
 pub(super) fn derived_status(session: &ProjectSession, sequence: &Sequence) -> DerivedDataStatus {
-    let derivations = session.project.sequence_derivations(sequence);
+    let derivations = session.project().sequence_derivations(sequence);
     if derivations.is_empty() {
         return DerivedDataStatus::Unused;
     }
     let mut status = DerivedDataStatus::Ready;
     for derivation in &derivations {
-        match session.project.derived(derivation) {
+        match session.project().derived(derivation) {
             Some(Derived::Failed(reason)) => {
                 let file = session
                     .asset(derivation.asset())

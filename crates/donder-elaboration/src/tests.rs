@@ -18,21 +18,21 @@ fn example(name: &str) -> donder_project_io::ProjectSession {
 #[test]
 fn starter_prepares_and_produces_exact_controller_widths() {
     let session = example("starter");
-    let sequence_id = session.project.root().sequences.first().unwrap().id();
-    let renderer = prepare(&session.project, sequence_id, Retain::All).unwrap();
+    let sequence_id = session.project().root().sequences.first().unwrap().id();
+    let renderer = prepare(session.project(), sequence_id, Retain::All).unwrap();
     let mut playback = renderer.into_playback();
     let frame = playback.evaluate(SampleTime::from_ticks(0));
     let setup = session
-        .project
+        .project()
         .reusable::<donder_model::Setup>()
-        .get(session.project.root().setup.id())
+        .get(session.project().root().setup.id())
         .unwrap();
     let expected_ports = setup
         .controllers
         .iter()
         .map(|id| {
             session
-                .project
+                .project()
                 .get::<donder_model::Controller>(*id.id())
                 .unwrap()
                 .outputs()
@@ -44,7 +44,7 @@ fn starter_prepares_and_produces_exact_controller_widths() {
         let output = port_frame.output;
         let slots = port_frame.bytes;
         let controller = session
-            .project
+            .project()
             .reusable::<donder_model::Controller>()
             .get(setup.controllers[output.controller_index as usize].id())
             .unwrap();
@@ -58,8 +58,8 @@ fn starter_prepares_and_produces_exact_controller_widths() {
 #[test]
 fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
     let session = example("starter");
-    let sequence_id = session.project.root().sequences.get(1).unwrap().id();
-    let renderer = prepare(&session.project, sequence_id, Retain::All).unwrap();
+    let sequence_id = session.project().root().sequences.get(1).unwrap().id();
+    let renderer = prepare(session.project(), sequence_id, Retain::All).unwrap();
     let time = sample_time_from_frame(3594, renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();
     let rendered = playback.evaluate(time);
@@ -69,8 +69,8 @@ fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
 #[test]
 fn output_fixtures_preserve_layout_instance_order() {
     let session = example("starter");
-    let sequence_id = session.project.root().sequences.first().unwrap().id();
-    let renderer = prepare(&session.project, sequence_id, Retain::All).unwrap();
+    let sequence_id = session.project().root().sequences.first().unwrap().id();
+    let renderer = prepare(session.project(), sequence_id, Retain::All).unwrap();
     let time = sample_time_from_frame(renderer.frame_rate(), renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();
     let frame = playback.evaluate(time);

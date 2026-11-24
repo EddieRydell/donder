@@ -295,7 +295,8 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   light's weight. Checking forms the `Scan` from its `decay` and the flattened
   scales and guards of its `as light` body. It runs forward or backward along each fixture. Playback
   computes the scan over the whole input frame the first time the program reads
-  it in a frame, into a scan frame of its own (at most 8 per program); each
+  it in a frame, into a scan frame of its own (at most 256 per program, as the
+  instruction names its frame in a byte; more is a compile error); each
   strip copies its pixels from there.
 - A read takes the whole frame its input already wrote this frame.
 - Every value starts in its own slot; liveness over the structured code then

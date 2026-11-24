@@ -16,7 +16,7 @@ fn project() -> donder_project_io::ProjectSession {
 fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
     use donder_model::{PixelRouteId, PixelSpan};
     use donder_runtime_types::PixelEncoding;
-    let mut project = project().project;
+    let mut project = project().project().clone();
     let patch_id = *project.reusable::<donder_model::Setup>()[project.root().setup.id()]
         .patch
         .id();
@@ -57,7 +57,7 @@ fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
 #[test]
 fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
     let session = project();
-    let project = &session.project;
+    let project = session.project();
     let sequence = project
         .reusable::<donder_model::Sequence>()
         .keys()

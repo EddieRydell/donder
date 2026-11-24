@@ -72,8 +72,7 @@ modules are not alternate entry points. The boundaries have different contracts:
 | Show opening | Show bytes to an owned `PreparedShow` | The format version only; the show is trusted |
 
 Show records are runtime-private: callers build them only through the builder
-and read them through accessors. The builder asserts the playback limits: at most 16
-frame buffers at once and 8 scans per program.
+and read them through accessors.
 
 Bytecode instructions, slots, validated programs and parameter bindings belong
 to `donder-runtime-types`, which the compiler targets and the runtime and

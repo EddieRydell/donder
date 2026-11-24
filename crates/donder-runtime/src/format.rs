@@ -822,18 +822,21 @@ pub(crate) fn show_id(header: &[u8]) -> u32 {
     header.id
 }
 
-/// The show's sections, or `None` for bytes too short for a header or an
-/// show of another format version.
-/// The show is trusted otherwise: only its producer writes it. `bytes` must
-/// be 4-byte aligned, as the writer's buffers and flash mappings are.
-pub(crate) fn open(bytes: &[u8], version: u32) -> Option<Sections<'_>> {
-    let (header, table) = bytes.get(..header_bytes())?.split_at(size_of::<Header>());
-    let header: Header = bytemuck::pod_read_unaligned(header);
-    if header.version != version {
-        return None;
-    }
-    let table = bytemuck::cast_slice(table);
-    Some(Sections::borrow(&bytes[header_bytes()..], table))
+/// The format version in the show's header, or `None` for bytes too short
+/// for a header and section table.
+pub(crate) fn version(bytes: &[u8]) -> Option<u32> {
+    let header = bytes.get(..header_bytes())?;
+    let header: Header = bytemuck::pod_read_unaligned(&header[..size_of::<Header>()]);
+    Some(header.version)
+}
+
+/// The sections of a show whose header was checked when it was admitted.
+/// The show is trusted: only its producer writes it. `bytes` must be 4-byte
+/// aligned, as the writer's buffers and flash mappings are.
+pub(crate) fn sections(bytes: &[u8]) -> Sections<'_> {
+    let (header, payload) = bytes.split_at(header_bytes());
+    let table = bytemuck::cast_slice(&header[size_of::<Header>()..]);
+    Sections::borrow(payload, table)
 }
 
 impl donder_runtime_types::sampling::Stop for GradientStop {

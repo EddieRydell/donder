@@ -15,7 +15,7 @@ fn main() {
     )
     .into_session()
     .unwrap();
-    let project = &session.project;
+    let project = session.project();
     let id = project
         .root()
         .sequences
@@ -23,7 +23,7 @@ fn main() {
         .map(|source| source.id())
         .find(|id| {
             session
-                .source
+                .source()
                 .declared_name((**id).into())
                 .is_some_and(|name| name.as_str() == "layer_test")
         })
@@ -68,7 +68,7 @@ fn main() {
     println!(
         "sequence={} outputs={} pixels={} effects={} payload_bytes={}",
         session
-            .source
+            .source()
             .declared_name((*id).into())
             .map_or_else(|| "owned".to_string(), |name| name.as_str().to_string()),
         outputs.len(),

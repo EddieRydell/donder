@@ -75,25 +75,18 @@ fn resolve_show<'a, S>(
     retain: Retain<'_>,
     targets_only: impl FnOnce(&donder_model::LayoutId) -> bool,
 ) -> Option<Selection<'a, S>> {
-    let setup = project.get::<donder_model::Setup>(*project.root().setup.id())?;
-    let layout = project.get::<donder_model::Layout>(*setup.layout.id())?;
-    let geometry = project.playback_geometry(&layout.id)?;
-    let patch = project.get::<donder_model::Patch>(*setup.patch.id())?;
-    let routes = project.playback_patch_routes(&patch.id)?;
+    let setup = project.active_setup();
+    let layout = setup.layout();
     if !targets_only(&layout.id) {
         return None;
     }
+    let patch = setup.patch();
+    // Project admission proves every setup controller index fits u32.
     let controllers = setup
-        .controllers
-        .iter()
+        .controllers()
         .enumerate()
-        .map(|(index, source)| {
-            // Project admission proves every setup controller index fits u32.
-            project
-                .get::<donder_model::Controller>(*source.id())
-                .map(|controller| (index as u32, controller))
-        })
-        .collect::<Option<Vec<_>>>()?;
+        .map(|(index, controller)| (index as u32, controller.object()))
+        .collect::<Vec<_>>();
     let mut outputs = Vec::new();
     let all = |controller_index, controller: &'a donder_model::Controller| {
         controller
@@ -146,10 +139,10 @@ fn resolve_show<'a, S>(
     }
     Some(Selection {
         show,
-        layout,
-        geometry,
-        patch,
-        routes,
+        layout: layout.object(),
+        geometry: layout.playback_geometry(),
+        patch: patch.object(),
+        routes: patch.playback_routes(),
         outputs,
     })
 }
@@ -164,7 +157,8 @@ mod tests {
         donder_project_io::check_project(&path, &Default::default(), &mut Default::default())
             .into_session()
             .unwrap()
-            .project
+            .project()
+            .clone()
     }
 
     fn addresses(selection: &Selection<'_>) -> Vec<(u32, ControllerOutput)> {

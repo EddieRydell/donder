@@ -1,6 +1,6 @@
 pub use crate::document::text_cache::DocumentTextCache;
 use crate::serialization::{document_text, write_source_documents};
-use crate::{ExportProjectError, ProjectSession, serialization};
+use crate::{ExportProjectError, ProjectSession};
 
 pub fn save_project(session: &ProjectSession) -> Result<(), ExportProjectError> {
     write_source_documents(session, session.source.project_root())?;
@@ -27,7 +27,6 @@ pub fn source_document_texts(
     documents: &[crate::DocumentId],
     cache: &mut DocumentTextCache,
 ) -> Result<Vec<Option<String>>, ExportProjectError> {
-    serialization::validate_source_inventory(session)?;
     documents
         .iter()
         .map(|document_id| {

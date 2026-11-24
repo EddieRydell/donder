@@ -23,7 +23,7 @@ impl RenderTarget {
         sequence: donder_model::SequenceId,
     ) -> Option<Self> {
         Some(Self {
-            sequence: session.address_of(sequence.into())?,
+            sequence: session.find_address(sequence.into())?,
         })
     }
 

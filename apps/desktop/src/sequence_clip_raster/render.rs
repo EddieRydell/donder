@@ -23,9 +23,7 @@ pub(super) fn render_clip_raster(
     let Some(clip) = sequence.clip(clip_id) else {
         unreachable!("the worker renders clips of the show it prepared from their session")
     };
-    let Ok(frames) = clip.raster_frames() else {
-        unreachable!("validation keeps a sequence's frames within the show clock")
-    };
+    let frames = clip.raster_frames();
     let columns = frames.len();
     let rows = clip
         .target_pixel_count()
@@ -36,11 +34,7 @@ pub(super) fn render_clip_raster(
         if !should_continue() {
             return Err(Cancelled);
         }
-        let Ok(time) = donder_runtime_types::sample_time_from_frame(frame, clip.frame_rate())
-        else {
-            unreachable!("validation keeps a sequence's frames within the show clock")
-        };
-        for (row, color) in raster.evaluate(time).iter().enumerate() {
+        for (row, color) in raster.evaluate(clip.frame_time(frame)).iter().enumerate() {
             let offset = (row * columns + column) * 4;
             pixels_rgba[offset..offset + 3].copy_from_slice(&color.to_bytes());
             pixels_rgba[offset + 3] = 255;

@@ -30,28 +30,28 @@ pub(crate) enum ConsoleCommand {
     Set { automation: u16, value: f32 },
 }
 
-/// A show playing in a caller's buffer of [`Layout::words`] words.
+/// A show playing in a caller's buffer of at least [`Layout::words`] words.
 pub(crate) struct Playback<'a, 'w> {
     show: Show<'a>,
     workspace: Workspace<'w>,
 }
 
 impl<'a, 'w> Playback<'a, 'w> {
-    /// Start `show` in `buffer`; `None` when it is smaller than the show needs.
-    pub(crate) fn new(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
-        Some(Self {
+    /// Start `show` in `buffer`.
+    pub(crate) fn new(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Self {
+        Self {
             show,
-            workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), true)?,
-        })
+            workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), true),
+        }
     }
 
     /// Continue `show` in the `buffer` an earlier playback of it left, as a
     /// caller that keeps the buffer between frames does.
-    pub(crate) fn resume(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Option<Self> {
-        Some(Self {
+    pub(crate) fn resume(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Self {
+        Self {
             show,
-            workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), false)?,
-        })
+            workspace: carve(show, layout, bytemuck::cast_slice_mut(buffer), false),
+        }
     }
 
     /// The frame at `time`, borrowing the buffer rather than this playback.
@@ -61,11 +61,12 @@ impl<'a, 'w> Playback<'a, 'w> {
     {
         let buffer = run(self.show, &mut self.workspace, time);
         let Workspace {
-            buffers, outputs, ..
+            buffers,
+            outputs,
+            pixels,
+            ..
         } = self.workspace;
-        let Some(colors) = buffers.into_iter().nth(buffer) else {
-            unreachable!("evaluation names one of the buffers")
-        };
+        let colors = &mut buffers[buffer * pixels..(buffer + 1) * pixels];
         SequenceFrame {
             show: self.show,
             colors,
@@ -100,7 +101,8 @@ fn run(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime) -> usize
     }
     *workspace.frame = [frame, 1];
     let buffer = evaluate_frame(show, workspace, time);
-    crate::patch::evaluate(show, workspace.buffers[buffer], workspace.outputs, frame);
+    let colors = &workspace.buffers[buffer * workspace.pixels..(buffer + 1) * workspace.pixels];
+    crate::patch::evaluate(show, colors, workspace.outputs, frame);
     buffer
 }
 

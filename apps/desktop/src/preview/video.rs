@@ -8,7 +8,6 @@ use std::num::NonZeroU32;
 use camino::Utf8Path;
 use donder_editor::dto::{ExportProgress, PreviewAppearance};
 use donder_model::{DonderProject, SequenceId};
-use donder_runtime_types::sample_time_from_frame;
 use fdk_aac::enc::{AudioObjectType, BitRate, ChannelMode, Encoder, EncoderParams, Transport};
 use openh264::OpenH264API;
 use openh264::encoder::{
@@ -80,17 +79,9 @@ pub(crate) fn export_video(
         })?;
     let fps = video_timescale.get();
     let style = PreviewStyle::from_appearance(appearance)?;
-    let geometry = PreviewGeometry::from_project(project)?;
+    let geometry = PreviewGeometry::from_project(project);
     let prepared = donder_elaboration::prepare(project, sequence, donder_elaboration::Retain::All)
         .ok_or("The sequence cannot be played on the active setup.")?;
-    if !prepared
-        .fixtures()
-        .iter()
-        .map(|fixture| (fixture.id, fixture.pixel_count as usize))
-        .eq(geometry.fixtures.iter().copied())
-    {
-        return Err("The prepared sequence does not match the active layout.".into());
-    }
     let scene = PreviewScene::new(
         0,
         geometry
@@ -103,10 +94,11 @@ pub(crate) fn export_video(
     let last_frame = prepared.frame_count().saturating_sub(1);
     let duration_micros = u64::from(prepared.duration().as_ticks());
     let mut playback = prepared.into_playback();
-    let too_long = || "The sequence is too long to export.".to_string();
     // Enough video frames to cover the whole sequence.
-    let total = u32::try_from((duration_micros * u64::from(fps)).div_ceil(MICROS_PER_SECOND))
-        .map_err(|_| too_long())?;
+    let Ok(total) = u32::try_from((duration_micros * u64::from(fps)).div_ceil(MICROS_PER_SECOND))
+    else {
+        unreachable!("a sequence's microseconds fit 32 bits, so its frames at 120 fps do")
+    };
     let song = song
         .map(|path| {
             progress(ExportProgress::PreparingAudio);
@@ -149,10 +141,10 @@ pub(crate) fn export_video(
                 total,
             });
         }
-        let frame = u32::try_from(u64::from(index) * u64::from(rate) / u64::from(fps))
-            .map_err(|_| too_long())?
-            .min(last_frame);
-        let time = sample_time_from_frame(frame, rate).map_err(|_| too_long())?;
+        // At most the sequence's own frame count, which fits 32 bits.
+        let frame =
+            (u64::from(index) * u64::from(rate) / u64::from(fps)).min(u64::from(last_frame)) as u32;
+        let time = playback.prepared().frame_time(frame);
         for (target, color) in colors.iter_mut().zip(playback.evaluate(time).colors()) {
             *target = PreviewColor::opaque(color.to_bytes());
         }

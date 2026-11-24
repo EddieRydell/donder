@@ -117,11 +117,9 @@ pub(super) fn gradient(
     }
 }
 
-/// Coordinates within 2 km of the origin.
 fn distance(meters: Meters) -> Option<Distance> {
-    (meters.0.abs() <= 2_000_000_000)
-        .then(|| i32::try_from(meters.0).ok())
-        .flatten()
+    i32::try_from(meters.0)
+        .ok()
         .map(|micrometers| Distance { micrometers })
 }
 
@@ -137,7 +135,6 @@ fn window((low, high): (f32, f32)) -> Window {
 /// loading stores it, and how it is built from its document.
 pub(super) trait Resolve: donder_model::Reusable {
     type Document;
-    const KIND: ObjectKind;
     fn id(raw: u32) -> Self::Id;
     fn document(declaration: &Declaration) -> Option<&Self::Document>;
     fn loaded(project: &mut ProjectData) -> &mut IndexMap<Self::Id, Self>;
@@ -160,7 +157,6 @@ macro_rules! resolve_kinds {
         $build:expr;)+) => {$(
         impl Resolve for $kind {
             type Document = types::$kind;
-            const KIND: ObjectKind = ObjectKind::$kind;
             fn id(raw: u32) -> $id {
                 $id(raw)
             }
@@ -263,11 +259,9 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         reference: &Reference,
     ) -> Result<T::Id, LoadError> {
-        let object = self
+        let id = self
             .loader
-            .resolve_reference(document, reference, T::KIND)?;
-        let id =
-            T::Id::try_from(object).map_err(|_| self.loader.unresolved(document, reference))?;
+            .resolve_reference::<T::Id>(document, reference)?;
         self.resolve::<T>(id)?;
         Ok(id)
     }
@@ -831,7 +825,7 @@ impl DomainResolver<'_> {
                 return Err(self.invalid(
                     document,
                     span,
-                    "positions are within 2,000 meters of the origin",
+                    "a position's coordinates are -2,147m to 2,147m",
                 ));
             }
         };
@@ -888,7 +882,7 @@ impl DomainResolver<'_> {
                                     _ => Err(self.invalid(
                                         document,
                                         span,
-                                        "points are within 2,000 meters of the origin",
+                                        "a point's coordinates are -2,147m to 2,147m",
                                     )),
                                 })
                                 .collect::<Result<_, _>>()?,
@@ -1127,14 +1121,11 @@ impl DomainResolver<'_> {
                     params,
                     position,
                 } => {
-                    let ObjectId::OperatorDefinition(definition) = self.loader.resolve_reference(
-                        document,
-                        operator,
-                        ObjectKind::OperatorDefinition,
-                    )?
-                    else {
-                        return Err(self.loader.unresolved(document, operator));
-                    };
+                    let definition = self
+                        .loader
+                        .resolve_reference::<donder_model::OperatorDefinitionId>(
+                            document, operator,
+                        )?;
                     let declarations = self
                         .project
                         .operators
@@ -1251,13 +1242,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         effect: &Reference,
     ) -> Result<EffectDefinitionId, LoadError> {
-        let ObjectId::EffectDefinition(definition) =
-            self.loader
-                .resolve_reference(document, effect, ObjectKind::EffectDefinition)?
-        else {
-            return Err(self.loader.unresolved(document, effect));
-        };
-        Ok(definition)
+        self.loader.resolve_reference(document, effect)
     }
 
     fn sequence(
@@ -1808,28 +1793,18 @@ impl DomainResolver<'_> {
             }
             (Type::Marks, DataValue::None) => ParamValue::Marks(None),
             (Type::Curve, DataValue::Reference(segments)) => {
-                let ObjectId::Curve(curve) = self.loader.resolve_reference(
-                    document,
-                    &reference(segments),
-                    ObjectKind::Curve,
-                )?
-                else {
-                    return Err(self.loader.unresolved(document, &reference(segments)));
-                };
+                let curve = self
+                    .loader
+                    .resolve_reference(document, &reference(segments))?;
                 ParamValue::Curve(OwnedCurve::Reference(curve))
             }
             (Type::Curve, DataValue::Record(..)) => ParamValue::Curve(OwnedCurve::Inline(curve(
                 &self.decode::<types::CurveValue>(document, value)?.points,
             ))),
             (Type::Gradient, DataValue::Reference(segments)) => {
-                let ObjectId::Gradient(gradient) = self.loader.resolve_reference(
-                    document,
-                    &reference(segments),
-                    ObjectKind::Gradient,
-                )?
-                else {
-                    return Err(self.loader.unresolved(document, &reference(segments)));
-                };
+                let gradient = self
+                    .loader
+                    .resolve_reference(document, &reference(segments))?;
                 ParamValue::Gradient(OwnedGradient::Reference(gradient))
             }
             (Type::Gradient, DataValue::Record(..)) => {

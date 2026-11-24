@@ -427,7 +427,7 @@ let tail = scan forward input decay d as light {
   and the result saturates at full brightness.
 - A scan's whole frame is computed once per frame, so its cost does not depend
   on how far the light travels. `max` or `+` of a forward and a backward scan
-  spreads light both ways. A program runs at most 8 scans.
+  spreads light both ways. A definition runs at most 256 scans.
 
 Syntax nests at most 128 levels deep. Expressions, blocks and each operator
 of a chain such as `a + b + c` are levels.
@@ -530,12 +530,9 @@ fixture; a whole-target clip sections the target's fixtures in order.
 - A sequence has at most 250,000 prepared frames.
 - A definition has at most 64 reductions. Its most general program (every
   parameter automated) may hold at most 192 bytes of per-pixel values at once
-  and nest at most 16 per-pixel choices and reductions; more is a compile
-  error.
+  and nest at most 16 per-pixel choices and reductions, and run at most 256
+  scans; more is a compile error.
 - Reductions and tables are bounded as described above.
-
-- A show's graph holds at most 16 signal frames at once; a program runs at
-  most 8 scans.
 
 Preparation and playback never report errors at frame time. Programs are
 checked once when they compile; a show is trusted when it loads.

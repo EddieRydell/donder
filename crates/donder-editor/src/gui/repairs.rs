@@ -18,7 +18,7 @@ pub fn repair_changes(before: &ProjectSession, repairs: &[Repair]) -> Vec<String
                 .map(|item| {
                     let (change, object, _) = describe(before, repair);
                     let name = before
-                        .project
+                        .project()
                         .get::<Layout>(*layout)
                         .and_then(|layout| layout.fixture(*item))
                         .map(|fixture| fixture.name.as_str().to_string());
@@ -129,13 +129,8 @@ impl Change {
 /// A repair's change, the object it is in, and the member's name when it has
 /// one.
 fn describe(before: &ProjectSession, repair: &Repair) -> (Change, String, Option<String>) {
-    let project = &before.project;
-    let address = |id: donder_model::ObjectId| {
-        before
-            .address_of(id)
-            .map(|address| address.to_string())
-            .unwrap_or_default()
-    };
+    let project = before.project();
+    let address = |id: donder_model::ObjectId| before.address_of(id).to_string();
     let output = |patch: donder_model::PatchId, route: donder_model::PixelRouteId| {
         let route = project
             .get::<Patch>(patch)?

@@ -129,13 +129,13 @@ fn entry(
 const ROOT_FIXED: &str = "project.data.donder must remain at the project root.";
 
 pub(crate) fn workspace_entries(session: &ProjectSession) -> Vec<WorkspaceEntry> {
-    let documents = session.source.documents.keys().map(|id| id.path());
-    workspace_paths(session.source.project_root(), documents)
+    let documents = session.source().documents().keys().map(|id| id.path());
+    workspace_paths(session.source().project_root(), documents)
         .into_iter()
         .map(|(path, kind)| {
             let document = session
-                .source
-                .documents
+                .source()
+                .documents()
                 .get(&donder_project_io::DocumentId::new(path.clone()))
                 .map(|document| DocumentRole {
                     format: document.format(),

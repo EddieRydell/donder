@@ -10,7 +10,7 @@ fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
         donder_project_io::check_project(&path, &Default::default(), &mut Default::default())
             .into_session()
             .unwrap();
-    let project = &session.project;
+    let project = session.project();
     let setup = &project.reusable::<donder_model::Setup>()[project.root().setup.id()];
     let controller = setup.controllers[0].id();
     let output = project.reusable::<donder_model::Controller>()[controller].outputs()[0].0;

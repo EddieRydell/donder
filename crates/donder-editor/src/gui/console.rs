@@ -5,21 +5,21 @@ use donder_model::{
     InputEvent, LengthSource, LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId, Play, PlayLength,
     PlayedQuantity, PlayedValue, SequenceLayerId, Window,
 };
-use donder_project_io::{DocumentId, ProjectSession, ensure_document_can_reference_object};
+use donder_project_io::{DocumentId, ProjectSession};
 
 use super::edit::automation_target_from_gui;
 use super::graph::new_clip;
 use super::input_device::gui_control;
 use super::model::{
-    clip_scope, fresh_name, identifier, imported_effect, object_address, object_id_from_gui,
-    object_ref, param_value_from_gui, parse_color, typed_name,
+    chosen_effect, clip_scope, fresh_name, identifier, object_id_from_gui, object_ref,
+    param_value_from_gui, parse_color, typed_name,
 };
 use super::projection::{
-    active_layout, active_setup, automation_target_to_gui, composition_graph, curve_library,
-    effect_definitions, effect_ref_to_gui, gradient_library, invocation_params, layers_to_gui,
-    layout_lanes, target_label, target_to_gui,
+    automation_target_to_gui, composition_graph, curve_library, effect_definitions,
+    effect_ref_to_gui, gradient_library, invocation_params, layers_to_gui, layout_lanes,
+    target_label, target_to_gui,
 };
-use super::{GuiMutationError, ResolvedGuiObject, blocked, checked_gui_duration, next_id};
+use super::{GuiMutationError, ResolvedGuiObject, checked_gui_duration, next_id};
 use crate::dto::{
     ConsoleAction, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument,
     ConsoleGuiEdit, ConsoleInput, ConsoleInputControl, ConsoleInputDevice, ConsoleLengthSource,
@@ -37,19 +37,17 @@ pub(super) fn project_console(
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
     let id = resolved.id::<ConsoleId>();
-    let Some(console) = session.project.get::<Console>(id) else {
-        return blocked("Console was not found.", Vec::new());
-    };
-    let mut targets = active_layout(session).map(layout_lanes).unwrap_or_default();
+    let console = resolved.view::<Console>(session).object();
+    let mut targets = layout_lanes(&session.project().active_layout());
     let mut seen = std::collections::HashSet::new();
     targets.retain(|lane| seen.insert(lane.target.fixture));
     GuiDocument::Console {
         document: ConsoleGuiDocument {
             description: console.description.clone(),
             source_ref: resolved.source_ref(),
-            name: object_address(session, id).declared_name().to_string(),
+            name: session.address_of(id).declared_name().to_string(),
             perform_index: session
-                .project
+                .project()
                 .root()
                 .consoles
                 .iter()
@@ -112,10 +110,10 @@ fn project_clip(
         },
         effect: effect_ref_to_gui(session, &clip.definition),
         effect_name: session
-            .project
-            .get::<donder_model::EffectDefinition>(clip.definition)
-            .map(|definition| definition.name().to_string())
-            .unwrap_or_else(|| "Missing effect".to_string()),
+            .project()
+            .reusable::<donder_model::EffectDefinition>()[&clip.definition]
+            .name()
+            .to_string(),
         params: invocation_params(session, &clip.definition, &clip.param_overrides, |_, _| {
             None
         }),
@@ -201,8 +199,7 @@ fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
 }
 
 fn action_from_gui(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
+    session: &ProjectSession,
     action: ConsoleAction,
 ) -> Result<Action, GuiMutationError> {
     Ok(match action {
@@ -227,7 +224,7 @@ fn action_from_gui(
                     by: match by {
                         ConsoleLengthSource::Velocity => LengthSource::Velocity,
                         ConsoleLengthSource::Axis { control } => {
-                            LengthSource::Axis(control_from_gui(session, owner, &control)?)
+                            LengthSource::Axis(control_from_gui(session, &control)?)
                         }
                     },
                     shortest: checked_gui_duration(shortest_seconds)?,
@@ -271,13 +268,11 @@ fn control_ref_to_gui(session: &ProjectSession, control: &ControlRef) -> Console
 
 fn project_input(session: &ProjectSession, input: &ControlRef) -> ConsoleInput {
     let device = session
-        .project
+        .project()
         .get::<donder_model::InputDevice>(input.device);
     ConsoleInput {
         control: control_ref_to_gui(session, input),
-        device_name: object_address(session, input.device)
-            .declared_name()
-            .to_string(),
+        device_name: session.address_of(input.device).declared_name().to_string(),
         control_name: device
             .and_then(|device| device.control(input.control))
             .map(|control| control.name.as_str().to_string())
@@ -302,21 +297,15 @@ fn controls(device: &InputDevice, buttons: bool) -> Vec<ConsoleInputControl> {
 
 /// The active setup's input devices and their buttons and axes.
 fn input_devices(session: &ProjectSession) -> Vec<ConsoleInputDevice> {
-    let Some(setup) = active_setup(session) else {
-        return Vec::new();
-    };
-    setup
-        .input_devices
-        .iter()
-        .filter_map(|source| {
-            let id = source.id();
-            let device = session.project.get::<donder_model::InputDevice>(*id)?;
-            Some(ConsoleInputDevice {
-                device: object_ref(session, *id),
-                name: object_address(session, *id).declared_name().to_string(),
-                buttons: controls(device, true),
-                axes: controls(device, false),
-            })
+    session
+        .project()
+        .active_setup()
+        .input_devices()
+        .map(|device| ConsoleInputDevice {
+            device: object_ref(session, device.id()),
+            name: session.address_of(device.id()).declared_name().to_string(),
+            buttons: controls(&device, true),
+            axes: controls(&device, false),
         })
         .collect()
 }
@@ -326,13 +315,8 @@ pub(super) fn edit_console(
     resolved: &ResolvedGuiObject,
     edit: ConsoleGuiEdit,
 ) -> Result<Vec<String>, GuiMutationError> {
-    let id = resolved.id::<ConsoleId>();
     let mut created = Vec::new();
-    let mut draft = session
-        .project
-        .get::<Console>(id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Console was not found.".into()))?;
+    let mut draft = resolved.view::<Console>(session).object().clone();
     let owner = resolved.document_id();
     match edit {
         ConsoleGuiEdit::SetFrameRate { frame_rate } => draft.frame_rate = frame_rate,
@@ -359,7 +343,7 @@ pub(super) fn edit_console(
             effect,
             target,
         } => {
-            let (id, name) = add_clip(session, owner, &mut draft, &initial_color, effect, target)?;
+            let (id, name) = add_clip(session, &mut draft, &initial_color, effect, target)?;
             created.push(name);
             draft.always.push(Always {
                 clip: id,
@@ -371,7 +355,7 @@ pub(super) fn edit_console(
             effect,
             target,
         } => {
-            let (_, name) = add_clip(session, owner, &mut draft, &initial_color, effect, target)?;
+            let (_, name) = add_clip(session, &mut draft, &initial_color, effect, target)?;
             created.push(name);
         }
         ConsoleGuiEdit::AddEffectAction {
@@ -382,9 +366,8 @@ pub(super) fn edit_console(
             effect,
             target,
         } => {
-            let control = control_from_gui(session, owner, &control)?;
-            let (clip, name) =
-                add_clip(session, owner, &mut draft, &initial_color, effect, target)?;
+            let control = control_from_gui(session, &control)?;
+            let (clip, name) = add_clip(session, &mut draft, &initial_color, effect, target)?;
             created.push(name);
             match mode {
                 ConsolePlayMode::ForTime => push_action(
@@ -430,8 +413,8 @@ pub(super) fn edit_console(
             event,
             action,
         } => {
-            let control = control_from_gui(session, owner, &control)?;
-            let action = action_from_gui(session, owner, action)?;
+            let control = control_from_gui(session, &control)?;
+            let action = action_from_gui(session, action)?;
             push_action(&mut draft, event, control, action)?;
         }
         ConsoleGuiEdit::RemoveAction { on, index } => {
@@ -496,9 +479,9 @@ pub(super) fn edit_console(
                     window,
                 });
             } else if let Some(ConsoleParamSource::Control { control }) = source {
-                let control = control_from_gui(session, owner, &control)?;
+                let control = control_from_gui(session, &control)?;
                 let button = session
-                    .project
+                    .project()
                     .get::<InputDevice>(control.device)
                     .and_then(|device| device.control(control.control))
                     .map(|control| control.kind.is_button())
@@ -551,7 +534,7 @@ pub(super) fn edit_console(
             }
         }
         ConsoleGuiEdit::AddEvent { event, input } => {
-            let input = control_from_gui(session, owner, &input)?;
+            let input = control_from_gui(session, &input)?;
             draft.events.push(On {
                 id: OnId(next_id(draft.events.iter().map(|on| on.id.0))?),
                 event: input_event(event, input),
@@ -559,9 +542,9 @@ pub(super) fn edit_console(
             });
         }
         ConsoleGuiEdit::SetEvent { id, event, input } => {
-            let input = control_from_gui(session, owner, &input)?;
+            let input = control_from_gui(session, &input)?;
             let notes = session
-                .project
+                .project()
                 .get::<InputDevice>(input.device)
                 .and_then(|device| device.control(input.control))
                 .and_then(|control| control.kind.notes())
@@ -591,26 +574,25 @@ pub(super) fn edit_console(
         ConsoleGuiEdit::SetActions { id, actions } => {
             let actions = actions
                 .into_iter()
-                .map(|action| action_from_gui(session, owner, action))
+                .map(|action| action_from_gui(session, action))
                 .collect::<Result<_, _>>()?;
             event_mut(&mut draft, id)?.actions = actions;
         }
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(created)
 }
 
 /// A new clip on the first layer over `target`, named after its effect: its id
 /// and name.
 fn add_clip(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
+    session: &ProjectSession,
     draft: &mut Console,
     initial_color: &str,
     effect: SequenceEffectReference,
     target: FixtureTarget,
 ) -> Result<(ConsoleClipId, String), GuiMutationError> {
-    let clip = new_clip(session, owner, draft, effect, initial_color)?;
+    let clip = new_clip(session, draft, effect, initial_color)?;
     let id = ConsoleClipId(clip.id);
     let shown = clip.name.as_str().to_string();
     draft.clips.push(donder_model::ConsoleClip {
@@ -618,7 +600,7 @@ fn add_clip(
         name: clip.name,
         description: None,
         layer_id: clip.layer_id,
-        target: target_from_gui(session, owner, target)?,
+        target: target_from_gui(session, target),
         scope: ClipScope::WholeTarget,
         definition: clip.definition,
         param_overrides: clip.param_overrides,
@@ -678,15 +660,14 @@ fn edit_clip(
             clip_mut(console, id)?.layer_id = SequenceLayerId(layer_id);
         }
         ConsoleClipEdit::Target { target } => {
-            clip_mut(console, id)?.target = target_from_gui(session, owner, target)?;
+            clip_mut(console, id)?.target = target_from_gui(session, target);
         }
         ConsoleClipEdit::Scope { scope } => clip_mut(console, id)?.scope = clip_scope(scope),
         ConsoleClipEdit::Definition {
             initial_color,
             effect: reference,
         } => {
-            let (definition, _, params) =
-                imported_effect(session, owner, reference, &initial_color)?;
+            let (definition, _, params) = chosen_effect(session, reference, &initial_color)?;
             let authored = clip_mut(console, id)?;
             authored.definition = definition;
             authored.param_overrides = params;
@@ -704,32 +685,20 @@ fn edit_clip(
     Ok(())
 }
 
-/// A fixture or group of the active layout, which the console's document then imports.
-fn target_from_gui(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
-    target: FixtureTarget,
-) -> Result<DomainFixtureTarget, GuiMutationError> {
-    let layout = active_layout(session)
-        .map(|layout| layout.id)
-        .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".into()))?;
-    ensure_document_can_reference_object(session, owner, layout.into())
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-    Ok(DomainFixtureTarget {
-        layout,
+/// A fixture or group of the active layout.
+fn target_from_gui(session: &ProjectSession, target: FixtureTarget) -> DomainFixtureTarget {
+    DomainFixtureTarget {
+        layout: session.project().active_layout().id(),
         fixture: FixtureInstanceId(target.fixture),
-    })
+    }
 }
 
-/// A control the console's document may name, importing its device.
+/// A control of an input device of the project.
 fn control_from_gui(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
+    session: &ProjectSession,
     control: &ConsoleControlRef,
 ) -> Result<ControlRef, GuiMutationError> {
     let device: InputDeviceId = object_id_from_gui(session, &control.device)?;
-    ensure_document_can_reference_object(session, owner, device.into())
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(ControlRef {
         device,
         control: donder_model::InputControlId(control.control),

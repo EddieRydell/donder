@@ -286,7 +286,7 @@ fn layout_groups_share_members_and_reject_unknown_repeated_cyclic_or_orphaned_it
     let report = check_project(&root, &overrides, &mut Default::default());
     let session = report.session.expect("shared members load");
     let layout = session
-        .project
+        .project()
         .objects::<donder_model::Layout>()
         .next()
         .unwrap();

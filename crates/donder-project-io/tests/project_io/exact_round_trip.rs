@@ -19,7 +19,7 @@ fn saving_a_loaded_project_rewrites_no_byte() {
         before,
         donder_project_io::project_source_texts(&root).unwrap()
     );
-    for id in session.source.documents.keys() {
+    for id in session.source().documents().keys() {
         assert_eq!(
             source_document_text(&session, id).unwrap().unwrap(),
             before[id.path()],
@@ -32,28 +32,28 @@ fn saving_a_loaded_project_rewrites_no_byte() {
 fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
     let (_temporary, root, session) = starter_copy();
     let sequence_id = session
-        .project
+        .project()
         .root()
         .sequences
         .iter()
         .map(|source| source.id())
         .find(|id| {
-            !session.project.reusable::<donder_model::Sequence>()[*id]
+            !session.project().reusable::<donder_model::Sequence>()[*id]
                 .clips
                 .is_empty()
         })
         .copied()
         .unwrap();
-    let path = root.join(session.address_of(sequence_id.into()).unwrap().document());
+    let path = root.join(session.address_of(sequence_id).document());
     let original = fs::read_to_string(&path).unwrap();
     // Whitespace is the only freedom the text has.
     let spaced = original.replace(": ", " :   ").replace(",\n", " ,\n\n");
     assert_ne!(spaced, original);
     fs::write(&path, spaced).unwrap();
     let mut edited = common::load_project(&root);
-    assert_eq!(session.project, edited.project);
+    assert_eq!(session.project(), edited.project());
     let mut sequence = edited
-        .project
+        .project()
         .get::<donder_model::Sequence>(sequence_id)
         .unwrap()
         .clone();
@@ -65,7 +65,7 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
         .iter()
         .map(|effect| effect.name.clone())
         .collect::<Vec<_>>();
-    edited.project.put(sequence).unwrap();
+    edited.put(sequence).unwrap();
 
     save_project(&edited).unwrap();
     let saved = fs::read_to_string(&path).unwrap();
@@ -74,7 +74,7 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
     // Clip identities follow document order, so compare the order by name.
     assert_eq!(
         reloaded
-            .project
+            .project()
             .get::<donder_model::Sequence>(sequence_id)
             .unwrap()
             .clips
@@ -83,17 +83,17 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
             .collect::<Vec<_>>(),
         names
     );
-    assert_eq!(edited.source.entrypoint, reloaded.source.entrypoint);
+    assert_eq!(edited.source().entrypoint(), reloaded.source().entrypoint());
     assert_eq!(
-        edited.source.referenced_assets,
-        reloaded.source.referenced_assets
+        edited.source().referenced_assets(),
+        reloaded.source().referenced_assets()
     );
     assert_eq!(
-        edited.source.documents.len(),
-        reloaded.source.documents.len()
+        edited.source().documents().len(),
+        reloaded.source().documents().len()
     );
-    for (id, before) in &edited.source.documents {
-        let after = &reloaded.source.documents[id];
+    for (id, before) in edited.source().documents() {
+        let after = &reloaded.source().documents()[id];
         assert_eq!(before.imports(), after.imports(), "{id:?}");
         assert_eq!(before.objects(), after.objects(), "{id:?}");
         assert_eq!(
@@ -106,47 +106,22 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
 }
 
 #[test]
-fn missing_import_is_an_error_not_a_flattened_or_guessed_reference() {
-    let mut session = common::load_project(&common::starter_root());
-    let id = session
-        .project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
-        .find(|id| {
-            !session.project.reusable::<donder_model::Sequence>()[*id]
-                .clips
-                .is_empty()
-        })
-        .copied()
-        .unwrap();
-    let id = session.address_of(id.into()).unwrap().document_id().clone();
-    let original = &session.source.documents[&id];
-    let without_imports =
-        donder_project_io::SourceDocument::data(Vec::new(), original.objects().to_vec()).unwrap();
-    session.source.documents.insert(id.clone(), without_imports);
-    assert!(source_document_text(&session, &id).is_err());
-}
-
-#[test]
 fn removing_only_typed_object_rejects_save_before_any_write() {
-    let (_temporary, root, mut session) = starter_copy();
-    let id = *session.project.root().sequences[0].id();
-    let document = session.address_of(id.into()).unwrap().document_id().clone();
+    let (_temporary, root, session) = starter_copy();
+    let id = *session.project().root().sequences[0].id();
+    let document = session.address_of(id).document_id().clone();
     let before = donder_project_io::project_source_texts(&root).unwrap();
-    let mut project_root = session.project.root().clone();
+    let mut project_root = session.project().root().clone();
     project_root.sequences.retain(|source| source.id() != &id);
     session
-        .project
+        .clone()
         .apply_edits([
             donder_model::ProjectEdit::Put(donder_model::Object::Project(project_root)),
             donder_model::ProjectEdit::Remove(id.into()),
         ])
-        .unwrap();
-    // Typed edits preserve project validity; source inventory must still agree at save time.
-    assert!(save_project(&session).is_err());
-    assert!(source_document_text(&session, &document).is_err());
+        .unwrap_err();
+    // An edit that removes a declared object without its declaration is refused.
+    assert!(source_document_text(&session, &document).unwrap().is_some());
     assert_eq!(
         before,
         donder_project_io::project_source_texts(&root).unwrap()
@@ -158,16 +133,14 @@ fn typed_objects_without_source_inventory_cannot_be_silently_omitted() {
     use donder_model::SequenceId;
     let (_temporary, root, session) = starter_copy();
     let before = donder_project_io::project_source_texts(&root).unwrap();
-    let original = &session.project.reusable::<donder_model::Sequence>()
-        [session.project.root().sequences[0].id()];
+    let original = &session.project().reusable::<donder_model::Sequence>()
+        [session.project().root().sequences[0].id()];
     let mut candidate = session.clone();
     let mut added = original.clone();
-    added.id = SequenceId(candidate.project.new_id());
+    added.id = SequenceId(candidate.new_id());
     candidate
-        .project
         .apply_edits([donder_model::ProjectEdit::Put(added.into())])
-        .unwrap();
-    assert!(save_project(&candidate).is_err());
+        .unwrap_err();
     assert_eq!(
         before,
         donder_project_io::project_source_texts(&root).unwrap()
@@ -190,7 +163,7 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
     .unwrap();
     let mut session = common::load_project(&root);
     let id = session
-        .project
+        .project()
         .reusable::<donder_model::Sequence>()
         .keys()
         .copied()
@@ -198,19 +171,19 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
         .unwrap();
     assert!(
         !session
-            .project
+            .project()
             .root()
             .sequences
             .iter()
             .any(|source| source.id() == &id)
     );
     let mut sequence = session
-        .project
+        .project()
         .get::<donder_model::Sequence>(id)
         .unwrap()
         .clone();
     sequence.frame_rate = 60;
-    session.project.put(sequence).unwrap();
+    session.put(sequence).unwrap();
     save_project(&session).unwrap();
-    assert_eq!(session.project, common::load_project(&root).project);
+    assert_eq!(session.project(), common::load_project(&root).project());
 }

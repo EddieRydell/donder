@@ -5,7 +5,7 @@ use crate::ownership::OwnedMember;
 
 /// A kind of project object, found by its id wherever it is written.
 pub trait ProjectObject: Sized + 'static {
-    type Id: Copy + Eq + std::hash::Hash + std::fmt::Debug + Into<ObjectId> + TryFrom<ObjectId>;
+    type Id: crate::TypedId + Eq + std::hash::Hash + std::fmt::Debug;
     fn find(project: &DonderProject, id: Self::Id) -> Option<&Self>;
     /// Every object of the kind once: the reusable ones, then those owned in
     /// place.

@@ -79,7 +79,7 @@ fn concerned_site(
         )
     ) && resolved.kind == donder_model::ObjectKind::Patch;
     let concerns =
-        rule.object == resolved.object || before.address_of(rule.object).is_none() || setup_route;
+        rule.object == resolved.object || before.find_address(rule.object).is_none() || setup_route;
     concerns.then(|| site_of(&rule.problem)).flatten()
 }
 

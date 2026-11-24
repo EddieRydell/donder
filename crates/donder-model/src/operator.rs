@@ -186,9 +186,9 @@ fn validate_edge<'a>(
     }
     let known = match (&to.kind, &edge.input) {
         (CompositionGraphNodeKind::Root, None) => true,
+        // Every operator node's definition was found before edges are checked.
         (CompositionGraphNodeKind::Operator(operator), Some(input)) => definitions
-            .get(&operator.operator)
-            .ok_or_else(|| GraphValidationError::MissingOperator(to.id.clone()))?
+            [&operator.operator]
             .inputs()
             .any(|declared| declared == input),
         _ => false,

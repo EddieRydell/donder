@@ -2,9 +2,8 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use donder_model::{Controller, ControllerId};
+use donder_model::Controller;
 use donder_output::OutputTransports;
-use indexmap::IndexMap;
 
 use crate::audio::AudioEngine;
 use crate::rendering::{ConsoleOutput, SequenceRenderService};
@@ -18,7 +17,10 @@ const INITIAL_TICK_INTERVAL: Duration = Duration::from_millis(20);
 const HOLDING_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
 
 enum LiveFeed {
-    Sequence,
+    /// The prepared sequence of render session `session`, whose
+    /// controllers the transports opened; frames of a later session wait for
+    /// output to start again on its controllers.
+    Sequence { session: u64 },
     /// A performance, rendered on its own session clock.
     Console(Box<ConsoleOutput>),
     /// A test pattern, until output stops.
@@ -33,8 +35,8 @@ type ActiveOutput = (u32, OutputTransports, LiveOutputSnapshot, LiveFeed);
 enum Command {
     Enable {
         generation: u32,
-        controllers: IndexMap<ControllerId, Controller>,
-        active: Vec<ControllerId>,
+        /// The streamed controllers the feed's frames are for.
+        controllers: Vec<Controller>,
         feed: LiveFeed,
     },
     /// Commands for the performance a console output plays, in arrival order.
@@ -86,22 +88,20 @@ impl LiveOutputService {
         }
     }
 
+    /// Play render session `session`'s sequence to `controllers`, the
+    /// controllers it was prepared on.
     pub(crate) fn enable(
         &mut self,
-        controllers: IndexMap<ControllerId, Controller>,
-        active: Vec<ControllerId>,
+        session: u64,
+        controllers: &[Controller],
     ) -> LiveOutputSnapshot {
-        self.start(controllers, active, LiveFeed::Sequence)
+        self.start(controllers, LiveFeed::Sequence { session })
     }
 
-    /// Play a performance to the controllers.
-    pub(crate) fn perform(
-        &mut self,
-        controllers: IndexMap<ControllerId, Controller>,
-        active: Vec<ControllerId>,
-        output: ConsoleOutput,
-    ) -> LiveOutputSnapshot {
-        self.start(controllers, active, LiveFeed::Console(Box::new(output)))
+    /// Play a performance to the controllers it was prepared on.
+    pub(crate) fn perform(&mut self, output: ConsoleOutput) -> LiveOutputSnapshot {
+        let controllers = output.controllers().to_vec();
+        self.start(&controllers, LiveFeed::Console(Box::new(output)))
     }
 
     /// Send a performance's new commands to the output that plays it.
@@ -126,11 +126,9 @@ impl LiveOutputService {
 
     /// Stream a test pattern in place of live output until output stops.
     pub(crate) fn test(&mut self, test: donder_output::OutputTest) -> LiveOutputSnapshot {
-        let controllers = test.controllers().clone();
-        let active = controllers.keys().copied().collect();
+        let controllers = test.controllers().values().cloned().collect::<Vec<_>>();
         self.start(
-            controllers,
-            active,
+            &controllers,
             LiveFeed::Test {
                 test,
                 started: Instant::now(),
@@ -138,16 +136,18 @@ impl LiveOutputService {
         )
     }
 
-    fn start(
-        &mut self,
-        controllers: IndexMap<ControllerId, Controller>,
-        active: Vec<ControllerId>,
-        feed: LiveFeed,
-    ) -> LiveOutputSnapshot {
+    /// Stream `feed` to the E1.31 and Art-Net controllers among
+    /// `controllers`, the controllers its frames are for.
+    fn start(&mut self, controllers: &[Controller], feed: LiveFeed) -> LiveOutputSnapshot {
+        let controllers = controllers
+            .iter()
+            .filter(|controller| controller.universes().is_some())
+            .cloned()
+            .collect::<Vec<_>>();
         self.pending_start = false;
         self.console = matches!(feed, LiveFeed::Console(_));
         self.generation = self.generation.saturating_add(1);
-        self.snapshot = preparing_snapshot(self.generation, &controllers, &active);
+        self.snapshot = preparing_snapshot(self.generation, &controllers);
         if matches!(feed, LiveFeed::Test { .. }) {
             self.snapshot.state = LiveOutputState::Testing;
         }
@@ -156,7 +156,6 @@ impl LiveOutputService {
             .send(Command::Enable {
                 generation: self.generation,
                 controllers,
-                active,
                 feed,
             })
             .is_err()
@@ -274,7 +273,6 @@ fn worker(
             Ok(Command::Enable {
                 generation,
                 controllers,
-                active: ids,
                 feed,
             }) => {
                 if active.is_none() {
@@ -289,11 +287,11 @@ fn worker(
                     continue;
                 }
                 tick_interval = INITIAL_TICK_INTERVAL;
-                let mut snapshot = preparing_snapshot(generation, &controllers, &ids);
-                match OutputTransports::open(&controllers, &ids) {
+                let mut snapshot = preparing_snapshot(generation, &controllers);
+                match OutputTransports::open(&controllers) {
                     Ok(transports) => {
                         snapshot.state = match feed {
-                            LiveFeed::Sequence => LiveOutputState::Holding,
+                            LiveFeed::Sequence { .. } => LiveOutputState::Holding,
                             LiveFeed::Console(_) => LiveOutputState::Streaming,
                             LiveFeed::Test { .. } => LiveOutputState::Testing,
                         };
@@ -387,14 +385,25 @@ fn worker(
             }
             continue;
         }
+        let LiveFeed::Sequence { session } = feed else {
+            unreachable!("test and console feeds continued above")
+        };
         let audio = audio
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .snapshot();
-        let rendered = render
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .render_current_sequence_frame(&audio);
+        let rendered = {
+            let mut render = render
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            // A later session's frames are for its own controllers: hold
+            // until output starts again on them.
+            if render.session_generation() != *session {
+                tick_interval = HOLDING_REFRESH_INTERVAL;
+                continue;
+            }
+            render.render_current_sequence_frame(&audio)
+        };
         match rendered {
             Ok(rendered) => {
                 tick_interval = if matches!(audio.state, AudioTransportState::Playing) {
@@ -490,14 +499,9 @@ fn fail_snapshot(snapshot: &mut LiveOutputSnapshot, message: String) {
     }
 }
 
-fn preparing_snapshot(
-    generation: u32,
-    controllers: &IndexMap<ControllerId, Controller>,
-    active: &[ControllerId],
-) -> LiveOutputSnapshot {
-    let active_universe_count = active
+fn preparing_snapshot(generation: u32, controllers: &[Controller]) -> LiveOutputSnapshot {
+    let active_universe_count = controllers
         .iter()
-        .filter_map(|id| controllers.get(id))
         .map(|controller| {
             controller
                 .universes()
@@ -508,12 +512,12 @@ fn preparing_snapshot(
         enabled: false,
         state: LiveOutputState::Preparing,
         generation,
-        active_controller_count: active.len() as u32,
+        active_controller_count: controllers.len() as u32,
         active_universe_count,
-        controllers: active
+        controllers: controllers
             .iter()
-            .map(|id| LiveOutputControllerSnapshot {
-                id: format!("{:?}", id.0),
+            .map(|controller| LiveOutputControllerSnapshot {
+                id: format!("{:?}", controller.id.0),
                 state: LiveOutputControllerState::Opening,
                 last_error: None,
             })
@@ -540,7 +544,7 @@ mod tests {
 
     #[test]
     fn failed_blackout_retains_original_failure_and_drops_transports() {
-        use donder_model::{ArtNetConfig, ArtNetMode, ControllerProtocol, Universes};
+        use donder_model::{ArtNetConfig, ArtNetMode, ControllerId, ControllerProtocol, Universes};
         let id = ControllerId(0);
         // Invalid protocol address forces a codec failure before any network send.
         let controller = Controller {
@@ -559,11 +563,10 @@ mod tests {
                 ports: Vec::new(),
             }),
         };
-        let controllers = IndexMap::from([(id, controller)]);
-        let ids = vec![id];
-        let transports = OutputTransports::open(&controllers, &ids).unwrap();
-        let snapshot = preparing_snapshot(3, &controllers, &ids);
-        let mut active = Some((3, transports, snapshot, LiveFeed::Sequence));
+        let controllers = [controller];
+        let transports = OutputTransports::open(&controllers).unwrap();
+        let snapshot = preparing_snapshot(3, &controllers);
+        let mut active = Some((3, transports, snapshot, LiveFeed::Sequence { session: 0 }));
         let mut stop_error = None;
         let stopped = stop_output(
             &mut active,

@@ -113,19 +113,19 @@ impl StripSlots {
         }
     }
 
-    pub(crate) fn carve<'w>(&self, arena: &mut Carve<'w>) -> Option<StripWorkspace<'w>> {
+    pub(crate) fn carve<'w>(&self, arena: &mut Carve<'w>) -> StripWorkspace<'w> {
         let pixels = Pixels {
-            index: arena.row(0)?,
-            fraction: arena.row(0.0)?,
-            x: arena.row(0.0)?,
-            y: arena.row(0.0)?,
-            sections: arena.row(SectionPixel::default())?,
+            index: arena.row(0),
+            fraction: arena.row(0.0),
+            x: arena.row(0.0),
+            y: arena.row(0.0),
+            sections: arena.row(SectionPixel::default()),
             structure: if self.structure {
                 Some(StructureRows {
-                    z: arena.row(0.0)?,
-                    member: arena.row(0)?,
-                    strand: arena.row(0)?,
-                    along: arena.row(0)?,
+                    z: arena.row(0.0),
+                    member: arena.row(0),
+                    strand: arena.row(0),
+                    along: arena.row(0),
                 })
             } else {
                 None
@@ -133,33 +133,33 @@ impl StripSlots {
         };
         let [floats, ints, bools, handles] = self.banks();
         let floats = Store::new(
-            arena.cells(Store::<f32>::len(floats.0, floats.1), 0.0)?,
+            arena.cells(Store::<f32>::len(floats.0, floats.1), 0.0),
             floats,
         );
-        let ints = Store::new(arena.cells(Store::<i32>::len(ints.0, ints.1), 0)?, ints);
-        let bools = Store::new(arena.flags(Store::<bool>::len(bools.0, bools.1))?, bools);
+        let ints = Store::new(arena.cells(Store::<i32>::len(ints.0, ints.1), 0), ints);
+        let bools = Store::new(arena.flags(Store::<bool>::len(bools.0, bools.1)), bools);
         let handles = Store::new(
-            arena.cells(Store::<Handle>::len(handles.0, handles.1), Handle::EMPTY)?,
+            arena.cells(Store::<Handle>::len(handles.0, handles.1), Handle::EMPTY),
             handles,
         );
         let depth = usize::from(self.depth);
         let levels = Levels::new(
-            arena.cells(2 * STRIP * depth, Range::EMPTY)?,
-            arena.flags(STRIP * depth)?,
+            arena.cells(2 * STRIP * depth, Range::EMPTY),
+            arena.flags(STRIP * depth),
         );
-        let samples = <&mut [Color; STRIP]>::try_from(arena.values(STRIP, Color::BLACK)?).ok()?;
+        let samples = arena.array(Color::BLACK);
         let neighborhood = if self.stencils {
             Some(RefCell::new(Neighborhood {
-                colors: arena.values(NEIGHBORHOOD, Color::BLACK)?,
-                locals: arena.values(NEIGHBORHOOD, OUTSIDE)?,
-                weights: arena.values(NEIGHBORHOOD, 0.0)?,
-                segments: arena.values(NEIGHBORHOOD, Segment::default())?,
-                runs: arena.values(STRIP, Segment::default())?,
+                colors: arena.values(NEIGHBORHOOD, Color::BLACK),
+                locals: arena.values(NEIGHBORHOOD, OUTSIDE),
+                weights: arena.values(NEIGHBORHOOD, 0.0),
+                segments: arena.values(NEIGHBORHOOD, Segment::default()),
+                runs: arena.values(STRIP, Segment::default()),
             }))
         } else {
             None
         };
-        Some(StripWorkspace {
+        StripWorkspace {
             pixels,
             floats,
             ints,
@@ -168,7 +168,7 @@ impl StripSlots {
             levels,
             samples: RefCell::new(samples),
             neighborhood,
-        })
+        }
     }
 }
 

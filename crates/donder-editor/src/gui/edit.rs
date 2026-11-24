@@ -3,30 +3,12 @@ pub(super) fn edit_sequence(
     resolved: &ResolvedGuiObject,
     edit: SequenceGuiEdit,
 ) -> Result<Vec<String>, GuiMutationError> {
-    let sequence_id = resolved.id::<SequenceId>();
     let mut created = Vec::new();
-    let mut draft = session
-        .project
-        .get::<donder_model::Sequence>(sequence_id)
-        .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-    let layout = active_layout(session)
-        .map(|layout| layout.id)
-        .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".to_string()))?;
-    if matches!(
-        &edit,
-        SequenceGuiEdit::AddClip { .. }
-            | SequenceGuiEdit::AddAutomationClip { .. }
-            | SequenceGuiEdit::CreateAndBindAutomationClip { .. }
-            | SequenceGuiEdit::RetargetClip { .. }
-    ) {
-        donder_project_io::ensure_document_can_reference_object(
-            session,
-            resolved.document_id(),
-            layout.into(),
-        )
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-    }
+    let mut draft = resolved
+        .view::<donder_model::Sequence>(session)
+        .object()
+        .clone();
+    let layout = session.project().active_layout().id();
     match edit {
         SequenceGuiEdit::DeleteSelection { .. }
         | SequenceGuiEdit::MoveClips { .. }
@@ -46,16 +28,11 @@ pub(super) fn edit_sequence(
         SequenceGuiEdit::SetAudio { import_path } => {
             let audio = match import_path {
                 Some(import_path) => {
-                    let root = session.source.project_root().to_path_buf();
-                    let id = donder_project_io::reference_asset(
-                        &mut session.source.referenced_assets,
-                        &root,
-                        resolved.document_id(),
-                        &import_path,
-                    )
-                    .map_err(|error| {
-                        GuiMutationError::Invalid(format!("Audio file {import_path}: {error}"))
-                    })?;
+                    let id = session
+                        .reference_asset(resolved.document_id(), &import_path)
+                        .map_err(|error| {
+                            GuiMutationError::Invalid(format!("Audio file {import_path}: {error}"))
+                        })?;
                     DomainSequenceAudio::Asset(id)
                 }
                 None => DomainSequenceAudio::None,
@@ -218,13 +195,7 @@ pub(super) fn edit_sequence(
             scope,
             start_seconds,
         } => {
-            let clip = super::graph::new_clip(
-                session,
-                resolved.document_id(),
-                &draft,
-                effect_reference,
-                &initial_color,
-            )?;
+            let clip = super::graph::new_clip(session, &draft, effect_reference, &initial_color)?;
             draft.clips.push(std::sync::Arc::new(Clip {
                 id: ClipId(clip.id),
                 name: clip.name,
@@ -243,12 +214,8 @@ pub(super) fn edit_sequence(
             effect: effect_reference,
             initial_color,
         } => {
-            let (definition, _, param_overrides) = imported_effect(
-                session,
-                resolved.document_id(),
-                effect_reference,
-                &initial_color,
-            )?;
+            let (definition, _, param_overrides) =
+                chosen_effect(session, effect_reference, &initial_color)?;
             let sequence = &mut draft;
             let clip = clip_mut(sequence, id)?;
             clip.definition = definition;
@@ -278,16 +245,9 @@ pub(super) fn edit_sequence(
         }
         SequenceGuiEdit::CreateAndBindAutomationClip { target } => {
             let target = automation_target_from_gui(target)?;
-            automation_target_mapping(session, &sequence_id, &target)?;
-            let (start, duration, row_target) = {
-                let sequence = session
-                    .project
-                    .get::<donder_model::Sequence>(sequence_id)
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid("Sequence was not found.".to_string())
-                    })?;
-                automation_target_timing(session, sequence, &target)?
-            };
+            automation_target_mapping(resolved.view(session), &target)?;
+            let (start, duration, row_target) =
+                automation_target_timing(session, &resolved.view(session), &target)?;
             let new_id = next_id(draft.automation_clips.iter().map(|clip| clip.id.0))?;
             let mut clip = AutomationClip {
                 id: AutomationClipId(new_id),
@@ -330,7 +290,7 @@ pub(super) fn edit_sequence(
             target,
         } => {
             let target = automation_target_from_gui(target)?;
-            automation_target_mapping(session, &sequence_id, &target)?;
+            automation_target_mapping(resolved.view(session), &target)?;
             automation_clip_mut(&mut draft, automation_clip_id)?.bind(target, Window::FULL);
         }
         SequenceGuiEdit::SetAutomationWindow {
@@ -381,7 +341,7 @@ pub(super) fn edit_sequence(
                     .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?,
                 AutomationTarget::CompositionNodeParam { .. } => clip.start.as_seconds_f64(),
             };
-            let mapping = automation_target_mapping(session, &sequence_id, &binding.target)?;
+            let mapping = automation_target_mapping(resolved.view(session), &binding.target)?;
             let value =
                 automation_binding_value_at(&clip, binding.window, &mapping, sample_seconds)?;
             match &target {
@@ -410,7 +370,7 @@ pub(super) fn edit_sequence(
             target,
         } => {
             let target = automation_target_from_gui(target)?;
-            automation_target_mapping(session, &sequence_id, &target)?;
+            automation_target_mapping(resolved.view(session), &target)?;
             let clip = automation_clip_mut(&mut draft, automation_clip_id)?;
             if detached_index as usize >= clip.detached_bindings.len() {
                 return Err(GuiMutationError::Invalid(
@@ -433,7 +393,7 @@ pub(super) fn edit_sequence(
             clip.detached_bindings.remove(detached_index as usize);
         }
     }
-    session.project.put(draft).map_err(GuiMutationError::from)?;
+    session.put(draft).map_err(GuiMutationError::from)?;
     Ok(created)
 }
 
@@ -486,11 +446,6 @@ fn automation_target_timing(
                     "Automation graph node is not an operator.".to_string(),
                 ));
             }
-            if sequence.layers.is_empty() {
-                return Err(GuiMutationError::Invalid(
-                    "Sequence has no lane for automation.".to_string(),
-                ));
-            }
             Ok((
                 super::checked_gui_time(0.0)?,
                 sequence.duration.clone(),
@@ -504,15 +459,10 @@ fn automation_target_timing(
 
 /// The target param's declared automation mapping.
 fn automation_target_mapping(
-    session: &ProjectSession,
-    sequence_id: &SequenceId,
+    sequence: donder_model::View<'_, donder_model::Sequence>,
     target: &AutomationTarget,
 ) -> Result<AutomationMapping, GuiMutationError> {
-    let sequence = session
-        .project
-        .get::<donder_model::Sequence>(*sequence_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-    donder_model::automation_target_param(&session.project, sequence, target)
+    donder_model::automation_target_param(sequence.project(), &sequence, target)
         .map_err(|error| GuiMutationError::Invalid(error.to_string()))?
         .automation_mapping()
         .ok_or_else(|| GuiMutationError::Invalid("Param does not support automation.".to_string()))
@@ -522,17 +472,17 @@ use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
     CompositionGraphNodeKind, DetachedAutomationBinding, Mark, MarkCollection, MarkCollectionKey,
-    SequenceAudio as DomainSequenceAudio, SequenceId, Window,
+    SequenceAudio as DomainSequenceAudio, Window,
 };
 use donder_model::{Clip, ClipId};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::AutomationMapping;
 
 use super::model::{
-    automation_binding_value_at, automation_clip_mut, clip_mut, clip_scope, curve_from_points,
-    default_automation_curve, identifier, imported_effect, layout_target_to_clip_target,
+    automation_binding_value_at, automation_clip_mut, chosen_effect, clip_mut, clip_scope,
+    curve_from_points, default_automation_curve, identifier, layout_target_to_clip_target,
     mark_collection_mut, parse_color,
 };
-use super::projection::{GuiClipId, active_layout};
+use super::projection::GuiClipId;
 use super::{GuiMutationError, IdAllocator, ResolvedGuiObject, next_id};
 use crate::dto::{SequenceAutomationTarget, SequenceGuiEdit};

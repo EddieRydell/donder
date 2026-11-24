@@ -132,8 +132,6 @@ pub fn apply_path_change(
 
     let mut candidate = session.clone();
     remap_candidate(&mut candidate, plan)?;
-    crate::serialization::validate_source_inventory(&candidate)
-        .map_err(|error| error.to_string())?;
     let prepared = prepare_writes(&candidate)?;
 
     let temporary = Builder::new()

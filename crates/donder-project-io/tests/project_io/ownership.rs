@@ -128,38 +128,48 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     write_inline_project(root);
     let mut session = common::load_project(root);
-    assert!(session.project.reusable::<donder_model::Setup>().is_empty());
     assert!(
         session
-            .project
+            .project()
+            .reusable::<donder_model::Setup>()
+            .is_empty()
+    );
+    assert!(
+        session
+            .project()
             .reusable::<donder_model::Layout>()
             .is_empty()
     );
-    assert!(session.project.reusable::<donder_model::Patch>().is_empty());
     assert!(
         session
-            .project
+            .project()
+            .reusable::<donder_model::Patch>()
+            .is_empty()
+    );
+    assert!(
+        session
+            .project()
             .reusable::<donder_model::Controller>()
             .is_empty()
     );
     assert!(
         session
-            .project
+            .project()
             .reusable::<donder_model::Sequence>()
             .is_empty()
     );
     assert!(
         session
-            .project
+            .project()
             .reusable::<donder_model::FixtureDefinition>()
             .is_empty()
     );
-    let Owned::Inline(mut setup) = session.project.root().setup.clone() else {
+    let Owned::Inline(mut setup) = session.project().root().setup.clone() else {
         panic!("expected ownership")
     };
     let address = *setup.controllers[0].id();
     assert_eq!(
-        session.address_of(address.into()).unwrap().owned_path(),
+        session.address_of(address).owned_path(),
         &[
             OwnedObjectSlot::Setup,
             OwnedObjectSlot::Controller(donder_language::object_name("controller_3"))
@@ -167,10 +177,10 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     );
     setup.controllers.reverse();
     assert_eq!(setup.controllers[1].id(), &address);
-    session.project.put(*setup).unwrap();
+    session.put(*setup).unwrap();
     let output = donder_elaboration::prepare(
-        &session.project,
-        session.project.root().sequences[0].id(),
+        session.project(),
+        session.project().root().sequences[0].id(),
         donder_elaboration::Retain::All,
     )
     .unwrap();
@@ -272,23 +282,26 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
         fs_err::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
         let mut session = common::load_project(root);
         assert_eq!(
-            session.project.reusable::<donder_model::Controller>().len(),
+            session
+                .project()
+                .reusable::<donder_model::Controller>()
+                .len(),
             1
         );
-        let Owned::Inline(mut setup) = session.project.root().setup.clone() else {
+        let Owned::Inline(mut setup) = session.project().root().setup.clone() else {
             panic!("expected ownership")
         };
         assert!(matches!(
             setup.controllers.remove(1),
             OwnedMember::Reference(_)
         ));
-        session.project.put(*setup).unwrap();
+        session.put(*setup).unwrap();
         save_project(&session).unwrap();
         let reloaded = common::load_project(root);
-        assert_eq!(session.project, reloaded.project);
+        assert_eq!(session.project(), reloaded.project());
         assert_eq!(
             reloaded
-                .project
+                .project()
                 .reusable::<donder_model::Controller>()
                 .len(),
             1

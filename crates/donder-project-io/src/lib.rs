@@ -27,7 +27,7 @@ mod inclusion;
 mod index;
 mod loader;
 mod ownership_edit;
-pub use ownership_edit::{maintain_ownership_sources, remove_documents};
+pub use ownership_edit::remove_documents;
 mod project_config;
 mod project_loading;
 pub(crate) use project_config::canonicalize;
@@ -39,6 +39,8 @@ mod object_files;
 mod path_refactor;
 mod project_edit;
 mod serialization;
+mod session_edit;
+pub use session_edit::{SessionEdit, SessionEditError};
 mod source;
 mod source_copy;
 
@@ -66,5 +68,5 @@ pub use project_loading::{SourceOverrides, check_project, project_source_texts};
 pub use serialization::{SourceTextWrite, write_source_texts};
 pub use source::{
     AssetError, ImportEdge, ProjectSession, ReferencedAsset, SourceDocument, SourceDocumentFormat,
-    SourceProject, reference_asset, source_document_format,
+    SourceProject, source_document_format,
 };

@@ -36,32 +36,29 @@ pub struct AcceptedOperatorInputs<'a> {
     invocation: &'a Invocation,
 }
 
-impl DonderProject {
-    /// Encodings and placements belong to this accepted patch snapshot. Once
-    /// selection resolves the patch, its authored route IDs index this cache
-    /// without readmission.
-    pub fn playback_patch_routes(
+impl<'p> crate::View<'p, crate::patch::Patch> {
+    /// Encodings and placements belong to this accepted patch snapshot; its
+    /// authored route IDs index them without readmission.
+    pub fn playback_routes(
         &self,
-        patch: &crate::patch::PatchId,
-    ) -> Option<&indexmap::IndexMap<crate::patch::PixelRouteId, PlaybackRoute>> {
-        self.accepted_inputs
-            .patches
-            .get(patch)
-            .map(|patch| &patch.routes)
+    ) -> &'p indexmap::IndexMap<crate::patch::PixelRouteId, PlaybackRoute> {
+        &self.project().accepted_inputs.patches[&self.id()].routes
     }
+}
 
+impl<'p> crate::View<'p, crate::layout::Layout> {
+    /// The admitted geometry of each fixture of the layout.
     pub fn playback_geometry(
         &self,
-        layout: &crate::layout::LayoutId,
-    ) -> Option<
-        &[(
-            crate::layout::FixtureInstanceId,
-            donder_runtime_types::FixtureGeometry,
-        )],
-    > {
-        self.accepted_inputs.layouts.get(layout).map(AsRef::as_ref)
+    ) -> &'p [(
+        crate::layout::FixtureInstanceId,
+        donder_runtime_types::FixtureGeometry,
+    )] {
+        &self.project().accepted_inputs.layouts[&self.id()]
     }
+}
 
+impl DonderProject {
     pub fn accepted_console(&self, id: &ConsoleId) -> Option<AcceptedConsole<'_>> {
         self.get::<crate::Console>(*id)
             .map(|console| AcceptedConsole {

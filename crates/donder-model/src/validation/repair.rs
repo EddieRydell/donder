@@ -267,12 +267,7 @@ fn plan(
                 .collect::<Vec<_>>();
             (!items.is_empty()).then_some(Repair::RemoveLayoutItems { layout: id, items })
         }
-        ValidationProblem::MissingSetup
-        | ValidationProblem::MissingLayout
-        | ValidationProblem::MissingPatch
-        | ValidationProblem::MissingController
-        | ValidationProblem::MissingInputDevice
-        | ValidationProblem::Ownership(_)
+        ValidationProblem::Ownership(_)
         | ValidationProblem::DefinitionMismatch
         | ValidationProblem::Curve(_)
         | ValidationProblem::CurveNotNormalized
@@ -397,8 +392,7 @@ impl State<'_> {
         let sequence = self.project.get::<Sequence>(id)?;
         let before = self.previous.get::<Sequence>(id);
         match problem {
-            SequenceValidationError::MissingActiveSetup
-            | SequenceValidationError::Timing(_)
+            SequenceValidationError::Timing(_)
             | SequenceValidationError::Name(_)
             | SequenceValidationError::DuplicateClipId(_)
             | SequenceValidationError::DuplicateAutomationClipId(_)
@@ -580,8 +574,7 @@ impl State<'_> {
         let console = self.project.get::<Console>(id)?;
         let before = self.previous.get::<Console>(id);
         match problem {
-            ConsoleValidationError::MissingActiveSetup
-            | ConsoleValidationError::Timing(_)
+            ConsoleValidationError::Timing(_)
             | ConsoleValidationError::Name(_)
             | ConsoleValidationError::DuplicateClipId(_)
             | ConsoleValidationError::DuplicateEventId(_)

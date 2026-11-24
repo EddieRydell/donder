@@ -50,12 +50,7 @@ pub(crate) fn data_document_text(
     let declarations = document
         .objects()
         .iter()
-        .map(|object| {
-            Ok((
-                object.name().clone(),
-                declaration(&encoder, document_id, object)?,
-            ))
-        })
+        .map(|object| Ok((object.name().clone(), declaration(&encoder, object)?)))
         .collect::<Result<Vec<_>, ExportProjectError>>()?;
     // A sequence's clips are printed one by one and reused while unchanged.
     let clips = document
@@ -63,15 +58,11 @@ pub(crate) fn data_document_text(
         .iter()
         .enumerate()
         .filter_map(|(index, object)| match object.id() {
-            ObjectId::Sequence(id) => Some((index, object, id)),
+            ObjectId::Sequence(id) => Some((index, id)),
             _ => None,
         })
-        .map(|(index, object, id)| {
-            let sequence = session
-                .project
-                .reusable::<donder_model::Sequence>()
-                .get(&id)
-                .ok_or_else(|| missing(document_id, object))?;
+        .map(|(index, id)| {
+            let sequence = declared::<donder_model::Sequence>(session, id);
             Ok((index, cache.clips(&encoder, &imports, sequence)?))
         })
         .collect::<Result<Vec<_>, ExportProjectError>>()?;
@@ -93,97 +84,40 @@ pub(crate) fn data_document_text(
     Ok(write(imports, &declarations, &splices))
 }
 
-fn missing(document: &DocumentId, object: &DeclaredObject) -> ExportProjectError {
-    crate::serialization::missing_typed_object(document, object)
+/// The reusable object a declaration of `session` writes.
+fn declared<T: donder_model::Reusable>(session: &ProjectSession, id: T::Id) -> &T {
+    session
+        .project
+        .reusable::<T>()
+        .get(&id)
+        .unwrap_or_else(|| unreachable!("a session declares exactly its reusable objects"))
 }
 
 fn declaration(
     encoder: &Encoder<'_>,
-    document: &DocumentId,
     object: &DeclaredObject,
 ) -> Result<Declaration, ExportProjectError> {
-    let project = &encoder.session.project;
-    let missing = || missing(document, object);
+    let session = encoder.session;
     Ok(match object.id() {
         ObjectId::Project(_) => Declaration::Project(encoder.project()?),
-        ObjectId::Setup(id) => Declaration::Setup(
-            encoder.setup(
-                project
-                    .reusable::<donder_model::Setup>()
-                    .get(&id)
-                    .ok_or_else(missing)?,
-            )?,
-        ),
-        ObjectId::Controller(id) => Declaration::Controller(controller_document(
-            project
-                .reusable::<donder_model::Controller>()
-                .get(&id)
-                .ok_or_else(missing)?,
-        )),
-        ObjectId::InputDevice(id) => Declaration::InputDevice(input_device_document(
-            project
-                .reusable::<donder_model::InputDevice>()
-                .get(&id)
-                .ok_or_else(missing)?,
-        )),
-        ObjectId::Layout(id) => Declaration::Layout(
-            encoder.layout(
-                project
-                    .reusable::<donder_model::Layout>()
-                    .get(&id)
-                    .ok_or_else(missing)?,
-            )?,
-        ),
-        ObjectId::Patch(id) => Declaration::Patch(
-            encoder.patch(
-                project
-                    .reusable::<donder_model::Patch>()
-                    .get(&id)
-                    .ok_or_else(missing)?,
-            )?,
-        ),
-        ObjectId::FixtureDefinition(id) => {
-            Declaration::FixtureDefinition(fixture_definition_document(
-                project
-                    .reusable::<donder_model::FixtureDefinition>()
-                    .get(&id)
-                    .ok_or_else(missing)?,
-            ))
+        ObjectId::Setup(id) => Declaration::Setup(encoder.setup(declared(session, id))?),
+        ObjectId::Controller(id) => {
+            Declaration::Controller(controller_document(declared(session, id)))
         }
-        ObjectId::Sequence(id) => Declaration::Sequence(
-            encoder.sequence(
-                project
-                    .reusable::<donder_model::Sequence>()
-                    .get(&id)
-                    .ok_or_else(missing)?,
-            )?,
-        ),
-        ObjectId::Console(id) => Declaration::Console(
-            encoder.console(
-                project
-                    .reusable::<donder_model::Console>()
-                    .get(&id)
-                    .ok_or_else(missing)?,
-            )?,
-        ),
-        ObjectId::Curve(id) => Declaration::Curve(curve_document(
-            project
-                .reusable::<donder_model::CurveDefinition>()
-                .get(&id)
-                .ok_or_else(missing)?,
-        )),
-        ObjectId::Gradient(id) => Declaration::Gradient(gradient_document(
-            project
-                .reusable::<donder_model::GradientDefinition>()
-                .get(&id)
-                .ok_or_else(missing)?,
-        )),
+        ObjectId::InputDevice(id) => {
+            Declaration::InputDevice(input_device_document(declared(session, id)))
+        }
+        ObjectId::Layout(id) => Declaration::Layout(encoder.layout(declared(session, id))?),
+        ObjectId::Patch(id) => Declaration::Patch(encoder.patch(declared(session, id))?),
+        ObjectId::FixtureDefinition(id) => {
+            Declaration::FixtureDefinition(fixture_definition_document(declared(session, id)))
+        }
+        ObjectId::Sequence(id) => Declaration::Sequence(encoder.sequence(declared(session, id))?),
+        ObjectId::Console(id) => Declaration::Console(encoder.console(declared(session, id))?),
+        ObjectId::Curve(id) => Declaration::Curve(curve_document(declared(session, id))),
+        ObjectId::Gradient(id) => Declaration::Gradient(gradient_document(declared(session, id))),
         ObjectId::EffectDefinition(_) | ObjectId::OperatorDefinition(_) => {
-            return Err(ExportProjectError::InvalidReference {
-                path: document.path().to_path_buf(),
-                reference: object.name().as_str().to_string(),
-                message: "scripts are not data declarations".to_string(),
-            });
+            unreachable!("a data document declares no scripts")
         }
     })
 }

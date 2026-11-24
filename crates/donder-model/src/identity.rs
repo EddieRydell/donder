@@ -13,6 +13,10 @@ macro_rules! object_ids {
                 }
             }
 
+            impl TypedId for $id {
+                const KIND: ObjectKind = ObjectKind::$kind;
+            }
+
             impl TryFrom<ObjectId> for $id {
                 type Error = ObjectId;
                 fn try_from(id: ObjectId) -> Result<Self, ObjectId> {
@@ -28,6 +32,11 @@ macro_rules! object_ids {
         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
         pub enum ObjectId {
             $($kind($id),)*
+        }
+
+        /// The id of one kind of object.
+        pub trait TypedId: Copy + Into<ObjectId> + TryFrom<ObjectId> {
+            const KIND: ObjectKind;
         }
 
         /// What kind of object an id names.

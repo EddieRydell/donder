@@ -2,39 +2,22 @@ use crate::dto::{
     GuiChannelPlace, GuiDocument, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,
     GuiRouteStart, ObjectKind, PatchFixtureTarget, PatchGuiDocument, PatchLayout,
 };
-use crate::gui::model::{object_address, object_id_from_gui, object_ref};
+use crate::gui::model::{object_id_from_gui, object_ref};
 use crate::gui::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_model::{ChannelPlace, ControllerId, ControllerPortId, RouteStart};
 use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use donder_model::{PatchId, PixelRoute, PixelRouteId, PixelSpan};
-use donder_project_io::{ProjectSession, ensure_document_can_reference_object};
+use donder_project_io::ProjectSession;
 use donder_runtime_types::PixelEncoding;
 
 pub(super) fn project_document(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let Some(patch) = session
-        .project
-        .get::<donder_model::Patch>(resolved.id::<PatchId>())
-    else {
-        return blocked("Patch was not found.", Vec::new());
-    };
-    let counts = match donder_model::fixture_pixel_counts(
-        session
-            .project
-            .reusable::<donder_model::FixtureDefinition>(),
-    ) {
-        Ok(counts) => counts,
-        Err(error) => {
-            return blocked(
-                format!("Fixture pixels can't be counted: {error}."),
-                Vec::new(),
-            );
-        }
-    };
+    let patch = resolved.view::<donder_model::Patch>(session).object();
+    let counts = session.project().fixture_pixel_counts();
     let layouts = session
-        .project
+        .project()
         .objects::<donder_model::Layout>()
         .map(|layout| {
             let id = &layout.id;
@@ -87,7 +70,7 @@ pub(super) fn project_document(
                 .map(|route| project_route(session, route))
                 .collect(),
             placements: {
-                let placed = donder_model::patch_placements(&session.project, patch, &counts);
+                let placed = donder_model::patch_placements(session.project(), patch, &counts);
                 patch
                     .routes
                     .iter()
@@ -96,7 +79,7 @@ pub(super) fn project_document(
             },
             layouts,
             controllers: session
-                .project
+                .project()
                 .objects::<donder_model::Controller>()
                 .map(|controller| {
                     let id = &controller.id;
@@ -114,7 +97,7 @@ fn placement(
     placed: &donder_model::RoutePlacement,
 ) -> Option<GuiRoutePlacement> {
     let place = session
-        .project
+        .project()
         .get::<donder_model::Controller>(route.controller)?
         .place(placed.output, placed.channels.clone())?;
     Some(GuiRoutePlacement {
@@ -172,7 +155,6 @@ pub(super) fn replace(
     id: &PatchId,
     routes: Vec<GuiPixelRoute>,
 ) -> Result<(), GuiMutationError> {
-    let document = object_address(session, *id).document_id().clone();
     let routes = routes
         .into_iter()
         .map(|route| {
@@ -185,10 +167,6 @@ pub(super) fn replace(
             }
             let layout: LayoutId = object_id_from_gui(session, &route.layout)?;
             let controller: ControllerId = object_id_from_gui(session, &route.controller)?;
-            for target in [layout.into(), controller.into()] {
-                ensure_document_can_reference_object(session, &document, target)
-                    .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            }
             Ok(PixelRoute {
                 id: PixelRouteId(route.id),
                 target: DomainFixtureTarget {
@@ -238,11 +216,10 @@ pub(super) fn replace(
         })
         .collect::<Result<_, _>>()?;
     session
-        .project
         .put(donder_model::Patch {
             id: *id,
             description: session
-                .project
+                .project()
                 .get::<donder_model::Patch>(*id)
                 .and_then(|patch| patch.description.clone()),
             routes,

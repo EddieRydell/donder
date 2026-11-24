@@ -19,7 +19,7 @@ use donder_editor::dto::{
 };
 use donder_elaboration::{PreparationCache, Retain};
 use donder_model::{
-    AxisInput, ButtonInput, ConsoleId, ControllerId, InputControlKind, InputDevice, InputDriver,
+    AxisInput, ButtonInput, ConsoleId, Controller, InputControlKind, InputDevice, InputDriver,
     KeyCode, MidiChannel, NoteRange, OscAddress,
 };
 use donder_project_io::ProjectSession;
@@ -221,7 +221,7 @@ struct Performance {
     /// which ports it wants, sorted.
     osc_inputs: Option<OscInputs>,
     osc_wanted: Vec<u16>,
-    controllers: Vec<ControllerId>,
+    controllers: Vec<Controller>,
     /// Every input so far, for an evaluator that joins mid-performance.
     events: Vec<ConsoleEvent>,
 }
@@ -328,15 +328,14 @@ impl DesktopState {
         if project_revision != self.snapshot().project_revision {
             return Err("The project changed. Choose the console to perform again.".into());
         }
-        let project = &session.project;
+        let project = session.project();
         let source = project
             .root()
             .consoles
             .get(console as usize)
             .ok_or("The console is no longer in the project.")?;
         let console_id = *source.id();
-        let described = perform_console(&session, console, console_id)?;
-        check_armable(&session, &console_id, &described.name)?;
+        let described = perform_console(&session, console, console_id);
         if matches!(
             self.audio_snapshot().state,
             AudioTransportState::Playing | AudioTransportState::Paused
@@ -369,7 +368,7 @@ impl DesktopState {
         described: PerformConsole,
         carry: bool,
     ) -> Result<(), String> {
-        let project = &session.project;
+        let project = session.project();
         let armed =
             donder_elaboration::arm(project, &console_id, Retain::All, &mut perform.preparation)
                 .ok_or_else(|| {
@@ -378,28 +377,25 @@ impl DesktopState {
                         described.name
                     )
                 })?;
-        let console = project
-            .get::<donder_model::Console>(console_id)
-            .ok_or("The console is no longer in the project.")?;
+        let Some(console) = project.view::<donder_model::Console>(console_id) else {
+            unreachable!("arming found the console");
+        };
         let mut inputs = ConsoleInputs::new(armed.controls.clone());
-        let setup = project
-            .get::<donder_model::Setup>(*project.root().setup.id())
-            .ok_or("The active setup is missing.")?;
+        let setup = project.active_setup();
         let mut keys: HashMap<KeyCode, Vec<usize>> = HashMap::new();
         let mut midi = Vec::new();
         let mut osc = Vec::new();
         let mut buttons = Vec::with_capacity(inputs.controls().len());
         for (index, button) in inputs.controls().iter().enumerate() {
-            let device = project
+            // Validation proved the console's controls.
+            let Some((device, control)) = project
                 .get::<donder_model::InputDevice>(button.device)
-                .ok_or("An input device of the console is missing.")?;
-            let control = device
-                .controls
-                .iter()
-                .find(|control| control.id == button.control)
-                .ok_or("A control of the console is missing.")?;
+                .and_then(|device| Some((device, device.control(button.control)?)))
+            else {
+                unreachable!("validation proved every control of the console");
+            };
             buttons.push(PerformButton {
-                device: declared_name(session, device.id)?,
+                device: session.address_of(device.id).declared_name().to_string(),
                 control: control.name.as_str().to_string(),
             });
             // Every control of the setup with this key, note or pedal plays.
@@ -448,9 +444,9 @@ impl DesktopState {
         let mut devices: Vec<InputDevice> = Vec::new();
         for control in inputs.controls() {
             if !devices.iter().any(|device| device.id == control.device) {
-                let device = project
-                    .get::<InputDevice>(control.device)
-                    .ok_or("An input device of the console is missing.")?;
+                let Some(device) = project.get::<InputDevice>(control.device) else {
+                    unreachable!("validation proved every input device of the console");
+                };
                 devices.push(device.clone());
             }
         }
@@ -557,7 +553,7 @@ impl DesktopState {
             generation,
             listening,
             console_id,
-            source: console.clone(),
+            source: console.object().clone(),
             devices,
             console: described,
             clock,
@@ -597,12 +593,12 @@ impl DesktopState {
                 return;
             };
             let id = current.console_id;
-            let Some(console) = session.project.get::<donder_model::Console>(id) else {
+            let Some(console) = session.project().get::<donder_model::Console>(id) else {
                 return;
             };
             let devices_changed = current.devices.iter().any(|device| {
                 session
-                    .project
+                    .project()
                     .get::<InputDevice>(device.id)
                     .is_none_or(|read| read != device)
             });
@@ -610,7 +606,7 @@ impl DesktopState {
                 return;
             }
             let Some(index) = session
-                .project
+                .project()
                 .root()
                 .consoles
                 .iter()
@@ -618,10 +614,8 @@ impl DesktopState {
             else {
                 return;
             };
-            perform_console(session, index as u32, id).and_then(|described| {
-                check_armable(session, &id, &described.name)?;
-                self.arm_performance(&mut perform, session, id, described, true)
-            })
+            let described = perform_console(session, index as u32, id);
+            self.arm_performance(&mut perform, session, id, described, true)
         };
         match rearmed {
             Ok(()) => {
@@ -961,76 +955,23 @@ impl DesktopState {
 
 fn project_consoles(session: &ProjectSession) -> Vec<PerformConsole> {
     session
-        .project
+        .project()
         .root()
         .consoles
         .iter()
         .zip(0..)
-        .map(|(source, index)| {
-            perform_console(session, index, *source.id())
-                .unwrap_or_else(|_| unreachable!("every console of a session has an address"))
-        })
+        .map(|(source, index)| perform_console(session, index, *source.id()))
         .collect()
 }
 
 /// The project's `index`th console as Perform names it.
-fn perform_console(
-    session: &ProjectSession,
-    index: u32,
-    console: ConsoleId,
-) -> Result<PerformConsole, String> {
-    let address = session
-        .address_of(console.into())
-        .ok_or("The console is missing from the source inventory.")?;
-    Ok(PerformConsole {
+fn perform_console(session: &ProjectSession, index: u32, console: ConsoleId) -> PerformConsole {
+    let address = session.address_of(console);
+    PerformConsole {
         index,
         name: address.declared_name().to_string(),
         path: address.document().to_string(),
-    })
-}
-
-/// The name an object is declared or owned under.
-fn declared_name(
-    session: &ProjectSession,
-    id: impl Into<donder_model::ObjectId>,
-) -> Result<String, String> {
-    session
-        .address_of(id.into())
-        .map(|address| address.declared_name().to_string())
-        .ok_or_else(|| "An object is missing from the source inventory.".to_string())
-}
-
-/// Explain why `console` cannot play on the active setup, before preparing it.
-fn check_armable(session: &ProjectSession, console: &ConsoleId, name: &str) -> Result<(), String> {
-    let project = &session.project;
-    let console = project
-        .get::<donder_model::Console>(*console)
-        .ok_or("The console is no longer in the project.")?;
-    let setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .ok_or("The active setup is missing.")?;
-    let layout = setup.layout.id();
-    if console
-        .clips
-        .iter()
-        .any(|clip| &clip.target.layout != layout)
-    {
-        return Err(format!(
-            "Console {name} targets a layout other than the active setup's."
-        ));
     }
-    if let Some(input) = console.inputs().find(|input| {
-        !setup
-            .input_devices
-            .iter()
-            .any(|device| device.id() == &input.device)
-    }) {
-        return Err(format!(
-            "Console {name} plays from input device {}, which the active setup does not list.",
-            declared_name(session, input.device)?
-        ));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

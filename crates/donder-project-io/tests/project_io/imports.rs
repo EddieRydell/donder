@@ -67,7 +67,8 @@ fn grouped_declarations_preserve_ordered_targets() {
     let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let session = report.session.unwrap();
-    let edge = &session.source.documents[&DocumentId::new(PROJECT_ROOT_FILE.into())].imports()[0];
+    let edge =
+        &session.source().documents()[&DocumentId::new(PROJECT_ROOT_FILE.into())].imports()[0];
     assert_eq!(edge.alias(), alias);
     assert_eq!(
         edge.targets()
@@ -245,16 +246,16 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
             .unwrap();
     let from = DocumentId::new("sequences/empty.data.donder".into());
     let own = session
-        .project
+        .project()
         .objects::<donder_model::Sequence>()
         .find(|sequence| session.declaration(sequence.id.into()).unwrap().0 == &from)
         .unwrap()
         .id;
-    let count = session.source.documents[&from].imports().len();
+    let count = session.source().documents()[&from].imports().len();
     ensure_document_can_reference_object(&mut session, &from, own.into()).unwrap();
-    assert_eq!(session.source.documents[&from].imports().len(), count);
+    assert_eq!(session.source().documents()[&from].imports().len(), count);
     let definitions = session
-        .project
+        .project()
         .reusable::<donder_model::OperatorDefinition>();
     let existing = definitions
         .keys()
@@ -272,10 +273,10 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
         })
         .unwrap();
     ensure_document_can_reference_object(&mut session, &from, existing.into()).unwrap();
-    assert_eq!(session.source.documents[&from].imports().len(), count);
+    assert_eq!(session.source().documents()[&from].imports().len(), count);
     ensure_document_can_reference_object(&mut session, &from, another.into()).unwrap();
     assert_eq!(
-        session.source.documents[&from]
+        session.source().documents()[&from]
             .imports()
             .last()
             .unwrap()
@@ -283,5 +284,8 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
         "operators_2"
     );
     ensure_document_can_reference_object(&mut session, &from, another.into()).unwrap();
-    assert_eq!(session.source.documents[&from].imports().len(), count + 1);
+    assert_eq!(
+        session.source().documents()[&from].imports().len(),
+        count + 1
+    );
 }

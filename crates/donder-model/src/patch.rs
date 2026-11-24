@@ -101,9 +101,7 @@ pub fn place_routes<'a>(
         let shared = controller.universes().is_some();
         let mut cursor = Some(0);
         for port in controller.ports() {
-            let Some(output) = controller.port_output(port.id) else {
-                continue;
-            };
+            let output = controller.own_port_output(port.id);
             if !shared {
                 cursor = Some(0);
             }

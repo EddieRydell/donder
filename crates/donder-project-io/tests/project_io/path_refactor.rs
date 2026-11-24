@@ -36,8 +36,11 @@ fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
     let reloaded = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .expect("reload");
-    assert_eq!(reloaded.project, session.project);
-    assert_eq!(reloaded.source.entrypoint, session.source.entrypoint);
+    assert_eq!(reloaded.project(), session.project());
+    assert_eq!(
+        reloaded.source().entrypoint(),
+        session.source().entrypoint()
+    );
 }
 
 #[test]
@@ -60,20 +63,20 @@ fn moves_directories_with_documents_and_referenced_audio() {
     let session = move_path(&session, "effects", "library/effects");
     let session = move_path(&session, "audio", "library/audio");
     assert_eq!(
-        session.source.referenced_assets[0].relative_path,
+        session.source().referenced_assets()[0].relative_path,
         "library/audio/test.wav"
     );
     assert!(
         session
-            .source
-            .documents
+            .source()
+            .documents()
             .keys()
             .any(|document| document.path() == Utf8Path::new("library/effects/standard.donder"))
     );
     let reloaded = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .expect("reload");
-    assert_eq!(reloaded.project, session.project);
+    assert_eq!(reloaded.project(), session.project());
 }
 
 #[test]

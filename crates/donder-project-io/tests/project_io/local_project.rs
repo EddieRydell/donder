@@ -25,7 +25,7 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
     let session = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap();
-    assert_eq!(session.source.referenced_assets.len(), 1);
+    assert_eq!(session.source().referenced_assets().len(), 1);
     assert_eq!(fs::read(root.join(PROJECT_ROOT_FILE)).unwrap(), config);
 }
 

@@ -64,13 +64,7 @@ pub fn ensure_document_can_reference_object(
     from: &DocumentId,
     id: ObjectId,
 ) -> Result<(), ExportProjectError> {
-    let address = session
-        .address_of(id)
-        .ok_or_else(|| ExportProjectError::InvalidReference {
-            path: from.path().to_owned(),
-            reference: String::new(),
-            message: "Object is missing from the source inventory.".into(),
-        })?;
+    let address = session.address_of(id);
     ensure_document_can_reference_address(session, from, &address)
 }
 
@@ -80,14 +74,7 @@ pub(crate) fn ensure_document_can_reference_address(
     address: &ObjectAddress,
 ) -> Result<(), ExportProjectError> {
     let root = address.root_source();
-    let kind = session
-        .declared_id(root)
-        .map(ObjectId::kind)
-        .ok_or_else(|| ExportProjectError::InvalidReference {
-            path: from.path().to_owned(),
-            reference: root.object().into(),
-            message: "Object owner is missing.".into(),
-        })?;
+    let kind = session.declared_kind(root);
     ensure_document_can_reference_source(session, from, kind, root)
 }
 

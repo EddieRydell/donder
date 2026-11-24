@@ -32,6 +32,8 @@ pub(crate) enum LowerError {
     Rows(u32),
     /// Selections the program holds open at once, beyond the limit.
     Depth(u16),
+    /// More whole-frame scans than an instruction names.
+    Scans,
     /// More slots of one bank, or more code, than the format addresses.
     Slots,
     Code,

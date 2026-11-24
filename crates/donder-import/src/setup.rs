@@ -15,7 +15,7 @@ use donder_model::{
     Owned, OwnedMember, OwnershipSite, Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan,
     ProjectEdit, RouteStart, Setup, Universes,
 };
-use donder_project_io::{DocumentId, ProjectSession};
+use donder_project_io::{DocumentId, ProjectSession, SessionEdit, SessionEditError};
 use donder_runtime_types::{Curve, Gradient, Identifier, PixelEncoding};
 use glam::DVec3;
 use std::collections::{HashMap, HashSet};
@@ -95,6 +95,15 @@ impl fmt::Display for ImportError {
             Self::Project(message) => {
                 write!(f, "The imported profile is not a valid project: {message}")
             }
+        }
+    }
+}
+
+impl From<SessionEditError> for ImportError {
+    fn from(error: SessionEditError) -> Self {
+        match error {
+            SessionEditError::Model(error) => Self::Project(format!("{error:?}")),
+            SessionEditError::Source(message) => Self::Project(message),
         }
     }
 }
@@ -562,13 +571,11 @@ pub(crate) fn build(
         gradients,
         mut report,
     } = profile;
-    let controllers = controllers(&profile_controllers, &mut report, || {
-        session.project.new_id()
-    })?;
+    let controllers = controllers(&profile_controllers, &mut report, || session.new_id())?;
 
     // Patch each fixture whose channels no earlier fixture has.
-    let layout_id = LayoutId(session.project.new_id());
-    let patch_id = PatchId(session.project.new_id());
+    let layout_id = LayoutId(session.new_id());
+    let patch_id = PatchId(session.new_id());
     let mut claimed: HashMap<ControllerId, Vec<Claim>> = HashMap::new();
     let mut fixtures = Vec::new();
     let mut route_list = Vec::new();
@@ -699,7 +706,7 @@ pub(crate) fn build(
     let curves = curves
         .into_iter()
         .map(|(name, curve)| {
-            let id = CurveId(session.project.new_id());
+            let id = CurveId(session.new_id());
             let definition = CurveDefinition {
                 description: None,
                 curve,
@@ -711,7 +718,7 @@ pub(crate) fn build(
     let gradients = gradients
         .into_iter()
         .map(|(name, gradient)| {
-            let id = GradientId(session.project.new_id());
+            let id = GradientId(session.new_id());
             let definition = GradientDefinition {
                 description: None,
                 gradient,
@@ -892,12 +899,9 @@ fn groups(
 }
 
 /// A file of its own for `id`, named after its kind.
-fn new_document(session: &mut ProjectSession, id: ObjectId) -> Result<DocumentId, ImportError> {
-    let name = session.source.new_object_name(id.kind());
-    session
-        .source
-        .add_object_document(id, name)
-        .map_err(ImportError::Project)
+fn new_document(edit: &mut SessionEdit<'_>, id: ObjectId) -> Result<DocumentId, ImportError> {
+    let name = edit.session().source().new_object_name(id.kind());
+    Ok(edit.add_object_document(id, name)?)
 }
 
 /// Put the layout, patch and controllers in the project's setup, each in its
@@ -908,7 +912,7 @@ fn insert(
     patch: Patch,
     controllers: Vec<(Identifier, Controller)>,
 ) -> Result<(), ImportError> {
-    let project = &session.project;
+    let project = session.project();
     let root = project.root().clone();
     let setup_id = *root.setup.id();
     let setup = project
@@ -952,36 +956,29 @@ fn insert(
         }
         .into(),
     ));
-    session.project.apply_edits(edits).map_err(invalid)?;
-    let setup_document = match &root.setup {
-        Owned::Inline(_) => {
-            let id = donder_model::make_reusable(
-                &mut session.project,
-                &OwnershipSite::Member {
-                    owner: root.id.into(),
-                    member: setup_id.into(),
-                },
-            )
-            .map_err(invalid)?;
-            new_document(session, id)?
+    session.edit(|edit| {
+        edit.project_mut().apply_edits(edits).map_err(invalid)?;
+        let setup_document = match &root.setup {
+            Owned::Inline(_) => {
+                let id = donder_model::make_reusable(
+                    edit.project_mut(),
+                    &OwnershipSite::Member {
+                        owner: root.id.into(),
+                        member: setup_id.into(),
+                    },
+                )
+                .map_err(invalid)?;
+                new_document(edit, id)?
+            }
+            Owned::Reference(id) => edit.session().address_of(*id).document_id().clone(),
+        };
+        for (id, name) in names {
+            edit.add_object(&setup_document, id, name.as_str())?;
         }
-        Owned::Reference(id) => session
-            .address_of((*id).into())
-            .ok_or_else(|| ImportError::Project("The setup has no document.".into()))?
-            .document_id()
-            .clone(),
-    };
-    for (id, name) in names {
-        session
-            .source
-            .add_object(&setup_document, id, name.as_str())
-            .map_err(ImportError::Project)?;
-    }
-    new_document(session, layout.id.into())?;
-    new_document(session, patch.id.into())?;
-    donder_project_io::maintain_ownership_sources(session)
-        .map_err(|error| ImportError::Project(error.to_string()))?;
-    Ok(())
+        new_document(edit, layout.id.into())?;
+        new_document(edit, patch.id.into())?;
+        Ok(())
+    })
 }
 
 /// Where a profile's library curves and gradients go.
@@ -1014,16 +1011,12 @@ fn library(
     }
     let count = names.len();
     let first = names[0].0;
-    session.project.apply_edits(edits).map_err(invalid)?;
-    session
-        .source
-        .add_data_document(path.into(), names)
-        .map_err(ImportError::Project)?;
-    let root = session
-        .source
-        .entrypoint
-        .clone()
-        .ok_or_else(|| ImportError::Project("The project has no root document.".into()))?;
+    session.edit(|edit| {
+        edit.project_mut().apply_edits(edits).map_err(invalid)?;
+        edit.add_data_document(path.into(), names)?;
+        Ok::<_, ImportError>(())
+    })?;
+    let root = session.source().entrypoint().clone();
     donder_project_io::ensure_document_can_reference_object(session, &root, first)
         .map_err(|error| ImportError::Project(error.to_string()))?;
     Ok(count)

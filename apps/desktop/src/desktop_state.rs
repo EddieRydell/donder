@@ -147,7 +147,7 @@ impl DesktopState {
                         let mut preparation = donder_elaboration::PreparationCache::default();
                         move |request: RenderRefreshPayload| {
                             let result = crate::rendering::prepare_render_session_cached(
-                                &request.project.project,
+                                request.project.project(),
                                 &request.sequence_id,
                                 &mut preparation,
                             );
@@ -373,56 +373,45 @@ impl DesktopState {
     /// Live output streams frames to the setup's E1.31 and Art-Net controllers
     /// and drives its Donder controllers, which play uploaded shows on the
     /// editor's clock. A performance in progress plays in place of the
-    /// sequence, and only on streamed controllers.
+    /// sequence, and only on streamed controllers. Transports open to the
+    /// controllers the frames were prepared on, which the render session or
+    /// performance keeps with its show.
     fn start_live_output(&self) -> Result<(), String> {
         let project = self.project_session().ok_or("No project is loaded.")?;
-        let mut streamed = Vec::new();
+        let mut streamed = false;
         let mut donder = false;
-        if let Some(setup) = project
-            .project
-            .get::<donder_model::Setup>(*project.project.root().setup.id())
-        {
-            for id in setup.controllers.iter().map(|source| *source.id()) {
-                match project
-                    .project
-                    .get::<donder_model::Controller>(id)
-                    .map(|controller| &controller.protocol)
-                {
-                    Some(donder_model::ControllerProtocol::Donder(_)) => donder = true,
-                    Some(_) => streamed.push(id),
-                    None => {}
-                }
+        for controller in project.project().active_setup().controllers() {
+            match controller.protocol {
+                donder_model::ControllerProtocol::Donder(_) => donder = true,
+                donder_model::ControllerProtocol::E131(_)
+                | donder_model::ControllerProtocol::ArtNet(_) => streamed = true,
             }
         }
-        let controllers = project
-            .project
-            .objects::<donder_model::Controller>()
-            .map(|controller| (controller.id, controller.clone()))
-            .collect();
         let devices = self.perform_live_output(|performance| {
-            if streamed.is_empty() && !donder {
+            if !streamed && !donder {
                 return Err("Live output requires a controller in the setup.".to_string());
             }
-            let render_ready = performance.is_some()
-                || lock_unpoisoned(&self.sequence_render)
-                    .active_target()
-                    .is_some();
-            // Output waits for a sequence to prepare or a performance to start.
-            if !render_ready {
+            // The performance, or else the prepared sequence; output waits
+            // for a sequence to prepare or a performance to start.
+            let Some(feed) = performance.map(Ok).or_else(|| {
+                lock_unpoisoned(&self.sequence_render)
+                    .streamed_session()
+                    .map(Err)
+            }) else {
                 return Ok(None);
-            }
+            };
             let mut service = lock_unpoisoned(&self.live_output);
             if service.stopping() {
                 service.defer_start();
                 return Ok(Some(donder));
             }
-            match performance {
-                _ if streamed.is_empty() => {}
-                Some(output) => {
-                    service.perform(controllers, streamed, output);
+            match feed {
+                _ if !streamed => {}
+                Ok(output) => {
+                    service.perform(output);
                 }
-                None => {
-                    service.enable(controllers, streamed);
+                Err((session, controllers)) => {
+                    service.enable(session, &controllers);
                 }
             }
             Ok(Some(donder))
@@ -547,7 +536,7 @@ fn absolute_project_path(
     session: &ProjectSession,
     relative_path: &Utf8Path,
 ) -> Option<Utf8PathBuf> {
-    absolute_root_path(session.source.project_root(), relative_path)
+    absolute_root_path(session.source().project_root(), relative_path)
 }
 
 fn absolute_root_path(root: &Utf8Path, relative_path: &Utf8Path) -> Option<Utf8PathBuf> {

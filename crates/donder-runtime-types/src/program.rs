@@ -4,7 +4,7 @@
 use crate::Shared as Arc;
 use crate::bytecode::BytecodeProgram;
 use crate::prepared::PreparedAutomation;
-use crate::{BindingError, BoundParams, Value};
+use crate::{BoundParams, Value};
 use alloc::{boxed::Box, vec::Vec};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -14,7 +14,7 @@ pub struct Program {
     pub inputs: usize,
 }
 
-/// A program bound to checked parameter values and automation.
+/// A program bound to its parameter values and automation.
 #[derive(Clone, Debug)]
 pub struct BoundProgram {
     program: Arc<Program>,
@@ -23,23 +23,22 @@ pub struct BoundProgram {
 }
 
 impl BoundProgram {
-    pub fn bind(
+    /// `program` with the values and automation lowering produced for it
+    /// from an admitted invocation, which checked them against their
+    /// declarations.
+    pub fn new(
         program: impl Into<Arc<Program>>,
         values: Vec<Value>,
         automation: Box<[PreparedAutomation]>,
-    ) -> Result<Self, BindingError> {
+    ) -> Self {
         let program = program.into();
-        let params = BoundParams::bind_values(&program.bytecode.params, values)?;
-        if !params.accepts_automation(&automation) {
-            return Err(BindingError {
-                message: "automation does not match its declaration".into(),
-            });
-        }
-        Ok(Self {
+        debug_assert_eq!(program.bytecode.params.len(), values.len());
+        let params = BoundParams::from_values(program.bytecode.params.iter().zip(values));
+        Self {
             program,
             params,
             automation,
-        })
+        }
     }
 
     pub fn program(&self) -> &Arc<Program> {

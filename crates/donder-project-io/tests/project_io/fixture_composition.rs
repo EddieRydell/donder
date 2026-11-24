@@ -40,7 +40,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
         .into_session()
         .unwrap();
     let (id, mut definition) = loaded
-        .project
+        .project()
         .reusable::<donder_model::FixtureDefinition>()
         .iter()
         .find(|(id, _)| loaded.declaration((**id).into()).unwrap().1.as_str() == "assembly")
@@ -57,7 +57,6 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
         element.id = FixtureElementId(index as u32 + 1);
     }
     loaded
-        .project
         .apply_edits([donder_model::ProjectEdit::Put(
             donder_model::Object::FixtureDefinition(id, definition),
         )])
@@ -66,9 +65,9 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     let saved = check_project(root, &Default::default(), &mut Default::default())
         .into_session()
         .unwrap();
-    assert_eq!(saved.project, loaded.project);
+    assert_eq!(saved.project(), loaded.project());
     let definition = saved
-        .project
+        .project()
         .reusable::<donder_model::FixtureDefinition>()
         .iter()
         .find(|(id, _)| saved.declaration((**id).into()).unwrap().1.as_str() == "assembly")
@@ -83,7 +82,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
         ["second", "first"]
     );
     let layout = saved
-        .project
+        .project()
         .reusable::<donder_model::Layout>()
         .values()
         .next()
@@ -100,7 +99,7 @@ fn all_shape_parameters_round_trip_in_authored_order() {
     let (_temporary, root) = common::starter_copy();
     let mut session = common::load_project(&root);
     let (id, mut fixture) = session
-        .project
+        .project()
         .reusable::<donder_model::FixtureDefinition>()
         .iter()
         .next()
@@ -161,7 +160,6 @@ fn all_shape_parameters_round_trip_in_authored_order() {
         })
         .collect();
     session
-        .project
         .apply_edits([donder_model::ProjectEdit::Put(
             donder_model::Object::FixtureDefinition(id, fixture),
         )])
@@ -171,7 +169,7 @@ fn all_shape_parameters_round_trip_in_authored_order() {
         check_project(&root, &Default::default(), &mut Default::default())
             .into_session()
             .unwrap()
-            .project,
-        session.project
+            .project(),
+        session.project()
     );
 }

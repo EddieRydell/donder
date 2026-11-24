@@ -1,6 +1,6 @@
 use super::DesktopState;
 use donder_editor::dto::{AppSnapshot, GuiDocumentRequest, GuiFixtureCapture, GuiObjectRef};
-use donder_model::ControllerId;
+use donder_model::{ControllerId, ObjectKind};
 use donder_output::{OutputTest, TestPattern, TestSelection};
 
 impl DesktopState {
@@ -21,7 +21,7 @@ impl DesktopState {
                 .checked_mul(3)
                 .ok_or("Choose fewer pixels than the controller has.")?;
             OutputTest::new(
-                &session.project,
+                session.project(),
                 TestSelection::Channels {
                     controller,
                     start_channel,
@@ -46,7 +46,10 @@ impl DesktopState {
             .project_session()
             .ok_or("Open a valid project to capture a fixture.")?;
         let resolved = donder_editor::resolve_request(&session, request)?;
-        let (definition, _) = donder_editor::open_fixture_definition(&session, &resolved)?;
+        if resolved.kind() != ObjectKind::FixtureDefinition {
+            return Err("Open a fixture to capture its shapes.".into());
+        }
+        let (definition, _) = donder_editor::open_fixture_definition(&session, &resolved);
         let video =
             fs_err::read(path).map_err(|error| format!("Couldn't read the video: {error}."))?;
         let capture = donder_fixture_capture::capture_fixture(&video, pixels, definition)

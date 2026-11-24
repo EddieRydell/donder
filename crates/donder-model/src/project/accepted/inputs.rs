@@ -49,17 +49,16 @@ impl ProjectInputs {
                 }
                 let id = &clip.definition;
                 let definition = &project.reusable::<crate::EffectDefinition>()[id];
-                let values = resolve(
+                let values = resolve_values(
                     project,
-                    sequence,
+                    MarkOrigin::Authored(sequence),
                     definition.compiled(),
                     &clip.param_overrides,
                     ClipTiming {
                         start: crate::clock::sample_time(&clip.start),
                         duration: crate::clock::sample_duration(&clip.duration),
                     },
-                )
-                .map_err(at(sequence.id))?;
+                );
                 let compiled = definition.compiled();
                 let automation = super::automation::admit(
                     sequence,
@@ -84,17 +83,16 @@ impl ProjectInputs {
                 };
                 let id = &operator.operator;
                 let definition = &project.reusable::<crate::OperatorDefinition>()[id];
-                let values = resolve(
+                let values = resolve_values(
                     project,
-                    sequence,
+                    MarkOrigin::Authored(sequence),
                     definition.compiled(),
                     &operator.params,
                     ClipTiming {
                         start: SampleTime::from_ticks(0),
                         duration: crate::clock::sample_duration(&sequence.duration),
                     },
-                )
-                .map_err(at(sequence.id))?;
+                );
                 let compiled = definition.compiled();
                 let automation = super::automation::admit(
                     sequence,
@@ -144,22 +142,6 @@ fn admit_timing(sequence: &Sequence) -> SequenceTiming {
     )
 }
 
-fn resolve(
-    project: &DonderProject,
-    sequence: &Sequence,
-    definition: &donder_language::compiler::CompiledDefinition,
-    overrides: &IndexMap<donder_runtime_types::Identifier, ParamValue>,
-    timing: ClipTiming,
-) -> Result<Box<[Value]>, ValidationProblem> {
-    resolve_values(
-        project,
-        MarkOrigin::Authored(sequence),
-        definition,
-        overrides,
-        timing,
-    )
-}
-
 /// The program's values: every declared parameter's override or default,
 /// then the enum options' fields.
 pub(super) fn resolve_values(
@@ -168,8 +150,8 @@ pub(super) fn resolve_values(
     definition: &donder_language::compiler::CompiledDefinition,
     overrides: &IndexMap<donder_runtime_types::Identifier, ParamValue>,
     timing: ClipTiming,
-) -> Result<Box<[Value]>, ValidationProblem> {
-    Ok(prepare_program_values(project, marks, definition, overrides, timing).into())
+) -> Box<[Value]> {
+    prepare_program_values(project, marks, definition, overrides, timing).into()
 }
 
 /// The previous admission's invocations of `sequence`'s clips, when every

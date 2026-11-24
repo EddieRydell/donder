@@ -3,7 +3,6 @@ pub(super) fn write_source_documents(
     session: &ProjectSession,
     output_root: &Utf8Path,
 ) -> Result<Vec<Utf8PathBuf>, ExportProjectError> {
-    validate_source_inventory(session)?;
     let mut cache = DocumentTextCache::default();
     let mut writes = std::collections::BTreeMap::new();
     for (id, document) in &session.source.documents {
@@ -133,129 +132,11 @@ pub(super) fn document_text(
     }
 }
 
-/// The inventory declares exactly the typed project's reusable objects, each
-/// under a name unique in its document.
-pub(super) fn validate_source_inventory(
-    session: &ProjectSession,
-) -> Result<(), ExportProjectError> {
-    let project = &session.project;
-    let mut typed: indexmap::IndexSet<ObjectId> = std::iter::once(project.root().id.into())
-        .chain(
-            project
-                .reusable::<donder_model::Setup>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::Controller>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::InputDevice>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::Layout>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::Patch>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::Sequence>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::Console>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::FixtureDefinition>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::CurveDefinition>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::GradientDefinition>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::EffectDefinition>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .chain(
-            project
-                .reusable::<donder_model::OperatorDefinition>()
-                .keys()
-                .map(|&id| id.into()),
-        )
-        .collect();
-    for (document_id, document) in &session.source.documents {
-        let mut names = std::collections::HashSet::new();
-        for object in &document.objects {
-            if !names.insert(&object.name) {
-                return Err(ExportProjectError::InvalidReference {
-                    path: document_id.path().to_path_buf(),
-                    reference: object.name.as_str().to_string(),
-                    message: "the document declares this name twice".to_string(),
-                });
-            }
-            if !typed.swap_remove(&object.id) {
-                return Err(missing_typed_object(document_id, object));
-            }
-        }
-    }
-    if let Some(id) = typed.first() {
-        return Err(ExportProjectError::InvalidReference {
-            path: crate::PROJECT_ROOT_FILE.into(),
-            reference: format!("{:?}", id.kind()),
-            message: "typed project object is missing from the source inventory".to_string(),
-        });
-    }
-    Ok(())
-}
-
-pub(crate) fn missing_typed_object(
-    document: &DocumentId,
-    object: &DeclaredObject,
-) -> ExportProjectError {
-    ExportProjectError::InvalidReference {
-        path: document.path().to_path_buf(),
-        reference: object.name.as_str().to_string(),
-
-        message: "typed project object is missing".to_string(),
-    }
-}
-
 use fs_err as fs;
 use std::io;
 
-use crate::address::{DeclaredObject, DocumentId};
+use crate::address::DocumentId;
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_model::ObjectId;
 
 use crate::ExportProjectError;
 use crate::source::{ProjectSession, SourceDocument};

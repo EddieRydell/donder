@@ -99,7 +99,7 @@ fn admit_console(
             definition.compiled(),
             &operator.params,
             session(),
-        )?;
+        );
         // Each of its parameters a `Set` writes, starting where its control rests.
         let mut automation = Vec::new();
         let mut automations = Vec::new();
@@ -149,7 +149,7 @@ fn admit_clip(
         definition.compiled(),
         &clip.param_overrides,
         session(),
-    )?;
+    );
     // Each set parameter, starting where its control rests; validation
     // checked that each is automatable and that the clip does not play it.
     let mut set = Vec::new();

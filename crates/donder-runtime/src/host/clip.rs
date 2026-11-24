@@ -2,7 +2,7 @@
 //! Raster dimensions, scheduling, show storage, and caching belong to the host.
 use crate::format;
 use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
-use donder_runtime_types::{Color, SampleDuration, SampleTime, SampleTimeError};
+use donder_runtime_types::{Color, MICROS_PER_SECOND, SampleDuration, SampleTime, mul_div};
 
 use crate::arena::{Carve, Size};
 use crate::dsl::{NoSignals, ParamsRef, StripSlots, params_at, scratch_shape};
@@ -27,21 +27,26 @@ impl<'a> ShowClip<'a> {
     }
 
     /// The show frames inside the authored clip, one raster column each.
-    pub fn raster_frames(&self) -> Result<core::ops::Range<u32>, SampleTimeError> {
+    pub fn raster_frames(&self) -> core::ops::Range<u32> {
         let rate = self.frame_rate();
-        let micros = donder_runtime_types::MICROS_PER_SECOND;
         // The first frame starting at or after `ticks`.
         let frame_from = |ticks: u32| {
-            let (frame, rest) = donder_runtime_types::mul_div(ticks, rate, micros)
-                .ok_or(SampleTimeError::OutOfRange)?;
-            Ok(frame + u32::from(rest != 0))
+            let Some((frame, rest)) = mul_div(ticks, rate, MICROS_PER_SECOND) else {
+                unreachable!("frame rates are below a million")
+            };
+            frame + u32::from(rest != 0)
         };
         let ticks = self.start_time().as_ticks();
-        let start_frame = frame_from(ticks)?;
-        let end_frame = frame_from(ticks.saturating_add(self.duration().as_ticks()))?;
+        let start_frame = frame_from(ticks);
+        let end_frame = frame_from(ticks.saturating_add(self.duration().as_ticks()));
         let last_frame = self.frame_count().saturating_sub(1);
         let start_frame = start_frame.min(last_frame);
-        Ok(start_frame..end_frame.min(last_frame + 1).max(start_frame + 1))
+        start_frame..end_frame.min(last_frame + 1).max(start_frame + 1)
+    }
+
+    /// The start of one of the show's frames.
+    pub fn frame_time(&self, frame: u32) -> SampleTime {
+        self.show.frame_time(frame)
     }
 
     pub fn start_time(&self) -> SampleTime {
@@ -175,12 +180,8 @@ impl ClipRaster<'_> {
             Carve::again(bytes)
         };
         self.fresh = false;
-        let (Some(mut workspace), Some(mut scratch)) = (
-            self.slots.carve(&mut arena),
-            carve_scratch(&mut arena, self.scratch),
-        ) else {
-            unreachable!("the buffer holds the sampler's size")
-        };
+        let mut workspace = self.slots.carve(&mut arena);
+        let mut scratch = carve_scratch(&mut arena, self.scratch);
         let params = params_at(
             show,
             &mut scratch,

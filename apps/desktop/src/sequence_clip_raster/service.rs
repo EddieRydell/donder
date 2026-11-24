@@ -76,7 +76,7 @@ impl SequenceClipRasterService {
             self.close();
             return SequenceClipRasterResponse { pending: 0 };
         };
-        let Some(sequence) = project.project.get::<donder_model::Sequence>(sequence_id) else {
+        let Some(sequence) = project.project().get::<donder_model::Sequence>(sequence_id) else {
             self.close();
             return SequenceClipRasterResponse { pending: 0 };
         };
@@ -102,7 +102,9 @@ impl SequenceClipRasterService {
             tick: 0,
         });
         let previous = std::mem::replace(&mut open.project, Arc::clone(&project));
-        let previous_sequence = previous.project.get::<donder_model::Sequence>(sequence_id);
+        let previous_sequence = previous
+            .project()
+            .get::<donder_model::Sequence>(sequence_id);
         open.sync(
             &project,
             sequence,
@@ -217,8 +219,8 @@ impl OpenSequence {
     ) {
         let context = previous.filter(|previous| {
             project
-                .project
-                .only_sequences_differ_from(&previous_project.project)
+                .project()
+                .only_sequences_differ_from(previous_project.project())
                 && previous.frame_rate == sequence.frame_rate
                 && previous.mark_collections == sequence.mark_collections
         });

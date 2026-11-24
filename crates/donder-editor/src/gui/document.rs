@@ -39,6 +39,15 @@ impl From<donder_model::EditError> for GuiMutationError {
     }
 }
 
+impl From<donder_project_io::SessionEditError> for GuiMutationError {
+    fn from(error: donder_project_io::SessionEditError) -> Self {
+        match error {
+            donder_project_io::SessionEditError::Model(error) => error.into(),
+            donder_project_io::SessionEditError::Source(message) => Self::Invalid(message),
+        }
+    }
+}
+
 pub fn blocked(reason: impl Into<String>, diagnostics: Vec<IoDiagnostic>) -> GuiDocument {
     GuiDocument::Blocked {
         reason: reason.into(),
@@ -101,12 +110,12 @@ pub fn project_gui_document_change(
     after: &ProjectSession,
     request: &GuiDocumentRequest,
 ) -> GuiDocumentChange {
-    if after.project.only_sequences_differ_from(&before.project)
+    if after.project().only_sequences_differ_from(before.project())
         && let Ok(resolved) = resolve_request(after, request)
         && let Ok(id) = SequenceId::try_from(resolved.object)
         && let (Some(previous), Some(sequence)) = (
-            before.project.get::<donder_model::Sequence>(id),
-            after.project.get::<donder_model::Sequence>(id),
+            before.project().get::<donder_model::Sequence>(id),
+            after.project().get::<donder_model::Sequence>(id),
         )
     {
         let previous = previous
@@ -163,8 +172,8 @@ pub fn affected_paths(
             | Kind::Layout
     ) {
         return Ok(session
-            .source
-            .documents
+            .source()
+            .documents()
             .keys()
             .map(|document| document.path().to_string())
             .collect());
@@ -196,11 +205,30 @@ impl ResolvedGuiObject {
         )
     }
 
+    /// The kind of the resolved object; an owned fixture definition is a
+    /// fixture definition.
+    pub fn kind(&self) -> donder_model::ObjectKind {
+        self.kind
+    }
+
     /// The resolved object as the id its editor works on. Requests resolve
     /// only to objects their view edits.
     pub(crate) fn id<I: TryFrom<donder_model::ObjectId>>(&self) -> I {
         I::try_from(self.object)
             .unwrap_or_else(|_| unreachable!("resolved objects match their editor"))
+    }
+
+    /// The resolved object in `session`, the session it resolved against:
+    /// its inventory declares exactly its project's objects, and owned objects
+    /// resolve through the project itself.
+    pub(crate) fn view<'s, T: donder_model::ProjectObject>(
+        &self,
+        session: &'s ProjectSession,
+    ) -> donder_model::View<'s, T> {
+        session
+            .project()
+            .view(self.id())
+            .unwrap_or_else(|| unreachable!("resolved objects are in their session"))
     }
 
     /// The document the resolved object is written in.
@@ -225,7 +253,7 @@ pub fn resolve_request(
     let path = Utf8Path::new(&request.path);
     let document_id = crate::source_documents::document_for_editor_path(session, path)
         .ok_or("No matching GUI document was found for this request.")?;
-    let document = &session.source.documents[&document_id];
+    let document = &session.source().documents()[&document_id];
     let declared = document
         .objects()
         .iter()
@@ -260,7 +288,7 @@ pub fn resolve_request(
                     .and_then(|id| donder_model::LayoutId::try_from(id).ok())
                     .ok_or_else(missing)?;
                 let inline = session
-                    .project
+                    .project()
                     .get::<donder_model::Layout>(layout)
                     .and_then(|layout| layout.fixture(donder_model::FixtureInstanceId(*fixture)))
                     .is_some_and(|fixture| {

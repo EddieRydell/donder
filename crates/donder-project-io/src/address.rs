@@ -161,7 +161,7 @@ pub fn validation_message(
     session: &ProjectSession,
     error: &donder_model::ProjectValidationError,
 ) -> String {
-    match session.address_of(error.object) {
+    match session.find_address(error.object) {
         Some(address) => object_problem(&address, &error.problem),
         None => error.problem.to_string(),
     }
@@ -378,6 +378,14 @@ impl ProjectSession {
         self.source.declared_id(identity)
     }
 
+    /// The kind of the declared object at the root of an address of this
+    /// session.
+    pub(crate) fn declared_kind(&self, identity: &SourceIdentity) -> ObjectKind {
+        self.declared_id(identity)
+            .unwrap_or_else(|| unreachable!("the root of a session's address is declared"))
+            .kind()
+    }
+
     /// A declared object's document and name as one identity.
     pub fn source_identity(&self, id: ObjectId) -> Option<SourceIdentity> {
         self.declaration(id).map(|(document, name)| {
@@ -385,8 +393,16 @@ impl ProjectSession {
         })
     }
 
-    /// Where `id` is written: its declaration, or its owner's address and slot.
-    pub fn address_of(&self, id: ObjectId) -> Option<ObjectAddress> {
+    /// Where `id`, an object of the session's project, is written: its
+    /// declaration, or its owner's address and slot.
+    pub fn address_of(&self, id: impl Into<ObjectId>) -> ObjectAddress {
+        self.find_address(id.into())
+            .unwrap_or_else(|| unreachable!("every object of a session has an address"))
+    }
+
+    /// Where `id` is written, when the session's project has it: for ids
+    /// from outside the session, such as a refused candidate's.
+    pub fn find_address(&self, id: ObjectId) -> Option<ObjectAddress> {
         if let Some(identity) = self.source_identity(id) {
             return Some(identity.into());
         }

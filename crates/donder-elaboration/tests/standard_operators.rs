@@ -16,19 +16,19 @@ fn layer_test() -> (DonderProject, SequenceId) {
             .into_session()
             .unwrap();
     let id = session
-        .project
+        .project()
         .root()
         .sequences
         .iter()
         .map(|source| *source.id())
         .find(|id| {
             session
-                .source
+                .source()
                 .declared_name((*id).into())
                 .is_some_and(|name| name.as_str() == "layer_test")
         })
         .unwrap();
-    (session.project, id)
+    (session.project().clone(), id)
 }
 
 fn node(id: u32, kind: CompositionGraphNodeKind) -> CompositionGraphNode {

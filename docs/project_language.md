@@ -437,8 +437,8 @@ FixtureDefinition vertical_113 {
   and groups; only groups list slices.
 - A group targets its fixtures and slices depth-first in member order; a
   pixel reached more than once keeps its first position.
-- `Transform`: `position`, an `(x, y, z)` tuple of distances within 2 km of the
-  origin; `rotation` in degrees and `scale`, each a tuple of floats.
+- `Transform`: `position`, an `(x, y, z)` tuple of distances from -2,147m to
+  2,147m; `rotation` in degrees and `scale`, each a tuple of floats.
 - `FixtureDefinition`: `description`, `shapes: [Shape]`.
 - `Shape`: `name`, `diameter` (a distance from 1µm to 100m), `reverse`,
   `transform`, `geometry`, which is one of:

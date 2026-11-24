@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use donder_model::ControllerId;
+use donder_model::Controller;
 use donder_output::OutputFrame;
 use donder_runtime::{PreparedShow, ShowPlayback};
 use donder_runtime_types::{ConsoleEvent, SampleDuration, SampleTime};
@@ -37,7 +37,9 @@ impl SessionClock {
 /// and the frame last rendered.
 pub(crate) struct ConsoleOutput {
     playback: ShowPlayback,
-    controllers: Vec<ControllerId>,
+    /// The controllers of the setup the console was prepared on, in the
+    /// order its outputs index them.
+    controllers: Vec<Controller>,
     clock: SessionClock,
     /// Counts the event batches applied, so a frame reflects its commands.
     revision: u64,
@@ -55,7 +57,7 @@ impl ConsoleOutput {
     pub(crate) fn new(
         prepared: PreparedShow,
         events: &[ConsoleEvent],
-        controllers: Vec<ControllerId>,
+        controllers: Vec<Controller>,
         clock: SessionClock,
     ) -> Self {
         let mut output = Self {
@@ -74,6 +76,12 @@ impl ConsoleOutput {
             self.playback.apply(*event);
         }
         self.revision = self.revision.saturating_add(1);
+    }
+
+    /// The controllers the frames are for, which live output opens its
+    /// transports to.
+    pub(crate) fn controllers(&self) -> &[Controller] {
+        &self.controllers
     }
 
     pub(crate) fn frame_interval(&self) -> Duration {

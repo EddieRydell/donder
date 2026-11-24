@@ -98,11 +98,14 @@ pub fn apply_edit(
 fn opened_sequence(
     session: &ProjectSession,
     request: &GuiDocumentRequest,
-) -> Result<SequenceId, GuiMutationError> {
+) -> Result<ResolvedGuiObject, GuiMutationError> {
     let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
-    SequenceId::try_from(resolved.object).map_err(|_| {
-        GuiMutationError::Invalid("Open a sequence to copy or paste clips.".to_string())
-    })
+    if resolved.kind != donder_model::ObjectKind::Sequence {
+        return Err(GuiMutationError::Invalid(
+            "Open a sequence to copy or paste clips.".to_string(),
+        ));
+    }
+    Ok(resolved)
 }
 
 /// `selection` of the sequence `request` opens as clipboard text, none when
@@ -112,9 +115,9 @@ pub fn copy_selection(
     request: &GuiDocumentRequest,
     selection: &SequenceSelection,
 ) -> Result<(Option<String>, GuiEditOutcome), GuiMutationError> {
-    let sequence_id = opened_sequence(session, request)?;
+    let sequence = opened_sequence(session, request)?;
     let (text, copied_count, skipped_count) =
-        copy_sequence_selection(session, &sequence_id, selection)?;
+        copy_sequence_selection(session, &sequence, selection)?;
     Ok((
         text,
         GuiEditOutcome {
@@ -146,8 +149,8 @@ pub fn paste(
     text: &str,
     texts: &mut donder_project_io::DocumentTextCache,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
-    let sequence_id = opened_sequence(session, request)?;
-    paste_sequence_clipboard(session, &sequence_id, anchor, text, texts)
+    let sequence = opened_sequence(session, request)?;
+    paste_sequence_clipboard(session, &sequence, anchor, text, texts)
 }
 
 /// A sequence edit: selection edits change the clips and marks they name,
@@ -157,10 +160,9 @@ fn edit_sequence_selection(
     resolved: &ResolvedGuiObject,
     edit: SequenceGuiEdit,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
-    let sequence_id = resolved.id::<SequenceId>();
     match edit {
         SequenceGuiEdit::DeleteSelection { selection } => {
-            delete_sequence_selection(session, &sequence_id, &selection)?;
+            delete_sequence_selection(session, resolved, &selection)?;
             Ok(GuiEditOutcome::default())
         }
         SequenceGuiEdit::MoveClips {
@@ -172,7 +174,7 @@ fn edit_sequence_selection(
             let (clip_ids, automation) = super::selection::split_clips(&clips);
             move_clip_selection(
                 session,
-                &sequence_id,
+                resolved,
                 &clip_ids,
                 &automation,
                 time_delta_seconds,
@@ -192,7 +194,7 @@ fn edit_sequence_selection(
             let (clip_ids, automation) = super::selection::split_clips(&clips);
             resize_clip_selection(
                 session,
-                &sequence_id,
+                resolved,
                 &clip_ids,
                 &automation,
                 edge,
@@ -205,7 +207,7 @@ fn edit_sequence_selection(
         }
         SequenceGuiEdit::ArrangeClips { clips, arrangement } => {
             let (clip_ids, automation) = super::selection::split_clips(&clips);
-            arrange_clip_selection(session, &sequence_id, &clip_ids, &automation, &arrangement)?;
+            arrange_clip_selection(session, resolved, &clip_ids, &automation, &arrangement)?;
             Ok(GuiEditOutcome::selection(SequenceSelection::Clips {
                 clips,
             }))
@@ -217,13 +219,7 @@ fn edit_sequence_selection(
                     "Only clips have these properties.".to_string(),
                 ));
             }
-            edit_clip_selection(
-                session,
-                resolved.document_id(),
-                &sequence_id,
-                &clip_ids,
-                edit,
-            )?;
+            edit_clip_selection(session, resolved.document_id(), resolved, &clip_ids, edit)?;
             Ok(GuiEditOutcome::selection(SequenceSelection::Clips {
                 clips,
             }))
@@ -232,7 +228,7 @@ fn edit_sequence_selection(
             marks,
             time_delta_seconds,
         } => {
-            let moved = move_mark_selection(session, &sequence_id, &marks, time_delta_seconds)?;
+            let moved = move_mark_selection(session, resolved, &marks, time_delta_seconds)?;
             Ok(GuiEditOutcome::selection(SequenceSelection::Marks {
                 marks: moved,
             }))

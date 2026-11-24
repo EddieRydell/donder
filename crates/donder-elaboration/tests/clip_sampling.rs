@@ -10,7 +10,8 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
         donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
             .into_session()
             .unwrap()
-            .project;
+            .project()
+            .clone();
     let mut sample_checked = false;
     for sequence in project
         .root()

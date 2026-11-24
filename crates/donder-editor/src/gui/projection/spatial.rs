@@ -3,20 +3,17 @@ use crate::dto::{
     GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, LayoutGuiDocument,
     Point3Meters, SpatialRenderPixel, SpatialRenderPlan,
 };
-use crate::gui::{ResolvedGuiObject, blocked};
+use crate::gui::ResolvedGuiObject;
 use donder_model::FixtureDefinitionId;
 use donder_model::PreparedFixtureDefinitions;
-use donder_model::{LayoutFixture, LayoutFixtureKind, LayoutId};
+use donder_model::{LayoutFixture, LayoutFixtureKind};
 use donder_project_io::ProjectSession;
 
 pub(in crate::gui) fn project_fixture(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let (definition, name) = match crate::gui::fixture::open_fixture_definition(session, resolved) {
-        Ok(open) => open,
-        Err(message) => return blocked(message, Vec::new()),
-    };
+    let (definition, name) = crate::gui::fixture::open_fixture_definition(session, resolved);
     let pixels = donder_model::prepare_geometry(definition);
     let pixels = pixels
         .iter()
@@ -71,25 +68,15 @@ pub(in crate::gui) fn project_fixture(
 
 /// The setup's controllers that stream, which can play the capture pattern.
 fn capture_controllers(session: &ProjectSession) -> Vec<GuiCaptureController> {
-    let Some(setup) = session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
-    else {
-        return Vec::new();
-    };
-    setup
-        .controllers
-        .iter()
+    session
+        .project()
+        .active_setup()
+        .controllers()
         .filter_map(|controller| {
-            let id = *controller.id();
-            let universes = session
-                .project
-                .get::<donder_model::Controller>(id)?
-                .universes()?;
+            let id = controller.id();
+            let universes = controller.object().universes()?;
             Some(GuiCaptureController {
-                label: crate::gui::model::object_address(session, id)
-                    .declared_name()
-                    .to_string(),
+                label: session.address_of(id).declared_name().to_string(),
                 source_ref: crate::gui::model::object_ref(session, id),
                 channel_count: universes.channel_count(),
             })
@@ -101,15 +88,10 @@ pub(in crate::gui) fn project_layout(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let Some(layout) = session
-        .project
-        .get::<donder_model::Layout>(resolved.id::<LayoutId>())
-    else {
-        return blocked("Layout was not found.", Vec::new());
-    };
+    let layout = resolved.view::<donder_model::Layout>(session).object();
     let definitions = PreparedFixtureDefinitions::prepare(
         session
-            .project
+            .project()
             .reusable::<donder_model::FixtureDefinition>(),
     );
     let prepared = definitions.prepare_layout(layout);

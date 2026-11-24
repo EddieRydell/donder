@@ -16,6 +16,7 @@ use donder_language::data::Spanned;
 use donder_language::{ImportAlias, ImportDeclaration, SourceReference};
 use donder_model::ObjectId;
 use donder_model::ObjectKind;
+use donder_model::TypedId;
 use donder_runtime_types::Identifier;
 use indexmap::IndexMap;
 
@@ -205,29 +206,28 @@ impl Loader {
     }
 
     /// A reference to exactly one declared object of `kind`.
-    pub(crate) fn resolve_reference(
+    /// The declared object of id type `I` a reference names.
+    pub(crate) fn resolve_reference<I: TypedId>(
         &self,
         document: &DocumentId,
         reference: &Reference,
-        kind: ObjectKind,
-    ) -> Result<ObjectId, LoadError> {
+    ) -> Result<I, LoadError> {
         let (object, rest) = self.resolve_declared(document, reference)?;
         if !rest.is_empty() {
             return Err(self.unresolved(document, reference));
         }
-        if object.kind() != kind {
-            return Err(self.invalid(
+        I::try_from(object).map_err(|_| {
+            self.invalid(
                 document,
                 reference.span,
                 format!(
                     "`{}` is {}, not {}",
                     reference.text(),
                     kind_name(&object.kind()),
-                    kind_name(&kind)
+                    kind_name(&I::KIND)
                 ),
-            ));
-        }
-        Ok(object)
+            )
+        })
     }
 
     pub(crate) fn unresolved(&self, document: &DocumentId, reference: &Reference) -> LoadError {

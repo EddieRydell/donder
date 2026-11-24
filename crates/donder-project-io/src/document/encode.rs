@@ -117,16 +117,12 @@ impl Encoder<'_> {
         let identity = self
             .addresses
             .get(&id)
-            .ok_or_else(|| self.error("", "the referenced object is missing"))?;
+            .unwrap_or_else(|| unreachable!("every object of a session has an address"));
         if let Some(source) = identity.source() {
             return self.source_reference(kind, source);
         }
         let root = identity.root_source();
-        let root_kind = self
-            .session
-            .declared_id(root)
-            .map(ObjectId::kind)
-            .ok_or_else(|| self.error(root.object(), "the owner of this object is missing"))?;
+        let root_kind = self.session.declared_kind(root);
         let mut reference = self.source_reference(root_kind, root)?;
         let mut resolved = root_kind;
         let segment = |text: &str| {
@@ -158,12 +154,14 @@ impl Encoder<'_> {
     /// `layout.fixture`: the layout's reference and the fixture or group name.
     fn fixture_target(&self, target: &FixtureTarget) -> Result<Reference, ExportProjectError> {
         let mut reference = self.object_reference(ObjectKind::Layout, target.layout)?;
-        let fixture = self
+        let Some(fixture) = self
             .session
             .project
             .get::<donder_model::Layout>(target.layout)
             .and_then(|layout| layout.fixture(target.fixture))
-            .ok_or_else(|| self.error(&reference.text(), "the target fixture is missing"))?;
+        else {
+            unreachable!("validation proved every fixture target");
+        };
         reference.segments.push(Spanned::new(
             fixture.name.clone(),
             donder_language::data::NO_SPAN,
@@ -338,14 +336,14 @@ impl Encoder<'_> {
                 .routes
                 .iter()
                 .map(|route| {
-                    let controller = self
+                    let Some(port) = self
                         .session
                         .project
                         .get::<donder_model::Controller>(route.controller)
-                        .ok_or_else(|| self.error("", "a route's controller is missing"))?;
-                    let port = controller
-                        .port(route.port)
-                        .ok_or_else(|| self.error("", "a route's port is missing"))?;
+                        .and_then(|controller| controller.port(route.port))
+                    else {
+                        unreachable!("validation proved every route's controller and port");
+                    };
                     Ok(types::Route {
                         target: self.fixture_target(&route.target)?,
                         pixels: route.pixels.map(|span| types::PixelSpan {
@@ -388,59 +386,52 @@ impl Encoder<'_> {
         })
     }
 
-    fn layer_name(
-        &self,
-        layers: &[SequenceLayer],
-        id: &donder_model::SequenceLayerId,
-    ) -> Result<Name, ExportProjectError> {
-        layers
-            .iter()
-            .find(|layer| &layer.id == id)
-            .map(|layer| name(&layer.name))
-            .ok_or_else(|| self.error("", "a layer is missing"))
+    fn layer_name(layers: &[SequenceLayer], id: &donder_model::SequenceLayerId) -> Name {
+        let Some(layer) = layers.iter().find(|layer| &layer.id == id) else {
+            unreachable!("validation proved every layer reference");
+        };
+        name(&layer.name)
     }
 
     /// An operator node's name, or `root`: what edges reach and automation
     /// binds.
     fn node_name(
-        &self,
         graph: &SequenceCompositionGraph,
         id: &donder_model::CompositionGraphNodeId,
-    ) -> Result<Name, ExportProjectError> {
-        let node = graph
+    ) -> Name {
+        match graph
             .nodes
             .iter()
             .find(|node| &node.id == id)
-            .ok_or_else(|| self.error("", "a graph node is missing"))?;
-        match &node.kind {
-            CompositionGraphNodeKind::Layer { .. } => {
-                Err(self.error("", "a layer node has no inputs or params"))
-            }
-            CompositionGraphNodeKind::Operator(operator) => Ok(name(&operator.name)),
-            CompositionGraphNodeKind::Root => Ok(name(&donder_language::object_name(
+            .map(|node| &node.kind)
+        {
+            Some(CompositionGraphNodeKind::Operator(operator)) => name(&operator.name),
+            Some(CompositionGraphNodeKind::Root) => name(&donder_language::object_name(
                 donder_language::data::ROOT_NODE,
-            ))),
+            )),
+            Some(CompositionGraphNodeKind::Layer { .. }) | None => {
+                unreachable!("validation proved edges and bindings reach operators and the root")
+            }
         }
     }
 
     /// Where an edge leaves: `layers.layer` for a layer node, else its node name.
     fn edge_source(
-        &self,
         layers: &[SequenceLayer],
         graph: &SequenceCompositionGraph,
         id: &donder_model::CompositionGraphNodeId,
-    ) -> Result<Reference, ExportProjectError> {
+    ) -> Reference {
         let layer = graph.nodes.iter().find_map(|node| match &node.kind {
             CompositionGraphNodeKind::Layer { layer_id } if &node.id == id => Some(layer_id),
             _ => None,
         });
-        Ok(Reference::new(match layer {
+        Reference::new(match layer {
             Some(layer) => vec![
                 donder_language::object_name(donder_language::data::LAYERS_SCOPE),
-                self.layer_name(layers, layer)?.0.value,
+                Self::layer_name(layers, layer).0.value,
             ],
-            None => vec![self.node_name(graph, id)?.0.value],
-        }))
+            None => vec![Self::node_name(graph, id).0.value],
+        })
     }
 
     /// The layers of a sequence or console.
@@ -470,7 +461,7 @@ impl Encoder<'_> {
                     let position = (node.position.x, node.position.y);
                     Ok(match &node.kind {
                         CompositionGraphNodeKind::Layer { layer_id } => types::Node::LayerNode {
-                            layer: self.layer_name(layers, layer_id)?,
+                            layer: Self::layer_name(layers, layer_id),
                             position,
                         },
                         CompositionGraphNodeKind::Operator(operator) => {
@@ -478,17 +469,15 @@ impl Encoder<'_> {
                             let declarations = self
                                 .session
                                 .project
-                                .reusable::<donder_model::OperatorDefinition>()
-                                .get(definition)
-                                .map(|definition| definition.params().to_vec())
-                                .ok_or_else(|| self.error("", "the operator is missing"))?;
+                                .reusable::<donder_model::OperatorDefinition>()[definition]
+                                .params();
                             types::Node::OperatorNode {
                                 name: name(&operator.name),
                                 operator: self.object_reference(
                                     ObjectKind::OperatorDefinition,
                                     *definition,
                                 )?,
-                                params: self.params(&declarations, &operator.params)?,
+                                params: self.params(declarations, &operator.params)?,
                                 position,
                             }
                         }
@@ -500,39 +489,36 @@ impl Encoder<'_> {
                 .edges
                 .iter()
                 .map(|edge| {
-                    let mut segments = vec![self.node_name(graph, &edge.to)?.0.value];
+                    let mut segments = vec![Self::node_name(graph, &edge.to).0.value];
                     segments.extend(edge.input.clone());
-                    Ok(types::Edge {
-                        from: self.edge_source(layers, graph, &edge.from)?,
+                    types::Edge {
+                        from: Self::edge_source(layers, graph, &edge.from),
                         to: Reference::new(segments),
-                    })
+                    }
                 })
-                .collect::<Result<_, ExportProjectError>>()?,
+                .collect(),
         })
     }
 
     /// An effect's parameter declarations.
-    fn effect_declarations(
-        &self,
-        definition: &donder_model::EffectDefinitionId,
-    ) -> Result<Vec<ParamDecl>, ExportProjectError> {
+    fn effect_declarations(&self, definition: &donder_model::EffectDefinitionId) -> &[ParamDecl] {
         self.session
             .project
-            .reusable::<donder_model::EffectDefinition>()
-            .get(definition)
-            .map(|definition| definition.params().to_vec())
-            .ok_or_else(|| self.error("", "the effect definition is missing"))
+            .reusable::<donder_model::EffectDefinition>()[definition]
+            .params()
     }
 
     /// `device.control`: a control's device reference and the control's name.
     fn control(&self, input: &ControlRef) -> Result<Reference, ExportProjectError> {
         let mut reference = self.object_reference(ObjectKind::InputDevice, input.device)?;
-        let control = self
+        let Some(control) = self
             .session
             .project
             .get::<donder_model::InputDevice>(input.device)
             .and_then(|device| device.control(input.control))
-            .ok_or_else(|| self.error(&reference.text(), "the input control is missing"))?;
+        else {
+            unreachable!("validation proved every console input");
+        };
         reference.segments.push(Spanned::new(
             control.name.clone(),
             donder_language::data::NO_SPAN,
@@ -542,10 +528,10 @@ impl Encoder<'_> {
 
     pub(crate) fn console(&self, console: &Console) -> Result<types::Console, ExportProjectError> {
         let clip_name = |id: &ConsoleClipId| {
-            console
-                .clip(*id)
-                .map(|clip| name(&clip.name))
-                .ok_or_else(|| self.error("", "a console clip is missing"))
+            let Some(clip) = console.clip(*id) else {
+                unreachable!("validation proved every console clip reference");
+            };
+            name(&clip.name)
         };
         Ok(types::Console {
             description: console.description.clone(),
@@ -565,15 +551,15 @@ impl Encoder<'_> {
                 .iter()
                 .map(|clip| {
                     let definition = &clip.definition;
-                    let declarations = self.effect_declarations(definition)?;
+                    let declarations = self.effect_declarations(definition);
                     Ok(types::ConsoleClip {
                         name: name(&clip.name),
                         description: clip.description.clone(),
-                        layer: self.layer_name(&console.layers, &clip.layer_id)?,
+                        layer: Self::layer_name(&console.layers, &clip.layer_id),
                         target: self.fixture_target(&clip.target)?,
                         scope: types::Scope(clip.scope.clone()),
                         effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
-                        params: self.params(&declarations, &clip.param_overrides)?,
+                        params: self.params(declarations, &clip.param_overrides)?,
                         played: clip
                             .played
                             .iter()
@@ -591,7 +577,7 @@ impl Encoder<'_> {
                 .iter()
                 .map(|always| {
                     Ok(types::Always {
-                        clip: clip_name(&always.clip)?,
+                        clip: clip_name(&always.clip),
                         length: always.length.0,
                     })
                 })
@@ -613,7 +599,7 @@ impl Encoder<'_> {
                             .map(|action| {
                                 Ok(match action {
                                     Action::Play(play) => types::Action::Play {
-                                        clip: clip_name(&play.clip)?,
+                                        clip: clip_name(&play.clip),
                                         copies: play.copies,
                                         length: match &play.length {
                                             PlayLength::Fixed(duration) => {
@@ -642,25 +628,25 @@ impl Encoder<'_> {
                                         },
                                     },
                                     Action::Start { clip, length } => types::Action::Start {
-                                        clip: clip_name(clip)?,
+                                        clip: clip_name(clip),
                                         length: length.0,
                                     },
                                     Action::Stop { clip } => types::Action::Stop {
-                                        clip: clip_name(clip)?,
+                                        clip: clip_name(clip),
                                     },
                                     Action::Toggle { clip, length } => types::Action::Toggle {
-                                        clip: clip_name(clip)?,
+                                        clip: clip_name(clip),
                                         length: length.0,
                                     },
                                     Action::Mark(key) => types::Action::Mark {
                                         into: name(&key.name),
                                     },
                                     Action::Set { target, window } => types::Action::Set {
-                                        param: self.binding(
+                                        param: Self::binding(
                                             &console.composition_graph,
                                             target,
                                             |clip| console.clip(*clip).map(|clip| name(&clip.name)),
-                                        )?,
+                                        ),
                                         window: window_document(*window),
                                     },
                                 })
@@ -682,17 +668,17 @@ impl Encoder<'_> {
         clip: &donder_model::Clip,
     ) -> Result<types::Clip, ExportProjectError> {
         let definition = &clip.definition;
-        let declarations = self.effect_declarations(definition)?;
+        let declarations = self.effect_declarations(definition);
         Ok(types::Clip {
             name: name(&clip.name),
             description: clip.description.clone(),
-            layer: self.layer_name(&sequence.layers, &clip.layer_id)?,
+            layer: Self::layer_name(&sequence.layers, &clip.layer_id),
             start: clip.start.0,
             duration: clip.duration.0,
             target: self.fixture_target(&clip.target)?,
             scope: types::Scope(clip.scope.clone()),
             effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
-            params: self.params(&declarations, &clip.param_overrides)?,
+            params: self.params(declarations, &clip.param_overrides)?,
         })
     }
 
@@ -703,7 +689,7 @@ impl Encoder<'_> {
         sequence: &Sequence,
     ) -> Result<types::Sequence, ExportProjectError> {
         let binding = |target: &AutomationTarget| {
-            self.binding(&sequence.composition_graph, target, |clip_id| {
+            Self::binding(&sequence.composition_graph, target, |clip_id| {
                 sequence
                     .clips
                     .iter()
@@ -754,7 +740,7 @@ impl Encoder<'_> {
                             .iter()
                             .map(|bound| {
                                 Ok(types::Bound {
-                                    binding: binding(&bound.target)?,
+                                    binding: binding(&bound.target),
                                     window: window_document(bound.window),
                                 })
                             })
@@ -764,7 +750,7 @@ impl Encoder<'_> {
                             .iter()
                             .map(|detached| {
                                 Ok(types::Detached {
-                                    binding: binding(&detached.target)?,
+                                    binding: binding(&detached.target),
                                 })
                             })
                             .collect::<Result<_, ExportProjectError>>()?,
@@ -777,24 +763,23 @@ impl Encoder<'_> {
     /// A sequence's or console's automation binding; `clip_name` names the
     /// clip a clip binding sets.
     fn binding<Clip>(
-        &self,
         graph: &donder_model::SequenceCompositionGraph,
         target: &AutomationTarget<Clip>,
         clip_name: impl FnOnce(&Clip) -> Option<Name>,
-    ) -> Result<types::Binding, ExportProjectError> {
-        Ok(match target {
+    ) -> types::Binding {
+        match target {
             AutomationTarget::ClipParam { clip_id, param } => types::Binding::ClipParam {
                 clip: clip_name(clip_id)
-                    .ok_or_else(|| self.error("", "an automated clip is missing"))?,
+                    .unwrap_or_else(|| unreachable!("validation proved every automated clip")),
                 param: name(param),
             },
             AutomationTarget::CompositionNodeParam { node_id, param } => {
                 types::Binding::NodeParam {
-                    node: self.node_name(graph, node_id)?,
+                    node: Self::node_name(graph, node_id),
                     param: name(param),
                 }
             }
-        })
+        }
     }
 
     /// Parameter overrides in the definition's declaration order.
@@ -803,13 +788,6 @@ impl Encoder<'_> {
         declarations: &[ParamDecl],
         values: &IndexMap<Identifier, ParamValue>,
     ) -> Result<Params, ExportProjectError> {
-        if let Some(unknown) = values.keys().find(|key| {
-            !declarations
-                .iter()
-                .any(|declaration| &declaration.name == *key)
-        }) {
-            return Err(self.error(unknown.as_str(), "a parameter value has no declaration"));
-        }
         Ok(Params(
             declarations
                 .iter()

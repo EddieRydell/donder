@@ -1,7 +1,8 @@
 //! A show in memory and its playback. A prepared show owns its bytes and a
 //! show playback owns its buffer; a region playback keeps both in memory its
-//! caller owns. Each call re-borrows the bytes and buffer as the core
-//! [`Show`] and workspace.
+//! caller owns. A show's header is checked once, when it is decoded or a
+//! region opens it; each call then re-borrows the bytes and buffer as the
+//! core [`Show`] and workspace without checking them again.
 use crate::format;
 use alloc::{boxed::Box, vec, vec::Vec};
 use donder_runtime_types::{ConsoleEvent, SampleDuration, SampleTime, Shared};
@@ -32,7 +33,9 @@ impl PreparedShow {
     pub fn decode(bytes: &[u8]) -> Result<Self, LoadError> {
         let mut words = vec![0u32; bytes.len().div_ceil(4)];
         bytemuck::cast_slice_mut::<u32, u8>(&mut words)[..bytes.len()].copy_from_slice(bytes);
-        let layout = Layout::of(Show::open(bytes_of(&words, bytes.len())?)?);
+        let layout = Layout::of(Show::open(
+            &bytemuck::cast_slice::<u32, u8>(&words)[..bytes.len()],
+        )?);
         Ok(Self {
             words: words.into(),
             layout,
@@ -100,6 +103,11 @@ impl PreparedShow {
         self.show().duration()
     }
 
+    /// The start of one of the show's frames, below [`Self::frame_count`].
+    pub fn frame_time(&self, frame: u32) -> SampleTime {
+        self.show().frame_time(frame)
+    }
+
     /// Bytes of the playback buffer.
     pub fn workspace_bytes(&self) -> usize {
         self.layout.words() * 4
@@ -142,19 +150,6 @@ impl PreparedShow {
     }
 }
 
-/// The first `len` bytes of `words` when they hold exactly one show's
-/// header, table and payload.
-fn bytes_of(words: &[u32], len: usize) -> Result<&[u8], LoadError> {
-    let bytes = bytemuck::cast_slice::<u32, u8>(words)
-        .get(..len)
-        .ok_or(LoadError::Version)?;
-    Show::open(bytes)?;
-    if format::show_len(bytes) != len {
-        return Err(LoadError::Version);
-    }
-    Ok(bytes)
-}
-
 /// Owns a show, its playback buffer and a console's routing state.
 pub struct ShowPlayback {
     prepared: PreparedShow,
@@ -166,7 +161,7 @@ impl ShowPlayback {
     /// Play the show from its start again, as [`PreparedShow::into_playback`]
     /// does, in the buffer it has.
     pub fn restart(&mut self) {
-        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        let show = self.prepared.show();
         restart(
             show,
             &self.prepared.layout,
@@ -182,7 +177,7 @@ impl ShowPlayback {
     /// The frame at `time`, after a console's held copies whose length ended
     /// start again.
     pub fn evaluate(&mut self, time: SampleTime) -> SequenceFrame<'_> {
-        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        let show = self.prepared.show();
         advance(
             show,
             &self.prepared.layout,
@@ -196,7 +191,7 @@ impl ShowPlayback {
     /// Route a console input at its time. Inputs arrive in time order; one of
     /// a control the console does not read is ignored.
     pub fn apply(&mut self, event: ConsoleEvent) {
-        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        let show = self.prepared.show();
         route(
             show,
             &self.prepared.layout,
@@ -209,7 +204,7 @@ impl ShowPlayback {
     /// Release every held control at `time`, as when the input that held them
     /// goes away.
     pub fn release_all(&mut self, time: SampleTime) {
-        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
+        let show = self.prepared.show();
         release_all(
             show,
             &self.prepared.layout,
@@ -225,8 +220,8 @@ impl ShowPlayback {
         &mut self,
         (time, command): (SampleTime, crate::playback::ConsoleCommand),
     ) {
-        let show = Show::trusted(bytemuck::cast_slice(&self.prepared.words));
-        resume(show, &self.prepared.layout, &mut self.buffer).apply(time, command);
+        let show = self.prepared.show();
+        Playback::resume(show, &self.prepared.layout, &mut self.buffer).apply(time, command);
     }
 }
 
@@ -292,7 +287,7 @@ fn fit(words: &[u32], len: usize) -> Result<Layout, LoadError> {
             capacity,
         });
     }
-    let layout = Layout::of(Show::open(bytes_of(words, len)?)?);
+    let layout = Layout::of(Show::open(&bytemuck::cast_slice::<u32, u8>(words)[..len])?);
     let needed = len + layout.words() * 4;
     if needed > capacity {
         return Err(LoadError::Capacity { needed, capacity });
@@ -395,21 +390,11 @@ impl<'r> RegionPlayback<'r> {
     }
 }
 
-/// Continue `show` in the buffer an earlier call left.
-fn resume<'a, 'w>(show: Show<'a>, layout: &Layout, buffer: &'w mut [u32]) -> Playback<'a, 'w> {
-    let Some(playback) = Playback::resume(show, layout, buffer) else {
-        unreachable!("the buffer holds the layout's words")
-    };
-    playback
-}
-
 /// Start `show` in a fresh buffer; a console's session starts its `always`
 /// clips.
 fn restart(show: Show<'_>, layout: &Layout, buffer: &mut [u32], router: &mut Router) {
     buffer.fill(0);
-    let Some(mut playback) = Playback::new(show, layout, buffer) else {
-        unreachable!("the buffer holds the layout's words")
-    };
+    let mut playback = Playback::new(show, layout, buffer);
     *router = Router::new(show);
     router.start(show, SampleTime::from_ticks(0), &mut |command| {
         playback.apply(SampleTime::from_ticks(0), command);
@@ -424,7 +409,7 @@ fn advance<'a, 'w>(
     router: &mut Router,
     time: SampleTime,
 ) -> Playback<'a, 'w> {
-    let mut playback = resume(show, layout, buffer);
+    let mut playback = Playback::resume(show, layout, buffer);
     router.advance(time, &mut |at, command| playback.apply(at, command));
     playback
 }
@@ -436,7 +421,7 @@ fn route(
     router: &mut Router,
     event: ConsoleEvent,
 ) {
-    let mut playback = resume(show, layout, buffer);
+    let mut playback = Playback::resume(show, layout, buffer);
     router.route(show, event, &mut |command| {
         playback.apply(event.time, command);
     });
@@ -449,7 +434,7 @@ fn release_all(
     router: &mut Router,
     time: SampleTime,
 ) {
-    let mut playback = resume(show, layout, buffer);
+    let mut playback = Playback::resume(show, layout, buffer);
     router.release_all(show, time, &mut |command| {
         playback.apply(time, command);
     });

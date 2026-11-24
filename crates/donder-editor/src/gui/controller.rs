@@ -5,7 +5,7 @@ use donder_model::{
 use donder_project_io::ProjectSession;
 use std::num::NonZeroU32;
 
-use super::{GuiMutationError, ResolvedGuiObject, blocked};
+use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{
     ControllerGuiDocument, GuiDocument, SetupController, SetupControllerConfig,
     SetupControllerPort, SetupDonderOutput,
@@ -17,9 +17,7 @@ pub(super) fn project_controller(
     controller: &Controller,
 ) -> SetupController {
     SetupController {
-        label: super::model::object_address(session, *id)
-            .declared_name()
-            .to_string(),
+        label: session.address_of(*id).declared_name().to_string(),
         source_ref: super::model::object_ref(session, *id),
         config: (&controller.protocol).into(),
         ports: controller
@@ -46,16 +44,13 @@ pub(super) fn project_document(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let id = resolved.id::<ControllerId>();
-    let Some(controller) = session.project.get::<donder_model::Controller>(id) else {
-        return blocked("Controller was not found.", Vec::new());
-    };
+    let controller = resolved.view::<donder_model::Controller>(session);
     GuiDocument::Controller {
         document: ControllerGuiDocument {
             description: controller.description.clone(),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
-            controller: project_controller(session, &id, controller),
+            controller: project_controller(session, &controller.id(), &controller),
         },
     }
 }
@@ -67,15 +62,12 @@ pub(super) fn edit(
     ports: Vec<SetupControllerPort>,
 ) -> Result<(), GuiMutationError> {
     let id = resolved.id::<ControllerId>();
-    let description = session
-        .project
-        .get::<donder_model::Controller>(id)
-        .and_then(|controller| controller.description.clone());
+    let description = resolved
+        .view::<donder_model::Controller>(session)
+        .description
+        .clone();
     let controller = domain_controller(id, description, config, ports)?;
-    session
-        .project
-        .put(controller)
-        .map_err(GuiMutationError::from)
+    session.put(controller).map_err(GuiMutationError::from)
 }
 
 /// `ports` are the controller's physical outputs; a Donder controller's

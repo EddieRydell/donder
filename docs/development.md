@@ -79,6 +79,13 @@ channels, chosen by what the error is about:
   implement `Display` with a plain sentence that names the file, controller
   or device; never show an error's `Debug` form.
 
+States validation excludes are not errors. Code that holds a validated
+project or a `View` never reports a missing reference or an impossible value:
+the view or accessor that relies on the invariant states it once, as
+`unreachable!("<the invariant that proves it>")`, and call sites use its
+infallible result. Only input from outside, such as an id in a request, is
+checked, where it enters.
+
 Filesystem calls go through `fs_err`, whose errors name the path and the
 operation; the root `clippy.toml` bans the `std::fs`, `Path` and `camino`
 calls it replaces.

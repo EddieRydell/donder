@@ -100,7 +100,7 @@ impl Timeline {
         state.update_app_settings(settings);
         let session = state.project_session().unwrap();
         let sequence = session
-            .project
+            .project()
             .reusable::<donder_model::Sequence>()
             .values()
             .find(|sequence| !sequence.clips.is_empty())
@@ -135,12 +135,7 @@ impl Timeline {
     }
 
     fn request(&self) -> GuiDocumentRequest {
-        let address = self
-            .state
-            .project_session()
-            .unwrap()
-            .address_of(self.id.into())
-            .unwrap();
+        let address = self.state.project_session().unwrap().address_of(self.id);
         GuiDocumentRequest {
             project_revision: self.state.snapshot().project_revision,
             path: address.document().to_string(),
@@ -205,7 +200,7 @@ impl Timeline {
         self.state
             .project_session()
             .unwrap()
-            .project
+            .project()
             .get::<donder_model::Sequence>(self.id)
             .unwrap()
             .clone()
@@ -281,7 +276,7 @@ fn mixed_clipboard_remaps_bindings_and_is_one_undoable_persisted_edit() {
     .unwrap();
     assert_eq!(
         reopened
-            .project
+            .project()
             .get::<donder_model::Sequence>(timeline.id)
             .unwrap(),
         &pasted
@@ -347,10 +342,10 @@ fn shared_members_have_a_lane_per_group_and_move_from_the_nearest_copy() {
     let timeline = Timeline::new();
     let session = timeline.state.project_session().unwrap();
     let setup = session
-        .project
-        .get::<donder_model::Setup>(*session.project.root().setup.id())
+        .project()
+        .get::<donder_model::Setup>(*session.project().root().setup.id())
         .unwrap();
-    let layout = session.address_of((*setup.layout.id()).into()).unwrap();
+    let layout = session.address_of(*setup.layout.id());
     let request = GuiDocumentRequest {
         project_revision: timeline.state.snapshot().project_revision,
         path: layout.document().to_string(),

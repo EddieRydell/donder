@@ -18,7 +18,7 @@ impl DesktopState {
         let sequence_id = self.resolve_sequence_id(&request);
         let sequence_address = sequence_id.and_then(|id| {
             self.project_session()
-                .and_then(|session| session.address_of(id.into()))
+                .and_then(|session| session.find_address(id.into()))
         });
         // Donder controllers playing a performance keep playing it.
         if !self.is_performing()
@@ -34,7 +34,7 @@ impl DesktopState {
             .and_then(|project| {
                 sequence_id
                     .as_ref()
-                    .and_then(|id| project.project.get::<donder_model::Sequence>(*id))
+                    .and_then(|id| project.project().get::<donder_model::Sequence>(*id))
             })
             .filter(|sequence| matches!(sequence.audio, donder_model::SequenceAudio::None))
             .map(|sequence| sequence.duration.as_seconds_f64());
@@ -306,7 +306,7 @@ impl DesktopState {
                 performance: None,
             });
         };
-        let geometry = crate::preview::PreviewGeometry::from_project(&session.project)?;
+        let geometry = crate::preview::PreviewGeometry::from_project(session.project());
         if let Some(performance) = self.preview_performance() {
             if performance.fixtures != geometry.fixtures {
                 return Err("The performed console does not match the active layout.".to_string());
@@ -317,9 +317,7 @@ impl DesktopState {
                 performance: Some(performance.generation),
             });
         }
-        let sequence = lock_unpoisoned(&self.sequence_render)
-            .encode_preview_sequence()
-            .map_err(|error| format!("Cannot encode prepared Preview sequence: {error}"))?;
+        let sequence = lock_unpoisoned(&self.sequence_render).encode_preview_sequence();
         if let Some(sequence) = sequence.as_ref()
             && sequence.fixtures != geometry.fixtures
         {
@@ -353,35 +351,36 @@ mod tests {
         for (site, path) in [
             (
                 donder_model::OwnershipSite::Member {
-                    owner: session.project.root().id.into(),
-                    member: (*session.project.root().setup.id()).into(),
+                    owner: session.project().root().id.into(),
+                    member: (*session.project().root().setup.id()).into(),
                 },
                 "setups/main.data.donder",
             ),
             (
                 donder_model::OwnershipSite::Member {
-                    owner: session.project.root().id.into(),
-                    member: (*session.project.root().sequences[0].id()).into(),
+                    owner: session.project().root().id.into(),
+                    member: (*session.project().root().sequences[0].id()).into(),
                 },
                 "sequences/main.data.donder",
             ),
         ] {
-            let id = donder_model::make_reusable(&mut session.project, &site).unwrap();
             session
-                .source
-                .add_data_document(
-                    path.into(),
-                    vec![(id, donder_language::object_name("main"))],
-                )
+                .edit(|edit| {
+                    let id = donder_model::make_reusable(edit.project_mut(), &site)?;
+                    edit.add_data_document(
+                        path.into(),
+                        vec![(id, donder_language::object_name("main"))],
+                    )?;
+                    Ok::<_, donder_project_io::SessionEditError>(())
+                })
                 .unwrap();
         }
-        donder_project_io::maintain_ownership_sources(&mut session).unwrap();
         donder_project_io::save_project(&session).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let loaded = state.project_session().unwrap();
-        let imported = *loaded.project.root().sequences[0].id();
-        let address = loaded.address_of(imported.into()).unwrap();
+        let imported = *loaded.project().root().sequences[0].id();
+        let address = loaded.address_of(imported);
         let request = state
             .resolve_gui_source(address.document().as_str(), address.root_source().object())
             .unwrap();
@@ -395,7 +394,7 @@ mod tests {
         let transport = state.load_sequence_audio(request.clone()).audio_transport;
         assert_eq!(
             transport.duration_seconds,
-            loaded.project.reusable::<donder_model::Sequence>()[&imported]
+            loaded.project().reusable::<donder_model::Sequence>()[&imported]
                 .duration
                 .as_seconds_f64()
         );
@@ -412,11 +411,11 @@ mod tests {
         let frame = state.render_current_sequence_frame().unwrap();
         assert_eq!(
             lock_unpoisoned(&state.sequence_render).active_target(),
-            Some((*loaded.project.root().setup.id(), imported))
+            Some((*loaded.project().root().setup.id(), imported))
         );
         assert_eq!(
             frame.frame.frame_rate,
-            loaded.project.reusable::<donder_model::Sequence>()[&imported].frame_rate
+            loaded.project().reusable::<donder_model::Sequence>()[&imported].frame_rate
         );
         assert!(state.active_preview_render_identity().unwrap().frame_count > 0);
         state.unload_audio();
@@ -424,9 +423,7 @@ mod tests {
             &loaded,
             &state.project_session().unwrap()
         ));
-        let setup = loaded
-            .address_of((*loaded.project.root().setup.id()).into())
-            .unwrap();
+        let setup = loaded.address_of(*loaded.project().root().setup.id());
         let mut wrong_view = request.clone();
         wrong_view.path = setup.document().to_string();
         wrong_view.object_key = setup.root_source().object().into();

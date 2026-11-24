@@ -20,6 +20,8 @@ pub use editing::{Object, ProjectEdit};
 mod objects;
 pub use objects::{ProjectObject, Reusable};
 mod accepted;
+mod view;
+pub use view::View;
 pub(crate) mod references;
 pub use accepted::{
     AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
@@ -249,6 +251,12 @@ impl DonderProject {
     /// place.
     pub fn objects<T: ProjectObject>(&self) -> impl Iterator<Item = &T> {
         T::all(self)
+    }
+
+    /// Each fixture definition's pixel count.
+    pub fn fixture_pixel_counts(&self) -> IndexMap<FixtureDefinitionId, u32> {
+        crate::fixture::fixture_pixel_counts(&self.fixtures)
+            .unwrap_or_else(|_| unreachable!("validation proved every fixture definition"))
     }
 
     /// The reusable objects of kind `T`, by id.

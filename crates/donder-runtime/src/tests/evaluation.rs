@@ -209,7 +209,7 @@ impl Single {
         let words = size.bytes.div_ceil(4).max(workspace.buffer.len());
         workspace.buffer.resize(words, 0);
         let mut arena = Carve::new(bytemuck::cast_slice_mut(&mut workspace.buffer));
-        let mut strip_workspace = slots.carve(&mut arena).unwrap();
+        let mut strip_workspace = slots.carve(&mut arena);
         let bound = Bound {
             show,
             program,
@@ -528,12 +528,11 @@ fn rebind(
 /// keeps those values too.
 pub(super) fn lower_runtime(instance: &Instance, slots: Vec<Value>) -> BoundProgram {
     let lowered = playback::bind(instance);
-    BoundProgram::bind(
+    BoundProgram::new(
         lowered.program().clone(),
         rebind(lowered.params(), lowered.automation(), slots),
         Box::new([]),
     )
-    .unwrap()
 }
 
 /// `effect` evaluated by the VM wherever it reads a `runtime` parameter.

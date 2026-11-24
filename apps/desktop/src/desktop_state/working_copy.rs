@@ -439,7 +439,7 @@ impl DesktopState {
                 let path = Utf8PathBuf::from(path);
                 if !workspace.documents.contains_key(&path) {
                     let mut document = WorkingDocument::new(&path, String::new());
-                    document.observed = read_disk(&session.source.project_root().join(&path))?;
+                    document.observed = read_disk(&session.source().project_root().join(&path))?;
                     new_documents.insert(path, document);
                 }
             }
@@ -805,7 +805,7 @@ mod tests {
         let (_temporary, root, state) = project();
         let session = state.project_session().unwrap();
         let owner = session
-            .source_identity(session.project.root().id.into())
+            .source_identity(session.project().root().id.into())
             .unwrap();
         let project = GuiDocumentRequest {
             owned_path: Vec::new(),
@@ -825,7 +825,7 @@ mod tests {
         );
         assert!(matches!(created.document, GuiDocument::Project { .. }));
         let session = state.project_session().unwrap();
-        let console = *session.project.root().consoles.last().unwrap().id();
+        let console = *session.project().root().consoles.last().unwrap().id();
         let path = session
             .source_identity(console.into())
             .unwrap()
@@ -1059,7 +1059,7 @@ mod tests {
             project,
         };
         let result = crate::rendering::prepare_render_session(
-            &request.project.project,
+            request.project.project(),
             &request.sequence_id,
         );
         assert!(result.is_ok());

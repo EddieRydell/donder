@@ -2,7 +2,7 @@ use crate::dto::{
     GuiDocumentRequest, SequenceClipMatchRequest, SequenceClipParam, SequenceClipParamMatch,
     SequenceClipTimeMatch, SequenceParamValue, SequenceSelection,
 };
-use donder_model::{Clip, FixtureTarget, SequenceId};
+use donder_model::{Clip, FixtureTarget};
 use donder_project_io::ProjectSession;
 
 use super::projection::clip_params;
@@ -29,10 +29,7 @@ pub fn matching_sequence_clips(
     if resolved.kind != donder_model::ObjectKind::Sequence {
         return Err("Clip matching belongs to sequence documents.".into());
     }
-    let sequence = session
-        .project
-        .get::<donder_model::Sequence>(resolved.id::<SequenceId>())
-        .ok_or("Sequence is not available in the checked project model.")?;
+    let sequence = resolved.view::<donder_model::Sequence>(session).object();
     let seconds = |nanos: u128| nanos as f64 / 1e9;
     let clips: Vec<MatchClip> = sequence
         .clips

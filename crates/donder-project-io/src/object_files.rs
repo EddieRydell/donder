@@ -54,8 +54,8 @@ impl SourceProject {
     }
 
     /// A file of its own declaring `id` as `name`; refused when that file
-    /// exists. The caller inserts the typed value into the same session.
-    pub fn add_object_document(
+    /// exists. The session edit inserts its typed value beside it.
+    pub(crate) fn add_object_document(
         &mut self,
         id: ObjectId,
         name: Identifier,

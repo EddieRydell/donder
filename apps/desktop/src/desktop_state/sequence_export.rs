@@ -20,25 +20,15 @@ struct ExportOutput {
 }
 
 fn outputs(session: &ProjectSession) -> Result<Vec<ExportOutput>, String> {
-    let project = &session.project;
-    let setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .ok_or("Project setup is missing.")?;
+    let project = session.project();
     let mut outputs = Vec::new();
-    for source in &setup.controllers {
-        let id = source.id();
-        let controller = project
-            .get::<donder_model::Controller>(*id)
-            .ok_or("Setup controller is missing.")?;
-        let address = session
-            .address_of((*id).into())
-            .ok_or("An output's controller is missing from the source inventory.")?;
+    for controller in project.active_setup().controllers() {
+        let id = controller.id();
+        let address = session.address_of(id);
         for (output, width) in controller.outputs() {
-            let label = controller
-                .output_label(output)
-                .ok_or("A controller output is missing.")?;
+            let label = controller.output_label(output);
             outputs.push(ExportOutput {
-                controller: *id,
+                controller: id,
                 output,
                 label: format!(
                     "{}#{} / {label}",
@@ -69,9 +59,6 @@ impl DesktopState {
             .ok_or("Open a valid project to export.")?;
         let resolved = donder_editor::resolve_request(&session, request)?;
         let id = SequenceId::try_from(resolved.object).map_err(|_| "Open a sequence to export.")?;
-        if !session.project.get::<donder_model::Sequence>(id).is_some() {
-            return Err("Sequence is missing.".into());
-        }
         Ok((session, id))
     }
 
@@ -81,10 +68,7 @@ impl DesktopState {
         request: &GuiDocumentRequest,
     ) -> Result<String, String> {
         let (session, id) = self.sequence_export_session(request)?;
-        let address = session
-            .address_of(id.into())
-            .ok_or("The sequence is missing from the source inventory.")?;
-        Ok(address.declared_name().to_string())
+        Ok(session.address_of(id).declared_name().to_string())
     }
 
     pub(crate) fn sequence_export_options(
@@ -92,11 +76,10 @@ impl DesktopState {
         request: &GuiDocumentRequest,
     ) -> Result<SequenceExportOptions, String> {
         let (session, id) = self.sequence_export_session(request)?;
-        let frame_rate = session
-            .project
-            .get::<donder_model::Sequence>(id)
-            .ok_or("Sequence is missing.")?
-            .frame_rate;
+        let Some(sequence) = session.project().get::<donder_model::Sequence>(id) else {
+            unreachable!("the export request resolved to this sequence");
+        };
+        let frame_rate = sequence.frame_rate;
         let ports = outputs(&session)?
             .into_iter()
             .enumerate()
@@ -141,7 +124,7 @@ impl DesktopState {
             labels.push(output.label.clone());
         }
         let prepared = donder_elaboration::prepare(
-            &session.project,
+            session.project(),
             &id,
             donder_elaboration::Retain::Outputs(&ports),
         )
@@ -169,16 +152,15 @@ impl DesktopState {
             .ok_or("The FSEQ frame step must be at least 1 ms.")?;
         progress(ExportProgress::Preparing);
         let (session, id, prepared, labels) = self.prepare_selected_outputs(request, selected)?;
-        let sequence = session
-            .project
-            .get::<donder_model::Sequence>(id)
-            .ok_or("Sequence is missing.")?;
+        let Some(sequence) = session.project().get::<donder_model::Sequence>(id) else {
+            unreachable!("the export request resolved to this sequence");
+        };
         let media = session
             .audio_asset(&sequence.audio)
             .and_then(|asset| asset.relative_path.file_name());
         donder_output::encode_fseq(
             prepared,
-            donder_output::setup_fseq_channel(&session.project),
+            donder_output::setup_fseq_channel(session.project()),
             step,
             media,
             |completed, total| progress(ExportProgress::Rendering { completed, total }),
@@ -196,15 +178,14 @@ impl DesktopState {
         progress: impl FnMut(ExportProgress),
     ) -> Result<(), String> {
         let (session, id) = self.sequence_export_session(request)?;
-        let sequence = session
-            .project
-            .get::<donder_model::Sequence>(id)
-            .ok_or("Sequence is missing.")?;
+        let Some(sequence) = session.project().get::<donder_model::Sequence>(id) else {
+            unreachable!("the export request resolved to this sequence");
+        };
         let audio = session
             .audio_asset(&sequence.audio)
             .map(|asset| asset.absolute_path.clone());
         crate::preview::export_video(
-            &session.project,
+            session.project(),
             &id,
             audio.as_deref(),
             appearance,

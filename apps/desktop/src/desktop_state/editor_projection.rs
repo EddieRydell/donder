@@ -14,7 +14,7 @@ pub(crate) fn generated_source_texts(
         .iter()
         .filter_map(|path| {
             session
-                .source
+                .source()
                 .document_for_workspace_path(Utf8Path::new(path))
                 .map(|id| (path, id))
         })
@@ -36,7 +36,7 @@ pub(crate) fn descriptor_for_path(
     path: &Utf8Path,
 ) -> Option<DocumentDescriptor> {
     let document = donder_editor::document_for_editor_path(session, path)
-        .and_then(|id| session.source.documents.get(&id));
+        .and_then(|id| session.source().documents().get(&id));
     let descriptor = |object: &donder_project_io::DeclaredObject| DocumentObjectDescriptor {
         key: object.name().as_str().to_string(),
         kind: object.kind().into(),

@@ -13,14 +13,12 @@ pub(super) fn store_new_member(
     member: ObjectId,
     name: &str,
 ) -> Result<(), GuiMutationError> {
-    let id = make_reusable(
-        &mut session.project,
-        &OwnershipSite::Member { owner, member },
-    )
-    .map_err(GuiMutationError::from)?;
-    super::model::create_object_document(session, id, name)?;
-    donder_project_io::maintain_ownership_sources(session)
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))
+    let name = super::model::typed_name(name)?;
+    session.edit(|edit| {
+        let id = make_reusable(edit.project_mut(), &OwnershipSite::Member { owner, member })?;
+        edit.add_object_document(id, name)?;
+        Ok(())
+    })
 }
 
 /// The member of `owner` that `source` names.
@@ -40,7 +38,7 @@ fn member(
 /// The document that declares `id` and nothing else.
 fn own_document(session: &ProjectSession, id: ObjectId) -> Option<DocumentId> {
     let (document, _) = session.declaration(id)?;
-    (session.source.documents[document].objects().len() == 1).then(|| document.clone())
+    (session.source().documents()[document].objects().len() == 1).then(|| document.clone())
 }
 
 /// Where the file of `source` moves when it is renamed `name`: a member
@@ -60,7 +58,7 @@ pub fn member_file_rename(
     if to == document.path() {
         return Ok(None);
     }
-    if session.source.has_document_at(&to) {
+    if session.source().has_document_at(&to) {
         return Err(GuiMutationError::Invalid(format!(
             "The file {to} already exists."
         )));
@@ -84,7 +82,6 @@ pub fn rename_member(
     let id = member(session, owner, source)?;
     if source.owned_path.is_empty() {
         session
-            .source
             .rename_object(id, super::model::typed_name(name)?)
             .map_err(GuiMutationError::Invalid)
     } else {
@@ -107,10 +104,7 @@ pub fn delete_member(
     source: &GuiObjectRef,
 ) -> Result<DeletedMember, GuiMutationError> {
     let id = member(session, owner, source)?;
-    let name = session
-        .address_of(id)
-        .map(|address| address.declared_name().to_string())
-        .ok_or_else(|| GuiMutationError::Invalid("The member is missing.".into()))?;
+    let name = session.address_of(id).declared_name().to_string();
     if matches!(
         id.kind(),
         ObjectKind::Setup | ObjectKind::Layout | ObjectKind::Patch
@@ -128,22 +122,24 @@ pub fn delete_member(
             document: Some(document),
         });
     }
-    if !source.owned_path.is_empty() {
-        // Removal applies to reusable objects, which keep their ids.
-        make_reusable(
-            &mut session.project,
-            &OwnershipSite::Member {
-                owner: owner.object,
-                member: id,
-            },
-        )
-        .map_err(GuiMutationError::from)?;
-    }
-    session
-        .project
-        .apply_edits([donder_model::ProjectEdit::Remove(id)])
-        .map_err(GuiMutationError::from)?;
-    session.source.remove_object(id);
+    session.edit(|edit| {
+        if !source.owned_path.is_empty() {
+            // Removal applies to reusable objects, which keep their ids, and
+            // the member's owner declared none.
+            make_reusable(
+                edit.project_mut(),
+                &OwnershipSite::Member {
+                    owner: owner.object,
+                    member: id,
+                },
+            )?;
+            edit.project_mut()
+                .apply_edits([donder_model::ProjectEdit::Remove(id)])?;
+            Ok::<_, GuiMutationError>(())
+        } else {
+            Ok(edit.remove_object(id)?)
+        }
+    })?;
     Ok(DeletedMember {
         name,
         document: None,
