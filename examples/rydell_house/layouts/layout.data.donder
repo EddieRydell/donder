@@ -280,6 +280,9 @@ Layout layout {
         lm_small_13,
         lm_small_13_2,
         lm_small_13_3,
+        lm_28,
+        lm_30,
+        lm_31,
       ],
     },
     Group {
@@ -314,6 +317,9 @@ Layout layout {
         rm_big_12,
         rm_big_12_2,
         rm_big_12_3,
+        rm_29,
+        rm_30,
+        rm_32,
       ],
     },
     Group { name: meteors, description: none, members: [l_meteors, r_meteors] },
@@ -556,7 +562,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.510535m, 21.071213m, 0m),
+        position: (-15.5285m, 17.5376m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -790,7 +796,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.683094m, 22.526368m, 0m),
+        position: (-13.2693m, 16.7628m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1024,7 +1030,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-16.149786m, 18.032507m, 0m),
+        position: (-12.4033m, 20.1138m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1258,7 +1264,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.05538m, 20.957083m, 0m),
+        position: (-13.514m, 19.707m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1492,7 +1498,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.282275m, 23.396608m, 0m),
+        position: (-13.8906m, 22.9806m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1726,7 +1732,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-15.992858m, 21.27094m, 0m),
+        position: (-16.1498m, 20.0363m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1960,7 +1966,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.96569m, 23.097017m, 0m),
+        position: (-14.926m, 21.6634m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2194,7 +2200,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.922891m, 20.957083m, 0m),
+        position: (-14.5307m, 23.6391m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2428,7 +2434,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.837294m, 19.730188m, 0m),
+        position: (-15.9992m, 21.0048m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2662,7 +2668,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.738794m, 19.016877m, 0m),
+        position: (-14.5119m, 20.908m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2896,7 +2902,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.20958m, 23.639133m, 0m),
+        position: (-12.7045m, 21.6828m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3130,7 +3136,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-11.556062m, 18.289299m, 0m),
+        position: (-11.5561m, 20.5981m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3364,7 +3370,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-15.094086m, 16.762813m, 0m),
+        position: (-14.9637m, 22.69m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3598,7 +3604,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-11.627393m, 17.747183m, 0m),
+        position: (-14.2671m, 18.448m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3832,7 +3838,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-15.778864m, 19.430597m, 0m),
+        position: (-14.0977m, 19.8426m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -4066,7 +4072,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.511899m, 16.762813m, 0m),
+        position: (-12.1962m, 22.3995m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -6856,7 +6862,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.797224m, 12.040693m, 0m),
+        position: (-12.09571m, 9.837085m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -6881,7 +6887,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-11.784322m, 11.441512m, 0m),
+        position: (-12.720406m, 11.564191m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -6906,7 +6912,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.238112m, 10.642603m, 0m),
+        position: (-14.174244m, 12.690703m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -6931,7 +6937,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.611763m, 11.441512m, 0m),
+        position: (-13.265595m, 13.580481m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -6956,7 +6962,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.695996m, 13.082128m, 0m),
+        position: (-13.038433m, 13.534532m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -6981,7 +6987,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-11.584595m, 10.442876m, 0m),
+        position: (-12.493244m, 13.770278m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7023,7 +7029,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -90.624695),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.2840763, count: 16 },
@@ -7031,7 +7037,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.041114m, 10.984993m, 0m),
+        position: (-12.1525m, 12.381533m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7048,7 +7054,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -95.190315),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.260167, count: 16 },
@@ -7056,7 +7062,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.69736m, 13.823971m, 0m),
+        position: (-12.856703m, 10.466187m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7073,7 +7079,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -90.604454),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.3270738, count: 16 },
@@ -7081,7 +7087,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.537703m, 11.027791m, 0m),
+        position: (-12.436453m, 13.287284m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7106,7 +7112,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.397769m, 11.983628m, 0m),
+        position: (-12.981642m, 14.116588m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7131,7 +7137,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.383503m, 11.612706m, 0m),
+        position: (-13.061149m, 12.886152m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7148,7 +7154,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -88.507454),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.1133777, count: 16 },
@@ -7156,7 +7162,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.526165m, 12.696939m, 0m),
+        position: (-13.924365m, 11.651728m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7173,7 +7179,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -87.94436),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.1987715, count: 16 },
@@ -7181,7 +7187,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.312172m, 12.725472m, 0m),
+        position: (-13.685845m, 12.503741m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7198,7 +7204,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.279335),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.113088, count: 16 },
@@ -7206,7 +7212,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.466372m, 11.370181m, 0m),
+        position: (-13.606338m, 13.255228m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7223,7 +7229,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.197105),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 0.9990981, count: 16 },
@@ -7231,7 +7237,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.166781m, 11.099122m, 0m),
+        position: (-12.402379m, 12.14912m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7248,7 +7254,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -86.77945),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.0146024, count: 16 },
@@ -7256,7 +7262,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-11.898451m, 9.843695m, 0m),
+        position: (-13.878933m, 12.171859m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7298,7 +7304,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -88.287544),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 0.9704334, count: 16 },
@@ -7306,7 +7312,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.968418m, 13.652776m, 0m),
+        position: (-12.072994m, 11.400408m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7323,7 +7329,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.314445),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.1700838, count: 16 },
@@ -7331,7 +7337,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.653197m, 9.686766m, 0m),
+        position: (-14.537703m, 9.686766m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7348,7 +7354,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.208206),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.0130967, count: 16 },
@@ -7356,7 +7362,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-14.109716m, 12.283219m, 0m),
+        position: (-11.584595m, 9.728171m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7398,7 +7404,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -88.3119),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 0.9844273, count: 16 },
@@ -7406,7 +7412,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.111081m, 13.895302m, 0m),
+        position: (-13.447325m, 9.758798m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7423,7 +7429,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -90.791794),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.0130967, count: 16 },
@@ -7431,7 +7437,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.039749m, 13.709841m, 0m),
+        position: (-13.152014m, 12.051208m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7448,7 +7454,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -85.93476),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.0015198, count: 16 },
@@ -7456,7 +7462,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.795859m, 10.699668m, 0m),
+        position: (-13.799426m, 10.756509m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7473,7 +7479,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.208206),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.0130967, count: 16 },
@@ -7481,7 +7487,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-13.924255m, 11.798167m, 0m),
+        position: (-11.811757m, 11.961284m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7498,7 +7504,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.260056),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.0840904, count: 16 },
@@ -7506,7 +7512,82 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (-12.81149m, 13.52438m, 0m),
+        position: (-12.232007m, 10.438098m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: lm_28,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: shape_1,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Line { length: 1.2, count: 16 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (-13.049791m, 10.930685m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: lm_30,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: shape_1,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Line { length: 1.2, count: 16 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (-12.129784m, 12.924m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: lm_31,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: shape_1,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Line { length: 1.2, count: 16 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (-11.595953m, 10.705875m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7523,7 +7604,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.012825),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.6832498, count: 16 },
@@ -7531,7 +7612,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (13.267168m, 12.982264m, 0m),
+        position: (14.5384m, 11.4392m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7548,7 +7629,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -87.45599),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.5995765, count: 16 },
@@ -7556,7 +7637,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (13.880616m, 12.839602m, 0m),
+        position: (16.0348m, 9.5437m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7581,7 +7662,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (15.863621m, 12.939465m, 0m),
+        position: (15.4073m, 9.8813m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7598,7 +7679,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -88.92188),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.5412729, count: 16 },
@@ -7606,7 +7687,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (15.021913m, 12.768271m, 0m),
+        position: (15.0211m, 10.1027m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7623,7 +7704,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -87.841064),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.513074, count: 16 },
@@ -7631,7 +7712,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.308602m, 12.58281m, 0m),
+        position: (15.528m, 10.5699m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7648,7 +7729,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -86.14493),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.4873655, count: 16 },
@@ -7656,7 +7737,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.037544m, 9.544104m, 0m),
+        position: (14.9246m, 10.5392m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7681,7 +7762,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (13.010376m, 11.8267m, 0m),
+        position: (13.4765m, 10.5299m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7698,7 +7779,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -86.805756),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.5433979, count: 16 },
@@ -7706,7 +7787,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (15.506965m, 9.515571m, 0m),
+        position: (12.5111m, 10.1394m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7723,7 +7804,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -88.09308),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.7129487, count: 16 },
@@ -7731,7 +7812,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (13.666622m, 10.014889m, 0m),
+        position: (14.1281m, 14.6089m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7748,7 +7829,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -87.42462),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.9139332, count: 16 },
@@ -7756,7 +7837,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (13.466895m, 9.800896m, 0m),
+        position: (13.5006m, 13.5865m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7773,7 +7854,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -88.99613),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.655254, count: 16 },
@@ -7781,7 +7862,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.565394m, 13.438783m, 0m),
+        position: (13.5247m, 12.8868m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7823,7 +7904,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -89.02955),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.7122456, count: 16 },
@@ -7831,7 +7912,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.023278m, 14.095029m, 0m),
+        position: (14.2729m, 12.9688m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7848,7 +7929,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -90.41647),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.9260509, count: 16 },
@@ -7856,7 +7937,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (15.235907m, 13.167725m, 0m),
+        position: (13.3075m, 14.662m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7948,7 +8029,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -87.841064),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.513074, count: 16 },
@@ -7956,7 +8037,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (15.392835m, 10.999259m, 0m),
+        position: (15.6004m, 12.0314m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7981,7 +8062,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.80792m, 13.467316m, 0m),
+        position: (15.3349m, 13.2468m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -7998,7 +8079,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -86.61738),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.4575393, count: 16 },
@@ -8006,7 +8087,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (15.806556m, 10.485675m, 0m),
+        position: (13.742m, 14.8912m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -8031,7 +8112,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.950582m, 13.481582m, 0m),
+        position: (12.9455m, 11.8596m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -8048,7 +8129,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -84.159584),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.4052947, count: 16 },
@@ -8056,7 +8137,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (15.378569m, 12.668407m, 0m),
+        position: (13.1868m, 11.6032m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -8098,7 +8179,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -87.61754),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.3711853, count: 16 },
@@ -8106,7 +8187,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (12.511058m, 10.129019m, 0m),
+        position: (12.849m, 12.4239m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -8123,7 +8204,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -91.23887),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.3413135, count: 16 },
@@ -8131,7 +8212,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.722323m, 9.629701m, 0m),
+        position: (13.4041m, 12.3377m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -8148,7 +8229,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -86.40804),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.3726966, count: 16 },
@@ -8156,7 +8237,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (16.034815m, 9.601169m, 0m),
+        position: (13.3317m, 13.7615m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -8173,7 +8254,7 @@ Layout layout {
             reverse: false,
             transform: Transform {
               position: (0m, 0m, 0m),
-              rotation: (0.0, 0.0, -84.04107),
+              rotation: (0.0, 0.0, -90.0),
               scale: (1.0, 1.0, 1.0),
             },
             geometry: Line { length: 1.377443, count: 16 },
@@ -8181,7 +8262,7 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.69379m, 14.851139m, 0m),
+        position: (14.0557m, 10.5377m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -8206,7 +8287,82 @@ Layout layout {
         ],
       },
       transform: Transform {
-        position: (14.750855m, 10.942194m, 0m),
+        position: (14.8763m, 12.2023m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: rm_29,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: shape_1,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Line { length: 1.2, count: 16 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (13.935m, 11.1976m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: rm_30,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: shape_1,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Line { length: 1.2, count: 16 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (12.6317m, 11.1976m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: rm_32,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: shape_1,
+            diameter: 0.043m,
+            reverse: false,
+            transform: Transform {
+              position: (0m, 0m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
+            },
+            geometry: Line { length: 1.2, count: 16 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (15.1418m, 14.0851m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
