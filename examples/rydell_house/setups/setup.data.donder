@@ -37,6 +37,7 @@ Setup setup {
     garage_door_matrix,
     left_magnolia,
     left_magnolia_2,
+    grass,
   ],
   input_devices: [
     devices.mpk_mini,
@@ -518,6 +519,21 @@ Controller left_magnolia_2 {
     mode: Unicast { destination: "192.168.168.237" },
     start_universe: 72,
     universes: 1,
+    channels: 510,
+    fseq_channel: none,
+    ports: [Port { name: "1", description: none }],
+  },
+}
+
+Controller grass {
+  description: "YPS VIVID 8-port: lawn grass lights",
+  protocol: E131 {
+    sender_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.188" },
+    start_universe: 1,
+    universes: 12,
     channels: 510,
     fseq_channel: none,
     ports: [Port { name: "1", description: none }],
