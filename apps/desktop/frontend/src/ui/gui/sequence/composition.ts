@@ -1,12 +1,11 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import type { ReactNode } from "react";
-import type { CompositionGuiEdit, GuiDocumentRequest, GuiEditUpdate, SequenceAutomationClip, SequenceGuiDocument, SequenceMarkCollection, SequenceParamRange } from "../../../types";
-import type { AutomationClipChooser, GuiItemEdit } from "../shared";
+import type { CompositionGuiEdit, GuiDocumentRequest, GuiEditUpdate, GuiClip, SequenceGuiDocument, SequenceMarkCollection, SequenceParamRange } from "../../../types";
 
 /** What the layer and graph editors show of a sequence or console. */
 export type CompositionDocument = Pick<SequenceGuiDocument, "sourceRef" | "layers" | "compositionGraph" | "curveLibrary" | "gradientLibrary"> & {
-  markCollections: Pick<SequenceMarkCollection, "key">[];
+  markCollections: Pick<SequenceMarkCollection, "id" | "name">[];
 };
 
 /** A sequence's or console's layers and composition graph, with how to edit them. */
@@ -16,14 +15,8 @@ export type CompositionEditing = {
   layerUses: (layerId: number) => number;
   /** Resolves to null when the edit was not applied. */
   apply: (edit: CompositionGuiEdit, origin?: GuiDocumentRequest | null) => Promise<GuiEditUpdate | null>;
-  /** Rename, describe, color or delete a layer or graph node. */
-  applyItem: (edit: GuiItemEdit) => Promise<GuiEditUpdate | null>;
-  /** Sequences automate operator parameters with automation clips; consoles have no timeline. */
-  automation: {
-    automationClips: SequenceAutomationClip[];
-    automationClipChooser: AutomationClipChooser;
-    setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
-  } | null;
+  /** Sequences bind operator parameters to their envelopes; consoles link them to controls. */
+  automation: { envelopes: GuiClip[] } | null;
   /** A console links operator parameters to its knobs instead, and says which are linked. */
   operatorParamControl: ((nodeId: number, param: string, range: SequenceParamRange | null) => { control: ReactNode; linked: boolean }) | null;
 };
@@ -34,9 +27,8 @@ export function sequenceComposition(
 ): CompositionEditing {
   return {
     document,
-    layerUses: (layerId) => document.clips.filter((clip) => clip.layerId === layerId).length,
+    layerUses: (layerId) => document.clips.filter((clip) => clip.content.type === "effect" && clip.content.layerId === layerId).length,
     apply: (edit, origin) => runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit } }), origin),
-    applyItem: (edit) => runGuiEditCommand((request) => commands.applyGuiEdit(request, edit)),
     automation,
     operatorParamControl: null
   };

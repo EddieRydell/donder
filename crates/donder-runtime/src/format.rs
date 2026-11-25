@@ -35,7 +35,6 @@ pub(crate) struct Header {
     /// reports it so a host can tell which show it holds. Playback never
     /// reads it.
     id: u32,
-    reserved: u32,
 }
 
 /// Bytes of a header with its section table.
@@ -79,6 +78,9 @@ pub(crate) struct Meta {
     pub(crate) collections: u32,
     /// The controls a console reads.
     pub(crate) controls: u32,
+    /// Words of a console's live store: three per live automation, then one
+    /// per snapshot.
+    pub(crate) live_words: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -113,13 +115,6 @@ pub(crate) struct Target {
     pub(crate) kind: u32,
     pub(crate) pixels: Range,
     pub(crate) spatial: Range,
-    pub(crate) section_runs: Range,
-    /// [`PIXELS_RUNS`] into section spans or [`PIXELS_INDEXED`] into
-    /// section pixels; empty without section queries.
-    pub(crate) section_kind: u32,
-    pub(crate) section_pixels: Range,
-    /// Nonzero when sections count within each fixture.
-    pub(crate) per_fixture: u32,
     /// Distinct logical pixels shared by duplicate fixture layouts, or zero.
     pub(crate) sample_count: u32,
     /// Each target pixel's place in the target's structure, for programs
@@ -173,29 +168,6 @@ pub(crate) struct SpatialRun {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub(crate) struct SectionRun {
-    pub(crate) fixture: u32,
-    pub(crate) first: u32,
-    pub(crate) last: u32,
-}
-
-/// A pixel's place among a target's section runs.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct SectionPixel {
-    pub(crate) run: u32,
-    pub(crate) index: u32,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct SectionSpan {
-    pub(crate) end: u32,
-    pub(crate) first: SectionPixel,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
 pub(crate) struct Clip {
     /// Ticks.
     pub(crate) start: u32,
@@ -203,8 +175,6 @@ pub(crate) struct Clip {
     pub(crate) target: u32,
     pub(crate) program: u32,
     pub(crate) params: u32,
-    /// Its automation plan, or [`NONE`].
-    pub(crate) automation: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -238,8 +208,6 @@ pub(crate) struct Node {
     pub(crate) params: u32,
     /// Input nodes, in the node inputs section.
     pub(crate) inputs: Range,
-    /// Its automation plan, or [`NONE`].
-    pub(crate) automation: u32,
     /// The frame buffer it writes.
     pub(crate) buffer: u32,
     /// An operator's frame while every input is black, as an index in the
@@ -248,12 +216,11 @@ pub(crate) struct Node {
 }
 
 /// Program flags.
-pub(crate) const PROGRAM_USES_SPATIAL: u32 = 1 << 2;
-pub(crate) const PROGRAM_USES_SECTIONS: u32 = 1 << 3;
-pub(crate) const PROGRAM_READS_TARGET: u32 = 1 << 4;
-pub(crate) const PROGRAM_USES_PIXEL_CONTEXT: u32 = 1 << 5;
-pub(crate) const PROGRAM_HAS_STENCIL: u32 = 1 << 6;
-pub(crate) const PROGRAM_USES_STRUCTURE: u32 = 1 << 7;
+pub(crate) const PROGRAM_USES_SPATIAL: u32 = 1 << 0;
+pub(crate) const PROGRAM_READS_TARGET: u32 = 1 << 1;
+pub(crate) const PROGRAM_USES_PIXEL_CONTEXT: u32 = 1 << 2;
+pub(crate) const PROGRAM_HAS_STENCIL: u32 = 1 << 3;
+pub(crate) const PROGRAM_USES_STRUCTURE: u32 = 1 << 4;
 
 /// Slot counts per storage bank: floats, ints, bools, resources.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -290,26 +257,6 @@ pub(crate) struct ParamSet {
     pub(crate) resources: Range,
 }
 
-pub(crate) const RESOURCE_CURVE: u32 = 0;
-pub(crate) const RESOURCE_GRADIENT: u32 = 1;
-pub(crate) const RESOURCE_MARKS: u32 = 2;
-pub(crate) const RESOURCE_ARRAY: u32 = 3;
-pub(crate) const RESOURCE_TRACK: u32 = 4;
-pub(crate) const RESOURCE_FONT: u32 = 5;
-pub(crate) const RESOURCE_IMAGE: u32 = 6;
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct ResourceRef {
-    pub(crate) kind: u32,
-    pub(crate) index: u32,
-}
-
-/// Whether a curve's segments only rise, only fall, or both.
-pub(crate) const CROSSINGS_INCREASING: u32 = 0;
-pub(crate) const CROSSINGS_DECREASING: u32 = 1;
-pub(crate) const CROSSINGS_MIXED: u32 = 2;
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Curve {
@@ -321,15 +268,6 @@ pub(crate) struct Curve {
     pub(crate) slopes: Range,
     pub(crate) crossings_kind: u32,
     pub(crate) crossings: Range,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct CrossingSegment {
-    pub(crate) position_bias: f32,
-    pub(crate) position_scale: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
@@ -388,6 +326,9 @@ pub(crate) struct Marks {
     pub(crate) first: u32,
     pub(crate) end: u32,
     pub(crate) origin: u32,
+    /// The console's live collection read in its place, measured from the
+    /// invocation's start, or [`NONE`].
+    pub(crate) live: u32,
 }
 
 /// An audio track as a binding reads it: `channels` bytes per sample in the
@@ -425,78 +366,12 @@ pub(crate) struct Image {
     pub(crate) pixels: Range,
 }
 
+/// An array: its items in the values section, each a scalar's bits, or a
+/// color's or a resource's index, read as the program types it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct Array {
     pub(crate) items: Range,
-}
-
-pub(crate) const VALUE_VOID: u32 = 0;
-pub(crate) const VALUE_INT: u32 = 1;
-pub(crate) const VALUE_FLOAT: u32 = 2;
-pub(crate) const VALUE_BOOL: u32 = 3;
-pub(crate) const VALUE_COLOR: u32 = 4;
-/// An enum option's index in its program's names.
-pub(crate) const VALUE_ENUM: u32 = 5;
-pub(crate) const VALUE_MARKS: u32 = 6;
-pub(crate) const VALUE_CURVE: u32 = 7;
-pub(crate) const VALUE_GRADIENT: u32 = 8;
-pub(crate) const VALUE_ARRAY: u32 = 9;
-pub(crate) const VALUE_TRACK: u32 = 10;
-pub(crate) const VALUE_FONT: u32 = 11;
-pub(crate) const VALUE_IMAGE: u32 = 12;
-
-/// An array item: its kind and a word: a scalar's bits, or for a color or
-/// a resource its index.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct Value {
-    pub(crate) kind: u32,
-    pub(crate) word: u32,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct Automation {
-    pub(crate) bindings: Range,
-    pub(crate) windows: Range,
-}
-
-/// What an automation binding writes.
-pub(crate) const BINDING_FLOAT: u32 = 0;
-pub(crate) const BINDING_FLOAT_INTEGRAL: u32 = 1;
-pub(crate) const BINDING_INT: u32 = 2;
-pub(crate) const BINDING_BOOL: u32 = 3;
-pub(crate) const BINDING_ENUM: u32 = 4;
-pub(crate) const BINDING_CURVE: u32 = 5;
-/// Binds a marks resource to the live collection its record's `curve` names.
-pub(crate) const BINDING_LIVE_MARKS: u32 = 6;
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct Binding {
-    pub(crate) parameter: u32,
-    pub(crate) start: u32,
-    pub(crate) duration: u32,
-    /// Its curve, or the live collection a live marks binding reads.
-    pub(crate) curve: u32,
-    pub(crate) kind: u32,
-    /// The word it writes, for a curve its window, or for live marks the
-    /// resource.
-    pub(crate) destination: u32,
-    /// Float or int bounds, as bits.
-    pub(crate) min: u32,
-    pub(crate) max: u32,
-    /// An enum's option indices, in the enum options section.
-    pub(crate) options: Range,
-}
-
-/// A curve resource that bindings rewrite, and the most points they write.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub(crate) struct Window {
-    pub(crate) resource: u32,
-    pub(crate) points: u32,
 }
 
 pub(crate) const ENCODING_RGB: u32 = 0;
@@ -565,23 +440,24 @@ pub struct Output {
     pub width: u32,
 }
 
-/// A live automation: the automation bindings it sets.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
+/// A live automation: the first of its three live store words (its value,
+/// its integral's base, and the seconds that base holds from), and the value
+/// it rests at until set. Its integral at `t` is `base + value * (t - since)`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct LiveAutomation {
-    pub(crate) targets: Range,
+    pub(crate) word: u32,
+    pub(crate) rest: f32,
 }
 
-/// An automation binding a live automation sets: `binding` of automation
-/// plan `plan`, a clip's or an operator node's.
+/// A live store word holding live automation `automation`'s integral at
+/// `clip`'s start, which the clip's integrals count from.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Pod, Zeroable)]
 #[repr(C)]
-pub(crate) struct LiveTarget {
-    pub(crate) plan: u32,
-    pub(crate) binding: u32,
-    /// The clip whose plan it is, whose start its time counts from, or
-    /// [`NONE`] for an operator node's, counting from the session's start.
+pub(crate) struct Snapshot {
+    pub(crate) automation: u32,
     pub(crate) clip: u32,
+    pub(crate) word: u32,
 }
 
 /// What a console's `On` answers.
@@ -655,6 +531,7 @@ pub(crate) struct ConsoleClip {
 }
 
 pub(crate) use donder_runtime_types::InstructionWord;
+pub(crate) use donder_runtime_types::sampling::CrossingSegment;
 pub(crate) use donder_runtime_types::{Color, CurvePoint};
 
 macro_rules! sections {
@@ -723,9 +600,6 @@ sections! {
     pixels: Pixel,
     spatial_runs: SpatialRun,
     pixel_structure: PixelStructure,
-    section_runs: SectionRun,
-    section_spans: SectionSpan,
-    section_pixels: SectionPixel,
     clips: Clip,
     clip_index: ClipIndex,
     layers: Layer,
@@ -739,7 +613,7 @@ sections! {
     param_sets: ParamSet,
     words: u32,
     colors: Color,
-    resources: ResourceRef,
+    resources: u32,
     curves: Curve,
     curve_points: CurvePoint,
     curve_areas: f32,
@@ -757,18 +631,14 @@ sections! {
     images: Image,
     image_pixels: u8,
     arrays: Array,
-    values: Value,
-    automation: Automation,
-    bindings: Binding,
-    enum_options: u32,
-    windows: Window,
+    values: u32,
     routes: Route,
     lookups: Lookup,
     palettes: Palette,
     outputs: Output,
     voices: u32,
     live_automations: LiveAutomation,
-    live_targets: LiveTarget,
+    snapshots: Snapshot,
     console_ons: ConsoleOn,
     console_actions: ConsoleAction,
     played_values: PlayedValue,
@@ -798,7 +668,6 @@ fn frame(version: u32, table: &[SectionEntry], payload: &[u8]) -> alloc::boxed::
         version,
         payload: payload.len() as u32,
         id,
-        reserved: 0,
     };
     let mut bytes = alloc::vec::Vec::with_capacity(header_bytes() + payload.len());
     bytes.extend_from_slice(bytemuck::bytes_of(&header));

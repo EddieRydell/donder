@@ -5,6 +5,7 @@
 use super::ast::*;
 use super::lexer::{ContextualKeyword, Keyword, TextSpan, Token, TokenKind, lex};
 use crate::compiler::Diagnostic;
+use crate::compiler::ir::Reducer;
 use donder_runtime_types::Color;
 use donder_runtime_types::Identifier;
 use donder_runtime_types::bytecode::{Direction, Edges};
@@ -516,21 +517,12 @@ impl Parser<'_> {
                     span,
                 };
             } else if self.eat(TokenKind::Dot) {
-                let member = self.name("a field or method name")?;
-                if self.at(TokenKind::LeftParen) {
-                    let (args, end) = self.arguments()?;
-                    let span = expr.span.to(end);
-                    expr = Expr {
-                        kind: ExprKind::Method(Box::new(expr), member, args),
-                        span,
-                    };
-                } else {
-                    let span = expr.span.to(member.span);
-                    expr = Expr {
-                        kind: ExprKind::Field(Box::new(expr), member),
-                        span,
-                    };
-                }
+                let member = self.name("a field name")?;
+                let span = expr.span.to(member.span);
+                expr = Expr {
+                    kind: ExprKind::Field(Box::new(expr), member),
+                    span,
+                };
             } else {
                 self.depth = depth;
                 return Ok(expr);
@@ -736,9 +728,9 @@ impl Parser<'_> {
         let reducer = if table_sum {
             let sum = self.name("`sum`")?;
             name.span = name.span.to(sum.span);
-            Some(ReducerKind::TableSum)
+            Some(Reducer::RunningSum)
         } else {
-            ReducerKind::from_name(name.name.as_str())
+            Reducer::from_name(name.name.as_str())
         };
         let Some(reducer) = reducer else {
             return Err(Diagnostic::new(
@@ -768,11 +760,8 @@ impl Parser<'_> {
         let body = self.block()?;
         // Only `first` and `last` take a default, so `guard all for .. {..}
         // else value;` keeps its `else` for the guard.
-        let defaults = matches!(reducer, ReducerKind::First | ReducerKind::Last);
-        let numeric = matches!(
-            reducer,
-            ReducerKind::Max | ReducerKind::Min | ReducerKind::Sum
-        );
+        let defaults = matches!(reducer, Reducer::First | Reducer::Last);
+        let numeric = matches!(reducer, Reducer::Max | Reducer::Min | Reducer::Sum);
         if numeric && self.at(TokenKind::Keyword(Keyword::Else)) {
             return Err(Diagnostic::new(
                 self.peek().span,

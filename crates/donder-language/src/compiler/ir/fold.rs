@@ -14,7 +14,7 @@ use donder_runtime_types::{Type, Value};
 /// their operands, so equal expressions intern to one node.
 pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
     match op {
-        Op::Binary(binary, a, b) if binary.commutative() => {
+        Op::Binary(binary, a, b) if binary.commutative() && graph.ty(a) == graph.ty(b) => {
             let a_constant = graph.constant_value(a).is_some();
             let b_constant = graph.constant_value(b).is_some();
             if (a_constant && !b_constant) || (a_constant == b_constant && b < a) {
@@ -28,7 +28,7 @@ pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
             input,
             pixel: SignalPixel::Local(index),
         } => match *graph.op(index) {
-            Op::Binary(Binary::IntAdd, a, b)
+            Op::Binary(Binary::Add, a, b)
                 if matches!(graph.op(a), Op::Context(Context::PixelIndex)) =>
             {
                 Op::Read {
@@ -36,7 +36,7 @@ pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
                     pixel: SignalPixel::Shifted(b, Edges::Skip),
                 }
             }
-            Op::Binary(Binary::IntAdd, a, b)
+            Op::Binary(Binary::Add, a, b)
                 if matches!(graph.op(b), Op::Context(Context::PixelIndex)) =>
             {
                 Op::Read {
@@ -76,12 +76,9 @@ fn structural(graph: &mut Graph, op: &Op, ty: &Type) -> Option<Node> {
         }
         // A value mixed with itself is itself for every finite weight.
         Op::Ternary(Ternary::Mix, a, b, weight)
-            if a == b && graph.interval(a).is_finite() && graph.interval(weight).is_finite() =>
-        {
-            Some(a)
-        }
-        Op::Ternary(Ternary::MixColor, a, b, weight)
-            if a == b && graph.interval(weight).is_finite() =>
+            if a == b
+                && (*graph.ty(a) == Type::Color || graph.interval(a).is_finite())
+                && graph.interval(weight).is_finite() =>
         {
             Some(a)
         }
@@ -160,10 +157,10 @@ fn compare(op: Binary, left: Interval, right: Interval) -> Option<bool> {
         }
     };
     match op {
-        Less | IntLess => less(left, right),
-        LessEqual | IntLessEqual => less_equal(left, right),
-        Greater | IntGreater => less(right, left),
-        GreaterEqual | IntGreaterEqual => less_equal(right, left),
+        Less => less(left, right),
+        LessEqual => less_equal(left, right),
+        Greater => less(right, left),
+        GreaterEqual => less_equal(right, left),
         Equal | NotEqual => {
             let equal = if left.max < right.min || right.max < left.min {
                 Some(false)
@@ -241,17 +238,19 @@ fn simplify_binary(graph: &mut Graph, op: Binary, a: Node, b: Node, ty: &Type) -
                 graph.binary(Multiply, a, inverse)
             })
         }
-        IntAdd | IntSubtract if int(&right) == Some(0) => Some(a),
-        IntMultiply if int(&right) == Some(1) => Some(a),
-        Min | Max | ColorMax if a == b => Some(a),
+        Add | Subtract if int(&right) == Some(0) => Some(a),
+        Multiply if int(&right) == Some(1) => Some(a),
+        Min | Max if a == b => Some(a),
         Equal | NotEqual if a == b && !matches!(graph.ty(a), Type::Float) => {
             Some(graph.bool(op == Equal))
         }
-        ColorAdd | ColorMax if color(&right) == black => Some(a),
-        ColorScale if color(&left) == black => Some(a),
-        ColorScale if float(&right) == Some(1.0) => Some(a),
-        ColorScale if float(&right) == Some(0.0) => Some(graph.color(Color::BLACK)),
-        ColorMultiply if color(&right) == black => Some(b),
+        Add | Max if color(&right) == black => Some(a),
+        // A color scaled or multiplied by black, or black scaled.
+        Multiply if color(&left) == black => Some(a),
+        Multiply if color(&right) == black => Some(b),
+        Multiply if float(&right) == Some(0.0) && *graph.ty(a) == Type::Color => {
+            Some(graph.color(Color::BLACK))
+        }
         Power if int(&right) == Some(1) => Some(a),
         _ => None,
     }
@@ -311,13 +310,13 @@ fn simplify_select(graph: &mut Graph, condition: Node, yes: Node, no: Node) -> O
 /// Entries in table `id`: one per index, and one more for running sums.
 fn table_len(graph: &mut Graph, id: LoopId) -> Node {
     let data = graph.loop_(id).clone();
-    let count = graph.binary(Binary::IntSubtract, data.end, data.start);
+    let count = graph.binary(Binary::Subtract, data.end, data.start);
     let zero = graph.int(0);
-    let count = graph.binary(Binary::IntMax, count, zero);
+    let count = graph.binary(Binary::Max, count, zero);
     match data.reducer {
         Reducer::RunningSum => {
             let one = graph.int(1);
-            graph.binary(Binary::IntAdd, count, one)
+            graph.binary(Binary::Add, count, one)
         }
         _ => count,
     }
@@ -328,12 +327,12 @@ fn table_len(graph: &mut Graph, id: LoopId) -> Node {
 fn table_index(graph: &mut Graph, id: LoopId, table: Node, index: Node, ty: &Type) -> Node {
     let len = table_len(graph, id);
     let one = graph.int(1);
-    let last = graph.binary(Binary::IntSubtract, len, one);
+    let last = graph.binary(Binary::Subtract, len, one);
     let zero = graph.int(0);
-    let below = graph.binary(Binary::IntMin, index, last);
-    let clamped = graph.binary(Binary::IntMax, below, zero);
+    let below = graph.binary(Binary::Min, index, last);
+    let clamped = graph.binary(Binary::Max, below, zero);
     let entry = graph.binary(Binary::Entry, table, clamped);
-    let nonempty = graph.binary(Binary::IntGreater, len, zero);
+    let nonempty = graph.binary(Binary::Greater, len, zero);
     let default = graph.typed_constant(ty.default_value(), ty.clone());
     graph.select(nonempty, entry, default)
 }
@@ -359,7 +358,7 @@ pub(super) fn reduction(graph: &mut Graph, id: LoopId) -> Option<Node> {
     if filter == Some(Some(false)) {
         return Some(identity(graph));
     }
-    let empty = graph.binary(Binary::IntLessEqual, data.end, data.start);
+    let empty = graph.binary(Binary::LessEqual, data.end, data.start);
     if graph.constant_value(empty).and_then(as_bool) == Some(true) {
         return Some(identity(graph));
     }

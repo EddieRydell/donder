@@ -4,6 +4,7 @@ import { LayerProperties, useSequenceEditable } from "./sequenceLayers";
 import { NameField } from "./NameField";
 import { DescriptionField } from "../DescriptionField";
 import type { CompositionEditing } from "./composition";
+import { describe, put, rename, site } from "../edits";
 
 export function GraphNodeControls({ node, composition }: { node: SequenceGraphNode; composition: CompositionEditing }) {
   const { document, automation } = composition;
@@ -15,24 +16,22 @@ export function GraphNodeControls({ node, composition }: { node: SequenceGraphNo
     return <div className="graph-node-layer-controls">
       <LayerProperties layer={layer} composition={composition} />
       <DescriptionField description={layer.description} member={{ type: "layer", id: layer.id }} disabled={!editable} onCommit={(description) =>
-        composition.applyItem({ type: "setDescription", item: { type: "layer", id: layer.id }, description })} />
+        describe({ type: "layer", id: layer.id }, description)} />
       <p>{composition.layerUses(layer.id)} clips</p>
     </div>;
   }
   if (node.kind.type !== "operator") return null;
   return <fieldset className="graph-node-parameters" disabled={!editable} aria-label="Project operator parameters">
-    <NameField name={node.kind.name} label="Name" member={{ type: "graphNode", nodeId: node.id }} commit={(name) =>
-      composition.applyItem({ type: "rename", item: { type: "graphNode", nodeId: node.id }, name })} />
+    <NameField name={node.kind.name} label="Name" member={{ type: "node", id: node.id }} commit={(name) => rename({ type: "node", id: node.id }, name)} />
     {node.kind.params.map((param, index) => {
       const live = composition.operatorParamControl === null || !param.supportsAutomation ? null : composition.operatorParamControl(node.id, param.name, param.range);
       return <div key={param.name} className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}>
       <TypedParamInput param={param} commitParam={(name, value) =>
-        composition.apply({ type: "updateGraphOperatorParam", nodeId: node.id, name, value }).then(() => undefined)
+        put(site({ type: "node", id: node.id }, { type: "param", name }), { type: "param", value }).then(() => undefined)
       } curveLibrary={document.curveLibrary} gradientLibrary={document.gradientLibrary} markCollections={document.markCollections}
-        automationControl={live?.control ?? null} linked={live?.linked ?? false} member={{ type: "graphNode", nodeId: node.id }}
+        automationControl={live?.control ?? null} linked={live?.linked ?? false} member={{ type: "node", id: node.id }}
         automation={automation === null ? null : { target: { type: "compositionNodeParam", nodeId: node.id, param: param.name },
-          automationClips: automation.automationClips, canCreateAutomationClip: document.layers.length > 0,
-          automationClipChooser: automation.automationClipChooser, setAutomationClipChooser: automation.setAutomationClipChooser }} />
+          envelopes: automation.envelopes, canCreate: document.layers.length > 0 }} />
     </div>;
     })}
   </fieldset>;

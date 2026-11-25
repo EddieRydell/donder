@@ -97,15 +97,15 @@ InputDevice harmony {
 An address is a `/` and then printable characters other than spaces and OSC's
 pattern characters `*?[]{}#,`. Bundles play their messages in order, stamped
 when they arrive. Any computer on the network can send to the port while you
-perform. Two OSC devices of a setup listen on different ports; the Perform bar
+perform. Two OSC devices of a project listen on different ports; the Perform bar
 shows the ports listening, or why one could not be opened.
 
 A device's control names are unique, and no two controls read the same input;
 two MIDI controls may read the same note or control change only on different
 channels.
-The setup lists the input devices you have, next to its controllers:
-`input_devices: [devices.keyboard]`. A console can only use devices the active
-setup lists. Device files are ordinary documents: share one, and anyone with the
+The project overview lists the input devices you have, next to its controllers:
+every device its documents declare. A console uses devices of its own project.
+Device files are ordinary documents: share one, and anyone with the
 same hardware can copy it into their project.
 
 In the GUI a control is bound by using it. **+** adds a control and listens, and
@@ -125,18 +125,18 @@ learning.
 A console has the same layers and operator graph as a sequence, plus what plays
 live:
 
-- **Live mark collections** (`LiveMarks`): start empty each session and gain a
-  mark each time a `Mark` action runs. Any effect with a marks parameter can
+- **Mark collections** (`MarkCollection`, with no `times`): start empty each
+  session and gain a mark each time a `Mark` action runs. Any effect with a marks parameter can
   read one, so effects such as MarkPulse react to the beat you tap.
-- **Clips** (`ConsoleClip`): a sequence clip without a start or a duration: a
-  name, a layer, a fixture or group, a scope, an effect and its parameters,
+- **Clips** (`Clip`): played (`placement: Played { values }`), or timed on
+  the session clock (`Timed { start, duration }`): a name, a layer, a fixture or group, a scope, an effect and its parameters,
   and the parameters each copy takes from how it was played (see
   [Played values](#played-values)). Actions name the clip they play.
 - **`always`** (`Always { clip, length }`): clips that play from the
   session's start, starting again each time `length` ends.
-- **Events** (`On { event, actions }`): what a control does. The event is
-  `Press { control }` or `Release { control }` of a button, or
-  `Move { control }` of an axis, and its actions run in order. Any number of
+- **Events** (`On { happening, control, actions }`): what a control does. The
+  happening is `Press` or `Release` of a button, or `Move` of an axis, and its
+  actions run in order. Any number of
   `On`s may name the same event. Pressing a button that is already held, as a
   computer key repeats, does nothing.
 
@@ -165,7 +165,8 @@ An action is one of:
   range), maps onto the parameter's declared range, as sequence automation
   does, and the parameter rests at the window's low end, where an axis not
   yet moved or a released button puts it, until the first `Set`. One control sets a parameter, by any of its
-  events, and a played value cannot also set it.
+  events, and neither a played value nor an envelope also sets it; of an
+  envelope and a `Set` on one parameter, the side an edit left alone gives way.
 
 A clip is played either by `Play` actions or by `Start`, `Toggle` and `always`,
 not both; `Stop` stops either. A `Move` runs only `Set` actions.
@@ -180,7 +181,7 @@ marks and the values `Set` actions have written.
 
 ### Editing a console
 
-The GUI lists every button of the setup's input devices, edge to edge like a
+The GUI lists every button of the project's input devices, edge to edge like a
 sequence's grid, with the actions it runs when pressed and when released. **+**
 in a cell adds an action. Playing an effect adds the effect and its action
 together, as one edit: for a moment (a `Play` of one second), while held
@@ -242,11 +243,11 @@ the project.
 
 Choose **Perform** for a console: in the project's console list, or by
 right-clicking the console's document in the Explorer. Donder prepares the
-console on the active setup, starts its `always` clips and starts the session
+console, starts its `always` clips and starts the session
 clock. The Perform bar shows the console, the elapsed time and which buttons you
 hold, with toggles for live output and the Preview, and **Stop**.
 
-Live output plays a performance on every controller of the setup. E1.31 and
+Live output plays a performance on every controller of the project. E1.31 and
 Art-Net controllers receive the frames Donder renders. Donder controllers play
 the console themselves: Donder sends each one its part of the console, starts
 it at the session's place on the editor's clock, and sends it your presses over

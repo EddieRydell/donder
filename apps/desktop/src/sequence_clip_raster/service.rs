@@ -222,11 +222,11 @@ impl OpenSequence {
                 .project()
                 .only_sequences_differ_from(previous_project.project())
                 && previous.frame_rate == sequence.frame_rate
-                && previous.mark_collections == sequence.mark_collections
+                && previous.composition.marks == sequence.composition.marks
         });
-        // Automation drives the parameters of the clips it binds.
+        // Envelopes drive the parameters of the clips they bind.
         let automated: HashSet<_> = context
-            .filter(|previous| previous.automation_clips != sequence.automation_clips)
+            .filter(|previous| !envelopes(previous).eq(envelopes(sequence)))
             .map(|previous| {
                 automated_clips(previous)
                     .chain(automated_clips(sequence))
@@ -237,8 +237,9 @@ impl OpenSequence {
             self.clips.clear();
             self.bytes = 0;
         }
-        let mut clips = HashMap::with_capacity(sequence.clips.len());
-        for clip in &sequence.clips {
+        let mut clips = HashMap::with_capacity(sequence.composition.clips.len());
+        // Envelopes draw no raster.
+        for clip in effect_clips(sequence) {
             let id = clip.id.0;
             let entry = match self.clips.remove(&id) {
                 Some(entry) if Arc::ptr_eq(&entry.clip, clip) && !automated.contains(&id) => entry,
@@ -271,7 +272,7 @@ impl OpenSequence {
             }
         }
         self.clips = clips;
-        self.order = sequence.clips.iter().map(|clip| clip.id.0).collect();
+        self.order = effect_clips(sequence).map(|clip| clip.id.0).collect();
     }
 
     /// Clips still to render: visible ones in the editor's order, then the
@@ -326,11 +327,27 @@ impl OpenSequence {
     }
 }
 
-fn automated_clips(sequence: &Sequence) -> impl Iterator<Item = u32> + '_ {
+fn effect_clips(sequence: &Sequence) -> impl Iterator<Item = &Arc<Clip>> {
     sequence
-        .automation_clips
+        .composition
+        .clips
         .iter()
-        .flat_map(|clip| clip.bindings.iter())
+        .filter(|clip| clip.effect().is_some())
+}
+
+/// The envelope clips, whose timing and curves drive the clips they bind.
+fn envelopes(sequence: &Sequence) -> impl Iterator<Item = &Arc<Clip>> {
+    sequence
+        .composition
+        .clips
+        .iter()
+        .filter(|clip| clip.envelope().is_some())
+}
+
+fn automated_clips(sequence: &Sequence) -> impl Iterator<Item = u32> + '_ {
+    envelopes(sequence)
+        .filter_map(|clip| clip.envelope())
+        .flat_map(|envelope| envelope.bindings.iter())
         .filter_map(|binding| match &binding.target {
             AutomationTarget::ClipParam { clip_id, .. } => Some(clip_id.0),
             AutomationTarget::CompositionNodeParam { .. } => None,

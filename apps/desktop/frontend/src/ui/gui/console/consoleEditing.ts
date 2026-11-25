@@ -1,21 +1,24 @@
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
-import type { ConsoleClip, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, ConsolePlayedValue, GuiControlInput, GuiEditUpdate, GuiWindow, SequenceAutomationTarget } from "../../../types";
+import type { ConsoleAction, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInputControl, ConsoleInputDevice, ConsoleOn, ConsolePlayedValue, GuiClip, GuiControlInput, SequenceClipDetails, GuiEditUpdate, GuiWindow, SequenceAutomationTarget } from "../../../types";
+import { put, site } from "../edits";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { automationTargetsEqual, type GuiFocus, type GuiItemEdit } from "../shared";
+import { automationTargetsEqual } from "../shared";
+import { clipFocus, type GuiFocus } from "../documentUi";
 
 /** Apply an edit to the open console; resolves to null when it was not applied. */
 export async function applyConsoleEdit(edit: ConsoleGuiEdit): Promise<GuiEditUpdate | null> {
   return runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "console", edit }));
 }
 
-/** Rename, describe, color or delete one of the open console's items; resolves to null when it was not applied. */
-export function applyConsoleItemEdit(edit: GuiItemEdit): Promise<GuiEditUpdate | null> {
-  return runGuiEditCommand((request) => commands.applyGuiEdit(request, edit));
+/** Give event `on` the actions `actions`. */
+export function putActions(on: ConsoleOn, actions: ConsoleAction[]) {
+  return put(site({ type: "event", id: on.id }), { type: "actions", actions });
 }
 
-export function editConsoleEffect(id: number, edit: ConsoleClipEdit) {
-  return applyConsoleEdit({ type: "editClip", id, edit });
+/** Play a console effect for the whole session, repeating every `seconds`, or no longer. */
+export function putAlways(clip: number, seconds: number | null) {
+  return put(site({ type: "clip", id: clip }, { type: "always" }), { type: "optionalSeconds", seconds });
 }
 
 /** The console's reference to a control of an input device. */
@@ -51,7 +54,7 @@ export function focusOnEffect(update: GuiEditUpdate, name: string | undefined): 
     const index = on.actions.findIndex((action) => action.type !== "stop" && "clipId" in action && action.clipId === effect.id);
     if (index >= 0) return { type: "consoleAction", on: on.id, index };
   }
-  return { type: "consoleEffect", id: effect.id };
+  return clipFocus(effect.id);
 }
 
 /** The effect and parameter, or operator and parameter, a `Set` writes: `flash.level`. */
@@ -67,12 +70,12 @@ export function controllerOf(document: ConsoleGuiDocument, target: SequenceAutom
 }
 
 /** The value each copy of the effect takes for `param` from its press, if any. */
-export function playedOf(clip: ConsoleClip, param: string): ConsolePlayedValue | undefined {
-  return clip.played.find((value) => value.param === param);
+export function playedOf(clip: GuiClip, param: string): ConsolePlayedValue | undefined {
+  return clip.placement.type === "played" ? clip.placement.values.find((value) => value.param === param) : undefined;
 }
 
 /** Whether a knob, a button or, for an effect's parameter, its presses set `target` live. */
-export function isLinked(document: ConsoleGuiDocument, target: SequenceAutomationTarget, clip: ConsoleClip | null): boolean {
+export function isLinked(document: ConsoleGuiDocument, target: SequenceAutomationTarget, clip: GuiClip | null): boolean {
   return controllerOf(document, target) !== undefined || (clip !== null && playedOf(clip, target.param) !== undefined);
 }
 
@@ -99,7 +102,7 @@ export function controlKey(control: ConsoleControlRef): string {
   return `${guiObjectKey(control.device)}:${control.control}`;
 }
 
-/** The effects whose marks parameters read the live mark collection `key`. */
-export function marksReaders(document: ConsoleGuiDocument, key: string): string[] {
-  return document.clips.filter((clip) => clip.params.some((param) => param.value.type === "marks" && param.value.key === key)).map((clip) => clip.name);
+/** The effects whose marks parameters read the live mark collection `id`. */
+export function marksReaders(document: ConsoleGuiDocument, details: Map<number, SequenceClipDetails>, id: number): string[] {
+  return document.clips.filter((clip) => (details.get(clip.id)?.params ?? []).some((param) => param.value.type === "marks" && param.value.id === id)).map((clip) => clip.name);
 }

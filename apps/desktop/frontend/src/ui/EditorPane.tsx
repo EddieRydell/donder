@@ -1,14 +1,13 @@
 import { AlertTriangle, FileText, FolderOpen, ListX, RefreshCw, Save, Undo2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { commands, errorMessage } from "../api";
 import { SequenceAudioSync, sequenceAudioKey } from "../sequenceAudioSync";
-import type { PersistedEditorViewState, SequenceSelection, WorkspaceLayoutState } from "../types";
+import type { PersistedEditorViewState, WorkspaceLayoutState } from "../types";
 import { runCommand } from "../commandRegistry";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import { GuiEditor } from "./gui/GuiEditor";
 import { TextEditor } from "./TextEditor";
-import { reconcileSequenceSelection } from "./gui/sequence/sequenceSelection";
 import { SequenceTransportControls } from "./gui/sequence/SequenceTransportControls";
 import { THEME_METRICS } from "../theme";
 import { scheduleViewStateSave } from "../viewStatePersistence";
@@ -21,8 +20,6 @@ import { displayedProjectHealth, sameWorkspacePath } from "../workspace/helpers"
 import { Button, Tip } from "./kit";
 import { EditorTabStrip } from "./EditorTabStrip";
 import { GuiBreadcrumb } from "./GuiBreadcrumb";
-
-type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
 const sequenceAudioSync = new SequenceAudioSync(async (request) => {
   const snapshot = await runSnapshotCommand(() => request === null ? commands.unloadAudio() : commands.loadSequenceAudio(request));
@@ -48,7 +45,6 @@ export function EditorPane({
   const guiEditPending = useAppStore((store) => store.guiEditPending);
   const projectionPending = activeGuiRequest !== null && guiDocumentRevision !== activeGuiRequest.projectRevision;
   const interactionPending = projectionPending || guiEditPending;
-  const [pathSelection, setPathSelection] = useState<PathSelection>({ path: null, resetRevision: 0, selection: null });
   const [pendingTextNavigation, setPendingTextNavigation] = useState<TextNavigation | null>(null);
   const activeBuffer = snapshot.activeBuffer;
   const activePath = activeBuffer?.path ?? null;
@@ -67,14 +63,6 @@ export function EditorPane({
     nextGuiPath !== null && nextGuiView === "sequence" && activeSequenceDocument !== null
       ? sequenceAudioKey(snapshot.projectEpoch, activeSequenceDocument.sourceRef, activeSequenceAudio, activeSequenceDocument.durationSeconds)
       : null;
-  const sequenceSelection = reconcileSequenceSelection(activeSequenceDocument,
-    pathSelection.path === activePath && pathSelection.resetRevision === guiResetRevision ? pathSelection.selection : null);
-  const setSequenceSelection = useCallback(
-    (selection: SequenceSelection | null) => {
-      setPathSelection({ path: activePath, resetRevision: guiResetRevision, selection });
-    },
-    [activePath, guiResetRevision]
-  );
 
   useEffect(() => listenUiEvent("navigateToText", setPendingTextNavigation), []);
 
@@ -187,8 +175,6 @@ export function EditorPane({
             snapshot={snapshot}
             workspaceLayout={workspaceLayout}
             onWorkspaceLayoutChange={onWorkspaceLayoutChange}
-            sequenceSelection={sequenceSelection}
-            setSequenceSelection={setSequenceSelection}
             resetRevision={guiResetRevision}
           />
         </div>

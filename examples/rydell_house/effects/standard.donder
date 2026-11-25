@@ -3,7 +3,7 @@ effect Pulse {
   param pulse_shape: curve in 0.0..1.0;
 
   sample {
-    gradient_color_scaled(gradient, progress, pulse_shape[progress])
+    gradient[progress] * clamp(pulse_shape[progress], 0.0, 1.0)
   }
 }
 
@@ -48,7 +48,7 @@ effect Chase {
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { position }
       else { shown };
-    gradient_color_scaled(gradient, gradient_position, level)
+    gradient[gradient_position] * clamp(level, 0.0, 1.0)
   }
 }
 
@@ -90,7 +90,7 @@ effect Wipe {
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { position }
       else { clamp(shown, 0.0, 1.0) };
-    gradient_color_scaled(gradient, gradient_position, level)
+    gradient[gradient_position] * clamp(level, 0.0, 1.0)
   }
 }
 
@@ -122,7 +122,7 @@ effect Spin {
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { item_index / max(1.0, item_count - 1.0) }
       else { pulse_progress };
-    gradient_color_scaled(gradient, gradient_position, level)
+    gradient[gradient_position] * clamp(level, 0.0, 1.0)
   }
 }
 
@@ -156,7 +156,7 @@ effect MarkPulse {
       let cluster = floor((pixel.index + shift) / cluster_width_pixels);
       guard rand(mark_seed * 31.0 + cluster) * cluster_count < clusters_per_mark;
       let child_progress = (now - hit_time) / decay_seconds;
-      gradient_color_scaled(accent, child_progress, pulse_shape[child_progress])
+      accent[child_progress] * clamp(pulse_shape[child_progress], 0.0, 1.0)
     }
   }
 }
@@ -199,7 +199,7 @@ effect MarkChase {
         if gradient_mode == ThroughEffect { child_progress }
         else if gradient_mode == AcrossItems { position }
         else { pulse_progress };
-      gradient_color_scaled(selected_gradient, gradient_position, level)
+      selected_gradient[gradient_position] * clamp(level, 0.0, 1.0)
     }
   }
 }
@@ -250,7 +250,7 @@ effect MarkWipe {
         if gradient_mode == ThroughEffect { child_progress }
         else if gradient_mode == AcrossItems { position }
         else { pulse_progress };
-      gradient_color_scaled(selected_gradient, gradient_position, level)
+      selected_gradient[gradient_position] * clamp(level, 0.0, 1.0)
     }
   }
 }
@@ -312,7 +312,7 @@ effect RadialWipe {
     -- The first pass may hold from the start, the last until the end.
     let shown = extended_pulse(pulse_shape, pulse_progress, extend_to_start && pass == 0.0, extend_to_end && pass == passes - 1);
     let level = if shown >= 0.0 && shown <= 1.0 { pulse_shape[shown] } else { 0.0 };
-    gradient_color_scaled(gradient, clamp(shown, 0.0, 1.0), level)
+    gradient[clamp(shown, 0.0, 1.0)] * clamp(level, 0.0, 1.0)
   }
 }
 
@@ -393,7 +393,7 @@ effect MarkFieldWipe {
         if gradient_mode == ThroughEffect { child_progress }
         else if gradient_mode == AcrossItems { position }
         else { pulse_progress };
-      gradient_color_scaled(selected_gradient, gradient_position, level)
+      selected_gradient[gradient_position] * clamp(level, 0.0, 1.0)
     }
   }
 }
@@ -448,7 +448,7 @@ effect FieldWipe {
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { position }
       else { clamp(shown, 0.0, 1.0) };
-    gradient_color_scaled(gradient, gradient_position, level)
+    gradient[gradient_position] * clamp(level, 0.0, 1.0)
   }
 }
 
@@ -1547,6 +1547,6 @@ effect Gradient {
     let projection = pixel.x * dx + pixel.y * dy;
     let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
     let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
-    gradient_color_scaled(gradient, clamp((projection - projection_min) / span, 0.0, 1.0), 1.0)
+    gradient[clamp((projection - projection_min) / span, 0.0, 1.0)]
   }
 }

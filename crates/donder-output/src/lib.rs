@@ -18,9 +18,9 @@ mod test_pattern;
 
 use donder_model::{Controller, ControllerId, ControllerProtocol};
 
-pub use artnet::ArtNetSender;
+use artnet::ArtNetSender;
 pub use capture_code::{CAPTURE_SLOT_SECONDS, CaptureCode, CaptureSlot};
-pub use e131::E131Sender;
+use e131::E131Sender;
 pub use fseq::{FseqError, FseqStep, encode_fseq, setup_fseq_channel};
 pub use test_pattern::{OutputTest, TestError, TestPattern, TestSelection};
 
@@ -85,7 +85,7 @@ fn codec_error(
     }
 }
 
-pub enum ControllerSender {
+enum ControllerSender {
     E131(E131Sender),
     ArtNet(ArtNetSender),
 }
@@ -93,8 +93,7 @@ pub enum ControllerSender {
 impl ControllerSender {
     /// A sender to an E1.31 or Art-Net controller; Donder controllers play
     /// uploaded shows and are not streamed.
-    fn open(controller: &Controller) -> Option<Result<Self, OutputError>> {
-        let id = controller.id;
+    fn open(id: ControllerId, controller: &Controller) -> Option<Result<Self, OutputError>> {
         Some(match &controller.protocol {
             ControllerProtocol::E131(config) => E131Sender::open(id, config).map(Self::E131),
             ControllerProtocol::ArtNet(config) => ArtNetSender::open(id, config).map(Self::ArtNet),
@@ -137,12 +136,12 @@ impl OutputTransports {
     /// Senders to the E1.31 and Art-Net controllers among `controllers`:
     /// the controllers the frames to send are prepared for.
     pub fn open<'a>(
-        controllers: impl IntoIterator<Item = &'a Controller>,
+        controllers: impl IntoIterator<Item = (ControllerId, &'a Controller)>,
     ) -> Result<Self, OutputError> {
         let senders = controllers
             .into_iter()
-            .filter_map(|controller| {
-                ControllerSender::open(controller).map(|sender| Ok((controller.id, sender?)))
+            .filter_map(|(id, controller)| {
+                ControllerSender::open(id, controller).map(|sender| Ok((id, sender?)))
             })
             .collect::<Result<_, _>>()?;
         Ok(Self { senders })

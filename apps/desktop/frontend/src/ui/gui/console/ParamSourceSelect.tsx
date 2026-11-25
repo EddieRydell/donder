@@ -1,5 +1,5 @@
 import { Link2, Link2Off } from "lucide-react";
-import type { ConsoleClip, ConsoleGuiDocument, ConsoleParamSource, ConsolePlayedQuantity, SequenceAutomationTarget, SequenceParamRange } from "../../../types";
+import type { ConsoleGuiDocument, GuiClip, ConsoleParamSource, ConsolePlayedQuantity, SequenceAutomationTarget, SequenceParamRange } from "../../../types";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { IconButton, MenuButton, MenuSelect, type MenuEntry } from "../../kit";
 import { WindowFields } from "../WindowFields";
@@ -11,7 +11,7 @@ const PLAYED: Record<ConsolePlayedQuantity, { label: string; needsNote: boolean 
   pitchClass: { label: "Note name", needsNote: true }
 };
 
-/** What sets a parameter live: nothing, any knob of the setup's input
+/** What sets a parameter live: nothing, any knob of the project's input
  * devices, or, for an effect's parameter, how the press that started each
  * copy was played. Unlinked, it is a link button that lists the sources, as a
  * sequence parameter's automation link is; linked, it names its source, with
@@ -20,7 +20,7 @@ export function ParamSourceSelect({ document, target, clip, label, range }: {
   document: ConsoleGuiDocument;
   target: SequenceAutomationTarget;
   /** The effect whose parameter it is; an operator's parameter is not played. */
-  clip: ConsoleClip | null;
+  clip: GuiClip | null;
   label: string;
   range: SequenceParamRange | null;
 }) {
@@ -33,7 +33,7 @@ export function ParamSourceSelect({ document, target, clip, label, range }: {
   const pressed = clip !== null && !document.always.includes(clip.id) && starters.every((on) => on.event === "press");
   const notes = starters.every((on) => document.inputDevices.some((device) => guiObjectKey(device.device) === guiObjectKey(on.input.control.device)
     && device.buttons.some((button) => button.control === on.input.control.control && button.notes)));
-  // The source and its name; a control the setup no longer lists keeps the name it was linked by.
+  // The source and its name; a control the project no longer lists keeps the name it was linked by.
   const linked: { source: ConsoleParamSource; name: string } | null = played !== undefined
     ? { source: { type: "played", from: played.from }, name: PLAYED[played.from].label }
     : controller === undefined ? null : {

@@ -6,13 +6,13 @@ use super::{
     TokenClass, contains,
 };
 use crate::compiler::builtins::{
-    ARRAY_WORD, AT, BUILTINS, Builtin, CONTEXT, ContextValue, ENUM_WORD, Method, NAMED_TYPES,
-    REDUCERS, Reducer, builtin, type_text,
+    ARRAY_WORD, BUILTINS, Builtin, CONTEXT, ContextValue, ENUM_WORD, NAMED_TYPES, builtin,
+    type_text,
 };
 use crate::compiler::syntax::lexer::{
     ContextualKeyword, Keyword, LexMode, Token, TokenKind, lex_with_comments,
 };
-use crate::compiler::{Diagnostic, TextSpan};
+use crate::compiler::{Diagnostic, Reducer, TextSpan};
 
 /// What a name refers to.
 #[derive(Clone, Copy, Debug)]
@@ -20,8 +20,7 @@ pub enum ScriptTarget {
     Symbol(usize),
     Builtin(&'static Builtin),
     Context(&'static ContextValue),
-    Reducer(&'static Reducer),
-    Method(&'static Method),
+    Reducer(Reducer),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -89,11 +88,9 @@ impl ScriptAnalysis {
             }
             ScriptTarget::Reducer(reducer) => format!(
                 "```donder\n{} for i in start..end {{ body }}\n```\n\n{}",
-                reducer.name, reducer.summary
+                reducer.name(),
+                reducer.summary()
             ),
-            ScriptTarget::Method(method) => {
-                format!("```donder\n{}\n```\n\n{}", method.label(), method.summary)
-            }
         }
     }
 }
@@ -193,7 +190,6 @@ fn semantic_tokens(
                         ScriptTarget::Symbol(symbol) => symbol_class(symbols[symbol].kind),
                         ScriptTarget::Builtin(_) | ScriptTarget::Reducer(_) => TokenClass::Builtin,
                         ScriptTarget::Context(_) => TokenClass::Context,
-                        ScriptTarget::Method(_) => TokenClass::Function,
                     }
                 } else if ContextualKeyword::of(text)
                     .is_some_and(|word| !word.is_member() || member_start(&tokens, index))
@@ -313,13 +309,13 @@ impl<'a> Context<'a> {
 pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
     let context = Context::new(source, offset);
     let previous = context.previous(1);
-    // After `pixel.` or `target.`, or an input's `.`.
+    // After `pixel.` or `target.`.
     if previous.is_some_and(|token| token.kind == TokenKind::Dot) {
         let Some(scope) = context.previous(2) else {
             return Vec::new();
         };
         let scope = context.text(scope);
-        let fields = CONTEXT
+        return CONTEXT
             .iter()
             .filter_map(|value| {
                 let (owner, field) = value.field()?;
@@ -329,15 +325,7 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
                         .documentation(value.summary)
                 })
             })
-            .collect::<Vec<_>>();
-        if !fields.is_empty() {
-            return fields;
-        }
-        return vec![
-            Completion::new(AT.name, CompletionKind::Function)
-                .detail(AT.label())
-                .documentation(AT.summary),
-        ];
+            .collect();
     }
     // A type after `:` in a parameter, a `let` or an argument.
     if previous.is_some_and(|token| token.kind == TokenKind::Colon) {
@@ -490,12 +478,12 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
             completions.push(Completion::new(scope, CompletionKind::Variable).detail("context"));
         }
     }
-    for reducer in REDUCERS {
-        let name = reducer.name;
+    for reducer in Reducer::ALL {
+        let name = reducer.name();
         completions.push(
             Completion::new(name, CompletionKind::Snippet)
                 .detail(format!("{name} for i in 0..n {{ ... }}"))
-                .documentation(reducer.summary)
+                .documentation(reducer.summary())
                 .insert(format!(
                     "{name} for ${{1:i}} in ${{2:0}}..${{3:n}} {{ $0 }}"
                 )),

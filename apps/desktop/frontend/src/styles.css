@@ -29,7 +29,6 @@
   --donder-code-string: #e8bf7a;
   --donder-code-number: #f09a86;
   --donder-code-type: #a6d189;
-  --donder-code-invalid: #ff8f8f;
   --donder-code-line-height: 20px;
   --donder-code-padding: 12px;
 
@@ -80,16 +79,15 @@
   --donder-automation-graph: #070809;
   --donder-automation-graph-grid: #16191d;
   --donder-automation-graph-major-grid: #24282e;
-  --donder-automation-clip-surface: #0d1519;
-  --donder-automation-clip-header: rgb(142 202 230 / 13%);
-  --donder-automation-clip-header-selected: rgb(142 202 230 / 22%);
+  --donder-envelope-surface: #0d1519;
+  --donder-envelope-header: rgb(142 202 230 / 13%);
+  --donder-envelope-header-selected: rgb(142 202 230 / 22%);
   --donder-automation-curve-fill: rgb(142 202 230 / 16%);
   --donder-automation-curve-shadow: rgb(2 7 9 / 78%);
   --donder-automation-point-fill: #eaf8ff;
   --donder-automation-point-stroke: #0a1013;
-  --donder-automation-clip-label: #d7edf7;
-  --donder-automation-clip-label-muted: #83a3b2;
-  --donder-automation-detached: #f6b84b;
+  --donder-envelope-label: #d7edf7;
+  --donder-envelope-label-muted: #83a3b2;
   --donder-accent-subtle: rgb(174 180 188 / 14%);
   --donder-sequence-range-fill: rgb(174 180 188 / 7%);
   --donder-sequence-range-ruler-fill: rgb(174 180 188 / 24%);
@@ -103,20 +101,16 @@
   --donder-empty-gradient: #17181b;
   --donder-text-secondary: #d8d2c9;
   --donder-project-file-project: var(--donder-text-strong);
-  --donder-project-file-setup: var(--donder-mark-yellow);
   --donder-project-file-controller: var(--donder-mark-orange);
   --donder-project-file-input-device: var(--donder-mark-green);
   --donder-project-file-console: var(--donder-mark-blue);
   --donder-project-file-layout: var(--donder-graph-blue);
   --donder-project-file-fixture: var(--donder-graph-green);
-  --donder-project-file-patch: var(--donder-graph-red);
   --donder-project-file-curve: var(--donder-graph-purple);
   --donder-project-file-gradient: var(--donder-mark-pink);
-  --donder-project-file-effect: var(--donder-graph-yellow);
+  --donder-project-file-script: var(--donder-graph-yellow);
   --donder-project-file-sequence: var(--donder-graph-pink);
-  --donder-project-file-operator: var(--donder-code-function);
   --donder-close-hover: #b83a3a;
-  --donder-object-overview-max-width: 920px;
   --donder-object-overview-row-min-height: 68px;
   --donder-object-overview-icon-size: 36px;
   --donder-object-overview-icon-glyph-size: 18px;
@@ -147,23 +141,17 @@
   --donder-surface-accent-active: #454b54;
   --donder-text-accent-strong: #f0f2f4;
 
-  --donder-danger-soft: #ef7d7d;
-  --donder-text-muted-alt: #9ba4b0;
   --donder-grid-spatial-major: #343a42;
   --donder-error-underline: #171a1fdd;
   --donder-text-graph: #c7cbd1;
-  --donder-border-transparent: #373b4200;
 
   --donder-alpha-black-28: rgb(0 0 0 / 28%);
   --donder-alpha-scrollbar-26: rgb(98 104 115 / 26%);
-  --donder-alpha-black-42: rgb(0 0 0 / 42%);
-  --donder-alpha-black-70: rgb(0 0 0 / 70%);
   --donder-alpha-text-3: rgb(255 250 240 / 3%);
 
 
   --donder-surface-accent-selected: #2b3037;
   --donder-text-accent: #d7dbe0;
-  --donder-alpha-accent-28: rgb(174 180 188 / 28%);
   --donder-text-unavailable: #696b70;
 
   --donder-surface-accent-subtle: #30353d;
@@ -175,27 +163,15 @@
   --donder-focus: #7aa2f7;
   --donder-surface-tooltip: #12151b;
   --donder-text-tooltip: #e5e0d8;
-  --donder-alpha-black-35: rgb(0 0 0 / 35%);
-  --donder-border-success: #487a5b;
   --donder-alpha-black-45: rgb(0 0 0 / 45%);
-  --donder-alpha-black-55: rgb(0 0 0 / 55%);
-  --donder-alpha-white-4: rgb(255 255 255 / 4%);
 
 
-  --donder-alpha-black-32: rgb(0 0 0 / 32%);
   --donder-alpha-white-38: rgb(255 255 255 / 38%);
   --donder-text-graph-port: #b9bec6;
   --donder-alpha-automation-45: rgb(142 202 230 / 45%);
   --donder-alpha-text-38: rgb(255 250 240 / 38%);
 
   --donder-border-hover: #5a606b;
-  --donder-text-context-label: #777c84;
-  --donder-alpha-black-48: rgb(0 0 0 / 48%);
-  --donder-alpha-black-53: rgb(0 0 0 / 53%);
-  --donder-text-setup-muted: #89909b;
-  --donder-border-patch-source: #3d6d8c;
-  --donder-border-patch-filter: #79633c;
-  --donder-border-patch-sink: #456e50;
 
   /* typography */
   --donder-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -214,13 +190,9 @@
   --donder-font-weight-semibold: 600;
   --donder-font-weight-bold: 700;
   --donder-line-height-normal: 1.35;
-  --donder-line-height-relaxed: 1.4;
   --donder-letter-spacing-label: 0.08em;
   --donder-text-transform-label: uppercase;
   --donder-transition-fast: 120ms var(--donder-ease-standard);
-  --donder-button-hover-brightness: 1.2;
-  --donder-transition-border-background: border-color var(--donder-transition-fast), background var(--donder-transition-fast);
-  --donder-transition-transform-background: transform var(--donder-transition-fast), background var(--donder-transition-fast);
   --donder-transition-transform: transform var(--donder-transition-fast);
 
   /* spacing */
@@ -274,7 +246,6 @@
   --donder-conflict-banner-height: 36px;
   --donder-tab-min-width: 118px;
   --donder-tab-close-size: 20px;
-  --donder-diagnostics-tooltip-max-height: 260px;
   --donder-project-panel-min-width: 220px;
   --donder-project-panel-max-width: 520px;
   --donder-inspector-min-width: 240px;
@@ -287,11 +258,6 @@
   --donder-editor-tooltip-max-width: 420px;
   --donder-inspector-padding: var(--donder-space-12);
   --donder-inspector-section-spacing: var(--donder-space-12);
-  --donder-toggle-width: 46px;
-  --donder-toggle-track-width: 42px;
-  --donder-toggle-track-height: 22px;
-  --donder-toggle-thumb-inset: 3px;
-  --donder-toggle-thumb-shift: 20px;
   --donder-curve-gradient-height: 54px;
   --donder-curve-point-row-height: 22px;
   --donder-color-picker-trigger-width: 28px;
@@ -312,31 +278,22 @@
   --donder-z-dialog-overlay: 20;
   --donder-z-dialog: 30;
   --donder-z-titlebar: 50;
-  --donder-z-graph-modal: 80;
   --donder-z-context-menu: 100;
-  --donder-z-delete-dialog: 120;
   --donder-z-resize: 4;
   --donder-z-scrollbar-thumb: 2;
-  --donder-z-scrollbar-marker: 3;
   --donder-z-sequence-gutter: 3;
-  --donder-z-local-tooltip: 5;
   --donder-z-color-picker: 240;
   --donder-z-dialog-content: 31;
   --donder-z-graph-handle: 3;
   --donder-z-graph-resize: 2;
   --donder-z-sequence-waveform: 0;
-  --donder-z-sequence-waveform-canvas: 1;
   --donder-z-sequence-transport: 4;
 
   /* motion and opacity */
   --donder-ease-standard: ease;
-  --donder-opacity-disabled: 0.45;
-  --donder-opacity-disabled-strong: 0.58;
   --donder-opacity-muted: 0.55;
   --donder-opacity-overlay: 0.45;
   --donder-opacity-subdued: 0.82;
-  --donder-opacity-thumb: 0.78;
-  --donder-opacity-disabled-subtle: 0.32;
   --donder-opacity-full: 1;
 
   /* data visualization */
@@ -383,7 +340,6 @@
   --donder-graph-node-stroke-width: 2px;
   --donder-curve-editor-width: 240px;
   --donder-curve-editor-height: 120px;
-  --donder-canvas-point-hit-radius: 0.8;
   --donder-scrollbar-thumb-min-height: 28px;
   --donder-graph-edge-interaction-width: 32px;
   --donder-graph-node-min-height: 80px;
@@ -444,17 +400,15 @@
   --donder-automation-guide-dash: 3px;
   --donder-automation-value-label-offset: 8px;
   --donder-sequence-snap-distance: 8px;
-  --donder-clip-options-max-height: 40vh;
   --donder-automation-grid-rows: 4;
   --donder-automation-row-min-height: 72px;
   --donder-automation-row-max-height: 192px;
   --donder-automation-row-height-ratio: 1.5;
-  --donder-automation-clip-radius: 4px;
-  --donder-automation-clip-header-height: 14px;
-  --donder-automation-clip-label-inset: 6px;
-  --donder-automation-clip-label-baseline: 10px;
-  --donder-automation-clip-label-min-width: 40px;
-  --donder-automation-detached-stripe-width: 3px;
+  --donder-envelope-radius: 4px;
+  --donder-envelope-header-height: 14px;
+  --donder-envelope-label-inset: 6px;
+  --donder-envelope-label-baseline: 10px;
+  --donder-envelope-label-min-width: 40px;
   --donder-spectrogram-highlight-threshold: 0.68;
   --donder-spectrogram-highlight-power: 1.25;
   --donder-timeline-label-x: 5px;
@@ -480,10 +434,7 @@
   --donder-mark-cull-padding: 6px;
   --donder-mark-selected-half-width: 4px;
   --donder-mark-overlay-opacity: 0.55;
-  --donder-canvas-label-left-inset: 4px;
-  --donder-canvas-label-right-inset: 28px;
   --donder-canvas-label-bottom-inset: 7px;
-  --donder-canvas-label-top-inset: 14px;
   --donder-canvas-label-x-offset: 5px;
   --donder-canvas-label-y-offset: 3px;
   --donder-spatial-hit-radius: 12px;
@@ -2185,7 +2136,7 @@ html.donder-app-shell body {
 }
 
 .dialog-actions button:not([class*="kit-"]),
-.setup-editor button:not([class*="kit-"]),
+.object-editor button:not([class*="kit-"]),
 .device-form button:not([class*="kit-"]) {
   border: var(--donder-border-width) solid var(--donder-border);
   border-radius: var(--donder-radius-md);
@@ -2194,7 +2145,7 @@ html.donder-app-shell body {
 }
 
 .dialog-actions button:not([class*="kit-"]):disabled,
-.setup-editor button:not([class*="kit-"]):disabled,
+.object-editor button:not([class*="kit-"]):disabled,
 .device-form button:not([class*="kit-"]):disabled {
   opacity: var(--donder-opacity-muted);
 }
@@ -2222,8 +2173,8 @@ html.donder-app-shell body {
   color: var(--donder-text);
 }
 
-.setup-editor input:not([class*="kit-"]):not([type="checkbox"]),
-.setup-editor select:not([class*="kit-"]) {
+.object-editor input:not([class*="kit-"]):not([type="checkbox"]),
+.object-editor select:not([class*="kit-"]) {
   min-width: 0;
   height: var(--donder-control-height-md);
   border: var(--donder-border-width) solid var(--donder-border);
@@ -2629,7 +2580,7 @@ html.donder-app-shell body {
   stroke: var(--donder-text);
 }
 
-.setup-editor {
+.object-editor {
   height: 100%;
   overflow: auto;
   padding: var(--donder-space-20);
@@ -2811,7 +2762,7 @@ fieldset.sequence-layer-row {
   text-decoration: underline;
 }
 
-.setup-editor > header,
+.object-editor > header,
 .setup-summary,
 .controller-port-row {
   display: flex;
@@ -2820,13 +2771,13 @@ fieldset.sequence-layer-row {
   gap: var(--donder-space-12);
 }
 
-.setup-editor > header h2,
-.setup-section h3 { margin: 0; }
+.object-editor > header h2,
+.object-section h3 { margin: 0; }
 
-.setup-editor > header div,
+.object-editor > header div,
 .setup-summary { display: flex; flex-direction: column; align-items: flex-start; }
 
-.setup-section {
+.object-section {
   min-width: 0;
   padding: var(--donder-space-16);
   border: var(--donder-border-width) solid var(--donder-border-soft);
@@ -2834,7 +2785,7 @@ fieldset.sequence-layer-row {
   background: var(--donder-bg-panel);
 }
 
-.setup-section h3 { margin-bottom: var(--donder-space-12); }
+.object-section h3 { margin-bottom: var(--donder-space-12); }
 .setup-summary, .controller-port-row { padding: var(--donder-space-8) 0; border-bottom: var(--donder-border-width) solid var(--donder-border-soft); }
 
 .setup-authoring-form {
@@ -2921,8 +2872,8 @@ fieldset.sequence-layer-row {
 
 /* Input device editor: controls as a grid of bordered cells. Borders belong to
    .control-cell alone; the controls inside are borderless, square and fill it. */
-.setup-editor .input-device-form :is(select, input, textarea, button) { border-radius: 0; }
-.setup-section.input-device-section { border-radius: 0; }
+.object-editor .input-device-form :is(select, input, textarea, button) { border-radius: 0; }
+.object-section.input-device-section { border-radius: 0; }
 .input-device-form fieldset { gap: var(--donder-space-12); }
 /* One grid for the header and every row, so their columns line up. A row only
    groups its cells for dragging; it has no box of its own. */
@@ -2963,20 +2914,20 @@ fieldset.sequence-layer-row {
 /* A cell holding a select and the numbers that go with it. */
 /* Its parts read as one phrase, each as wide as its content. Numbers size themselves; text is
    sized from its committed length, so neither changes width while it is edited. */
-.setup-editor .control-grid .control-cell.compound :is(.kit-select, .kit-number, .kit-text) {
+.object-editor .control-grid .control-cell.compound :is(.kit-select, .kit-number, .kit-text) {
   flex: none;
   width: auto;
   min-width: var(--donder-control-height-md);
 }
-.setup-editor .control-grid .control-cell.compound .kit-text { width: calc(var(--kit-value-chars) * 1ch + 2 * var(--donder-space-8)); }
+.object-editor .control-grid .control-cell.compound .kit-text { width: calc(var(--kit-value-chars) * 1ch + 2 * var(--donder-space-8)); }
 .control-cell.compound > span { align-self: center; color: var(--donder-text-muted); }
 .control-cell.learning { box-shadow: inset 0 0 0 var(--donder-border-width) var(--donder-accent); }
-.setup-editor .control-grid .control-icon.learn { flex: none; margin-left: auto; }
-.setup-editor .control-grid .control-icon.learn[aria-pressed="true"] { color: var(--donder-text-accent); animation: kit-pulse var(--donder-learn-pulse-duration) ease-in-out infinite; }
+.object-editor .control-grid .control-icon.learn { flex: none; margin-left: auto; }
+.object-editor .control-grid .control-icon.learn[aria-pressed="true"] { color: var(--donder-text-accent); animation: kit-pulse var(--donder-learn-pulse-duration) ease-in-out infinite; }
 @keyframes kit-pulse { 50% { opacity: 0.4; } }
 .control-cell.gutter { padding: 0; border-color: transparent; background: transparent; }
 /* Cells are the border, so the controls inside them are bare. */
-.setup-editor .control-grid .control-cell :is(.kit-select, .kit-number, .kit-text) {
+.object-editor .control-grid .control-cell :is(.kit-select, .kit-number, .kit-text) {
   flex: 1;
   width: 100%;
   min-width: 0;
@@ -2995,8 +2946,8 @@ fieldset.sequence-layer-row {
   font-size: var(--donder-font-size-xl);
   font-weight: var(--donder-font-weight-semibold);
 }
-/* Beats `.setup-editor button`, which would pad these icon buttons wider than their cells. */
-.setup-editor .control-grid .control-icon {
+/* Beats `.object-editor button`, which would pad these icon buttons wider than their cells. */
+.object-editor .control-grid .control-icon {
   display: grid;
   flex: 1;
   place-items: center;
@@ -3006,11 +2957,11 @@ fieldset.sequence-layer-row {
   background: transparent;
   color: var(--donder-text-faint);
 }
-.setup-editor .control-grid .control-icon.handle { cursor: grab; }
-.setup-editor .control-grid .control-icon:is(.handle, .remove):hover:not(:disabled) { color: var(--donder-text-soft); filter: none; }
-.setup-editor .control-grid .control-icon.remove:hover:not(:disabled) { color: var(--donder-danger); }
+.object-editor .control-grid .control-icon.handle { cursor: grab; }
+.object-editor .control-grid .control-icon:is(.handle, .remove):hover:not(:disabled) { color: var(--donder-text-soft); filter: none; }
+.object-editor .control-grid .control-icon.remove:hover:not(:disabled) { color: var(--donder-danger); }
 /* Remove and learn show when the row is hovered or has focus, and learn while it listens. */
-.setup-editor .control-grid .control-grid-row:not(:hover, :focus-within) .control-cell:not(.learning) .control-icon:is(.remove, .learn) { opacity: 0; }
+.object-editor .control-grid .control-grid-row:not(:hover, :focus-within) .control-cell:not(.learning) .control-icon:is(.remove, .learn) { opacity: 0; }
 /* Adds a control; sits beside the driver settings, apart from the column labels. */
 .control-grid-actions { flex-basis: 100%; display: flex; }
 .control-grid-submit { margin-left: auto; }
@@ -3036,7 +2987,7 @@ fieldset.sequence-layer-row {
   background: var(--donder-surface-control);
 }
 .action-chip.selected { border-color: var(--donder-accent); background: var(--donder-surface-accent-selected); }
-.setup-editor .action-chip-body, .setup-editor .action-chip-remove, .setup-editor .action-add {
+.object-editor .action-chip-body, .object-editor .action-chip-remove, .object-editor .action-add {
   display: inline-flex;
   align-items: center;
   gap: var(--donder-space-4);
@@ -3044,19 +2995,19 @@ fieldset.sequence-layer-row {
   border-radius: 0;
   background: transparent;
 }
-.setup-editor .action-chip-body { padding: var(--donder-space-4) var(--donder-space-8); }
-.setup-editor .action-chip-remove { padding: 0 var(--donder-space-4); color: var(--donder-text-faint); }
-.setup-editor .action-chip:not(:hover, :focus-within) .action-chip-remove { opacity: 0; }
-.setup-editor .action-chip-remove:hover { color: var(--donder-danger); filter: none; }
+.object-editor .action-chip-body { padding: var(--donder-space-4) var(--donder-space-8); }
+.object-editor .action-chip-remove { padding: 0 var(--donder-space-4); color: var(--donder-text-faint); }
+.object-editor .action-chip:not(:hover, :focus-within) .action-chip-remove { opacity: 0; }
+.object-editor .action-chip-remove:hover { color: var(--donder-danger); filter: none; }
 .action-chip-detail { color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); }
-.setup-editor .action-add {
+.object-editor .action-add {
   justify-content: center;
   width: var(--donder-control-height-sm);
   height: var(--donder-control-height-sm);
   padding: 0;
   color: var(--donder-text-accent);
 }
-.setup-editor .action-add:hover { color: var(--donder-text-strong); filter: none; }
+.object-editor .action-add:hover { color: var(--donder-text-strong); filter: none; }
 .object-overview-group-header { display: flex; align-items: center; justify-content: space-between; gap: var(--donder-space-8); }
 .object-overview-group-header h3 { margin: 0; }
 .setup-patch-fields { display: flex; flex-wrap: wrap; align-items: end; gap: var(--donder-space-8); padding: var(--donder-space-8) 0; }
@@ -3569,7 +3520,6 @@ button.status-chip:hover {
 .spatial-selection-controls p { overflow-wrap: anywhere; }
 
 :root {
-  --donder-spatial-guide-panel-width: 26rem;
   --donder-spatial-guide-panel-height: 20rem;
 }
 .spatial-guide-row { display: flex; align-items: end; gap: var(--donder-space-12); margin-block: var(--donder-space-12); }
@@ -3596,7 +3546,7 @@ button.status-chip:hover {
 
 /* Project consoles: Perform sits left of the row's source actions. */
 
-.setup-editor > .object-overview-header button svg {
+.object-editor > .object-overview-header button svg {
   width: var(--donder-object-overview-icon-glyph-size);
   height: var(--donder-object-overview-icon-glyph-size);
 }
@@ -3610,7 +3560,7 @@ button.status-chip:hover {
 }
 
 /* The console editor's sections are flat; only its control grid runs edge to edge. */
-.setup-editor.console-editor { padding: var(--donder-space-20) 0; }
+.object-editor.console-editor { padding: var(--donder-space-20) 0; }
 .console-sections {
   display: grid;
   gap: var(--donder-space-20);

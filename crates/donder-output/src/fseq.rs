@@ -191,10 +191,10 @@ pub fn encode_fseq(
 }
 
 /// Each output's FSEQ channel from 1, of a show prepared on `project`'s
-/// active setup: its controller's, for an E1.31 or Art-Net controller's
+/// project: its controller's, for an E1.31 or Art-Net controller's
 /// universes.
 pub fn setup_fseq_channel(project: &DonderProject) -> impl Fn(&Output) -> Option<NonZeroU32> + '_ {
-    let controllers = project.active_setup().controllers().collect::<Vec<_>>();
+    let controllers = project.controllers().collect::<Vec<_>>();
     move |output| controllers[output.controller_index as usize].fseq_channel()
 }
 

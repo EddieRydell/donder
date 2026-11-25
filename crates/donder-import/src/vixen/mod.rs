@@ -1,5 +1,5 @@
 //! A Vixen 3 profile folder: `SystemData/SystemConfig.xml` holds the
-//! elements, controllers and patching, and `SystemData/ModuleStore.xml` each
+//! elements, controllers and routesing, and `SystemData/ModuleStore.xml` each
 //! module's settings, including the preview's shapes. Each shape of the
 //! enabled preview becomes the fixtures its wiring makes, whose pixels sit
 //! where Vixen draws them, in channel order, and each pixel's element is

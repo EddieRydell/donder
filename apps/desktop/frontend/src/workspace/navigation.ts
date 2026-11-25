@@ -20,10 +20,10 @@ export async function navigateToText(path: string, range: TextRange | null): Pro
   });
 }
 
-export async function navigateToGuiObject(reference: Pick<GuiObjectRef, "path" | "objectKey" | "ownedPath">): Promise<void> {
+export async function navigateToGuiObject(reference: Pick<GuiObjectRef, "path" | "objectKey">): Promise<void> {
   try {
     const target = await commands.resolveGuiSource(reference.path, reference.objectKey);
-    const selection = { path: target.path, objectKey: reference.objectKey, ownedPath: reference.ownedPath };
+    const selection = { path: target.path, objectKey: reference.objectKey };
     if (useAppStore.getState().guiRequest?.path === target.path) {
       selectGuiObject(selection, "nested");
       return;
@@ -47,7 +47,7 @@ export async function navigateToGuiObject(reference: Pick<GuiObjectRef, "path" |
 let pendingPlayback: string | null = null;
 
 /** Opens a sequence and plays it from its playhead. */
-export async function playSequence(reference: Pick<GuiObjectRef, "path" | "objectKey" | "ownedPath">): Promise<void> {
+export async function playSequence(reference: Pick<GuiObjectRef, "path" | "objectKey">): Promise<void> {
   const state = useAppStore.getState();
   if (state.guiRequest !== null && objectViewKey(state.guiRequest) === objectViewKey(reference) && state.guiDocument?.type === "sequence") {
     await runSnapshotCommand(commands.audioPlay);

@@ -74,10 +74,8 @@ fn bench_render(c: &mut Criterion) {
     .expect("benchmark project should load");
     let sequence_id = session
         .project()
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
+        .reusable::<donder_model::Sequence>()
+        .keys()
         .find(|id| {
             session
                 .declaration((**id).into())
@@ -184,10 +182,8 @@ fn bench_large_show(c: &mut Criterion) {
         .expect("rydell_house should load; it needs its uncommitted audio/dingdong.mp3");
     let sequence_id = session
         .project()
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
+        .reusable::<donder_model::Sequence>()
+        .keys()
         .find(|id| {
             session
                 .source()
@@ -244,8 +240,8 @@ fn bench_large_show(c: &mut Criterion) {
 
 fn bench_mark_playback(c: &mut Criterion) {
     use donder_language::{DonderDuration, DonderTime};
-    use donder_model::{MarkCollection, MarkCollectionKey};
-    use donder_model::{OwnedCurve, ParamValue};
+    use donder_model::{CurveValue, ParamValue};
+    use donder_model::{MarkCollection, MarkCollectionId};
     use donder_runtime_types::Identifier;
     use donder_runtime_types::SampleTime;
     use donder_runtime_types::{Curve, CurvePoint};
@@ -261,10 +257,8 @@ fn bench_mark_playback(c: &mut Criterion) {
     for (name, pulse) in [("pulse", true), ("chase", false)] {
         let mut project = source_project.clone();
         let id = *project
-            .root()
-            .sequences
-            .iter()
-            .map(|source| source.id())
+            .reusable::<donder_model::Sequence>()
+            .keys()
             .find(|id| {
                 session
                     .source()
@@ -273,32 +267,34 @@ fn bench_mark_playback(c: &mut Criterion) {
             })
             .unwrap();
         let mut source = project.get::<donder_model::Sequence>(id).unwrap().clone();
-        let mut clip = (*source.clips[0]).clone();
-        let gradient = clip.param_overrides.get("gradient").unwrap().clone();
-        let mark_key = MarkCollectionKey {
+        let mut clip = (*source.composition.clips[0]).clone();
+        let effect = clip.effect_mut().unwrap();
+        let gradient = effect.params.get("gradient").unwrap().clone();
+        let mark_key = MarkCollectionId(0);
+        source.composition.marks = vec![MarkCollection {
+            id: mark_key,
             name: donder_language::object_name("profile_beats"),
-        };
-        source.mark_collections = vec![MarkCollection {
-            key: mark_key.clone(),
             description: None,
-            display_color: source.layers[0].color,
+            display_color: source.composition.layers[0].color,
             marks: (0..32)
                 .map(|i| donder_model::Mark::at(DonderTime(Duration::from_millis(2000 + i * 50))))
                 .collect(),
         }];
         let effect_name = if pulse { "MarkPulse" } else { "MarkChase" };
         let definition_id = *project
-            .reusable::<donder_model::EffectDefinition>()
+            .reusable::<donder_model::ScriptDefinition>()
             .iter()
             .find(|(_, definition)| definition.name() == effect_name)
             .expect("standard mark effect must be imported")
             .0;
-        clip.definition = definition_id;
-        clip.start = DonderTime(Duration::ZERO);
-        clip.duration = DonderDuration(Duration::from_secs(8));
-        clip.layer_id = source.layers[0].id.clone();
-        clip.param_overrides.clear();
-        let ramp = ParamValue::Curve(OwnedCurve::Inline(Curve {
+        effect.definition = definition_id;
+        effect.layer = source.composition.layers[0].id.clone();
+        effect.params.clear();
+        clip.placement = donder_model::Placement::Timed {
+            start: DonderTime(Duration::ZERO),
+            duration: DonderDuration(Duration::from_secs(8)),
+        };
+        let ramp = ParamValue::Curve(CurveValue::Literal(Curve {
             points: vec![
                 CurvePoint {
                     position: 0.0,
@@ -311,7 +307,7 @@ fn bench_mark_playback(c: &mut Criterion) {
             ],
         }));
         let mut values = vec![("beats", ParamValue::Marks(Some(mark_key)))];
-        let falloff = ParamValue::Curve(OwnedCurve::Inline(Curve {
+        let falloff = ParamValue::Curve(CurveValue::Literal(Curve {
             points: vec![
                 CurvePoint {
                     position: 0.0,
@@ -337,14 +333,13 @@ fn bench_mark_playback(c: &mut Criterion) {
                 ("chase_seconds", ParamValue::Float(1.2)),
             ]);
         }
-        clip.param_overrides.extend(
+        clip.effect_mut().unwrap().params.extend(
             values
                 .into_iter()
                 .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value)),
         );
-        source.clips = vec![std::sync::Arc::new(clip)];
-        source.automation_clips.clear();
-        project.put(source).unwrap();
+        source.composition.clips = vec![std::sync::Arc::new(clip)];
+        project.put((id, source)).unwrap();
         let prepared = prepare(&project, &id, Retain::All).unwrap();
         assert!(prepared.outputs().is_empty());
         let (_, duration) = prepared
@@ -699,21 +694,15 @@ fn assert_scenarios(sequence: &PreparedShow) {
 // All logical fixtures remain selected while normal playback has no bytes to pack.
 fn render_only_project(source: &DonderProject) -> DonderProject {
     let mut project = source.clone();
-    let mut setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .unwrap()
-        .clone();
-    let mut patch = project
-        .get::<donder_model::Patch>(*setup.patch.id())
-        .unwrap()
-        .clone();
-    patch.routes.clear();
-    setup.controllers.clear();
+    let mut setup = project.root().clone();
+    setup.routes.clear();
+    let controllers = project
+        .reusable::<donder_model::Controller>()
+        .keys()
+        .map(|&id| ProjectEdit::Remove(id.into()))
+        .collect::<Vec<_>>();
     project
-        .apply_edits([
-            ProjectEdit::Put(patch.into()),
-            ProjectEdit::Put(setup.into()),
-        ])
+        .apply_edits(std::iter::once(ProjectEdit::Put(setup.into())).chain(controllers))
         .expect("render-only fixture should retain a valid typed project");
     project
 }

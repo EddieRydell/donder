@@ -8,7 +8,6 @@ pub struct SequenceAudio {
     #[serde(rename = "import")]
     pub import_path: String,
     pub resolved_path: String,
-    pub file_name: String,
     pub exists: bool,
 }
 
@@ -33,7 +32,7 @@ pub struct SequenceGradientLibraryItem {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub(crate) source_ref: GuiObjectRef,
     pub duration_seconds: f64,
@@ -42,14 +41,13 @@ pub struct SequenceGuiDocument {
     pub(crate) mark_collections: Vec<SequenceMarkCollection>,
     /// Whether the audio its effects read is analyzed.
     pub(crate) derived_data: DerivedDataStatus,
-    pub lanes: Vec<SequenceLane>,
+    pub targets: Vec<SequenceLane>,
     pub effect_definitions: Vec<SequenceEffectDefinition>,
     pub curve_library: Vec<SequenceCurveLibraryItem>,
     pub gradient_library: Vec<SequenceGradientLibraryItem>,
     pub(crate) layers: Vec<SequenceLayer>,
-    pub clips: Vec<SequenceClip>,
+    pub clips: Vec<GuiClip>,
     pub composition_graph: SequenceCompositionGraph,
-    pub(crate) automation_clips: Vec<SequenceAutomationClip>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -64,27 +62,9 @@ pub struct SequenceLayer {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceAutomationClip {
-    pub(crate) id: u32,
-    pub(crate) start_seconds: f64,
-    pub(crate) duration_seconds: f64,
-    pub(crate) row_target: FixtureTarget,
-    pub(crate) curve: Vec<SequenceCurvePoint>,
-    pub(crate) bindings: Vec<SequenceAutomationBinding>,
-    pub(crate) detached_bindings: Vec<SequenceDetachedAutomationBinding>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct SequenceAutomationBinding {
     pub(crate) target: SequenceAutomationTarget,
     pub(crate) window: GuiWindow,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceDetachedAutomationBinding {
-    pub(crate) target: SequenceAutomationTarget,
 }
 
 /// The clips the editor shows, in the order their rasters should render.
@@ -130,19 +110,57 @@ pub struct SequenceClipRaster {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceClip {
-    pub(crate) index: u32,
+pub struct GuiClip {
     pub id: u32,
-    /// The clip's name, which automation bindings use.
+    /// The clip's name, which envelopes and actions use.
     pub(crate) name: String,
     pub(crate) description: Option<String>,
-    pub(crate) layer_id: u32,
-    pub(crate) start_seconds: f64,
-    pub(crate) duration_seconds: f64,
+    /// What it plays over; an envelope's row.
     pub(crate) target: FixtureTarget,
     pub(crate) target_label: String,
-    pub(crate) scope: SequenceClipScope,
-    pub(crate) effect: String,
+    pub(crate) placement: GuiPlacement,
+    pub content: GuiClipContent,
+    /// The length a console clip repeats every when it plays from the
+    /// session's start.
+    pub(crate) always_length_seconds: Option<f64>,
+}
+
+/// What a clip plays: an effect on a layer, or an envelope.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiClipContent {
+    Effect {
+        layer_id: u32,
+        scope: SequenceClipScope,
+        effect: SequenceEffectReference,
+        effect_name: String,
+    },
+    Envelope {
+        curve: Vec<SequenceCurvePoint>,
+        bindings: Vec<SequenceAutomationBinding>,
+    },
+}
+
+/// When a clip plays: at a time, or when a console's actions play it, each
+/// copy taking `values` from the press that started it.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiPlacement {
+    Timed {
+        start_seconds: f64,
+        duration_seconds: f64,
+    },
+    Played {
+        values: Vec<ConsolePlayedValue>,
+    },
 }
 
 /// What the inspector edits on one clip, fetched for the selected clips only:
@@ -168,7 +186,7 @@ pub struct SequenceClipDetailsResult {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipMatchRequest {
     /// The seed clips.
-    pub(crate) clips: Vec<SequenceClipRef>,
+    pub(crate) ids: Vec<u32>,
     pub(crate) criteria: SequenceClipMatch,
     pub(crate) params: Vec<SequenceClipParamMatch>,
 }
@@ -225,7 +243,6 @@ pub enum SequenceGraphNodeKind {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGraphOperatorDefinition {
     pub operator: SequenceGraphOperator,
-    pub(crate) source_name: String,
     pub(crate) display_name: String,
     /// The script's description of the operator.
     pub(crate) description: Option<String>,
@@ -263,7 +280,8 @@ pub struct SequenceParamOption {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceParamAutomation {
-    pub(crate) automation_clip_id: u32,
+    /// The envelope that drives it.
+    pub(crate) clip_id: u32,
     /// The part of the clip's `0..1` the binding uses.
     pub(crate) window: GuiWindow,
 }
@@ -320,8 +338,9 @@ pub enum SequenceLaneKind {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceMarkCollection {
-    /// The collection's name, which clip parameters use.
-    pub(crate) key: String,
+    /// The collection's id, which clip parameters and marks refer to.
+    pub(crate) id: u32,
+    pub(crate) name: String,
     pub(crate) description: Option<String>,
     pub(crate) color: String,
     pub(crate) marks_seconds: Vec<f64>,

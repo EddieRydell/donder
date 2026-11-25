@@ -195,10 +195,13 @@ pub fn insert_invert(show: &mut Workload, invert: &CompiledDefinition) {
 
 /// An operator with its defaults, lowered for the eight-second fixture sequence.
 pub fn operator_program(operator: &CompiledDefinition) -> BoundProgram {
-    bind(&invoke(operator, &[]).instance(ProgramConstants {
-        pixel_count: None,
-        duration_seconds: Some(8.0),
-    }))
+    bind(&invoke(operator, &[]).instance(
+        ProgramConstants {
+            pixel_count: None,
+            duration_seconds: Some(8.0),
+        },
+        &[],
+    ))
 }
 
 /// Use `operator`; without `reuse`, its initialization runs for every strip.
@@ -212,15 +215,11 @@ pub fn apply_operator(show: &mut Workload, operator: &CompiledDefinition, reuse:
 }
 
 /// `program` with its lowered bytecode edited and readmitted, keeping its
-/// parameter values and automation.
+/// parameter values.
 pub fn edit(program: &BoundProgram, edit: impl FnOnce(&mut BytecodeProgram)) -> BoundProgram {
     let mut edited = Program::clone(program.program());
     edit(&mut edited.bytecode);
-    BoundProgram::new(
-        edited,
-        program.params().values().to_vec(),
-        program.automation().into(),
-    )
+    BoundProgram::new(edited, program.params().values().to_vec())
 }
 
 /// Edit the first effect's lowered bytecode.
@@ -284,10 +283,13 @@ pub fn sample_fixture(
     duration: SampleDuration,
 ) -> Clip {
     Clip {
-        program: bind(&invocation.instance(ProgramConstants {
-            pixel_count: Some(count as i32),
-            duration_seconds: Some(donder_runtime_types::sample_duration_seconds_f32(duration)),
-        })),
+        program: bind(&invocation.instance(
+            ProgramConstants {
+                pixel_count: Some(count as i32),
+                duration_seconds: Some(donder_runtime_types::sample_duration_seconds_f32(duration)),
+            },
+            &[],
+        )),
         start,
         duration,
     }

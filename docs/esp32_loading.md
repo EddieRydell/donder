@@ -19,7 +19,7 @@ dual core and rated for 240 MHz, without flash encryption or secure boot.
    password `12345678` (`ACCESS_POINT_PASSWORD`), at `192.168.4.1`. Join it
    from the computer; its DHCP server offers no gateway, so a wired connection
    keeps the computer's internet route.
-3. In Display Setup, add a **Donder controller** and choose the discovered
+3. In the project overview, add a **Donder controller** and choose the discovered
    device.
 4. Turn on live output in the sequence toolbar and press Play.
 
@@ -40,7 +40,7 @@ TXT records carry `id`, `name`, `format` and
 controller. It browses only while live output is on or while a Donder
 controller's settings or the controller form are open; otherwise it binds no
 mDNS socket. While live output is on it connects to each Donder controller in
-the open setup that runs a matching format.
+the project that runs a matching format.
 
 ## Storage and shows
 
@@ -112,7 +112,7 @@ TCP sockets disable Nagle.
 
 ## Editor playback
 
-A setup's Donder controller names its device ID and numbers its ports as outputs
+A project's Donder controller names its device ID and numbers its ports as outputs
 1..n, which map in order onto the controller's physical outputs. Donder
 controllers follow live output, like E1.31 and Art-Net controllers: with live
 output off, Play only plays the Preview and the editor connects to no

@@ -2,12 +2,10 @@
 //! that start and stop voices, add live marks and set live automations.
 //!
 //! Commands change only the workspace: a voice's start and duration, its
-//! layer's start order, live marks, and the live automations' parameter
-//! values.
-use crate::format::{self, NONE};
+//! layer's start order, live marks, and the live store.
+use crate::format;
 use donder_runtime_types::{Color, MICROS_PER_SECOND, SampleDuration, SampleTime, mul_div};
 
-use crate::dsl::set_value;
 use crate::evaluation::{evaluate_frame, index_layer, root_buffer};
 use crate::view::Show;
 use crate::workspace::{LIVE_MARK_CAPACITY, Layout, Timing, Workspace, carve};
@@ -160,40 +158,7 @@ fn output_frames<'a>(
     })
 }
 
-impl Show<'_> {
-    fn voice_count(&self) -> usize {
-        self.s.voices.len()
-    }
-
-    fn collection_count(&self) -> usize {
-        self.meta().collections as usize
-    }
-
-    fn automation_count(&self) -> usize {
-        self.s.live_automations.len()
-    }
-
-    /// Whether `command` addresses a voice, collection or live automation of
-    /// this show.
-    fn accepts(&self, command: ConsoleCommand) -> bool {
-        match command {
-            ConsoleCommand::Start { voice, .. } | ConsoleCommand::Stop { voice } => {
-                usize::from(voice) < self.voice_count()
-            }
-            ConsoleCommand::Mark { collection } => {
-                usize::from(collection) < self.collection_count()
-            }
-            ConsoleCommand::Set { automation, value } => {
-                usize::from(automation) < self.automation_count() && (0.0..=1.0).contains(&value)
-            }
-        }
-    }
-}
-
 fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime, command: ConsoleCommand) {
-    if !show.accepts(command) {
-        return;
-    }
     let s = &show.s;
     let ticks = time.as_ticks();
     let console = &mut workspace.console;
@@ -204,12 +169,10 @@ fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime, comman
                 start: ticks,
                 duration: duration.as_ticks(),
             };
-            // Its integrals count from the new start, where no value set
-            // before has yet held.
-            for target in s.live_targets.iter().filter(|target| target.clip == clip) {
-                if let Some(plan) = show.plan(target.plan) {
-                    console.overrides[(plan.bindings.start + target.binding) as usize].reset_area();
-                }
+            // Its integrals of live values count from its start.
+            for snapshot in s.snapshots.iter().filter(|snapshot| snapshot.clip == clip) {
+                console.live[snapshot.word as usize] =
+                    live_integral(show, console.live, snapshot.automation, ticks);
             }
             if let Some(layer) = s
                 .layers
@@ -243,30 +206,36 @@ fn apply(show: Show<'_>, workspace: &mut Workspace<'_>, time: SampleTime, comman
             track.len += 1;
         }
         ConsoleCommand::Set { automation, value } => {
-            for target in s.live_automations[usize::from(automation)]
-                .targets
-                .get(s.live_targets)
+            let word = s.live_automations[usize::from(automation)].word as usize;
+            let base = live_integral(show, console.live, u32::from(automation), ticks);
+            console.live[word..word + 3].copy_from_slice(&[value, base, seconds(ticks)]);
+            // Clips yet to start count their integrals from what the new
+            // value makes theirs.
+            for snapshot in s
+                .snapshots
+                .iter()
+                .filter(|snapshot| snapshot.automation == u32::from(automation))
             {
-                let Some(plan) = show.plan(target.plan) else {
-                    continue;
-                };
-                let start = plan.bindings.start as usize;
-                let overrides = &mut console.overrides[start..start + plan.bindings.len as usize];
-                let origin = match target.clip {
-                    NONE => 0,
-                    clip => console.timing[clip as usize].start,
-                };
-                set_value(
-                    show,
-                    plan,
-                    overrides,
-                    target.binding as usize,
-                    value,
-                    time,
-                    origin,
-                );
+                let start = console.timing[snapshot.clip as usize].start;
+                if start > ticks {
+                    console.live[snapshot.word as usize] =
+                        live_integral(show, console.live, snapshot.automation, start);
+                }
             }
         }
     }
     workspace.frame[1] = 0;
+}
+
+/// Seconds of show time `ticks`.
+fn seconds(ticks: u32) -> f32 {
+    donder_runtime_types::sample_duration_seconds_f32(SampleDuration::from_ticks(ticks))
+}
+
+/// Live automation `automation`'s integral over the session at `ticks`, as
+/// its live store words hold it: `base + value * (t - since)`.
+pub(crate) fn live_integral(show: Show<'_>, live: &[f32], automation: u32, ticks: u32) -> f32 {
+    let word = show.s.live_automations[automation as usize].word as usize;
+    let [value, base, since] = [live[word], live[word + 1], live[word + 2]];
+    base + value * (seconds(ticks) - since)
 }

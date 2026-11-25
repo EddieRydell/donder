@@ -63,11 +63,10 @@ impl Target {
 
 fn run_context(ticks: u32, count: usize) -> RunContext {
     RunContext {
-        progress: ticks as f32 / DURATION as f32,
+        origin: donder_runtime_types::SampleTime::from_ticks(0),
         time: SampleDuration::from_ticks(ticks),
         duration: SampleDuration::from_ticks(DURATION),
         frame_rate: 40.0,
-        frame: 0,
         pixel_count: count as i32,
     }
 }
@@ -182,7 +181,6 @@ fn fill(strip: &mut Strip<'_, '_>, pixels: &[Pixel]) {
     let cells = strip.pixels();
     for (offset, pixel) in pixels.iter().enumerate() {
         cells.index[offset].set(pixel.index);
-        cells.fraction[offset].set(pixel.fraction);
         cells.x[offset].set(pixel.position[0]);
         cells.y[offset].set(pixel.position[1]);
     }
@@ -894,7 +892,7 @@ fn a_new_target_shape_reinitializes_the_target_block() {
     for source in [
         "effect Shape { sample {
             rgb(pixel.index / target.count, target.count / 256.0,
-                (target.max_x - target.min_x) / 8.0 + section_count(3) / 128.0)
+                (target.max_x - target.min_x) / 8.0)
         } }",
         "effect Uniform { sample {
             rgb(target.count / 256.0, (target.max_x - target.min_x) / 4.0, target.min_y + 0.5)
@@ -1056,20 +1054,20 @@ impl StripSignals for Run {
 fn operator_samples_in_strips_match_lone_pixels() {
     let mut sources = starter_sources("operators", ".donder");
     sources.push(
-        "operator Rotate { input source; sample { source.at((pixel.index + 3) % target.count) } }
+        "operator Rotate { input source; sample { source[(pixel.index + 3) % target.count] } }
         operator Shift { input source; input other; sample {
-            max(source.at(pixel.index + 1), other.at(pixel.index - 2))
+            max(source[pixel.index + 1], other[pixel.index - 2])
         } }
-        operator Mirror { input source; sample { source.at(target.count - 1 - pixel.index) } }
+        operator Mirror { input source; sample { source[target.count - 1 - pixel.index] } }
         operator Split { input source; input other; sample {
             if pixel.index % 2 == 0 { source * 0.75 + #101010 }
             else { invert(other) * pixel.fraction }
         } }
         operator Trail { input source; sample {
-            max for k in 0..pixel.index % 4 + 1 { source.at(pixel.index - k) * (1.0 - k * 0.25) }
+            max for k in 0..pixel.index % 4 + 1 { source[pixel.index - k] * (1.0 - k * 0.25) }
         } }
         operator Gate { input source; input other; sample {
-            guard intensity(source) > 0.5 else other.at(pixel.index - pixel.index % 2);
+            guard intensity(source) > 0.5 else other[pixel.index - pixel.index % 2];
             source
         } }"
         .into(),

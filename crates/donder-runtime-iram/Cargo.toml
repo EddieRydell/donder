@@ -1,0 +1,13 @@
+[package]
+name = "donder-runtime-iram"
+edition.workspace = true
+version.workspace = true
+description = "The #[iram] attribute that links Donder runtime functions into ESP32 instruction RAM"
+authors = ["Donder"]
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true

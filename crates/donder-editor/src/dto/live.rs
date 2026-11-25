@@ -6,7 +6,7 @@ use specta::Type;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct InputDeviceGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub(crate) path: String,
     pub(crate) object_key: String,
@@ -27,7 +27,7 @@ pub struct GuiInputLimits {
     pub(crate) max_channel: u8,
 }
 
-/// An input device as a setup lists it and its editor edits it.
+/// An input device as the project lists it and its editor edits it.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupInputDevice {
@@ -133,19 +133,20 @@ pub enum GuiControlInput {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsoleGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub(crate) source_ref: GuiObjectRef,
-    /// The declared name, or the name the console is stored under.
+    /// The declared name.
     pub(crate) name: String,
     /// The console's position among the project's consoles, which Perform
-    /// starts it by; `None` when the project does not list it.
-    pub perform_index: Option<u32>,
+    /// starts it by.
+    pub perform_index: u32,
     pub(crate) frame_rate: u32,
-    pub(crate) live_marks: Vec<ConsoleLiveMarks>,
+    /// Each starts empty every session; `Mark` actions add to it.
+    pub(crate) mark_collections: Vec<SequenceMarkCollection>,
     pub layers: Vec<SequenceLayer>,
     pub composition_graph: SequenceCompositionGraph,
-    pub clips: Vec<ConsoleClip>,
+    pub clips: Vec<GuiClip>,
     /// The clips that play for the whole session, by id.
     pub(crate) always: Vec<u32>,
     pub events: Vec<ConsoleOn>,
@@ -154,43 +155,12 @@ pub struct ConsoleGuiDocument {
     pub effect_definitions: Vec<SequenceEffectDefinition>,
     pub(crate) curve_library: Vec<SequenceCurveLibraryItem>,
     pub(crate) gradient_library: Vec<SequenceGradientLibraryItem>,
-    /// The active setup's input devices, which the console's events choose from.
+    /// The project's input devices, which the console's events choose from.
     pub input_devices: Vec<ConsoleInputDevice>,
     /// The most copies of a clip `Play` actions play at once.
     pub(crate) max_copies: u32,
     /// The length a clip newly played from the session's start repeats every.
     pub(crate) held_length_seconds: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ConsoleLiveMarks {
-    /// The collection's name; marks parameters and `Mark` actions refer to it.
-    pub(crate) key: String,
-    pub(crate) description: Option<String>,
-    pub(crate) color: String,
-}
-
-/// A clip a console plays: a sequence clip without timing.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ConsoleClip {
-    pub id: u32,
-    pub(crate) name: String,
-    pub(crate) description: Option<String>,
-    pub layer_id: u32,
-    pub(crate) target: FixtureTarget,
-    pub(crate) target_label: String,
-    pub(crate) scope: SequenceClipScope,
-    pub(crate) effect: SequenceEffectReference,
-    pub(crate) effect_name: String,
-    /// None carries an `automation`: the console's `Set`s and the clip's
-    /// `played` say what sets a parameter live.
-    pub(crate) params: Vec<SequenceClipParam>,
-    /// Parameters each copy takes from the press that started it.
-    pub(crate) played: Vec<ConsolePlayedValue>,
-    /// The length it repeats every when it plays from the session's start.
-    pub(crate) always_length_seconds: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -205,7 +175,6 @@ pub struct ConsoleControlRef {
 #[serde(rename_all = "camelCase")]
 pub struct ConsoleInput {
     pub(crate) control: ConsoleControlRef,
-    pub(crate) device_name: String,
     pub(crate) control_name: String,
 }
 
@@ -275,9 +244,9 @@ pub enum ConsoleAction {
         clip_id: u32,
         length_seconds: f64,
     },
-    /// Add a mark to the live mark collection `into`.
+    /// Add a mark to the live mark collection `into`, by id.
     Mark {
-        into: String,
+        into: u32,
     },
     /// Write the event's value into a parameter: an axis's position, a
     /// press's velocity, or 0 for a release.
@@ -334,35 +303,6 @@ pub enum ConsolePlayedQuantity {
     Velocity,
     /// The note's name, C to B up the chromatic scale.
     PitchClass,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum ConsoleClipEdit {
-    Layer {
-        layer_id: u32,
-    },
-    Target {
-        target: FixtureTarget,
-    },
-    Scope {
-        scope: SequenceClipScope,
-    },
-    /// Play another effect; its required parameters start from
-    /// `initial_color`, and the played values and `Set`s of the old effect's
-    /// parameters go.
-    Definition {
-        initial_color: String,
-        effect: SequenceEffectReference,
-    },
-    Param {
-        name: String,
-        value: SequenceParamValue,
-    },
 }
 
 /// What sets a parameter live.
@@ -430,23 +370,8 @@ pub enum ConsoleGuiEdit {
         source: Option<ConsoleParamSource>,
         window: GuiWindow,
     },
-    /// Remove an action. An effect nothing plays or holds then goes with it,
-    /// and so does an event with no actions left. A removed `Set` takes the
-    /// other `Set`s of its parameter with it.
-    RemoveAction {
-        on: u32,
-        index: u32,
-    },
-    SetFrameRate {
-        frame_rate: u32,
-    },
     Composition {
         edit: CompositionGuiEdit,
-    },
-    /// The name becomes a unique `snake_case` name.
-    AddLiveMarks {
-        name: String,
-        color: String,
     },
     /// A new clip on the first layer over the whole target, named after its
     /// effect.
@@ -454,32 +379,6 @@ pub enum ConsoleGuiEdit {
         initial_color: String,
         effect: SequenceEffectReference,
         target: FixtureTarget,
-    },
-    EditClip {
-        id: u32,
-        edit: ConsoleClipEdit,
-    },
-    /// Play a clip from the session's start, repeating every
-    /// `length_seconds`, or no longer when `None`.
-    SetAlways {
-        clip_id: u32,
-        length_seconds: Option<f64>,
-    },
-    /// A new event with no actions.
-    AddEvent {
-        event: ConsoleEventKind,
-        input: ConsoleControlRef,
-    },
-    /// Change what an event answers. Actions a move cannot run go: all but
-    /// `Set`.
-    SetEvent {
-        id: u32,
-        event: ConsoleEventKind,
-        input: ConsoleControlRef,
-    },
-    SetActions {
-        id: u32,
-        actions: Vec<ConsoleAction>,
     },
 }
 
@@ -496,4 +395,16 @@ pub enum ProjectGuiEdit {
     /// A new console of the project in a file of its own named `name`, with
     /// the default layer drawn to the output.
     AddConsole { initial_color: String, name: String },
+    AddController {
+        config: SetupControllerConfig,
+        ports: Vec<SetupControllerPort>,
+        /// The name of the controller and of its file.
+        name: String,
+    },
+    AddInputDevice {
+        driver: GuiInputDriver,
+        controls: Vec<GuiInputControl>,
+        /// The name of the device and of its file.
+        name: String,
+    },
 }

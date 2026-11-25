@@ -94,7 +94,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
     let loaded = load_local_project(&root);
     let identities = loaded
         .project()
-        .reusable::<donder_model::EffectDefinition>()
+        .reusable::<donder_model::ScriptDefinition>()
         .keys()
         .filter_map(|id| loaded.declaration((*id).into()))
         .filter(|(_, name)| name.as_str() == "Shared")
@@ -119,29 +119,25 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
     let (_temp, root) = common::starter_copy();
     let mut session = load_local_project(&root);
 
-    let color = session
+    let mut sequence = session
         .project()
         .reusable::<donder_model::Sequence>()
         .values()
         .next()
         .unwrap()
-        .layers[0]
-        .color;
-    let index = session.project().root().sequences.len();
-    session
-        .edit_project(|project| {
-            donder_model::add_sequence(project, DonderDuration(Duration::from_secs(30)), 60, color)
-                .map_err(donder_project_io::SessionEditError::from)
-        })
-        .unwrap();
-    let site = common::sequence_site(session.project(), index);
+        .clone();
+    let id = donder_model::SequenceId(session.new_id());
+    sequence.duration = DonderDuration(Duration::from_secs(30));
     let document = session
         .edit(|edit| {
-            let destination = donder_model::make_reusable(edit.project_mut(), &site)?;
-            edit.add_data_document(
+            let document = edit.add_data_document(
                 "sequences/nested/new.data.donder".into(),
-                vec![(destination, donder_language::object_name("nested_sequence"))],
-            )
+                vec![(id.into(), donder_language::object_name("nested_sequence"))],
+            )?;
+            edit.project_mut()
+                .put((id, sequence))
+                .map_err(donder_project_io::SessionEditError::from)?;
+            Ok::<_, donder_project_io::SessionEditError>(document)
         })
         .unwrap();
     save_project(&session).unwrap();
@@ -160,14 +156,6 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
             .project()
             .reusable::<donder_model::Sequence>()
             .contains_key(&id)
-    );
-    assert!(
-        reloaded
-            .project()
-            .root()
-            .sequences
-            .iter()
-            .any(|source| source.id() == &id)
     );
     assert!(root.join(document.path()).is_file());
 }

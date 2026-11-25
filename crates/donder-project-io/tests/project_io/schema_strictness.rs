@@ -120,8 +120,6 @@ fn every_starter_record_type_rejects_extra_fields_at_the_source_location() {
 }
 
 const SMALL_PROJECT: &str = r#"
-Setup setup { description: none, layout: layout, patch: patch, controllers: [], input_devices: [] }
-
 Layout layout {
   description: none,
   root: [pixel],
@@ -148,8 +146,6 @@ FixtureDefinition pixel {
   ],
 }
 
-Patch patch { description: none, routes: [] }
-
 Sequence show {
   description: none,
   duration: 10s,
@@ -161,20 +157,15 @@ Sequence show {
     Clip {
       name: defaults,
       description: none,
-      layer: main,
-      start: 0s,
-      duration: 10s,
-      target: layout.pixel,
-      scope: PerFixture,
-      effect: fx.Defaults,
-      params: { level: 0.5 },
+      target: pixel,
+      placement: Timed { start: 0s, duration: 10s },
+      content: Effect { layer: main, scope: PerFixture, effect: fx.Defaults, params: { level: 0.5 } },
     },
   ],
   graph: Graph {
     nodes: [LayerNode { layer: main, position: (0.0, 0.0) }, RootNode { position: (1.0, 0.0) }],
     edges: [Edge { from: layers.main, to: root }],
   },
-  automation: [],
 }
 "#;
 
@@ -183,10 +174,8 @@ fn small_project() -> (tempfile::TempDir, Utf8PathBuf) {
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
     fs_err::write(
         root.join(PROJECT_ROOT_FILE),
-        common::root_document(
-            "import fx from <effect.donder>;\n",
-            "  setup: setup,\n  sequences: [show],\n",
-        ) + SMALL_PROJECT,
+        common::root_document("import fx from <effect.donder>;\n", "  layout: layout,\n")
+            + SMALL_PROJECT,
     )
     .unwrap();
     fs_err::write(
@@ -289,7 +278,8 @@ fn layout_groups_share_members_and_reject_unknown_repeated_cyclic_or_orphaned_it
         .project()
         .objects::<donder_model::Layout>()
         .next()
-        .unwrap();
+        .unwrap()
+        .1;
     let id = |name: &str| {
         layout
             .iter_fixtures()

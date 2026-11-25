@@ -1,6 +1,6 @@
 //! Turn one selected sequence or console from a loaded project into portable playback data.
 //!
-//! The active setup belongs to the project. Selection is the only optional part:
+//! Selection is the only optional part:
 //! the preparation implementation is private, and playback belongs to runtime.
 #![deny(unsafe_code)]
 #![cfg_attr(
@@ -39,12 +39,12 @@ pub enum Retain<'a> {
     Outputs(&'a [(ControllerId, ControllerOutput)]),
 }
 
-/// Prepare a sequence against the project's active setup.
+/// Prepare a sequence against the project.
 ///
 /// `None` means the requested sequence or output selection cannot be resolved.
 /// Internal preparation failures must never be translated into a missing selection.
 /// The project is the loaded/accepted authoring model; preparation does not repeat
-/// source validation or accept a separately supplied setup or sequence object.
+/// source validation or accept a separately supplied sequence object.
 pub fn prepare(
     project: &DonderProject,
     sequence: &SequenceId,
@@ -62,7 +62,7 @@ pub fn prepare_cached(
     retain: Retain<'_>,
     cache: &mut PreparationCache,
 ) -> Option<PreparedShow> {
-    let selected = selection::resolve(project, sequence, retain)?;
+    let selected = selection::resolve(project, donder_model::ShowId::Sequence(*sequence), retain)?;
     Some(sequence::prepare(
         selected,
         !matches!(retain, Retain::All),

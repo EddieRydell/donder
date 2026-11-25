@@ -17,7 +17,7 @@ pub(super) fn project_controller(
     controller: &Controller,
 ) -> SetupController {
     SetupController {
-        label: session.address_of(*id).declared_name().to_string(),
+        label: session.address_of(*id).object().to_string(),
         source_ref: super::model::object_ref(session, *id),
         config: (&controller.protocol).into(),
         ports: controller
@@ -66,31 +66,27 @@ pub(super) fn edit(
         .view::<donder_model::Controller>(session)
         .description
         .clone();
-    let controller = domain_controller(id, description, config, ports)?;
-    session.put(controller).map_err(GuiMutationError::from)
+    let controller = domain_controller(description, config, ports)?;
+    session
+        .put((id, controller))
+        .map_err(GuiMutationError::from)
 }
 
 /// `ports` are the controller's physical outputs; a Donder controller's
 /// each name the output it drives, and other controllers' name none.
 pub(super) fn domain_controller(
-    id: ControllerId,
     description: Option<String>,
     config: SetupControllerConfig,
     ports: Vec<SetupControllerPort>,
 ) -> Result<Controller, GuiMutationError> {
-    use crate::dto::{GuiField, GuiProblemSite};
+    use crate::dto::{GuiField, GuiSite};
     let invalid_address = |field: GuiField| {
-        move |_| {
-            GuiMutationError::At(
-                GuiProblemSite::object(field),
-                "Not a network address.".into(),
-            )
-        }
+        move |_| GuiMutationError::At(GuiSite::object(field), "Not a network address.".into())
     };
     let nonzero_fseq_channel = |channel| {
         NonZeroU32::new(channel).ok_or_else(|| {
             GuiMutationError::At(
-                GuiProblemSite::object(GuiField::FseqChannel),
+                GuiSite::object(GuiField::FseqChannel),
                 "FSEQ channels count from 1.".into(),
             )
         })
@@ -160,7 +156,7 @@ pub(super) fn domain_controller(
         SetupControllerConfig::Donder { device } => ControllerProtocol::Donder(DonderConfig {
             device: DonderDeviceId::parse(&device).ok_or_else(|| {
                 GuiMutationError::At(
-                    GuiProblemSite::object(GuiField::Device),
+                    GuiSite::object(GuiField::Device),
                     "Choose a Donder controller.".into(),
                 )
             })?,
@@ -177,7 +173,6 @@ pub(super) fn domain_controller(
         }),
     };
     Ok(Controller {
-        id,
         description,
         protocol,
     })

@@ -2,37 +2,71 @@
 //! encoding, and references are written relative to the document holding them.
 use super::types;
 use crate::ExportProjectError;
-use crate::address::{DocumentId, ObjectAddress, SourceIdentity};
+use crate::address::{DocumentId, SourceIdentity};
 use crate::source::ProjectSession;
 use donder_language::Point3;
 use donder_language::compiler::ParamDecl;
 use donder_language::data::{DataValue, Spanned};
-use donder_language::data::{Meters, Name, OwnedNamedRecord, OwnedRecord, Params, Path, Reference};
+use donder_language::data::{Meters, Name, Params, Path, Reference};
+use donder_model::ObjectId;
 use donder_model::ObjectKind;
-use donder_model::Owned;
-use donder_model::Patch;
-use donder_model::Setup;
-use donder_model::{Action, Console, ConsoleClipId, InputEvent, LengthSource, PlayLength};
+use donder_model::{
+    Action, ClipContent, ClipId, Composition, Console, LengthSource, Placement, PlayLength,
+};
 use donder_model::{AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio, Window};
 use donder_model::{
-    AxisInput, ButtonInput, ControlRef, InputControlKind, InputDevice, InputDriver,
-    SequenceCompositionGraph, SequenceLayer,
+    AxisInput, ButtonInput, CompositionGraph, ControlRef, InputControlKind, InputDevice,
+    InputDriver, Layer,
 };
 use donder_model::{Controller, ControllerProtocol, E131Mode, GroupMember, RouteStart};
-use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform, OwnedFixture};
-use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
-use donder_model::{ObjectId, OwnedMember};
-use donder_model::{OwnedCurve, OwnedGradient, ParamValue};
+use donder_model::{CurveValue, GradientValue, ParamValue};
+use donder_model::{FixtureDefinition, FixtureShape, FixtureTransform};
+use donder_model::{FixtureId, Layout, LayoutFixture, LayoutFixtureKind};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::PixelEncoding;
 use donder_runtime_types::{Curve, Gradient};
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
 
+/// The names of a sequence's or console's mark collections, by id.
+type MarkNames<'a> = IndexMap<donder_model::MarkCollectionId, &'a Identifier>;
+
+fn mark_names(collections: &[donder_model::MarkCollection]) -> MarkNames<'_> {
+    collections
+        .iter()
+        .map(|collection| (collection.id, &collection.name))
+        .collect()
+}
+
+fn sequence_marks(sequence: &Sequence) -> MarkNames<'_> {
+    mark_names(&sequence.composition.marks)
+}
+
+/// The mark collections of a sequence or console.
+fn mark_collections(collections: &[donder_model::MarkCollection]) -> Vec<types::MarkCollection> {
+    collections
+        .iter()
+        .map(|collection| types::MarkCollection {
+            name: name(&collection.name),
+            description: collection.description.clone(),
+            color: collection.display_color,
+            times: collection
+                .marks
+                .iter()
+                .map(|mark| types::MarkTime {
+                    time: mark.time.0,
+                    duration: mark.duration.0,
+                    label: mark.label.clone(),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 pub(crate) struct Encoder<'a> {
     pub(crate) session: &'a ProjectSession,
     /// Every object's address, from [`ProjectSession::addresses`].
-    pub(crate) addresses: &'a std::collections::HashMap<ObjectId, ObjectAddress>,
+    pub(crate) addresses: &'a std::collections::HashMap<ObjectId, SourceIdentity>,
     /// The document being written; references are relative to it.
     pub(crate) document: &'a DocumentId,
 }
@@ -106,8 +140,7 @@ impl Encoder<'_> {
         ))
     }
 
-    /// A declared object, or one owned by a declared object: the owner's
-    /// reference followed by the owning fields, `show.setup.controllers.main`.
+    /// `name` or `alias.name` for an object of the project.
     fn object_reference(
         &self,
         kind: ObjectKind,
@@ -118,91 +151,21 @@ impl Encoder<'_> {
             .addresses
             .get(&id)
             .unwrap_or_else(|| unreachable!("every object of a session has an address"));
-        if let Some(source) = identity.source() {
-            return self.source_reference(kind, source);
-        }
-        let root = identity.root_source();
-        let root_kind = self.session.declared_kind(root);
-        let mut reference = self.source_reference(root_kind, root)?;
-        let mut resolved = root_kind;
-        let segment = |text: &str| {
-            Identifier::new(text.to_string())
-                .map(|identifier| Spanned::new(identifier, donder_language::data::NO_SPAN))
-                .map_err(|_| self.error(text, "invalid reference segment"))
-        };
-        for slot in identity.owned_path() {
-            resolved = slot
-                .child_kind(resolved)
-                .ok_or_else(|| self.error(root.object(), "invalid owned object address"))?;
-            let (field, member) = slot.field().ok_or_else(|| {
-                self.error(
-                    root.object(),
-                    "owned fixture definitions are not referenced",
-                )
-            })?;
-            reference.segments.push(segment(field.name())?);
-            if let Some(member) = member {
-                reference.segments.push(segment(member.as_str())?);
-            }
-        }
-        if resolved != kind || id.kind() != kind {
-            return Err(self.error(root.object(), "invalid owned object address"));
-        }
-        Ok(reference)
+        self.source_reference(kind, identity)
     }
 
-    /// `layout.fixture`: the layout's reference and the fixture or group name.
-    fn fixture_target(&self, target: &FixtureTarget) -> Result<Reference, ExportProjectError> {
-        let mut reference = self.object_reference(ObjectKind::Layout, target.layout)?;
-        let Some(fixture) = self
-            .session
-            .project
-            .get::<donder_model::Layout>(target.layout)
-            .and_then(|layout| layout.fixture(target.fixture))
-        else {
+    /// A fixture or group of the project's layout, by its name alone.
+    fn fixture_target(&self, target: FixtureId) -> Reference {
+        let Some(fixture) = self.session.project.layout().object().fixture(target) else {
             unreachable!("validation proved every fixture target");
         };
-        reference.segments.push(Spanned::new(
-            fixture.name.clone(),
-            donder_language::data::NO_SPAN,
-        ));
-        Ok(reference)
-    }
-
-    fn source<V, I, T>(
-        &self,
-        kind: ObjectKind,
-        source: &Owned<V, I>,
-        inline: impl FnOnce(&V) -> Result<T, ExportProjectError>,
-    ) -> Result<OwnedRecord<T>, ExportProjectError>
-    where
-        I: Into<ObjectId> + Copy,
-    {
-        Ok(match source {
-            Owned::Reference(id) => OwnedRecord::Reference(self.object_reference(kind, *id)?),
-            Owned::Inline(value) => OwnedRecord::Inline(inline(value)?),
-        })
-    }
-
-    /// An owned collection member is named by its ownership slot.
-    fn named_source<V, I, T>(
-        &self,
-        kind: ObjectKind,
-        source: &OwnedMember<V, I>,
-        inline: impl FnOnce(&V) -> Result<T, ExportProjectError>,
-    ) -> Result<OwnedNamedRecord<T>, ExportProjectError>
-    where
-        I: Into<ObjectId> + Copy,
-    {
-        Ok(match source {
-            OwnedMember::Reference(id) => {
-                OwnedNamedRecord::Reference(self.object_reference(kind, *id)?)
-            }
-            OwnedMember::Inline {
-                name: member,
-                value,
-            } => OwnedNamedRecord::Inline(name(member), inline(value)?),
-        })
+        Reference {
+            segments: vec![Spanned::new(
+                fixture.name.clone(),
+                donder_language::data::NO_SPAN,
+            )],
+            span: donder_language::data::NO_SPAN,
+        }
     }
 
     pub(crate) fn project(&self) -> Result<types::Project, ExportProjectError> {
@@ -210,62 +173,19 @@ impl Encoder<'_> {
         Ok(types::Project {
             format: crate::PROJECT_FORMAT_VERSION,
             description: root.description.clone(),
-            setup: self.source(ObjectKind::Setup, &root.setup, |setup| self.setup(setup))?,
-            sequences: root
-                .sequences
-                .iter()
-                .map(|source| {
-                    self.named_source(ObjectKind::Sequence, source, |sequence| {
-                        self.sequence(sequence)
-                    })
-                })
-                .collect::<Result<_, _>>()?,
-            consoles: root
-                .consoles
-                .iter()
-                .map(|source| {
-                    self.named_source(ObjectKind::Console, source, |console| self.console(console))
-                })
-                .collect::<Result<_, _>>()?,
-        })
-    }
-
-    pub(crate) fn setup(&self, setup: &Setup) -> Result<types::Setup, ExportProjectError> {
-        Ok(types::Setup {
-            description: setup.description.clone(),
-            layout: self.source(ObjectKind::Layout, &setup.layout, |layout| {
-                self.layout(layout)
-            })?,
-            patch: self.source(ObjectKind::Patch, &setup.patch, |patch| self.patch(patch))?,
-            controllers: setup
-                .controllers
-                .iter()
-                .map(|source| {
-                    self.named_source(ObjectKind::Controller, source, |controller| {
-                        Ok(controller_document(controller))
-                    })
-                })
-                .collect::<Result<_, _>>()?,
-            input_devices: setup
-                .input_devices
-                .iter()
-                .map(|source| {
-                    self.named_source(ObjectKind::InputDevice, source, |device| {
-                        Ok(input_device_document(device))
-                    })
-                })
-                .collect::<Result<_, _>>()?,
+            layout: self.object_reference(ObjectKind::Layout, root.layout)?,
+            routes: self.routes(&root.routes)?,
         })
     }
 
     pub(crate) fn layout(&self, layout: &Layout) -> Result<types::Layout, ExportProjectError> {
-        let item_name = |member: FixtureInstanceId| {
+        let item_name = |member: FixtureId| {
             layout
                 .fixture(member)
                 .map(|fixture| name(&fixture.name))
                 .ok_or_else(|| self.error(&member.0.to_string(), "the layout member is missing"))
         };
-        let member_names = |members: &[FixtureInstanceId]| {
+        let member_names = |members: &[FixtureId]| {
             members
                 .iter()
                 .map(|&member| item_name(member))
@@ -316,77 +236,68 @@ impl Encoder<'_> {
             } => types::LayoutItem::Fixture {
                 name: name(&fixture.name),
                 description: fixture.description.clone(),
-                definition: match definition {
-                    OwnedFixture::Reference(id) => OwnedRecord::Reference(
-                        self.object_reference(ObjectKind::FixtureDefinition, *id)?,
-                    ),
-                    OwnedFixture::Inline(value) => {
-                        OwnedRecord::Inline(fixture_definition_document(value))
-                    }
-                },
+                definition: self.object_reference(ObjectKind::FixtureDefinition, *definition)?,
                 transform: transform_document(transform),
             },
         })
     }
 
-    pub(crate) fn patch(&self, patch: &Patch) -> Result<types::Patch, ExportProjectError> {
-        Ok(types::Patch {
-            description: patch.description.clone(),
-            routes: patch
-                .routes
-                .iter()
-                .map(|route| {
-                    let Some(port) = self
-                        .session
-                        .project
-                        .get::<donder_model::Controller>(route.controller)
-                        .and_then(|controller| controller.port(route.port))
-                    else {
-                        unreachable!("validation proved every route's controller and port");
-                    };
-                    Ok(types::Route {
-                        target: self.fixture_target(&route.target)?,
-                        pixels: route.pixels.map(|span| types::PixelSpan {
-                            start: span.start,
-                            count: span.count,
-                        }),
-                        reverse: route.reverse,
-                        controller: self
-                            .object_reference(ObjectKind::Controller, route.controller)?,
-                        port: types::PortName::new(port.name.clone()),
-                        start: match route.start {
-                            RouteStart::Next => types::RouteStart::Next,
-                            RouteStart::Channel(channel) => types::RouteStart::Channel { channel },
+    pub(crate) fn routes(
+        &self,
+        routes: &[donder_model::PixelRoute],
+    ) -> Result<Vec<types::Route>, ExportProjectError> {
+        routes
+            .iter()
+            .map(|route| {
+                let Some(port) = self
+                    .session
+                    .project
+                    .get::<donder_model::Controller>(route.controller)
+                    .and_then(|controller| controller.port(route.port))
+                else {
+                    unreachable!("validation proved every route's controller and port");
+                };
+                Ok(types::Route {
+                    target: self.fixture_target(route.target),
+                    pixels: route.pixels.map(|span| types::PixelSpan {
+                        start: span.start,
+                        count: span.count,
+                    }),
+                    reverse: route.reverse,
+                    controller: self.object_reference(ObjectKind::Controller, route.controller)?,
+                    port: types::PortName::new(port.name.clone()),
+                    start: match route.start {
+                        RouteStart::Next => types::RouteStart::Next,
+                        RouteStart::Channel(channel) => types::RouteStart::Channel { channel },
+                    },
+                    encoding: match route.encoding {
+                        PixelEncoding::Rgb { order } => types::Encoding::Rgb {
+                            order: (order[0], order[1], order[2]),
                         },
-                        encoding: match route.encoding {
-                            PixelEncoding::Rgb { order } => types::Encoding::Rgb {
-                                order: (order[0], order[1], order[2]),
-                            },
-                            PixelEncoding::Rgbw { order } => types::Encoding::Rgbw {
-                                order: (order[0], order[1], order[2], order[3]),
-                            },
-                            PixelEncoding::Channels { colors } => types::Encoding::Channels {
-                                colors: colors
-                                    .as_slice()
-                                    .iter()
-                                    .map(|&[red, green, blue]| donder_runtime_types::Color {
-                                        red: f32::from(red) / 255.0,
-                                        green: f32::from(green) / 255.0,
-                                        blue: f32::from(blue) / 255.0,
-                                    })
-                                    .collect(),
-                            },
+                        PixelEncoding::Rgbw { order } => types::Encoding::Rgbw {
+                            order: (order[0], order[1], order[2], order[3]),
                         },
-                        gamma: route.gamma,
-                        brightness: route.brightness,
-                        dither: route.dither,
-                    })
+                        PixelEncoding::Channels { colors } => types::Encoding::Channels {
+                            colors: colors
+                                .as_slice()
+                                .iter()
+                                .map(|&[red, green, blue]| donder_runtime_types::Color {
+                                    red: f32::from(red) / 255.0,
+                                    green: f32::from(green) / 255.0,
+                                    blue: f32::from(blue) / 255.0,
+                                })
+                                .collect(),
+                        },
+                    },
+                    gamma: route.gamma,
+                    brightness: route.brightness,
+                    dither: route.dither,
                 })
-                .collect::<Result<_, ExportProjectError>>()?,
-        })
+            })
+            .collect()
     }
 
-    fn layer_name(layers: &[SequenceLayer], id: &donder_model::SequenceLayerId) -> Name {
+    fn layer_name(layers: &[Layer], id: &donder_model::LayerId) -> Name {
         let Some(layer) = layers.iter().find(|layer| &layer.id == id) else {
             unreachable!("validation proved every layer reference");
         };
@@ -395,10 +306,7 @@ impl Encoder<'_> {
 
     /// An operator node's name, or `root`: what edges reach and automation
     /// binds.
-    fn node_name(
-        graph: &SequenceCompositionGraph,
-        id: &donder_model::CompositionGraphNodeId,
-    ) -> Name {
+    fn node_name(graph: &CompositionGraph, id: &donder_model::CompositionGraphNodeId) -> Name {
         match graph
             .nodes
             .iter()
@@ -417,8 +325,8 @@ impl Encoder<'_> {
 
     /// Where an edge leaves: `layers.layer` for a layer node, else its node name.
     fn edge_source(
-        layers: &[SequenceLayer],
-        graph: &SequenceCompositionGraph,
+        layers: &[Layer],
+        graph: &CompositionGraph,
         id: &donder_model::CompositionGraphNodeId,
     ) -> Reference {
         let layer = graph.nodes.iter().find_map(|node| match &node.kind {
@@ -435,7 +343,7 @@ impl Encoder<'_> {
     }
 
     /// The layers of a sequence or console.
-    fn layers(layers: &[SequenceLayer]) -> Vec<types::Layer> {
+    fn layers(layers: &[Layer]) -> Vec<types::Layer> {
         layers
             .iter()
             .map(|layer| types::Layer {
@@ -450,8 +358,9 @@ impl Encoder<'_> {
     /// The composition graph of a sequence or console.
     fn graph(
         &self,
-        layers: &[SequenceLayer],
-        graph: &SequenceCompositionGraph,
+        layers: &[Layer],
+        marks: &MarkNames<'_>,
+        graph: &CompositionGraph,
     ) -> Result<types::Graph, ExportProjectError> {
         Ok(types::Graph {
             nodes: graph
@@ -469,15 +378,12 @@ impl Encoder<'_> {
                             let declarations = self
                                 .session
                                 .project
-                                .reusable::<donder_model::OperatorDefinition>()[definition]
+                                .reusable::<donder_model::ScriptDefinition>()[definition]
                                 .params();
                             types::Node::OperatorNode {
                                 name: name(&operator.name),
-                                operator: self.object_reference(
-                                    ObjectKind::OperatorDefinition,
-                                    *definition,
-                                )?,
-                                params: self.params(declarations, &operator.params)?,
+                                operator: self.object_reference(ObjectKind::Script, *definition)?,
+                                params: self.params(declarations, marks, &operator.params)?,
                                 position,
                             }
                         }
@@ -501,10 +407,10 @@ impl Encoder<'_> {
     }
 
     /// An effect's parameter declarations.
-    fn effect_declarations(&self, definition: &donder_model::EffectDefinitionId) -> &[ParamDecl] {
+    fn effect_declarations(&self, definition: &donder_model::ScriptId) -> &[ParamDecl] {
         self.session
             .project
-            .reusable::<donder_model::EffectDefinition>()[definition]
+            .reusable::<donder_model::ScriptDefinition>()[definition]
             .params()
     }
 
@@ -527,8 +433,9 @@ impl Encoder<'_> {
     }
 
     pub(crate) fn console(&self, console: &Console) -> Result<types::Console, ExportProjectError> {
-        let clip_name = |id: &ConsoleClipId| {
-            let Some(clip) = console.clip(*id) else {
+        let marks = mark_names(&console.composition.marks);
+        let clip_name = |id: &ClipId| {
+            let Some(clip) = console.composition.clip(*id) else {
                 unreachable!("validation proved every console clip reference");
             };
             name(&clip.name)
@@ -536,41 +443,13 @@ impl Encoder<'_> {
         Ok(types::Console {
             description: console.description.clone(),
             frame_rate: console.frame_rate,
-            marks: console
-                .live_marks
-                .iter()
-                .map(|marks| types::LiveMarks {
-                    name: name(&marks.key.name),
-                    description: marks.description.clone(),
-                    color: marks.display_color,
-                })
-                .collect(),
-            layers: Self::layers(&console.layers),
+            marks: mark_collections(&console.composition.marks),
+            layers: Self::layers(&console.composition.layers),
             clips: console
+                .composition
                 .clips
                 .iter()
-                .map(|clip| {
-                    let definition = &clip.definition;
-                    let declarations = self.effect_declarations(definition);
-                    Ok(types::ConsoleClip {
-                        name: name(&clip.name),
-                        description: clip.description.clone(),
-                        layer: Self::layer_name(&console.layers, &clip.layer_id),
-                        target: self.fixture_target(&clip.target)?,
-                        scope: types::Scope(clip.scope.clone()),
-                        effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
-                        params: self.params(declarations, &clip.param_overrides)?,
-                        played: clip
-                            .played
-                            .iter()
-                            .map(|value| types::PlayedValue {
-                                param: name(&value.param),
-                                from: types::PlayedQuantity(value.from),
-                                window: window_document(value.window),
-                            })
-                            .collect(),
-                    })
-                })
+                .map(|clip| self.clip(&console.composition, clip))
                 .collect::<Result<_, ExportProjectError>>()?,
             always: console
                 .always
@@ -586,13 +465,9 @@ impl Encoder<'_> {
                 .events
                 .iter()
                 .map(|on| {
-                    let control = self.control(on.event.control())?;
                     Ok(types::On {
-                        event: match on.event {
-                            InputEvent::Press(_) => types::InputEvent::Press { control },
-                            InputEvent::Release(_) => types::InputEvent::Release { control },
-                            InputEvent::Move(_) => types::InputEvent::Move { control },
-                        },
+                        happening: types::Happening(on.happening),
+                        control: self.control(&on.control)?,
                         actions: on
                             .actions
                             .iter()
@@ -638,14 +513,23 @@ impl Encoder<'_> {
                                         clip: clip_name(clip),
                                         length: length.0,
                                     },
-                                    Action::Mark(key) => types::Action::Mark {
-                                        into: name(&key.name),
+                                    Action::Mark(id) => types::Action::Mark {
+                                        into: name(marks.get(id).unwrap_or_else(|| {
+                                            unreachable!(
+                                                "validation proved every live mark collection"
+                                            )
+                                        })),
                                     },
                                     Action::Set { target, window } => types::Action::Set {
                                         param: Self::binding(
-                                            &console.composition_graph,
+                                            &console.composition.graph,
                                             target,
-                                            |clip| console.clip(*clip).map(|clip| name(&clip.name)),
+                                            |clip| {
+                                                console
+                                                    .composition
+                                                    .clip(clip)
+                                                    .map(|clip| name(&clip.name))
+                                            },
                                         ),
                                         window: window_document(*window),
                                     },
@@ -655,30 +539,68 @@ impl Encoder<'_> {
                     })
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
-            graph: self.graph(&console.layers, &console.composition_graph)?,
+            graph: self.graph(
+                &console.composition.layers,
+                &marks,
+                &console.composition.graph,
+            )?,
         })
     }
 
-    /// One clip of `sequence`. Its text depends only on the clip, the
-    /// sequence's layers and mark collections, the layouts and definitions it
-    /// names, and the imports of the document being written.
+    /// One clip of a sequence or console. An effect clip's text depends only on
+    /// the clip, its composition's layers and mark collections, the layouts and
+    /// definitions it names, and the imports of the document being written; an
+    /// envelope's also on the names of what it binds.
     pub(crate) fn clip(
         &self,
-        sequence: &Sequence,
+        composition: &Composition,
         clip: &donder_model::Clip,
     ) -> Result<types::Clip, ExportProjectError> {
-        let definition = &clip.definition;
-        let declarations = self.effect_declarations(definition);
         Ok(types::Clip {
             name: name(&clip.name),
             description: clip.description.clone(),
-            layer: Self::layer_name(&sequence.layers, &clip.layer_id),
-            start: clip.start.0,
-            duration: clip.duration.0,
-            target: self.fixture_target(&clip.target)?,
-            scope: types::Scope(clip.scope.clone()),
-            effect: self.object_reference(ObjectKind::EffectDefinition, *definition)?,
-            params: self.params(declarations, &clip.param_overrides)?,
+            target: self.fixture_target(clip.target),
+            placement: match &clip.placement {
+                Placement::Timed { start, duration } => types::Placement::Timed {
+                    start: start.0,
+                    duration: duration.0,
+                },
+                Placement::Played(values) => types::Placement::Played {
+                    values: values
+                        .iter()
+                        .map(|value| types::PlayedValue {
+                            param: name(&value.param),
+                            from: types::PlayedQuantity(value.from),
+                            window: window_document(value.window),
+                        })
+                        .collect(),
+                },
+            },
+            content: match &clip.content {
+                ClipContent::Effect(effect) => types::ClipContent::Effect {
+                    layer: Self::layer_name(&composition.layers, &effect.layer),
+                    scope: types::Scope(effect.scope),
+                    effect: self.object_reference(ObjectKind::Script, effect.definition)?,
+                    params: self.params(
+                        self.effect_declarations(&effect.definition),
+                        &mark_names(&composition.marks),
+                        &effect.params,
+                    )?,
+                },
+                ClipContent::Envelope(envelope) => types::ClipContent::Envelope {
+                    curve: curve_value(&envelope.curve),
+                    bindings: envelope
+                        .bindings
+                        .iter()
+                        .map(|bound| types::Bound {
+                            binding: Self::binding(&composition.graph, &bound.target, |clip| {
+                                composition.clip(clip).map(|clip| name(&clip.name))
+                            }),
+                            window: window_document(bound.window),
+                        })
+                        .collect(),
+                },
+            },
         })
     }
 
@@ -688,15 +610,6 @@ impl Encoder<'_> {
         &self,
         sequence: &Sequence,
     ) -> Result<types::Sequence, ExportProjectError> {
-        let binding = |target: &AutomationTarget| {
-            Self::binding(&sequence.composition_graph, target, |clip_id| {
-                sequence
-                    .clips
-                    .iter()
-                    .find(|clip| &clip.id == clip_id)
-                    .map(|clip| name(&clip.name))
-            })
-        };
         Ok(types::Sequence {
             description: sequence.description.clone(),
             duration: sequence.duration.0,
@@ -705,71 +618,27 @@ impl Encoder<'_> {
                 SequenceAudio::None => None,
                 SequenceAudio::Asset(id) => Some(self.asset_path(id)?),
             },
-            marks: sequence
-                .mark_collections
-                .iter()
-                .map(|collection| types::MarkCollection {
-                    name: name(&collection.key.name),
-                    description: collection.description.clone(),
-                    color: collection.display_color,
-                    times: collection
-                        .marks
-                        .iter()
-                        .map(|mark| types::MarkTime {
-                            time: mark.time.0,
-                            duration: mark.duration.0,
-                            label: mark.label.clone(),
-                        })
-                        .collect(),
-                })
-                .collect(),
-            layers: Self::layers(&sequence.layers),
+            marks: mark_collections(&sequence.composition.marks),
+            layers: Self::layers(&sequence.composition.layers),
             clips: Vec::new(),
-            graph: self.graph(&sequence.layers, &sequence.composition_graph)?,
-            automation: sequence
-                .automation_clips
-                .iter()
-                .map(|clip| {
-                    Ok(types::AutomationClip {
-                        row: self.fixture_target(&clip.row_target)?,
-                        start: clip.start.0,
-                        duration: clip.duration.0,
-                        curve: curve_value(&clip.curve),
-                        bindings: clip
-                            .bindings
-                            .iter()
-                            .map(|bound| {
-                                Ok(types::Bound {
-                                    binding: binding(&bound.target),
-                                    window: window_document(bound.window),
-                                })
-                            })
-                            .collect::<Result<_, ExportProjectError>>()?,
-                        detached: clip
-                            .detached_bindings
-                            .iter()
-                            .map(|detached| {
-                                Ok(types::Detached {
-                                    binding: binding(&detached.target),
-                                })
-                            })
-                            .collect::<Result<_, ExportProjectError>>()?,
-                    })
-                })
-                .collect::<Result<_, ExportProjectError>>()?,
+            graph: self.graph(
+                &sequence.composition.layers,
+                &sequence_marks(sequence),
+                &sequence.composition.graph,
+            )?,
         })
     }
 
     /// A sequence's or console's automation binding; `clip_name` names the
     /// clip a clip binding sets.
-    fn binding<Clip>(
-        graph: &donder_model::SequenceCompositionGraph,
-        target: &AutomationTarget<Clip>,
-        clip_name: impl FnOnce(&Clip) -> Option<Name>,
+    fn binding(
+        graph: &donder_model::CompositionGraph,
+        target: &AutomationTarget,
+        clip_name: impl FnOnce(ClipId) -> Option<Name>,
     ) -> types::Binding {
         match target {
             AutomationTarget::ClipParam { clip_id, param } => types::Binding::ClipParam {
-                clip: clip_name(clip_id)
+                clip: clip_name(*clip_id)
                     .unwrap_or_else(|| unreachable!("validation proved every automated clip")),
                 param: name(param),
             },
@@ -786,6 +655,7 @@ impl Encoder<'_> {
     fn params(
         &self,
         declarations: &[ParamDecl],
+        marks: &MarkNames<'_>,
         values: &IndexMap<Identifier, ParamValue>,
     ) -> Result<Params, ExportProjectError> {
         Ok(Params(
@@ -799,14 +669,18 @@ impl Encoder<'_> {
                 .map(|(declaration, value)| {
                     Ok((
                         Spanned::new(declaration.name.clone(), donder_language::data::NO_SPAN),
-                        spanned(self.param_value(value)?),
+                        spanned(self.param_value(marks, value)?),
                     ))
                 })
                 .collect::<Result<_, ExportProjectError>>()?,
         ))
     }
 
-    fn param_value(&self, value: &ParamValue) -> Result<DataValue, ExportProjectError> {
+    fn param_value(
+        &self,
+        marks: &MarkNames<'_>,
+        value: &ParamValue,
+    ) -> Result<DataValue, ExportProjectError> {
         use donder_language::data::Data;
         Ok(match value {
             ParamValue::Int(value) => DataValue::Integer(i64::from(*value)),
@@ -823,21 +697,27 @@ impl Encoder<'_> {
                     .map(|(name, value)| {
                         Ok(donder_language::data::field(
                             name.as_str(),
-                            self.param_value(value)?,
+                            self.param_value(marks, value)?,
                         ))
                     })
                     .collect::<Result<_, ExportProjectError>>()?,
             ),
-            ParamValue::Marks(Some(key)) => Reference::new(vec![key.name.clone()]).encode(),
+            ParamValue::Marks(Some(id)) => Reference::new(vec![
+                (*marks
+                    .get(id)
+                    .unwrap_or_else(|| unreachable!("validation proved every mark collection")))
+                .clone(),
+            ])
+            .encode(),
             ParamValue::Marks(None) => DataValue::None,
-            ParamValue::Curve(OwnedCurve::Reference(id)) => {
+            ParamValue::Curve(CurveValue::Linked(id)) => {
                 self.object_reference(ObjectKind::Curve, *id)?.encode()
             }
-            ParamValue::Curve(OwnedCurve::Inline(curve)) => curve_value(curve).encode(),
-            ParamValue::Gradient(OwnedGradient::Reference(id)) => {
+            ParamValue::Curve(CurveValue::Literal(curve)) => curve_value(curve).encode(),
+            ParamValue::Gradient(GradientValue::Linked(id)) => {
                 self.object_reference(ObjectKind::Gradient, *id)?.encode()
             }
-            ParamValue::Gradient(OwnedGradient::Inline(gradient)) => types::GradientValue {
+            ParamValue::Gradient(GradientValue::Literal(gradient)) => types::GradientValue {
                 space: types::GradientSpace(gradient.space),
                 stops: gradient_stops(gradient),
             }
@@ -845,7 +725,7 @@ impl Encoder<'_> {
             ParamValue::Array(items) => DataValue::List(
                 items
                     .iter()
-                    .map(|item| self.param_value(item).map(spanned))
+                    .map(|item| self.param_value(marks, item).map(spanned))
                     .collect::<Result<_, _>>()?,
             ),
             ParamValue::Text(text) => DataValue::String(text.clone()),

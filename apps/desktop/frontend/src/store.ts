@@ -25,7 +25,8 @@ type AppStore = {
   guiEditPending: boolean;
   guiParents: GuiParent[];
   guiResetRevision: number;
-  compositionGraphEditing: boolean;
+  /** Bumped by each GUI undo or redo, which replaces the document. */
+  guiHistoryRevision: number;
   /** The failures that have not succeeded since, by what failed. */
   failures: Partial<Record<SystemFailure, string>>;
   /** Why the last GUI edit was refused, until the project or the open object changes. */
@@ -46,7 +47,7 @@ type AppStore = {
   setRestoreState: (restoreState: ProjectRestoreState | null) => void;
   setGuiDocument: (document: GuiDocument | null) => void;
   resetGuiLocalState: () => void;
-  setCompositionGraphEditing: (editing: boolean) => void;
+  bumpGuiHistory: () => void;
   applyGuiEditResult: (request: GuiDocumentRequest, result: GuiEditUpdate) => boolean;
   /** Report that `source` failed with `message`, or succeeded with null. */
   reportFailure: (source: SystemFailure, message: string | null) => void;
@@ -62,7 +63,7 @@ export const useAppStore = create<AppStore>((set) => ({
   guiEditPending: false,
   guiParents: [],
   guiResetRevision: 0,
-  compositionGraphEditing: false,
+  guiHistoryRevision: 0,
   failures: {},
   refusedEdit: null,
   refusedEditClaims: 0,
@@ -106,13 +107,10 @@ export const useAppStore = create<AppStore>((set) => ({
     set((current) => ({ guiDocument, guiDocumentRevision: guiDocument === null ? null : current.guiRequest?.projectRevision ?? null }));
   },
   resetGuiLocalState: () => {
-    set((current) => ({
-      guiResetRevision: current.guiResetRevision + 1,
-      compositionGraphEditing: false
-    }));
+    set((current) => ({ guiResetRevision: current.guiResetRevision + 1 }));
   },
-  setCompositionGraphEditing: (compositionGraphEditing) => {
-    set({ compositionGraphEditing });
+  bumpGuiHistory: () => {
+    set((current) => ({ guiHistoryRevision: current.guiHistoryRevision + 1 }));
   },
   applyGuiEditResult: (request, result) => {
     let applied = false;
@@ -342,15 +340,11 @@ function guiRequestForSnapshot(
   const descriptor = snapshot.activeDocumentDescriptor;
   const activePath = snapshot.activeFile;
   if (descriptor === null || activePath === null || effectiveEditorViewMode(snapshot) !== "gui") return null;
-  if (preferred?.path === activePath && preferred.ownedPath.length > 0 && descriptor.guiObjects.some((item) => item.key === preferred.objectKey)) {
-    return { ...preferred, projectRevision: snapshot.projectRevision };
-  }
   const preferredObject = preferred?.path === activePath
     ? descriptor.guiObjects.find((item) => item.key === preferred.objectKey)
     : undefined;
   if (preferredObject !== undefined) {
     return {
-      ownedPath: [],
       path: activePath,
       objectKey: preferredObject.key,
       projectRevision: snapshot.projectRevision
@@ -358,12 +352,12 @@ function guiRequestForSnapshot(
   }
   const defaultObject = descriptor.guiObjects[0];
   if (defaultObject === undefined) return null;
-  return { ownedPath: [], path: activePath, objectKey: defaultObject.key, projectRevision: snapshot.projectRevision };
+  return { path: activePath, objectKey: defaultObject.key, projectRevision: snapshot.projectRevision };
 }
 
 /** Opens `request`, an object of the active document, full size in the editor. A `nested` open keeps the open
  * object as a parent the breadcrumb returns to; opening one of those parents returns to it. */
-export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey" | "ownedPath">, placement: "root" | "nested" = "root"): void {
+export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey">, placement: "root" | "nested" = "root"): void {
   const current = useAppStore.getState();
   const snapshot = current.snapshot;
   if (snapshot === null || snapshot.activeFile !== request.path) {

@@ -24,12 +24,11 @@ pub use audio::{
 pub use diagnostics::{Rotation3Degrees, Scale3};
 pub use donder_project_io::{IoDiagnostic, TextPosition, TextRange};
 pub use live::{
-    ConsoleAction, ConsoleClip, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind,
-    ConsoleGuiDocument, ConsoleGuiEdit, ConsoleInput, ConsoleInputControl, ConsoleInputDevice,
-    ConsoleLengthSource, ConsoleLiveMarks, ConsoleOn, ConsoleParamSource, ConsolePlayLength,
-    ConsolePlayMode, ConsolePlayedQuantity, ConsolePlayedValue, GuiControlInput, GuiInputControl,
-    GuiInputControlKind, GuiInputDriver, GuiInputLimits, InputDeviceGuiDocument, LearnedInput,
-    ProjectGuiEdit, SetupInputDevice,
+    ConsoleAction, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit,
+    ConsoleInput, ConsoleInputControl, ConsoleInputDevice, ConsoleLengthSource, ConsoleOn,
+    ConsoleParamSource, ConsolePlayLength, ConsolePlayMode, ConsolePlayedQuantity,
+    ConsolePlayedValue, GuiControlInput, GuiInputControl, GuiInputControlKind, GuiInputDriver,
+    GuiInputLimits, InputDeviceGuiDocument, LearnedInput, ProjectGuiEdit, SetupInputDevice,
 };
 pub use output::{
     DonderDeviceConnection, DonderDeviceNetwork, DonderDeviceNetworkRequest, DonderDeviceStatus,
@@ -39,7 +38,7 @@ pub use output::{
 };
 pub use patch::{
     GuiChannelPlace, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,
-    GuiRouteStart, PatchFixtureTarget, PatchGuiDocument, PatchLayout,
+    GuiRouteStart, PatchFixtureTarget, PatchGuiDocument,
 };
 pub use perform::{
     PerformButton, PerformConsole, PerformMidi, PerformOsc, PerformSession, PerformSnapshot,
@@ -47,16 +46,16 @@ pub use perform::{
 pub use preview::{
     FixtureGuiDocument, FixtureGuiEdit, GeometryRenderBounds, GuiCaptureController,
     GuiFixtureCapture, GuiFixtureElement, GuiFixtureHandle, GuiFixtureShape, GuiGridAxis,
-    GuiGridCorner, GuiGroupMember, GuiLayoutFixture, GuiLayoutFixtureKind, GuiOwnedFixture,
-    LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance, SpatialRenderPixel, SpatialRenderPlan,
+    GuiGridCorner, GuiGroupMember, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiDocument,
+    LayoutGuiEdit, PreviewAppearance, SpatialRenderPixel, SpatialRenderPlan,
 };
-pub use problem::{GuiField, GuiMember, GuiProblem, GuiProblemSite};
+pub use problem::{GuiField, GuiMember, GuiProblem, GuiSite};
 pub use sequence::{
-    DerivedDataStatus, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceClip, SequenceClipDetails, SequenceClipDetailsResult, SequenceClipMatchRequest,
-    SequenceClipParam, SequenceClipParamMatch, SequenceClipRaster, SequenceClipRasterRequest,
-    SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceCompositionGraph,
-    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffectDefinition,
+    DerivedDataStatus, GuiClip, GuiClipContent, GuiPlacement, SequenceAudio,
+    SequenceAutomationBinding, SequenceClipDetails, SequenceClipDetailsResult,
+    SequenceClipMatchRequest, SequenceClipParam, SequenceClipParamMatch, SequenceClipRaster,
+    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
+    SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceEffectDefinition,
     SequenceEffectDefinitionParam, SequenceGradientLibraryItem, SequenceGraphNode,
     SequenceGraphNodeKind, SequenceGraphOperatorDefinition, SequenceGuiDocument, SequenceLane,
     SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
@@ -64,9 +63,9 @@ pub use sequence::{
 };
 pub use setup::{
     BufferExternalState, ControllerGuiDocument, CurveGuiDocument, GradientGuiDocument, GuiDocument,
-    GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, GuiItem, GuiObjectRef,
-    GuiUniverses, OwnedObjectSlot, ProjectGuiDocument, SetupController, SetupControllerConfig,
-    SetupControllerPort, SetupDonderOutput, SetupGuiDocument, SetupGuiEdit,
+    GuiDocumentChange, GuiDocumentRequest, GuiEdit, GuiEditUpdate, GuiMark, GuiObjectRef,
+    GuiUniverses, GuiValue, ProjectGuiDocument, SetupController, SetupControllerConfig,
+    SetupControllerPort, SetupDonderOutput,
 };
 pub use synchronization::{
     DocumentSaveState, DocumentSaveStatus, DocumentText, DocumentTextEdit, DocumentTextEdits,
@@ -122,7 +121,7 @@ impl From<GuiWindow> for donder_model::Window {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -143,105 +142,42 @@ pub enum SequenceGuiEdit {
     Composition {
         edit: CompositionGuiEdit,
     },
-    SetDuration {
-        duration_seconds: f64,
-    },
-    SetAudio {
-        #[serde(rename = "import")]
-        import_path: Option<String>,
-    },
     AddClip {
-        initial_color: String,
-        effect: SequenceEffectReference,
         target: FixtureTarget,
-        scope: SequenceClipScope,
         start_seconds: f64,
+        duration_seconds: f64,
+        content: NewClipContent,
     },
-    ChangeEffectDefinition {
-        initial_color: String,
-        id: u32,
-        effect: SequenceEffectReference,
-    },
-    /// Cut each clip at `time_seconds` into two back-to-back clips. The right
-    /// half shares the left half's automation, so automation continues across
-    /// the cut.
+    /// Cut each clip at `time_seconds` into two back-to-back clips. An
+    /// envelope's curve is cut; the right half of an effect clip shares the
+    /// left half's envelopes, so they continue across the cut.
     SplitClips {
         ids: Vec<u32>,
         time_seconds: f64,
     },
-    RetargetClip {
-        id: u32,
-        target: FixtureTarget,
-    },
-    AddAutomationClip {
-        start_seconds: f64,
-        duration_seconds: f64,
-        row_target: FixtureTarget,
-    },
-    CreateAndBindAutomationClip {
+    /// A new envelope over `target`'s clip or the whole sequence, bound to it.
+    AddEnvelopeFor {
         target: SequenceAutomationTarget,
     },
-    SplitAutomationClip {
-        id: u32,
-        time_seconds: f64,
-    },
-    UpdateAutomationCurve {
-        id: u32,
-        curve: Vec<SequenceCurvePoint>,
-    },
-    BindAutomationParam {
-        automation_clip_id: u32,
+    /// Envelope `clip` also drives `target`.
+    Bind {
+        clip: u32,
         target: SequenceAutomationTarget,
-    },
-    UnbindAutomationParam {
-        automation_clip_id: u32,
-        target: SequenceAutomationTarget,
-    },
-    SetAutomationWindow {
-        automation_clip_id: u32,
-        target: SequenceAutomationTarget,
-        window: GuiWindow,
-    },
-    RebindDetachedAutomation {
-        automation_clip_id: u32,
-        detached_index: u32,
-        target: SequenceAutomationTarget,
-    },
-    DiscardDetachedAutomation {
-        automation_clip_id: u32,
-        detached_index: u32,
-    },
-    /// Each name becomes a unique `snake_case` name; the edit reports the
-    /// names made, in order.
-    CreateMarkCollections {
-        collections: Vec<NewMarkCollection>,
     },
     AddMarks {
-        collection_key: String,
+        collection_id: u32,
         times_seconds: Vec<f64>,
     },
     ReassignMarkCollection {
-        collection_key: String,
+        collection_id: u32,
         index: u32,
-        target_collection_key: String,
-    },
-    /// Set how long a mark lasts; zero makes it instantaneous.
-    SetMarkDuration {
-        collection_key: String,
-        index: u32,
-        duration_seconds: f64,
-    },
-    /// Label a mark, or clear its label with `None` or a blank label.
-    SetMarkLabel {
-        collection_key: String,
-        index: u32,
-        label: Option<String>,
+        target_collection_id: u32,
     },
     DeleteSelection {
         selection: SequenceSelection,
     },
     MoveClips {
-        clips: Vec<SequenceClipRef>,
+        ids: Vec<u32>,
         time_delta_seconds: f64,
         /// The lane the move started on. Each clip moves from the lane of its
         /// target nearest this one.
@@ -249,25 +185,38 @@ pub enum SequenceGuiEdit {
         lane_delta: i32,
     },
     ResizeClips {
-        clips: Vec<SequenceClipRef>,
+        ids: Vec<u32>,
         edge: SequenceResizeEdge,
         automation: SequenceAutomationResize,
         time_delta_seconds: f64,
     },
-    /// Set a property of clips.
-    EditClips {
-        clips: Vec<SequenceClipRef>,
-        edit: SequenceClipCommonEdit,
-    },
     /// Retime the clips together; the selection stays the same.
     ArrangeClips {
-        clips: Vec<SequenceClipRef>,
+        ids: Vec<u32>,
         arrangement: SequenceClipArrangement,
     },
     MoveMarks {
         marks: Vec<SequenceMarkRef>,
         time_delta_seconds: f64,
     },
+}
+
+/// What a new clip plays.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum NewClipContent {
+    /// An effect on the first layer, named after it.
+    Effect {
+        initial_color: String,
+        effect: SequenceEffectReference,
+        scope: SequenceClipScope,
+    },
+    /// An envelope that binds nothing yet.
+    Envelope,
 }
 
 /// Edits to the layers and composition graph that sequences and consoles share.
@@ -278,6 +227,11 @@ pub enum SequenceGuiEdit {
     rename_all_fields = "camelCase"
 )]
 pub enum CompositionGuiEdit {
+    /// Each name becomes a unique `snake_case` name; the edit reports the
+    /// names made, in order. A console's collections start empty.
+    AddMarkCollections {
+        collections: Vec<NewMarkCollection>,
+    },
     CreateLayer {
         name: String,
         color: String,
@@ -313,11 +267,6 @@ pub enum CompositionGuiEdit {
         previous: SequenceGraphEdge,
         connection: SequenceGraphEdge,
     },
-    UpdateGraphOperatorParam {
-        node_id: u32,
-        name: String,
-        value: SequenceParamValue,
-    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -331,7 +280,7 @@ pub struct NewMarkCollection {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceMarkRef {
-    pub(crate) collection_key: String,
+    pub(crate) collection_id: u32,
     pub(crate) index: u32,
 }
 
@@ -350,50 +299,13 @@ pub struct SequencePasteAnchor {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceSelection {
-    Clips { clips: Vec<SequenceClipRef> },
+    Clips { ids: Vec<u32> },
     Marks { marks: Vec<SequenceMarkRef> },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceClipCommonEdit {
-    Layer {
-        layer_id: u32,
-    },
-    Scope {
-        scope: SequenceClipScope,
-    },
-    Start {
-        start_seconds: f64,
-    },
-    Duration {
-        duration_seconds: f64,
-    },
-    Param {
-        name: String,
-        value: SequenceParamValue,
-    },
-}
-
-/// A clip or an automation clip of a sequence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceClipRef {
-    Clip { id: u32 },
-    Automation { id: u32 },
-}
-
 /// How "Align" and "Arrange" retime selected clips. A reference clip keeps
-/// its timing; resized automation clips crop their curves. A row is one lane's
-/// clips or one lane's automation clips.
+/// its timing; resized envelopes crop their curves. A row is one lane's
+/// effect clips or one lane's envelopes.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -402,29 +314,29 @@ pub enum SequenceClipRef {
 )]
 pub enum SequenceClipArrangement {
     /// Starts move to the reference's start; ends stay.
-    AlignStarts { reference: SequenceClipRef },
+    AlignStarts { reference: u32 },
     /// Ends move to the reference's end; starts stay.
-    AlignEnds { reference: SequenceClipRef },
+    AlignEnds { reference: u32 },
     /// Clips move, keeping their length, to start with the reference.
-    MoveStarts { reference: SequenceClipRef },
+    MoveStarts { reference: u32 },
     /// Clips move, keeping their length, to end with the reference.
-    MoveEnds { reference: SequenceClipRef },
+    MoveEnds { reference: u32 },
     /// Clips take the reference's start and end.
-    AlignBoth { reference: SequenceClipRef },
+    AlignBoth { reference: u32 },
     /// Clips move, keeping their length, to share the reference's midpoint.
-    AlignCenters { reference: SequenceClipRef },
+    AlignCenters { reference: u32 },
     /// Clips keep their start and take the reference's length.
-    MatchDuration { reference: SequenceClipRef },
+    MatchDuration { reference: u32 },
     /// Clips move, keeping their length, to start where the reference ends.
-    StartAfter { reference: SequenceClipRef },
+    StartAfter { reference: u32 },
     /// Clips move, keeping their length, to end where the reference starts.
-    EndBefore { reference: SequenceClipRef },
+    EndBefore { reference: u32 },
     /// Each start moves to the nearest mark of `mark_collections` and each end
     /// to the nearest later one; with no later mark, the clip keeps its length.
-    QuantizeToMarks { mark_collections: Vec<String> },
+    QuantizeToMarks { mark_collections: Vec<u32> },
     /// Each start moves back and each end forward to the nearest mark of
     /// `mark_collections`; an edge with no mark beyond it stays.
-    StretchToMarks { mark_collections: Vec<String> },
+    StretchToMarks { mark_collections: Vec<u32> },
     /// Each end extends to the next clip's start in its row.
     FillGaps,
     /// In each row, clips move, keeping their length, so each starts where
@@ -470,27 +382,14 @@ pub enum SequenceParamValue {
     Gradient {
         value: SequenceGradientValue,
     },
-    IntArray {
-        values: Vec<f32>,
+    /// Each item valued as the array's element kind.
+    Array {
+        values: Vec<SequenceParamValue>,
     },
-    FloatArray {
-        values: Vec<f32>,
-    },
-    BoolArray {
-        values: Vec<bool>,
-    },
-    ColorArray {
-        values: Vec<String>,
-    },
-    CurveArray {
-        values: Vec<SequenceCurveValue>,
-    },
-    GradientArray {
-        values: Vec<SequenceGradientValue>,
-    },
-    /// `None` is no collection: the parameter has no marks.
+    /// A mark collection by id; `None` is no collection: the parameter has no
+    /// marks.
     Marks {
-        key: Option<String>,
+        id: Option<u32>,
     },
     Text {
         value: String,
@@ -600,8 +499,12 @@ pub struct SequenceGraphEdge {
     pub input: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum SequenceParamKind {
     Int,
     Float,
@@ -610,12 +513,7 @@ pub enum SequenceParamKind {
     Enum,
     Curve,
     Gradient,
-    IntArray,
-    FloatArray,
-    BoolArray,
-    ColorArray,
-    CurveArray,
-    GradientArray,
+    Array { element: Box<SequenceParamKind> },
     Marks,
     Text,
     Font,
@@ -636,7 +534,7 @@ pub enum SequenceResizeEdge {
     Right,
 }
 
-/// How a resize treats an automation clip's curve.
+/// How a resize treats an envelope's curve.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SequenceAutomationResize {

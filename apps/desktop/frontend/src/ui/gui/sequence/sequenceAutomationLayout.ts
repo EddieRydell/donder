@@ -1,46 +1,22 @@
-import type { FixtureTarget, SequenceLane, SequenceAutomationClip, SequenceAutomationTarget, PersistedSequenceViewportState } from "../../../types";
+import type { SequenceCurvePoint } from "../../../types";
 
-import { clamp, roundToNanosecond } from "../shared";
+import { clamp, envelopeOf, roundToNanosecond } from "../shared";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
-import type { SequenceViewport } from "./sequenceSelection";
+import type { SequenceClipLayout } from "./sequenceSelection";
 
-/** The content window is the time span the curve positions cover. A crop moves the clip window over fixed content. */
-export type AutomationDraft = {
+/** An envelope's curve while it is edited, by clip id. */
+export type AutomationCurveDraft = {
   id: number;
-  startSeconds: number;
-  durationSeconds: number;
-  rowTarget: FixtureTarget;
-  contentStartSeconds: number;
-  contentDurationSeconds: number;
+  curve: SequenceCurvePoint[];
+  guide: AutomationGuide;
 };
-
-export type AutomationHover = { kind: "automation"; automationClipId: number; resize: "left" | "right" | "none" };
-
-export type AutomationCurvePoint = { time: number; value: number };
 
 /** Clip-relative time and normalized value the dragged point aligned to. */
 export type AutomationGuide = { time: number | null; value: number | null };
 
-export type AutomationCurveDraft = {
-  id: number;
-  curve: AutomationCurvePoint[];
-  guide: AutomationGuide;
-};
-
-export type AutomationClipView = SequenceAutomationClip & { contentStartSeconds: number; contentDurationSeconds: number };
-
 type CanvasRect = { x: number; y: number; width: number; height: number };
 
-export type AutomationClipLayout = {
-  clip: AutomationClipView;
-  /** The lane drawing this copy; a target shared by several groups has several. */
-  laneIndex: number;
-  rect: CanvasRect;
-  /** Canvas span of the content window; shares the clip's vertical extent. */
-  curveRect: CanvasRect;
-};
-
-export type AutomationClipVisualState = {
+export type EnvelopeVisualState = {
   label: string;
   selected: boolean;
   hovered: boolean;
@@ -51,214 +27,14 @@ export type AutomationClipVisualState = {
   markXs: number[];
 };
 
-export type SequenceRowKind = "clips" | "automation";
-export type SequenceRowHeightMap = Record<number, Record<SequenceRowKind, number>>;
-
-export type SequenceRowLayout = {
-  laneIndex: number;
-  target: FixtureTarget;
-  kind: SequenceRowKind;
-  top: number;
-  height: number;
-  bottom: number;
-};
-
-/** The least height a row of this kind keeps: an automation row needs room to edit its curve. */
-export function minRowHeight(kind: SequenceRowKind): number {
-  return kind === "automation" ? THEME_METRICS.automationRowMinHeight : THEME_METRICS.sequenceMinLaneHeight;
-}
-
-export function automationLaneRowHeight(laneHeight: number): number {
-  return clamp(
-    laneHeight * THEME_METRICS.automationRowHeightRatio,
-    THEME_METRICS.automationRowMinHeight,
-    THEME_METRICS.automationRowMaxHeight
-  );
-}
-
-// The persisted suffix denotes row kind, never a visible row index.
-function persistedRowHeightKey(fixture: number, kind: SequenceRowKind): string {
-  return `${fixture}:row:${kind === "clips" ? 0 : 1}`;
-}
-
-export function persistRowHeights(heights: SequenceRowHeightMap): PersistedSequenceViewportState["rowHeights"] {
-  return Object.fromEntries(Object.entries(heights).flatMap(([fixture, sizes]) =>
-    (["clips", "automation"] as const).map((kind) => [persistedRowHeightKey(Number(fixture), kind), sizes[kind]])));
-}
-
-export function restoreRowHeights(lanes: SequenceLane[], persisted: PersistedSequenceViewportState["rowHeights"] | undefined, defaultHeight: number): SequenceRowHeightMap {
-  return Object.fromEntries(lanes.map((lane) => [lane.target.fixture, {
-    clips: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "clips")] ?? defaultHeight, THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight),
-    automation: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "automation")] ?? automationLaneRowHeight(defaultHeight), minRowHeight("automation"), THEME_METRICS.sequenceMaxLaneHeight)
-  }]));
-}
-
-export function rowHeightAt(rowHeights: SequenceRowHeightMap, target: FixtureTarget, kind: SequenceRowKind, defaultHeight: number): number {
-  return rowHeights[target.fixture]?.[kind] ?? defaultHeight;
-}
-
-export function sequenceRowLayout(lanes: SequenceLane[], clips: SequenceAutomationClip[], rowHeights: SequenceRowHeightMap, defaultMainRowHeight: number, defaultAutomationRowHeight: number, revealAutomation: boolean): SequenceRowLayout[] {
-  const occupied = new Set(clips.map((clip) => clip.rowTarget.fixture));
-  const rows: SequenceRowLayout[] = [];
-  let top = 0;
-  for (const [laneIndex, lane] of lanes.entries()) {
-    for (const kind of ["clips", "automation"] as const) {
-      const visible = kind === "clips" || revealAutomation || occupied.has(lane.target.fixture);
-      const height = visible ? rowHeightAt(rowHeights, lane.target, kind, kind === "clips" ? defaultMainRowHeight : defaultAutomationRowHeight) : 0;
-      rows.push({ laneIndex, target: lane.target, kind, top, height, bottom: top + height });
-      top += height;
-    }
-  }
-  return rows;
-}
-
-export function expandedTimelineHeight(rows: SequenceRowLayout[]): number {
-  return rows[rows.length - 1]?.bottom ?? 0;
-}
-
-export function rowFromCanvasY(y: number, top: number, scrollY: number, rows: SequenceRowLayout[]): SequenceRowLayout | null {
-  const contentY = Math.max(0, y - top + scrollY);
-  return rows.find((row) => contentY < row.bottom) ?? null;
-}
-
-export function laneIndexFromCanvasY(y: number, top: number, scrollY: number, laneCount: number, rows: SequenceRowLayout[]): number {
-  return rowFromCanvasY(y, top, scrollY, rows)?.laneIndex ?? Math.max(0, laneCount - 1);
-}
-
-export function buildAutomationClipLayout(clips: AutomationClipView[], rows: SequenceRowLayout[], viewport: SequenceViewport, left: number, top: number, bounds: { width: number; height: number }): AutomationClipLayout[] {
-  const visibleStartSeconds = viewport.scrollXSeconds;
-  const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
-  const byAutomationLane = new Map<number, AutomationClipView[]>();
-  for (const clip of clips) {
-    if (clip.startSeconds + clip.durationSeconds < visibleStartSeconds || clip.startSeconds > visibleEndSeconds) continue;
-    const key = clip.rowTarget.fixture;
-    const laneClips = byAutomationLane.get(key) ?? [];
-    laneClips.push(clip);
-    byAutomationLane.set(key, laneClips);
-  }
-
-  const layouts: AutomationClipLayout[] = [];
-  for (const [target, laneClips] of byAutomationLane) {
-    const targetRows = rows.filter((row) => row.target.fixture === target && row.kind === "automation");
-    if (targetRows.length === 0) throw new Error("Automation clip has no timeline row.");
-    for (const row of targetRows.filter((candidate) => candidate.height > 0)) for (const group of groupOverlappingClips(laneClips, (clip) => clip)) {
-      const assigned = assignOverlapSlots(group, (clip) => clip);
-      const slotCount = Math.max(1, Math.max(...assigned.map((clip) => clip.slot)) + 1);
-      for (const clip of assigned) {
-        const slotHeight = row.height / slotCount;
-        const x = left + (clip.startSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
-        const rect = {
-          x,
-          y: top + row.top - viewport.scrollY + clip.slot * slotHeight + THEME_METRICS.sequenceClipSlotOffset,
-          width: Math.max(THEME_METRICS.sequenceClipMinWidth, clip.durationSeconds * viewport.pxPerSecond),
-          height: Math.max(0, slotHeight - THEME_METRICS.sequenceClipHandleInset)
-        };
-        layouts.push({
-          clip,
-          laneIndex: row.laneIndex,
-          rect,
-          curveRect: {
-            ...rect,
-            x: left + (clip.contentStartSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond,
-            width: Math.max(THEME_METRICS.visualMinSize, clip.contentDurationSeconds * viewport.pxPerSecond)
-          }
-        });
-      }
-    }
-  }
-  return layouts;
-}
-
-/** Labels a target whose clip or operator no longer resolves, so it names only ids. */
-export function detachedAutomationTargetLabel(target: SequenceAutomationTarget): string {
-  return target.type === "clipParam"
-    ? `Clip ${target.clipId}: ${target.param}`
-    : `Operator ${target.nodeId}: ${target.param}`;
-}
-
-export function automationClipsWithDrafts(clips: SequenceAutomationClip[], drafts: AutomationDraft[], curveDraft: AutomationCurveDraft | null): AutomationClipView[] {
-  const byId = new Map(drafts.map((draft) => [draft.id, draft]));
-  return clips.map((clip) => {
-    const draft = byId.get(clip.id);
-    return {
-      ...clip,
-      contentStartSeconds: clip.startSeconds,
-      contentDurationSeconds: clip.durationSeconds,
-      ...draft,
-      curve: curveDraft?.id === clip.id ? curveDraft.curve : clip.curve
-    };
-  });
-}
-
-export function automationHoverEqual(left: AutomationHover | null, right: AutomationHover | null) {
-  if (left === right) return true;
-  if (left === null || right === null) return false;
-  return left.automationClipId === right.automationClipId && left.resize === right.resize;
-}
-
-type ClipTiming = { id: number; startSeconds: number; durationSeconds: number };
-
-/** A clip's edges at whole nanoseconds, so clips that touch in the model touch here. */
-function clipSpan(timing: ClipTiming) {
-  return { start: roundToNanosecond(timing.startSeconds), end: roundToNanosecond(timing.startSeconds + timing.durationSeconds) };
-}
-
-function compareClipsByTime(left: ClipTiming, right: ClipTiming) {
-  const leftSpan = clipSpan(left);
-  const rightSpan = clipSpan(right);
-  return leftSpan.start - rightSpan.start || leftSpan.end - rightSpan.end || left.id - right.id;
-}
-
-/** A row's clips in runs that overlap in time; each run shares the row's height. */
-export function groupOverlappingClips<T>(clips: T[], timing: (clip: T) => ClipTiming) {
-  const sorted = [...clips].sort((left, right) => compareClipsByTime(timing(left), timing(right)));
-  const groups: T[][] = [];
-  let current: T[] = [];
-  let currentEnd = -Infinity;
-  for (const clip of sorted) {
-    const { start, end } = clipSpan(timing(clip));
-    if (current.length === 0 || start < currentEnd) {
-      current.push(clip);
-      currentEnd = Math.max(currentEnd, end);
-    } else {
-      groups.push(current);
-      current = [clip];
-      currentEnd = end;
-    }
-  }
-  if (current.length > 0) groups.push(current);
-  return groups;
-}
-
-/** The slot of each clip in an overlapping run: the first slot free at its start. */
-export function assignOverlapSlots<T>(group: T[], timing: (clip: T) => ClipTiming) {
-  const slotEnds: number[] = [];
-  return [...group].sort((left, right) => compareClipsByTime(timing(left), timing(right))).map((clip) => {
-    const { start, end } = clipSpan(timing(clip));
-    let slot = slotEnds.findIndex((slotEnd) => slotEnd <= start);
-    if (slot === -1) slot = slotEnds.length;
-    slotEnds[slot] = end;
-    return { ...clip, slot };
-  });
-}
-
-export function hitTimelineClip<T extends { rect: AutomationClipLayout["rect"] }>(clips: T[], x: number, y: number) {
-  for (let index = clips.length - 1; index >= 0; index -= 1) {
-    const clip = clips[index];
-    if (clip === undefined) continue;
-    const { rect } = clip;
-    if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
-      const resize: "left" | "right" | "none" = x - rect.x < THEME_METRICS.sequenceClipResizeHitWidth ? "left" : rect.x + rect.width - x < THEME_METRICS.sequenceClipResizeHitWidth ? "right" : "none";
-      return { ...clip, resize };
-    }
-  }
-  return null;
+function curveOf(layout: SequenceClipLayout): SequenceCurvePoint[] {
+  return envelopeOf(layout.clip)?.curve ?? [];
 }
 
 /** The curve spans the full clip width so curve time matches timeline time. */
 function automationCurveGraphRect(rect: CanvasRect) {
   const padding = Math.min(THEME_METRICS.automationGraphPaddingMax, Math.max(THEME_METRICS.automationGraphPaddingMin, rect.height * THEME_METRICS.automationGraphPaddingRatio));
-  const headerHeight = Math.min(THEME_METRICS.automationClipHeaderHeight, rect.height);
+  const headerHeight = Math.min(THEME_METRICS.envelopeHeaderHeight, rect.height);
   return {
     x: rect.x,
     y: rect.y + headerHeight + padding,
@@ -267,18 +43,18 @@ function automationCurveGraphRect(rect: CanvasRect) {
   };
 }
 
-function automationCurveCanvasPoints(curve: AutomationCurvePoint[], curveRect: CanvasRect) {
+function automationCurveCanvasPoints(curve: SequenceCurvePoint[], curveRect: CanvasRect) {
   const graph = automationCurveGraphRect(curveRect);
   return curve.map((point) => ({ x: graph.x + clamp(point.time, 0, 1) * graph.width, y: graph.y + (1 - clamp(point.value, 0, 1)) * graph.height }));
 }
 
-function hitAutomationCurvePointAt(clip: AutomationClipLayout, index: number, x: number, y: number): boolean {
-  const point = automationCurveCanvasPoints(clip.clip.curve, clip.curveRect)[index];
+function hitAutomationCurvePointAt(clip: SequenceClipLayout, index: number, x: number, y: number): boolean {
+  const point = automationCurveCanvasPoints(curveOf(clip), clip.curveRect)[index];
   return point !== undefined && Math.hypot(point.x - x, point.y - y) <= THEME_METRICS.automationHitRadius;
 }
 
-export function hitAutomationCurvePoint(clip: AutomationClipLayout, x: number, y: number): number | null {
-  const points = automationCurveCanvasPoints(clip.clip.curve, clip.curveRect);
+export function hitAutomationCurvePoint(clip: SequenceClipLayout, x: number, y: number): number | null {
+  const points = automationCurveCanvasPoints(curveOf(clip), clip.curveRect);
   for (let index = points.length - 1; index >= 0; index -= 1) {
     const point = points[index];
     if (point !== undefined && Math.hypot(point.x - x, point.y - y) <= THEME_METRICS.automationHitRadius) return index;
@@ -286,8 +62,8 @@ export function hitAutomationCurvePoint(clip: AutomationClipLayout, x: number, y
   return null;
 }
 
-/** The curve point under the cursor in any automation clip, found before the clips themselves so a point on a clip's edge is grabbed, not the edge. */
-export function hitAutomationPoint<T extends AutomationClipLayout>(clips: T[], x: number, y: number): { layout: T; index: number } | null {
+/** The curve point under the cursor in any envelope, found before the envelopes themselves so a point on a clip's edge is grabbed, not the edge. */
+export function hitAutomationPoint<T extends SequenceClipLayout>(clips: T[], x: number, y: number): { layout: T; index: number } | null {
   for (let clipIndex = clips.length - 1; clipIndex >= 0; clipIndex -= 1) {
     const layout = clips[clipIndex];
     if (layout === undefined) continue;
@@ -297,40 +73,40 @@ export function hitAutomationPoint<T extends AutomationClipLayout>(clips: T[], x
   return null;
 }
 
-export function automationCurvePointFromCanvas(curveRect: CanvasRect, x: number, y: number): AutomationCurvePoint {
+export function automationCurvePointFromCanvas(curveRect: CanvasRect, x: number, y: number): SequenceCurvePoint {
   const graph = automationCurveGraphRect(curveRect);
   return { time: roundToNanosecond(clamp((x - graph.x) / graph.width, 0, 1)), value: Math.round(clamp(1 - (y - graph.y) / graph.height, 0, 1) * 1000) / 1000 };
 }
 
 /** Points keep their order: a moved point stays between its neighbors, so stacked steps never swap. */
-export function moveAutomationCurvePoint(curve: AutomationCurvePoint[], index: number, point: AutomationCurvePoint) {
+export function moveAutomationCurvePoint(curve: SequenceCurvePoint[], index: number, point: SequenceCurvePoint) {
   const time = clamp(point.time, curve[index - 1]?.time ?? 0, curve[index + 1]?.time ?? 1);
   return curve.map((candidate, candidateIndex) => candidateIndex === index ? { time, value: point.value } : candidate);
 }
 
 /** A new point lands where it was clicked, after every point at or before its time. */
-export function insertAutomationCurvePoint(curve: AutomationCurvePoint[], point: AutomationCurvePoint): { curve: AutomationCurvePoint[]; index: number } {
+export function insertAutomationCurvePoint(curve: SequenceCurvePoint[], point: SequenceCurvePoint): { curve: SequenceCurvePoint[]; index: number } {
   const after = curve.findIndex((candidate) => candidate.time > point.time);
   const index = after === -1 ? curve.length : after;
   return { curve: [...curve.slice(0, index), point, ...curve.slice(index)], index };
 }
 
 /** The curve without the points under the cursor, as a right-drag sweeps them away; a curve keeps one point. */
-export function eraseAutomationCurvePoints(curve: AutomationCurvePoint[], clip: AutomationClipLayout, x: number, y: number): AutomationCurvePoint[] {
+export function eraseAutomationCurvePoints(curve: SequenceCurvePoint[], clip: SequenceClipLayout, x: number, y: number): SequenceCurvePoint[] {
   const kept = curve.filter((_, index) => !hitAutomationCurvePointAt(clip, index, x, y));
   return kept.length === 0 ? curve.slice(0, 1) : kept;
 }
 
-export function removeAutomationCurvePoint(curve: AutomationCurvePoint[], index: number) {
+export function removeAutomationCurvePoint(curve: SequenceCurvePoint[], index: number) {
   return curve.filter((_, candidateIndex) => candidateIndex !== index);
 }
 
 /** Align the dragged point's time or value with a neighbor that is close on screen. */
-export function alignAutomationCurvePoint(curve: AutomationCurvePoint[], index: number, point: AutomationCurvePoint, curveRect: CanvasRect): { point: AutomationCurvePoint; guide: AutomationGuide } {
+export function alignAutomationCurvePoint(curve: SequenceCurvePoint[], index: number, point: SequenceCurvePoint, curveRect: CanvasRect): { point: SequenceCurvePoint; guide: AutomationGuide } {
   const graph = automationCurveGraphRect(curveRect);
-  const neighbors = [curve[index - 1], curve[index + 1]].filter((neighbor): neighbor is AutomationCurvePoint => neighbor !== undefined);
+  const neighbors = [curve[index - 1], curve[index + 1]].filter((neighbor): neighbor is SequenceCurvePoint => neighbor !== undefined);
   const nearest = (axis: "time" | "value", scale: number) => {
-    const candidate = neighbors.reduce<AutomationCurvePoint | null>((best, neighbor) => best === null || Math.abs(neighbor[axis] - point[axis]) < Math.abs(best[axis] - point[axis]) ? neighbor : best, null);
+    const candidate = neighbors.reduce<SequenceCurvePoint | null>((best, neighbor) => best === null || Math.abs(neighbor[axis] - point[axis]) < Math.abs(best[axis] - point[axis]) ? neighbor : best, null);
     return candidate !== null && Math.abs(candidate[axis] - point[axis]) * scale <= THEME_METRICS.automationAlignDistance ? candidate[axis] : null;
   };
   const time = nearest("time", graph.width);
@@ -338,25 +114,27 @@ export function alignAutomationCurvePoint(curve: AutomationCurvePoint[], index: 
   return { point: { time: time ?? point.time, value: value ?? point.value }, guide: { time, value } };
 }
 
-export function drawAutomationClip(
+export function drawEnvelope(
   ctx: CanvasRenderingContext2D,
-  layout: AutomationClipLayout,
-  state: AutomationClipVisualState
+  layout: SequenceClipLayout,
+  state: EnvelopeVisualState
 ) {
-  const { clip, rect } = layout;
+  const { rect } = layout;
+  const curve = curveOf(layout);
+  const bindings = envelopeOf(layout.clip)?.bindings ?? [];
   const graph = automationCurveGraphRect(rect);
   const curveGraph = automationCurveGraphRect(layout.curveRect);
-  const headerHeight = Math.min(THEME_METRICS.automationClipHeaderHeight, rect.height);
-  const radius = Math.min(THEME_METRICS.automationClipRadius, rect.width / 2, rect.height / 2);
+  const headerHeight = Math.min(THEME_METRICS.envelopeHeaderHeight, rect.height);
+  const radius = Math.min(THEME_METRICS.envelopeRadius, rect.width / 2, rect.height / 2);
 
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(rect.x, rect.y, rect.width, rect.height, radius);
   ctx.clip();
 
-  ctx.fillStyle = THEME_COLORS.automationClipSurface;
+  ctx.fillStyle = THEME_COLORS.envelopeSurface;
   ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-  ctx.fillStyle = state.selected ? THEME_COLORS.automationClipHeaderSelected : THEME_COLORS.automationClipHeader;
+  ctx.fillStyle = state.selected ? THEME_COLORS.envelopeHeaderSelected : THEME_COLORS.envelopeHeader;
   ctx.fillRect(rect.x, rect.y, rect.width, headerHeight);
   ctx.fillStyle = THEME_COLORS.automationGraph;
   ctx.fillRect(rect.x, rect.y + headerHeight, rect.width, Math.max(0, rect.height - headerHeight));
@@ -380,7 +158,7 @@ export function drawAutomationClip(
   ctx.lineTo(graph.x + graph.width, graph.y + graph.height / 2 + THEME_METRICS.visualHairlineOffset);
   ctx.stroke();
 
-  const points = automationCurveCanvasPoints(clip.curve, layout.curveRect);
+  const points = automationCurveCanvasPoints(curve, layout.curveRect);
   if (points.length > 0) {
     const displayPoints = automationCurveDisplayPoints(points, rect);
     ctx.beginPath();
@@ -429,11 +207,11 @@ export function drawAutomationClip(
     ctx.lineJoin = "miter";
 
     const activePoint = state.activePointIndex === null ? undefined : points[state.activePointIndex];
-    const activeValue = state.activePointIndex === null ? undefined : clip.curve[state.activePointIndex]?.value;
+    const activeValue = state.activePointIndex === null ? undefined : curve[state.activePointIndex]?.value;
     if (activePoint !== undefined && activeValue !== undefined) {
       const label = `${Math.round(activeValue * 100)}%`;
       ctx.font = THEME_TYPOGRAPHY.canvasLabel;
-      ctx.fillStyle = THEME_COLORS.automationClipLabel;
+      ctx.fillStyle = THEME_COLORS.envelopeLabel;
       ctx.textBaseline = "middle";
       const width = ctx.measureText(label).width;
       const rightX = activePoint.x + THEME_METRICS.automationValueLabelOffset;
@@ -452,18 +230,14 @@ export function drawAutomationClip(
     ctx.fillStyle = THEME_COLORS.accentSubtle;
     ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
   }
-  if (clip.detachedBindings.length > 0) {
-    ctx.fillStyle = THEME_COLORS.automationDetached;
-    ctx.fillRect(rect.x, rect.y, THEME_METRICS.automationDetachedStripeWidth, rect.height);
-  }
 
-  if (rect.width >= THEME_METRICS.automationClipLabelMinWidth) {
+  if (rect.width >= THEME_METRICS.envelopeLabelMinWidth) {
     ctx.font = THEME_TYPOGRAPHY.canvasLabel;
-    ctx.fillStyle = clip.bindings.length > 0 ? THEME_COLORS.automationClipLabel : THEME_COLORS.automationClipLabelMuted;
+    ctx.fillStyle = bindings.length > 0 ? THEME_COLORS.envelopeLabel : THEME_COLORS.envelopeLabelMuted;
     ctx.textBaseline = "alphabetic";
-    const labelX = rect.x + THEME_METRICS.automationClipLabelInset + (clip.detachedBindings.length > 0 ? THEME_METRICS.automationDetachedStripeWidth : 0);
-    const labelWidth = Math.max(0, rect.x + rect.width - THEME_METRICS.automationClipLabelInset - labelX);
-    ctx.fillText(fitCanvasLabel(ctx, state.label, labelWidth), labelX, rect.y + THEME_METRICS.automationClipLabelBaseline);
+    const labelX = rect.x + THEME_METRICS.envelopeLabelInset;
+    const labelWidth = Math.max(0, rect.x + rect.width - THEME_METRICS.envelopeLabelInset - labelX);
+    ctx.fillText(fitCanvasLabel(ctx, state.label, labelWidth), labelX, rect.y + THEME_METRICS.envelopeLabelBaseline);
   }
 
   ctx.restore();
@@ -538,29 +312,3 @@ export function fitCanvasLabel(ctx: CanvasRenderingContext2D, label: string, max
   return fitted.length > 0 ? `${fitted}${ellipsis}` : ellipsis;
 }
 
-/** Indices of lanes inside collapsed groups. Lanes are depth-first with their depth; collapsing
- * a group collapses every copy of it. */
-export function collapsedLanes(lanes: SequenceLane[], collapsedGroups: ReadonlySet<number>): Set<number> {
-  const hidden = new Set<number>();
-  let collapsedDepth: number | null = null;
-  for (const [index, lane] of lanes.entries()) {
-    if (collapsedDepth !== null && lane.depth > collapsedDepth) {
-      hidden.add(index);
-      continue;
-    }
-    collapsedDepth = lane.kind === "group" && collapsedGroups.has(lane.target.fixture) ? lane.depth : null;
-  }
-  return hidden;
-}
-
-/** Rows of hidden lanes take no height; the rows below move up. */
-export function collapseRows(rows: SequenceRowLayout[], hiddenLanes: ReadonlySet<number>): SequenceRowLayout[] {
-  if (hiddenLanes.size === 0) return rows;
-  let top = 0;
-  return rows.map((row) => {
-    const height = hiddenLanes.has(row.laneIndex) ? 0 : row.height;
-    const collapsed = { ...row, top, height, bottom: top + height };
-    top += height;
-    return collapsed;
-  });
-}

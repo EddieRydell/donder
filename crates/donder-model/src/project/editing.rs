@@ -1,57 +1,45 @@
 use super::objects::Stored;
 use super::*;
 
-/// Any project object, as an edit writes it. Definitions that may also be
-/// written in place carry no id of their own, so theirs is given beside them.
+/// Any project object, as an edit writes it, under its id.
 #[derive(Clone, Debug)]
 pub enum Object {
     Project(ProjectRoot),
-    Setup(Setup),
-    Layout(Layout),
-    Patch(Patch),
-    Controller(Controller),
-    InputDevice(InputDevice),
-    Sequence(Sequence),
-    Console(Box<Console>),
+    Layout(LayoutId, Layout),
+    Controller(ControllerId, Controller),
+    InputDevice(InputDeviceId, InputDevice),
+    Sequence(SequenceId, Sequence),
+    Console(ConsoleId, Box<Console>),
     FixtureDefinition(FixtureDefinitionId, FixtureDefinition),
     Curve(CurveId, CurveDefinition),
     Gradient(GradientId, GradientDefinition),
-    EffectDefinition(EffectDefinition),
-    OperatorDefinition(OperatorDefinition),
+    Script(ScriptId, ScriptDefinition),
 }
 
-impl Object {}
-
 macro_rules! object_from {
-    ($($kind:ident),*) => {$(
-        impl From<$kind> for Object {
-            fn from(value: $kind) -> Self {
-                Self::$kind(value)
+    ($($variant:ident($id:ty, $kind:ty)),*) => {$(
+        impl From<($id, $kind)> for Object {
+            fn from((id, value): ($id, $kind)) -> Self {
+                Self::$variant(id, value.into())
             }
         }
     )*};
 }
-object_from!(Setup, Layout, Patch, Controller, InputDevice, Sequence);
-
-impl From<Console> for Object {
-    fn from(value: Console) -> Self {
-        Self::Console(Box::new(value))
-    }
-}
+object_from!(
+    Layout(LayoutId, Layout),
+    Controller(ControllerId, Controller),
+    InputDevice(InputDeviceId, InputDevice),
+    Sequence(SequenceId, Sequence),
+    Console(ConsoleId, Console),
+    FixtureDefinition(FixtureDefinitionId, FixtureDefinition),
+    Curve(CurveId, CurveDefinition),
+    Gradient(GradientId, GradientDefinition),
+    Script(ScriptId, ScriptDefinition)
+);
 
 impl From<ProjectRoot> for Object {
     fn from(value: ProjectRoot) -> Self {
         Self::Project(value)
-    }
-}
-impl From<EffectDefinition> for Object {
-    fn from(value: EffectDefinition) -> Self {
-        Self::EffectDefinition(value)
-    }
-}
-impl From<OperatorDefinition> for Object {
-    fn from(value: OperatorDefinition) -> Self {
-        Self::OperatorDefinition(value)
     }
 }
 
@@ -59,93 +47,26 @@ impl From<OperatorDefinition> for Object {
 /// related values to change together without exposing a mutable project draft.
 #[derive(Clone, Debug)]
 pub enum ProjectEdit {
-    /// Write an object under its id: in place of the object with that id,
-    /// reusable or owned, or as a new reusable object.
+    /// Write an object under its id: in place of the object with that id, or
+    /// as a new object.
     Put(Object),
-    /// Remove a reusable object, and its place among the project's sequences
-    /// and consoles or a setup's controllers and input devices. An owned
-    /// object goes with its owner's edit.
+    /// Remove an object.
     Remove(ObjectId),
+    /// Write a member in place of the member with its id the site names.
+    PutMember(crate::Site, super::MemberValue),
+    /// Remove the member the site names, or the part of it its field names.
+    RemoveMember(crate::Site),
 }
 
 fn put<T: Stored>(project: &mut DonderProject, id: T::Id, value: T) {
-    match T::find_mut(project, id) {
-        Some(slot) => *slot = value,
-        None => {
-            T::store_mut(project).insert(id, value);
-        }
-    }
+    T::store_mut(project).insert(id, value);
 }
 
 fn remove<T: Stored>(project: &mut DonderProject, id: T::Id) -> Result<(), EditRejection> {
     T::store_mut(project)
         .shift_remove(&id)
         .map(drop)
-        .ok_or(EditRejection::NotReusable)
-}
-
-/// Drop removed object `id` from the members that list it.
-fn forget_member(project: &mut DonderProject, id: ObjectId) {
-    match id {
-        ObjectId::Sequence(id) => {
-            if project
-                .root
-                .sequences
-                .iter()
-                .any(|member| member.id() == &id)
-            {
-                project.root.sequences.retain(|member| member.id() != &id);
-            }
-        }
-        ObjectId::Console(id) => {
-            if project
-                .root
-                .consoles
-                .iter()
-                .any(|member| member.id() == &id)
-            {
-                project.root.consoles.retain(|member| member.id() != &id);
-            }
-        }
-        ObjectId::Controller(_) | ObjectId::InputDevice(_) => {
-            let setups = project
-                .objects::<Setup>()
-                .filter(|setup| {
-                    setup
-                        .controllers
-                        .iter()
-                        .map(|member| ObjectId::from(*member.id()))
-                        .chain(
-                            setup
-                                .input_devices
-                                .iter()
-                                .map(|member| ObjectId::from(*member.id())),
-                        )
-                        .any(|member| member == id)
-                })
-                .map(|setup| setup.id)
-                .collect::<Vec<_>>();
-            for setup in setups {
-                if let Some(setup) = Setup::find_mut(project, setup) {
-                    setup
-                        .controllers
-                        .retain(|member| ObjectId::from(*member.id()) != id);
-                    setup
-                        .input_devices
-                        .retain(|member| ObjectId::from(*member.id()) != id);
-                }
-            }
-        }
-        ObjectId::Project(_)
-        | ObjectId::Setup(_)
-        | ObjectId::Layout(_)
-        | ObjectId::Patch(_)
-        | ObjectId::FixtureDefinition(_)
-        | ObjectId::Curve(_)
-        | ObjectId::Gradient(_)
-        | ObjectId::EffectDefinition(_)
-        | ObjectId::OperatorDefinition(_) => {}
-    }
+        .ok_or(EditRejection::Missing(<T::Id as crate::TypedId>::KIND))
 }
 
 impl DonderProject {
@@ -163,43 +84,36 @@ impl DonderProject {
                             }
                             project.root = value.into();
                         }
-                        Object::Setup(value) => put(project, value.id, value),
-                        Object::Layout(value) => put(project, value.id, value),
-                        Object::Patch(value) => put(project, value.id, value),
-                        Object::Controller(value) => put(project, value.id, value),
-                        Object::InputDevice(value) => put(project, value.id, value),
-                        Object::Sequence(value) => put(project, value.id, value),
-                        Object::Console(value) => put(project, value.id, *value),
+                        Object::Layout(id, value) => put(project, id, value),
+                        Object::Controller(id, value) => put(project, id, value),
+                        Object::InputDevice(id, value) => put(project, id, value),
+                        Object::Sequence(id, value) => put(project, id, value),
+                        Object::Console(id, value) => put(project, id, *value),
                         Object::FixtureDefinition(id, value) => put(project, id, value),
                         Object::Curve(id, value) => put(project, id, value),
                         Object::Gradient(id, value) => put(project, id, value),
-                        Object::EffectDefinition(value) => put(project, *value.id(), value),
-                        Object::OperatorDefinition(value) => put(project, *value.id(), value),
+                        Object::Script(id, value) => put(project, id, value),
                     },
-                    ProjectEdit::Remove(id) => {
-                        forget_member(project, id);
-                        match id {
-                            ObjectId::Project(_) => {
-                                return Err(EditRejection::ProjectRemoval);
-                            }
-                            ObjectId::Setup(id) => remove::<Setup>(project, id)?,
-                            ObjectId::Layout(id) => remove::<Layout>(project, id)?,
-                            ObjectId::Patch(id) => remove::<Patch>(project, id)?,
-                            ObjectId::Controller(id) => remove::<Controller>(project, id)?,
-                            ObjectId::InputDevice(id) => remove::<InputDevice>(project, id)?,
-                            ObjectId::Sequence(id) => remove::<Sequence>(project, id)?,
-                            ObjectId::Console(id) => remove::<Console>(project, id)?,
-                            ObjectId::FixtureDefinition(id) => {
-                                remove::<FixtureDefinition>(project, id)?
-                            }
-                            ObjectId::Curve(id) => remove::<CurveDefinition>(project, id)?,
-                            ObjectId::Gradient(id) => remove::<GradientDefinition>(project, id)?,
-                            ObjectId::EffectDefinition(id) => {
-                                remove::<EffectDefinition>(project, id)?
-                            }
-                            ObjectId::OperatorDefinition(id) => {
-                                remove::<OperatorDefinition>(project, id)?
-                            }
+                    ProjectEdit::Remove(id) => match id {
+                        ObjectId::Project(_) => {
+                            return Err(EditRejection::ProjectRemoval);
+                        }
+                        ObjectId::Layout(id) => remove::<Layout>(project, id)?,
+                        ObjectId::Controller(id) => remove::<Controller>(project, id)?,
+                        ObjectId::InputDevice(id) => remove::<InputDevice>(project, id)?,
+                        ObjectId::Sequence(id) => remove::<Sequence>(project, id)?,
+                        ObjectId::Console(id) => remove::<Console>(project, id)?,
+                        ObjectId::FixtureDefinition(id) => {
+                            remove::<FixtureDefinition>(project, id)?
+                        }
+                        ObjectId::Curve(id) => remove::<CurveDefinition>(project, id)?,
+                        ObjectId::Gradient(id) => remove::<GradientDefinition>(project, id)?,
+                        ObjectId::Script(id) => remove::<ScriptDefinition>(project, id)?,
+                    },
+                    ProjectEdit::PutMember(site, value) => project.put_member(&site, value)?,
+                    ProjectEdit::RemoveMember(site) => {
+                        if !project.remove_at(&site) {
+                            return Err(EditRejection::MissingMember);
                         }
                     }
                 }

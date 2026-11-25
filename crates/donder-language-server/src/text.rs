@@ -55,7 +55,7 @@ impl LineIndex {
 }
 
 /// The `file:` URI of an absolute path.
-pub fn file_uri(path: &Utf8Path) -> Option<String> {
+pub(crate) fn file_uri(path: &Utf8Path) -> Option<String> {
     Url::from_file_path(path).ok().map(String::from)
 }
 

@@ -3,7 +3,7 @@
 use crate::address::DocumentId;
 use camino::Utf8PathBuf;
 use donder_language::compiler::TextSpan;
-use donder_language::data::{DataImport, DataValue, Spanned};
+use donder_language::data::{DataImport, Spanned};
 use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
 use indexmap::IndexSet;
@@ -22,12 +22,6 @@ pub struct Inclusion {
     /// without a name clash, or a new one.
     #[specta(type = String)]
     alias: Identifier,
-    /// The sequences the document declares, added to the project's `sequences`.
-    #[specta(type = Vec<String>)]
-    sequences: Vec<Identifier>,
-    /// The consoles the document declares, added to the project's `consoles`.
-    #[specta(type = Vec<String>)]
-    consoles: Vec<Identifier>,
 }
 
 /// An inclusion as text: names read back must be valid identifiers.
@@ -36,19 +30,13 @@ pub struct Inclusion {
 struct InclusionText {
     document: Utf8PathBuf,
     alias: String,
-    sequences: Vec<String>,
-    consoles: Vec<String>,
 }
 
 impl serde::Serialize for Inclusion {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let names =
-            |names: &[Identifier]| names.iter().map(|name| name.as_str().to_string()).collect();
         InclusionText {
             document: self.document.clone(),
             alias: self.alias.as_str().to_string(),
-            sequences: names(&self.sequences),
-            consoles: names(&self.consoles),
         }
         .serialize(serializer)
     }
@@ -57,15 +45,10 @@ impl serde::Serialize for Inclusion {
 impl<'de> serde::Deserialize<'de> for Inclusion {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = InclusionText::deserialize(deserializer)?;
-        let name = |name: String| {
-            Identifier::new(name).map_err(|error| serde::de::Error::custom(format!("{error:?}")))
-        };
-        let names = |names: Vec<String>| names.into_iter().map(name).collect::<Result<_, _>>();
         Ok(Self {
             document: text.document,
-            alias: name(text.alias)?,
-            sequences: names(text.sequences)?,
-            consoles: names(text.consoles)?,
+            alias: Identifier::new(text.alias)
+                .map_err(|error| serde::de::Error::custom(format!("{error:?}")))?,
         })
     }
 }
@@ -89,35 +72,6 @@ pub fn include_document(root_text: &str, inclusion: &Inclusion) -> Result<String
             paths: vec![path],
         }),
     }
-    for (field, names) in [
-        ("sequences", &inclusion.sequences),
-        ("consoles", &inclusion.consoles),
-    ] {
-        if names.is_empty() {
-            continue;
-        }
-        let list = document
-            .declarations
-            .iter_mut()
-            .filter(|declaration| declaration.ty.value.as_str() == "Project")
-            .flat_map(|declaration| declaration.fields.value.iter_mut())
-            .find(|candidate| candidate.name.value.as_str() == field)
-            .map(|candidate| &mut candidate.value.value);
-        let Some(DataValue::List(items)) = list else {
-            return Err(format!(
-                "{PROJECT_ROOT_FILE} has no project `{field}` list."
-            ));
-        };
-        for name in names {
-            items.push(Spanned::new(
-                DataValue::Reference(vec![
-                    Spanned::new(inclusion.alias.clone(), nowhere),
-                    Spanned::new(name.clone(), nowhere),
-                ]),
-                nowhere,
-            ));
-        }
-    }
     Ok(donder_language::data::print(&document))
 }
 
@@ -127,17 +81,8 @@ fn alias_base(objects: &[RecoveryObject]) -> Option<&'static str> {
         .iter()
         .map(|object| &object.kind)
         .collect::<IndexSet<_>>();
-    if kinds.contains(&ObjectKind::Project) || kinds.contains(&ObjectKind::Setup) {
+    if kinds.contains(&ObjectKind::Project) {
         return None;
-    }
-    let script = |kind: &&ObjectKind| {
-        matches!(
-            kind,
-            ObjectKind::EffectDefinition | ObjectKind::OperatorDefinition
-        )
-    };
-    if kinds.len() > 1 && kinds.iter().all(script) {
-        return Some("scripts");
     }
     kinds.first().map(|kind| canonical_reference_alias(**kind))
 }
@@ -184,34 +129,16 @@ pub(crate) fn unreferenced_documents(
             continue;
         }
         let objects = &document.objects;
-        let is_setup = objects
-            .iter()
-            .any(|object| object.kind == ObjectKind::Setup);
-        let declared_of = |wanted: ObjectKind| {
-            objects
-                .iter()
-                .filter(|object| object.kind == wanted)
-                .map(|object| object.name.clone())
-                .collect()
-        };
         let fix = alias_base(objects)
             .and_then(|base| inclusion_alias(session, &root, base, objects))
             .map(|alias| {
                 IoFix::Include(Inclusion {
                     document: path.clone(),
                     alias,
-                    sequences: declared_of(ObjectKind::Sequence),
-                    consoles: declared_of(ObjectKind::Console),
                 })
             });
         diagnostics.push(IoDiagnostic {
             severity: IoDiagnosticSeverity::Warning,
-            detail: is_setup.then(|| {
-                format!(
-                    "A project has one setup; name this one in {PROJECT_ROOT_FILE}'s `setup` \
-                     to use it."
-                )
-            }),
             fix,
             ..IoDiagnostic::error(
                 path.clone(),

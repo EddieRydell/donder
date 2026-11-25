@@ -28,7 +28,7 @@ impl Cli {
 enum Command {
     /// Validate the project's local imports, definitions, targets, and assets.
     Check,
-    /// Render a sequence for every setup controller with an FSEQ channel into an FSEQ v2 file for FPP.
+    /// Render a sequence for every controller of the project with an FSEQ channel into an FSEQ v2 file for FPP.
     ExportFseq {
         /// The sequence's declared name.
         sequence: String,
@@ -56,7 +56,7 @@ enum Command {
         #[arg(long)]
         target: Vec<String>,
     },
-    /// Put a show's layout, controllers and patch in this new project, from
+    /// Put a show's layout, controllers and routes in this new project, from
     /// an xLights show folder or a Vixen profile folder.
     Import {
         profile: Utf8PathBuf,
@@ -71,7 +71,7 @@ enum Command {
     },
     /// Write the generated effect-language builtin reference.
     Builtins { output: Utf8PathBuf },
-    /// Stream test patterns to the setup's E1.31 and Art-Net controllers,
+    /// Stream test patterns to the project's E1.31 and Art-Net controllers,
     /// reading one per line from standard input until it ends.
     #[command(after_help = test::HELP)]
     Test,
@@ -204,13 +204,9 @@ fn find_sequence(
 ) -> Result<donder_model::SequenceId, String> {
     let sequences = session
         .project()
-        .root()
-        .sequences
-        .iter()
-        .map(|source| {
-            let id = *source.id();
-            (id, session.address_of(id).declared_name().to_string())
-        })
+        .reusable::<donder_model::Sequence>()
+        .keys()
+        .map(|&id| (id, session.address_of(id).object().to_string()))
         .collect::<Vec<_>>();
     sequences
         .iter()
@@ -255,40 +251,35 @@ fn export_fseq(
             donder_output::FseqStep::SMOOTH_MILLIS
         );
     }
-    let controllers = project.active_setup().controllers().collect::<Vec<_>>();
+    let controllers = project.controllers().collect::<Vec<_>>();
     let placed = controllers
         .iter()
         .filter(|controller| controller.fseq_channel().is_some())
         .map(|controller| controller.id())
         .collect::<Vec<_>>();
     if placed.is_empty() {
-        return Err("No setup controller has an FSEQ channel.".into());
+        return Err("No controller of the project has an FSEQ channel.".into());
     }
     let prepared = donder_elaboration::prepare(
         project,
         id,
         donder_elaboration::Retain::Controllers(&placed),
     )
-    .ok_or("The sequence cannot be played on the active setup.")?;
+    .ok_or("The sequence cannot be prepared.")?;
     let fseq_channel = donder_output::setup_fseq_channel(project);
     let mut labels = Vec::new();
     for prepared_output in prepared.outputs() {
         let Some(controller) = controllers.get(prepared_output.controller_index as usize) else {
-            unreachable!("the show was prepared on the active setup's controllers");
+            unreachable!("the show was prepared on the project's controllers");
         };
         let output = controller.output_label(controller.runtime_output(prepared_output.port));
         let first = fseq_channel(prepared_output)
             .ok_or("A controller has no FSEQ channel.")?
             .get();
-        let address = session.address_of(controller.id);
+        let address = session.address_of(controller.id());
         labels.push((
             first,
-            format!(
-                "{}#{} / {}",
-                address.document(),
-                address.declared_name(),
-                output
-            ),
+            format!("{}#{} / {}", address.document(), address.object(), output),
             prepared_output.width,
         ));
     }

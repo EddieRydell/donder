@@ -1,13 +1,14 @@
 //! Runtime output encodings and channel placements admitted with their
-//! authored patch and route IDs.
+//! authored route IDs.
 use super::DonderProject;
-use crate::patch::{PatchId, PixelRouteId, RoutePlacement};
+use crate::patch::{PixelRouteId, RoutePlacement};
 use crate::validation::{AdmissionProblem, ProjectValidationError, ValidationProblem, at};
 use donder_runtime_types::OutputEncoding;
 use indexmap::IndexMap;
 use std::fmt;
 
-pub(super) struct AdmittedPatch {
+#[derive(Default)]
+pub(super) struct AdmittedRoutes {
     pub(super) routes: IndexMap<PixelRouteId, PlaybackRoute>,
 }
 
@@ -17,47 +18,40 @@ pub struct PlaybackRoute {
     pub placement: RoutePlacement,
 }
 
-impl fmt::Debug for AdmittedPatch {
+impl fmt::Debug for AdmittedRoutes {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("AdmittedPatch")
+            .debug_struct("AdmittedRoutes")
             .field("route_count", &self.routes.len())
             .finish()
     }
 }
 
-pub(super) fn admit(
-    project: &DonderProject,
-) -> Result<IndexMap<PatchId, AdmittedPatch>, ProjectValidationError> {
+pub(super) fn admit(project: &DonderProject) -> Result<AdmittedRoutes, ProjectValidationError> {
     let counts = project.fixture_pixel_counts();
-    project
-        .objects::<crate::Patch>()
-        .map(|patch| {
-            let mut placements = crate::patch::patch_placements(project, patch, &counts);
-            let routes = patch
-                .routes
-                .iter()
-                .map(|route| {
-                    let Some(encoding) = OutputEncoding::admit(route.encoding) else {
-                        unreachable!("validation proved every route's color order");
-                    };
-                    let placement =
-                        placements
-                            .remove(&route.id)
-                            .ok_or(ValidationProblem::Admission(
-                                AdmissionProblem::UnplacedRoute(route.id),
-                            ))?;
-                    Ok((
-                        route.id,
-                        PlaybackRoute {
-                            encoding,
-                            placement,
-                        },
-                    ))
-                })
-                .collect::<Result<_, ValidationProblem>>()
-                .map_err(at(patch.id))?;
-            Ok((patch.id, AdmittedPatch { routes }))
+    let root = project.root();
+    let mut placements = crate::patch::route_placements(project, &root.routes, &counts);
+    let routes = root
+        .routes
+        .iter()
+        .map(|route| {
+            let Some(encoding) = OutputEncoding::admit(route.encoding) else {
+                unreachable!("validation proved every route's color order");
+            };
+            let placement = placements
+                .remove(&route.id)
+                .ok_or(ValidationProblem::Admission(
+                    AdmissionProblem::UnplacedRoute(route.id),
+                ))?;
+            Ok((
+                route.id,
+                PlaybackRoute {
+                    encoding,
+                    placement,
+                },
+            ))
         })
-        .collect()
+        .collect::<Result<_, ValidationProblem>>()
+        .map_err(at(root.id))?;
+    Ok(AdmittedRoutes { routes })
 }

@@ -1,15 +1,14 @@
 //! A show's playback workspace, carved from one buffer: the nodes' frame
-//! buffers, the one strip workspace programs run in, scan scratch frames, the
-//! automation scratch and a console's state. [`Layout`]
-//! counts every region once; [`Layout::size`] and [`carve`] walk them in the
-//! same order.
-use crate::format::{self, CrossingSegment, CurvePoint, NONE};
+//! buffers, the one strip workspace programs run in, scan scratch frames and a
+//! console's state. [`Layout`] counts every region once; [`Layout::size`]
+//! and [`carve`] walk them in the same order.
+use crate::format::NONE;
 use bytemuck::{Pod, Zeroable};
 use donder_runtime_types::{Color, SampleTime};
 
 use crate::arena::{Carve, Size};
-use crate::dsl::{Override, STRIP, Scratch, StripSlots, StripWorkspace, scratch_shape};
-use crate::resources::{LiveTrack, ResourceSlot, WindowState};
+use crate::dsl::{STRIP, StripSlots, StripWorkspace};
+use crate::resources::LiveTrack;
 use crate::view::Show;
 use core::cell::Cell;
 
@@ -44,14 +43,14 @@ impl Timing {
 }
 
 /// What a console's commands change: clip timing, each layer's start order,
-/// live automation values and live marks. Empty for a sequence, but for live
-/// marks.
+/// the live store and live marks. Empty for a sequence.
 pub(crate) struct ConsoleState<'w> {
     pub(crate) timing: &'w mut [Timing],
     pub(crate) layer_order: &'w mut [u32],
     pub(crate) layer_ends: &'w mut [u32],
-    /// One per automation binding of the show.
-    pub(crate) overrides: &'w mut [Override],
+    /// The live store: each live automation's value, integral base and the
+    /// seconds that base holds from, then the snapshots.
+    pub(crate) live: &'w mut [f32],
     pub(crate) live_tracks: &'w mut [LiveTrack],
     pub(crate) live_ticks: &'w mut [u32],
 }
@@ -72,7 +71,6 @@ pub(crate) struct Workspace<'w> {
     pub(crate) pixels: usize,
     pub(crate) outputs: &'w mut [u8],
     pub(crate) strip: StripWorkspace<'w>,
-    pub(crate) scratch: Scratch<'w>,
     pub(crate) gather: &'w mut [[u32; 2]],
     pub(crate) clip_colors: &'w mut [CachedClipColor],
     pub(crate) console: ConsoleState<'w>,
@@ -92,12 +90,11 @@ pub(crate) struct Layout {
     /// The most inputs a node reads.
     inputs: usize,
     slots: StripSlots,
-    scratch: [usize; 4],
     sample_count: usize,
     console: bool,
     clips: usize,
     layer_order: usize,
-    bindings: usize,
+    live_words: usize,
     collections: usize,
 }
 
@@ -112,22 +109,6 @@ impl Layout {
             slots.include(program);
             scans = scans.max(program.scans());
         }
-        let mut scratch = [0; 4];
-        let params_refs = s
-            .clips
-            .iter()
-            .map(|clip| (clip.automation, clip.params))
-            .chain(
-                s.nodes
-                    .iter()
-                    .filter(|node| node.kind == format::NODE_OPERATOR)
-                    .map(|node| (node.automation, node.params)),
-            );
-        for (plan, params) in params_refs {
-            for (total, need) in scratch.iter_mut().zip(scratch_shape(show, plan, params)) {
-                *total = (*total).max(need);
-            }
-        }
         let console = show.is_console();
         Self {
             pixels: show.pixel_count(),
@@ -141,7 +122,6 @@ impl Layout {
                 .max()
                 .unwrap_or(0),
             slots,
-            scratch,
             sample_count: s
                 .clips
                 .iter()
@@ -151,7 +131,7 @@ impl Layout {
             console,
             clips: if console { s.clips.len() } else { 0 },
             layer_order: if console { s.layer_order.len() } else { 0 },
-            bindings: if console { s.bindings.len() } else { 0 },
+            live_words: meta.live_words as usize,
             collections: meta.collections as usize,
         }
     }
@@ -194,43 +174,16 @@ impl Layout {
         size.values::<[u32; 2]>(self.inputs);
         size.values::<u8>(self.output_bytes);
         self.slots.size(&mut size);
-        scratch_size(&mut size, self.scratch);
         size.values::<[u32; 2]>(STRIP);
         size.values::<CachedClipColor>(self.sample_count);
         size.values::<Timing>(self.clips);
         size.values::<u32>(self.layer_order);
         size.values::<u32>(self.layer_order);
-        size.values::<Override>(self.bindings);
+        size.values::<f32>(self.live_words);
         size.values::<LiveTrack>(self.collections);
         size.values::<u32>(self.collections * LIVE_MARK_CAPACITY);
         size.values::<u32>(2);
         size.bytes
-    }
-}
-
-/// Bytes of an automation scratch of `shape`, from [`scratch_shape`].
-pub(crate) fn scratch_size(size: &mut Size, [words, resources, windows, points]: [usize; 4]) {
-    size.values::<u32>(words);
-    size.values::<ResourceSlot>(resources);
-    size.values::<WindowState>(windows);
-    size.values::<CurvePoint>(points);
-    size.values::<CrossingSegment>(points);
-    size.values::<f32>(points);
-    size.values::<f32>(points);
-}
-
-pub(crate) fn carve_scratch<'w>(
-    arena: &mut Carve<'w>,
-    [words, resources, windows, points]: [usize; 4],
-) -> Scratch<'w> {
-    Scratch {
-        words: arena.values(words, 0),
-        resources: arena.values(resources, ResourceSlot::default()),
-        windows: arena.values(windows, WindowState::default()),
-        points: arena.values(points, CurvePoint::default()),
-        crossings: arena.values(points, CrossingSegment::default()),
-        areas: arena.values(points, 0.0),
-        slopes: arena.values(points, 0.0),
     }
 }
 
@@ -257,13 +210,12 @@ pub(crate) fn carve<'w>(
     let input_frames = arena.values(layout.inputs, [0, 0]);
     let outputs = arena.values(layout.output_bytes, 0);
     let strip = layout.slots.carve(&mut arena);
-    let scratch = carve_scratch(&mut arena, layout.scratch);
     let gather = arena.values(STRIP, [0, 0]);
     let clip_colors = arena.values(layout.sample_count, CachedClipColor::default());
     let timing = arena.values(layout.clips, Timing::default());
     let layer_order = arena.values(layout.layer_order, 0);
     let layer_ends = arena.values(layout.layer_order, 0);
-    let overrides = arena.values(layout.bindings, Override::default());
+    let live = arena.values(layout.live_words, 0.0);
     let live_tracks = arena.values(layout.collections, LiveTrack::default());
     let live_ticks = arena.values(layout.collections * LIVE_MARK_CAPACITY, 0);
     let frame = arena.array(NONE);
@@ -282,6 +234,14 @@ pub(crate) fn carve<'w>(
             for layer in s.layers {
                 crate::evaluation::index_layer(layer, timing, layer_order, layer_ends);
             }
+            for automation in s.live_automations {
+                live[automation.word as usize] = automation.rest;
+            }
+            for snapshot in s.snapshots {
+                let start = timing[snapshot.clip as usize].start;
+                live[snapshot.word as usize] =
+                    crate::playback::live_integral(show, live, snapshot.automation, start);
+            }
         }
         for (index, track) in live_tracks.iter_mut().enumerate() {
             *track = LiveTrack {
@@ -299,14 +259,13 @@ pub(crate) fn carve<'w>(
         pixels,
         outputs,
         strip,
-        scratch,
         gather,
         clip_colors,
         console: ConsoleState {
             timing,
             layer_order,
             layer_ends,
-            overrides,
+            live,
             live_tracks,
             live_ticks,
         },

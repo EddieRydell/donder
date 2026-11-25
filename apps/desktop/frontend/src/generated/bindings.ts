@@ -58,23 +58,19 @@ export const commands = {
 } | null) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_device_network", { id, network })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	requestSequenceClipRasters: (request: SequenceClipRasterRequest) => __TAURI_INVOKE<SequenceClipRasterResponse>("request_sequence_clip_rasters", { request }),
 	takeSequenceClipRasterResults: (request: GuiDocumentRequest, sinceRevision: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, sinceRevision }),
-	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditUpdate>("apply_gui_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEdit) => __TAURI_INVOKE<GuiEditUpdate>("apply_gui_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	/**
 	 *  Apply the edit that waits for the person to confirm its changes to other
 	 *  objects.
 	 */
 	confirmGuiEdit: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditUpdate>("confirm_gui_edit", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
-	/**  Rename a member of the open project or setup, and its file to match. */
-	renameGuiMember: (request: GuiDocumentRequest, source: GuiObjectRef, name: string) => __TAURI_INVOKE<GuiEditUpdate>("rename_gui_member", { request, source, name }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
-	/**  Delete a member of the open project or setup once the person confirms. */
-	deleteGuiMember: (request: GuiDocumentRequest, source: GuiObjectRef) => __TAURI_INVOKE<GuiEditUpdate>("delete_gui_member", { request, source }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	/**
 	 *  What would refuse `edit` of the open object, a draft form's edit; none
 	 *  when it would be accepted. Nothing changes.
 	 */
-	checkGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<{
+	checkGuiEdit: (request: GuiDocumentRequest, edit: GuiEdit) => __TAURI_INVOKE<{
 	message: string,
-	site: GuiProblemSite | null,
+	site: GuiSite | null,
 } | null>("check_gui_edit", { request, edit }),
 	finishCompositionGraphEditing: () => __TAURI_INVOKE<AppSnapshot>("finish_composition_graph_editing").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	copySequenceSelection: (request: GuiDocumentRequest, selection: SequenceSelection) => __TAURI_INVOKE<GuiEditUpdate>("copy_sequence_selection", { request, selection }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
@@ -251,7 +247,12 @@ export type CloseRequested = null;
 export type CommandId = AppCommandId | EditorCommandId;
 
 /**  Edits to the layers and composition graph that sequences and consoles share. */
-export type CompositionGuiEdit = { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: number[]; layerIds: number[]; edges: SequenceGraphEdge[] } | { type: "connectGraphNodes"; connection: SequenceGraphEdge } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: number; name: string; value: SequenceParamValue };
+export type CompositionGuiEdit = 
+/**
+ *  Each name becomes a unique `snake_case` name; the edit reports the
+ *  names made, in order. A console's collections start empty.
+ */
+{ type: "addMarkCollections"; collections: NewMarkCollection[] } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: number[]; layerIds: number[]; edges: SequenceGraphEdge[] } | { type: "connectGraphNodes"; connection: SequenceGraphEdge } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge };
 
 export type ConsoleAction = 
 /**  Play a copy of a clip for its length, on top of the copies playing. */
@@ -261,43 +262,13 @@ export type ConsoleAction =
  *  `length_seconds`.
  */
 { type: "start"; clipId: number; lengthSeconds: number } | { type: "stop"; clipId: number } | { type: "toggle"; clipId: number; lengthSeconds: number } | 
-/**  Add a mark to the live mark collection `into`. */
-{ type: "mark"; into: string } | 
+/**  Add a mark to the live mark collection `into`, by id. */
+{ type: "mark"; into: number } | 
 /**
  *  Write the event's value into a parameter: an axis's position, a
  *  press's velocity, or 0 for a release.
  */
 { type: "set"; target: SequenceAutomationTarget; window: GuiWindow };
-
-/**  A clip a console plays: a sequence clip without timing. */
-export type ConsoleClip = {
-	id: number,
-	name: string,
-	description: string | null,
-	layerId: number,
-	target: FixtureTarget,
-	targetLabel: string,
-	scope: SequenceClipScope,
-	effect: SequenceEffectReference,
-	effectName: string,
-	/**
-	 *  None carries an `automation`: the console's `Set`s and the clip's
-	 *  `played` say what sets a parameter live.
-	 */
-	params: SequenceClipParam[],
-	/**  Parameters each copy takes from the press that started it. */
-	played: ConsolePlayedValue[],
-	/**  The length it repeats every when it plays from the session's start. */
-	alwaysLengthSeconds: number | null,
-};
-
-export type ConsoleClipEdit = { type: "layer"; layerId: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceClipScope } | 
-/**
- *  Play another effect; its required parameters start from
- *  `initial_color`, and the played values and `Set`s of the old effect's
- *  parameters go.
- */
-{ type: "definition"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; name: string; value: SequenceParamValue };
 
 export type ConsoleControlRef = {
 	device: GuiObjectRef,
@@ -311,21 +282,22 @@ export type ConsoleEventKind =
 "move";
 
 export type ConsoleGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	sourceRef: GuiObjectRef,
-	/**  The declared name, or the name the console is stored under. */
+	/**  The declared name. */
 	name: string,
 	/**
 	 *  The console's position among the project's consoles, which Perform
-	 *  starts it by; `None` when the project does not list it.
+	 *  starts it by.
 	 */
-	performIndex: number | null,
+	performIndex: number,
 	frameRate: number,
-	liveMarks: ConsoleLiveMarks[],
+	/**  Each starts empty every session; `Mark` actions add to it. */
+	markCollections: SequenceMarkCollection[],
 	layers: SequenceLayer[],
 	compositionGraph: SequenceCompositionGraph,
-	clips: ConsoleClip[],
+	clips: GuiClip[],
 	/**  The clips that play for the whole session, by id. */
 	always: number[],
 	events: ConsoleOn[],
@@ -334,7 +306,7 @@ export type ConsoleGuiDocument = {
 	effectDefinitions: SequenceEffectDefinition[],
 	curveLibrary: SequenceCurveLibraryItem[],
 	gradientLibrary: SequenceGradientLibraryItem[],
-	/**  The active setup's input devices, which the console's events choose from. */
+	/**  The project's input devices, which the console's events choose from. */
 	inputDevices: ConsoleInputDevice[],
 	/**  The most copies of a clip `Play` actions play at once. */
 	maxCopies: number,
@@ -357,37 +329,16 @@ export type ConsoleGuiEdit =
  *  Link a parameter to what sets it live, or to nothing; whatever set it
  *  before lets go. The value reaches the parameter through `window`.
  */
-{ type: "controlParam"; target: SequenceAutomationTarget; source: ConsoleParamSource | null; window: GuiWindow } | 
-/**
- *  Remove an action. An effect nothing plays or holds then goes with it,
- *  and so does an event with no actions left. A removed `Set` takes the
- *  other `Set`s of its parameter with it.
- */
-{ type: "removeAction"; on: number; index: number } | { type: "setFrameRate"; frameRate: number } | { type: "composition"; edit: CompositionGuiEdit } | 
-/**  The name becomes a unique `snake_case` name. */
-{ type: "addLiveMarks"; name: string; color: string } | 
+{ type: "controlParam"; target: SequenceAutomationTarget; source: ConsoleParamSource | null; window: GuiWindow } | { type: "composition"; edit: CompositionGuiEdit } | 
 /**
  *  A new clip on the first layer over the whole target, named after its
  *  effect.
  */
-{ type: "addClip"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget } | { type: "editClip"; id: number; edit: ConsoleClipEdit } | 
-/**
- *  Play a clip from the session's start, repeating every
- *  `length_seconds`, or no longer when `None`.
- */
-{ type: "setAlways"; clipId: number; lengthSeconds: number | null } | 
-/**  A new event with no actions. */
-{ type: "addEvent"; event: ConsoleEventKind; input: ConsoleControlRef } | 
-/**
- *  Change what an event answers. Actions a move cannot run go: all but
- *  `Set`.
- */
-{ type: "setEvent"; id: number; event: ConsoleEventKind; input: ConsoleControlRef } | { type: "setActions"; id: number; actions: ConsoleAction[] };
+{ type: "addClip"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget };
 
 /**  A control an event reads, with the names the console's text uses. */
 export type ConsoleInput = {
 	control: ConsoleControlRef,
-	deviceName: string,
 	controlName: string,
 };
 
@@ -412,13 +363,6 @@ export type ConsoleLengthSource =
 { type: "velocity" } | 
 /**  An axis's position; an axis not yet moved reads 0. */
 { type: "axis"; control: ConsoleControlRef };
-
-export type ConsoleLiveMarks = {
-	/**  The collection's name; marks parameters and `Mark` actions refer to it. */
-	key: string,
-	description: string | null,
-	color: string,
-};
 
 /**  What an input event does. */
 export type ConsoleOn = {
@@ -468,7 +412,7 @@ export type ConsolePlayedValue = {
 };
 
 export type ControllerGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
@@ -476,7 +420,7 @@ export type ControllerGuiDocument = {
 };
 
 export type CurveGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
@@ -549,7 +493,7 @@ export type DocumentUpdate = {
 
 export type DonderDeviceConnection = 
 /**
- *  Not connected: no controller in the open setup uses this device, or
+ *  Not connected: no controller in the project uses this device, or
  *  live output is off.
  */
 { state: "unused" } | 
@@ -610,7 +554,7 @@ export type ExportProgress =
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
 
 export type FixtureGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	name: string,
 	path: string,
@@ -620,13 +564,13 @@ export type FixtureGuiDocument = {
 	handles: GuiFixtureHandle[],
 	renderPlan: SpatialRenderPlan,
 	/**
-	 *  The setup's E1.31 and Art-Net controllers, which can play the
+	 *  The project's E1.31 and Art-Net controllers, which can play the
 	 *  capture pattern.
 	 */
 	captureControllers: GuiCaptureController[],
 };
 
-export type FixtureGuiEdit = { type: "setElements"; elements: GuiFixtureElement[] } | { type: "moveElement"; id: number; delta: Point3Meters } | { type: "moveHandle"; id: number; index: number; position: Point3Meters } | { type: "convertToPixels"; id: number };
+export type FixtureGuiEdit = { type: "setElements"; elements: GuiFixtureElement[] } | { type: "moveHandle"; id: number; index: number; position: Point3Meters } | { type: "convertToPixels"; id: number };
 
 export type FixtureTarget = {
 	fixture: number,
@@ -640,7 +584,7 @@ export type GeometryRenderBounds = {
 };
 
 export type GradientGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
@@ -656,6 +600,26 @@ export type GuiCaptureController = {
 
 /**  Where a route's channels land, as people count, from 1. */
 export type GuiChannelPlace = { type: "universes"; firstUniverse: number; firstChannel: number; lastUniverse: number; lastChannel: number } | { type: "port"; port: string; first: number; last: number };
+
+export type GuiClip = {
+	id: number,
+	/**  The clip's name, which envelopes and actions use. */
+	name: string,
+	description: string | null,
+	/**  What it plays over; an envelope's row. */
+	target: FixtureTarget,
+	targetLabel: string,
+	placement: GuiPlacement,
+	content: GuiClipContent,
+	/**
+	 *  The length a console clip repeats every when it plays from the
+	 *  session's start.
+	 */
+	alwaysLengthSeconds: number | null,
+};
+
+/**  What a clip plays: an effect on a layer, or an envelope. */
+export type GuiClipContent = { type: "effect"; layerId: number; scope: SequenceClipScope; effect: SequenceEffectReference; effectName: string } | { type: "envelope"; curve: SequenceCurvePoint[]; bindings: SequenceAutomationBinding[] };
 
 /**
  *  What a control reads. A keyboard reads keys; MIDI buttons read a range of
@@ -679,7 +643,7 @@ export type GuiControlInput =
 /**  An OSC address whose first argument runs from `low` to `high`. */
 { type: "addressRange"; path: string; low: number; high: number };
 
-export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "console"; document: ConsoleGuiDocument } | { type: "blocked"; reason: string; diagnostics: IoDiagnostic[] };
+export type GuiDocument = { type: "project"; document: ProjectGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "inputDevice"; document: InputDeviceGuiDocument } | { type: "console"; document: ConsoleGuiDocument } | { type: "blocked"; reason: string; diagnostics: IoDiagnostic[] };
 
 /**
  *  How an edit changed the open GUI document, relative to the document at the
@@ -703,12 +667,8 @@ export type GuiDocumentChange =
  */
 { type: "needsConfirmation"; changes: string[] };
 
-/**
- *  An object a GUI editor opens: a declared object, or an object owned beneath
- *  one. The object's kind picks the editor.
- */
+/**  An object a GUI editor opens. The object's kind picks the editor. */
 export type GuiDocumentRequest = {
-	ownedPath: OwnedObjectSlot[],
 	projectRevision: number,
 	path: string,
 	objectKey: string,
@@ -720,49 +680,29 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; gradient: SequenceGradient } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | { type: "console"; edit: ConsoleGuiEdit } | { type: "project"; edit: ProjectGuiEdit } | 
+export type GuiEdit = 
 /**
- *  The name becomes a `snake_case` name, which the edit reports; renaming
- *  marks renames every parameter and action that names them.
+ *  Write `value` at each of `sites`: one field of several members edits
+ *  them together.
  */
-{ type: "rename"; item: GuiItem; name: string } | 
-/**  Empty text removes the description. */
-{ type: "setDescription"; item: GuiItem; description: string | null } | { type: "setColor"; item: GuiItem; color: string } | 
-/**  Parameters that named deleted marks keep working with no marks. */
-{ type: "delete"; item: GuiItem };
+{ type: "put"; sites: GuiSite[]; value: GuiValue } | 
+/**
+ *  Remove the object or member at `site`, or the part of a member its
+ *  field names; what named it gives way.
+ */
+{ type: "remove"; site: GuiSite } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "console"; edit: ConsoleGuiEdit } | { type: "project"; edit: ProjectGuiEdit };
 
 export type GuiEditUpdate = {
 	snapshot: AppSnapshot,
 	change: GuiDocumentChange,
 	/**  The sequence selection a selection edit leaves; `None` clears it. */
 	selection: SequenceSelection | null,
-	/**  The items a copy, cut or paste took, and those it could not. */
-	copiedCount: number,
-	skippedCount: number,
 	/**  The names or keys of the items the edit created, in order. */
 	created: string[],
 };
 
-/**  A field of an editor, as its member names it. */
-export type GuiField = { type: "name" } | { type: "description" } | { type: "color" } | { type: "start" } | { type: "duration" } | { type: "frameRate" } | { type: "layer" } | { type: "target" } | { type: "scope" } | { type: "effect" } | { type: "param"; name: string } | 
-/**  A value each copy of a console clip takes from its press. */
-{ type: "playedValue"; name: string } | 
-/**  The control an event reads, or what a control reads. */
-{ type: "input" } | { type: "copies" } | { type: "length" } | { type: "layout" } | { type: "fixture" } | { type: "pixels" } | { type: "controller" } | 
-/**  A route's controller port, or the port an input device reads. */
-{ type: "port" } | { type: "firstChannel" } | { type: "colorOrder" } | { type: "gamma" } | { type: "brightness" } | { type: "destination" } | { type: "interface" } | { type: "senderName" } | { type: "priority" } | { type: "universeStart" } | { type: "universeCount" } | { type: "universeChannels" } | 
-/**  Where FSEQ files place a controller's first channel. */
-{ type: "fseqChannel" } | { type: "device" } | 
-/**  A controller port's channels. */
-{ type: "channels" } | 
-/**  A layout item's position, rotation and scale. */
-{ type: "placement" } | 
-/**  A fixture definition the layout places. */
-{ type: "definition" } | 
-/**  A curve's or gradient's points. */
-{ type: "points" } | 
-/**  The declaration an owned object is replaced with. */
-{ type: "declaration" };
+/**  A field of a member or of the open object; see [`donder_model::Field`]. */
+export type GuiField = { type: "name" } | { type: "description" } | { type: "color" } | { type: "start" } | { type: "duration" } | { type: "frameRate" } | { type: "layer" } | { type: "target" } | { type: "scope" } | { type: "definition" } | { type: "param"; name: string } | { type: "played"; name: string } | { type: "binding"; target: SequenceAutomationTarget } | { type: "set"; name: string } | { type: "always" } | { type: "input" } | { type: "copies" } | { type: "length" } | { type: "pixels" } | { type: "firstChannel" } | { type: "colorOrder" } | { type: "gamma" } | { type: "brightness" } | { type: "destination" } | { type: "interface" } | { type: "senderName" } | { type: "priority" } | { type: "universeStart" } | { type: "universeCount" } | { type: "universeChannels" } | { type: "fseqChannel" } | { type: "device" } | { type: "channels" } | { type: "placement" } | { type: "points" } | { type: "controller" } | { type: "port" } | { type: "audio" };
 
 /**  Shapes measured from a video of a fixture's pixels. */
 export type GuiFixtureCapture = {
@@ -829,15 +769,6 @@ export type GuiInputLimits = {
 	maxChannel: number,
 };
 
-/**
- *  A part of the open object a generic edit names: the object itself, or one
- *  of its clips, mark collections (a console's live marks), layers, graph nodes,
- *  or a console's live automations and events.
- */
-export type GuiItem = { type: "object" } | { type: "clip"; id: number } | { type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: number } | 
-/**  Events have no name or description; they are only deleted. */
-{ type: "event"; id: number };
-
 export type GuiLayoutFixture = {
 	id: number,
 	name: string,
@@ -845,25 +776,33 @@ export type GuiLayoutFixture = {
 	kind: GuiLayoutFixtureKind,
 };
 
-export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiOwnedFixture; transform: Transform } | 
+export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiObjectRef; transform: Transform } | 
 /**  Members may belong to several groups. */
 { type: "group"; members: GuiGroupMember[] };
 
-/**  The open object, or a member of it a problem concerns. */
-export type GuiMember = { type: "object" } | 
-/**  A sequence's or console's clip. */
-{ type: "clip"; id: number } | { type: "automationClip"; id: number } | 
+/**
+ *  A mark of a collection; a zero duration is instantaneous and a blank
+ *  label none.
+ */
+export type GuiMark = {
+	timeSeconds: number,
+	durationSeconds: number,
+	label: string | null,
+};
+
+/**
+ *  A member of the open object, by id. A sequence's and a console's clips
+ *  are both `Clip`: the open object tells them apart.
+ */
+export type GuiMember = { type: "layer"; id: number } | { type: "clip"; id: number } | 
 /**  A sequence's mark collection, or a console's live marks. */
-{ type: "markCollection"; key: string } | { type: "layer"; id: number } | { type: "graphNode"; nodeId: number } | { type: "event"; id: number } | { type: "control"; id: number } | { type: "port"; id: number } | { type: "layoutItem"; id: number } | { type: "route"; id: number } | { type: "shape"; id: number };
+{ type: "marks"; id: number } | { type: "node"; id: number } | { type: "event"; id: number } | { type: "control"; id: number } | { type: "port"; id: number } | { type: "route"; id: number } | { type: "layoutItem"; id: number } | { type: "shape"; id: number };
 
 export type GuiObjectRef = {
-	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	kind: ObjectKind,
 };
-
-export type GuiOwnedFixture = { type: "inline"; elements: GuiFixtureElement[] } | { type: "reference"; object: GuiObjectRef };
 
 export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] } | 
 /**  One channel per color, each a `#rrggbb` color it lights. */
@@ -871,7 +810,7 @@ export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } 
 
 export type GuiPixelRoute = {
 	id: number,
-	layout: GuiObjectRef,
+	/**  A fixture of the project's layout. */
 	fixture: number,
 	pixels: GuiPixelSpan | null,
 	/**  Sends the pixels last first. */
@@ -892,21 +831,18 @@ export type GuiPixelSpan = {
 };
 
 /**
+ *  When a clip plays: at a time, or when a console's actions play it, each
+ *  copy taking `values` from the press that started it.
+ */
+export type GuiPlacement = { type: "timed"; startSeconds: number; durationSeconds: number } | { type: "played"; values: ConsolePlayedValue[] };
+
+/**
  *  Why an edit, or a draft of one, of the open object is refused: the plain
- *  message, and the field it concerns when the editor shows one.
+ *  message, and the site it concerns when the editor shows one.
  */
 export type GuiProblem = {
 	message: string,
-	site: GuiProblemSite | null,
-};
-
-/**
- *  A field of the open object, or of one of its members; no field for the
- *  member as a whole.
- */
-export type GuiProblemSite = {
-	member: GuiMember,
-	field: GuiField | null,
+	site: GuiSite | null,
 };
 
 export type GuiRoutePlacement = {
@@ -924,6 +860,17 @@ export type GuiRouteStart =
  */
 { type: "channel"; channel: number };
 
+/**
+ *  A place in a project: the model's [`donder_model::Site`]. No object is the
+ *  open object, no member the object itself, and no field the member or
+ *  object as a whole.
+ */
+export type GuiSite = {
+	object: GuiObjectRef | null,
+	member: GuiMember | null,
+	field: GuiField | null,
+};
+
 /**  An E1.31 or Art-Net controller's consecutive universes. */
 export type GuiUniverses = {
 	/**  An E1.31 universe, or an Art-Net 15-bit port-address. */
@@ -932,6 +879,33 @@ export type GuiUniverses = {
 	/**  Channels per universe. */
 	channels: number,
 };
+
+/**  A value a [`GuiEdit::Put`] writes; the site's field says what it is. */
+export type GuiValue = 
+/**  A name, which becomes a `snake_case` name the edit reports, or a color. */
+{ type: "text"; text: string } | 
+/**  A description, where empty text is none, or a sequence's audio file. */
+{ type: "optionalText"; text: string | null } | { type: "seconds"; seconds: number } | 
+/**
+ *  How long a console clip that plays for the whole session repeats;
+ *  none when it does not.
+ */
+{ type: "optionalSeconds"; seconds: number | null } | 
+/**  A frame rate. */
+{ type: "count"; count: number } | 
+/**  A clip's layer. */
+{ type: "id"; id: number } | { type: "target"; target: FixtureTarget } | { type: "scope"; scope: SequenceClipScope } | 
+/**
+ *  The effect a clip plays; its required parameters start from
+ *  `initial_color`.
+ */
+{ type: "effect"; initialColor: string; effect: SequenceEffectReference } | { type: "param"; value: SequenceParamValue } | 
+/**  The part of an envelope a binding uses. */
+{ type: "window"; window: GuiWindow } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; gradient: SequenceGradient } | { type: "marks"; marks: GuiMark[] } | 
+/**  An event's actions. */
+{ type: "actions"; actions: ConsoleAction[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "inputDevice"; driver: GuiInputDriver; controls: GuiInputControl[] } | 
+/**  The project's routes from fixtures to controllers. */
+{ type: "routes"; routes: GuiPixelRoute[] };
 
 /**
  *  The part of a normalized `0..1` value a binding uses, as fractions: 0 lands
@@ -950,14 +924,10 @@ export type Inclusion = {
 	 *  without a name clash, or a new one.
 	 */
 	alias: string,
-	/**  The sequences the document declares, added to the project's `sequences`. */
-	sequences: string[],
-	/**  The consoles the document declares, added to the project's `consoles`. */
-	consoles: string[],
 };
 
 export type InputDeviceGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
@@ -1012,7 +982,7 @@ export type LanguageServerMessage = {
 };
 
 export type LayoutGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	path: string,
 	sourceRef: GuiObjectRef,
@@ -1031,7 +1001,7 @@ export type LayoutGuiEdit =
 /**  List an item in another group as well. */
 { type: "addMember"; id: number; to: number | null; before: number | null } | { type: "removeMember"; id: number; from: number | null } | 
 /**  Delete fixtures and groups everywhere. */
-{ type: "removeItems"; ids: number[] } | { type: "duplicateFixture"; id: number } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[]; root: number[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
+{ type: "removeItems"; ids: number[] } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[]; root: number[] };
 
 /**
  *  What a device sent while an input was being learned: the kind of control it
@@ -1070,13 +1040,20 @@ export type LiveOutputSnapshot = {
 
 export type LiveOutputState = "disabled" | "preparing" | "holding" | "streaming" | "testing" | "stopping" | "error";
 
+/**  What a new clip plays. */
+export type NewClipContent = 
+/**  An effect on the first layer, named after it. */
+{ type: "effect"; initialColor: string; effect: SequenceEffectReference; scope: SequenceClipScope } | 
+/**  An envelope that binds nothing yet. */
+{ type: "envelope" };
+
 export type NewMarkCollection = {
 	name: string,
 	color: string,
 	marksSeconds: number[],
 };
 
-export type ObjectKind = "project" | "setup" | "controller" | "inputDevice" | "layout" | "fixture" | "patch" | "sequence" | "console" | "curve" | "gradient" | "effect" | "operator";
+export type ObjectKind = "project" | "controller" | "inputDevice" | "layout" | "fixture" | "sequence" | "console" | "curve" | "gradient" | "script";
 
 export type OutputTestPattern = { type: "solid"; red: number; green: number; blue: number } | { type: "count" } | { type: "order" } | { type: "chase" } | { type: "rise" };
 
@@ -1086,13 +1063,8 @@ export type OutputTestTarget =
 { type: "channels"; startChannel: number; channelCount: number } | 
 /**  The open layout's fixture, or a group's fixtures. */
 { type: "layoutItem"; item: number } | 
-/**  One of the open patch's routes. */
+/**  One of the project's routes. */
 { type: "route"; route: number };
-
-/**  A stable ownership slot: owned members are named, never addressed by position. */
-export type OwnedObjectSlot = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
-/**  Owned controllers, input devices, sequences and consoles are named. */
-{ type: "controller"; name: string } | { type: "inputDevice"; name: string } | { type: "sequence"; name: string } | { type: "console"; name: string } | { type: "fixture"; id: number };
 
 export type PatchFixtureTarget = {
 	id: number,
@@ -1101,20 +1073,12 @@ export type PatchFixtureTarget = {
 };
 
 export type PatchGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
-	description: string | null,
-	path: string,
-	objectKey: string,
 	routes: GuiPixelRoute[],
 	/**  Where each valid route's channels land. */
 	placements: GuiRoutePlacement[],
-	layouts: PatchLayout[],
-	controllers: SetupController[],
-};
-
-export type PatchLayout = {
-	sourceRef: GuiObjectRef,
+	/**  The fixtures of the project's layout, which routes target. */
 	fixtures: PatchFixtureTarget[],
+	controllers: SetupController[],
 };
 
 export type PerformButton = {
@@ -1191,7 +1155,6 @@ export type PersistedGraphViewState = {
 };
 
 export type PersistedGraphViewStateUpdate = {
-	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	state: PersistedGraphViewState,
@@ -1218,7 +1181,6 @@ export type PersistedSequenceViewportState = {
 };
 
 export type PersistedSequenceViewportStateUpdate = {
-	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	state: PersistedSequenceViewportState,
@@ -1229,7 +1191,6 @@ export type PersistedSpatialViewState = {
 };
 
 export type PersistedSpatialViewStateUpdate = {
-	ownedPath: OwnedObjectSlot[],
 	path: string,
 	objectKey: string,
 	state: PersistedSpatialViewState,
@@ -1272,16 +1233,26 @@ export type PreviewWindowChanged = {
 };
 
 export type ProjectGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	path: string,
 	objectKey: string,
-	setup: GuiObjectRef,
 	sequences: GuiObjectRef[],
 	consoles: GuiObjectRef[],
 	/**  The names a new sequence and console are offered. */
 	newSequenceName: string,
 	newConsoleName: string,
+	layoutRef: GuiObjectRef,
+	/**  How the layout's fixtures are wired to the controllers. */
+	outputs: PatchGuiDocument,
+	controllers: SetupController[],
+	inputDevices: SetupInputDevice[],
+	/**  Every key a new input device's control can read, in the language's order. */
+	keyCodes: string[],
+	inputLimits: GuiInputLimits,
+	/**  The names a new controller and input device are offered. */
+	newControllerName: string,
+	newInputDeviceName: string,
 };
 
 export type ProjectGuiEdit = 
@@ -1294,7 +1265,11 @@ export type ProjectGuiEdit =
  *  A new console of the project in a file of its own named `name`, with
  *  the default layer drawn to the output.
  */
-{ type: "addConsole"; initialColor: string; name: string };
+{ type: "addConsole"; initialColor: string; name: string } | { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[]; 
+/**  The name of the controller and of its file. */
+name: string } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[]; 
+/**  The name of the device and of its file. */
+name: string };
 
 export type ProjectHealth = "closed" | "ready" | "checking" | "invalid";
 
@@ -1344,7 +1319,6 @@ export type Scale3 = {
 export type SequenceAudio = {
 	import: string,
 	resolvedPath: string,
-	fileName: string,
 	exists: boolean,
 };
 
@@ -1353,17 +1327,7 @@ export type SequenceAutomationBinding = {
 	window: GuiWindow,
 };
 
-export type SequenceAutomationClip = {
-	id: number,
-	startSeconds: number,
-	durationSeconds: number,
-	rowTarget: FixtureTarget,
-	curve: SequenceCurvePoint[],
-	bindings: SequenceAutomationBinding[],
-	detachedBindings: SequenceDetachedAutomationBinding[],
-};
-
-/**  How a resize treats an automation clip's curve. */
+/**  How a resize treats an envelope's curve. */
 export type SequenceAutomationResize = 
 /**  The edge moves over fixed content. */
 "crop" | 
@@ -1378,55 +1342,40 @@ export type SequenceBeatDetection = {
 	downbeatsSeconds: number[],
 };
 
-export type SequenceClip = {
-	index: number,
-	id: number,
-	/**  The clip's name, which automation bindings use. */
-	name: string,
-	description: string | null,
-	layerId: number,
-	startSeconds: number,
-	durationSeconds: number,
-	target: FixtureTarget,
-	targetLabel: string,
-	scope: SequenceClipScope,
-	effect: string,
-};
-
 /**
  *  How "Align" and "Arrange" retime selected clips. A reference clip keeps
- *  its timing; resized automation clips crop their curves. A row is one lane's
- *  clips or one lane's automation clips.
+ *  its timing; resized envelopes crop their curves. A row is one lane's
+ *  effect clips or one lane's envelopes.
  */
 export type SequenceClipArrangement = 
 /**  Starts move to the reference's start; ends stay. */
-{ type: "alignStarts"; reference: SequenceClipRef } | 
+{ type: "alignStarts"; reference: number } | 
 /**  Ends move to the reference's end; starts stay. */
-{ type: "alignEnds"; reference: SequenceClipRef } | 
+{ type: "alignEnds"; reference: number } | 
 /**  Clips move, keeping their length, to start with the reference. */
-{ type: "moveStarts"; reference: SequenceClipRef } | 
+{ type: "moveStarts"; reference: number } | 
 /**  Clips move, keeping their length, to end with the reference. */
-{ type: "moveEnds"; reference: SequenceClipRef } | 
+{ type: "moveEnds"; reference: number } | 
 /**  Clips take the reference's start and end. */
-{ type: "alignBoth"; reference: SequenceClipRef } | 
+{ type: "alignBoth"; reference: number } | 
 /**  Clips move, keeping their length, to share the reference's midpoint. */
-{ type: "alignCenters"; reference: SequenceClipRef } | 
+{ type: "alignCenters"; reference: number } | 
 /**  Clips keep their start and take the reference's length. */
-{ type: "matchDuration"; reference: SequenceClipRef } | 
+{ type: "matchDuration"; reference: number } | 
 /**  Clips move, keeping their length, to start where the reference ends. */
-{ type: "startAfter"; reference: SequenceClipRef } | 
+{ type: "startAfter"; reference: number } | 
 /**  Clips move, keeping their length, to end where the reference starts. */
-{ type: "endBefore"; reference: SequenceClipRef } | 
+{ type: "endBefore"; reference: number } | 
 /**
  *  Each start moves to the nearest mark of `mark_collections` and each end
  *  to the nearest later one; with no later mark, the clip keeps its length.
  */
-{ type: "quantizeToMarks"; markCollections: string[] } | 
+{ type: "quantizeToMarks"; markCollections: number[] } | 
 /**
  *  Each start moves back and each end forward to the nearest mark of
  *  `mark_collections`; an edge with no mark beyond it stays.
  */
-{ type: "stretchToMarks"; markCollections: string[] } | 
+{ type: "stretchToMarks"; markCollections: number[] } | 
 /**  Each end extends to the next clip's start in its row. */
 { type: "fillGaps" } | 
 /**
@@ -1446,8 +1395,6 @@ export type SequenceClipArrangement =
 { type: "cascade"; stepSeconds: number; reverse: boolean } | 
 /**  Clips keep their start and take the average length. */
 { type: "equalizeDurations" };
-
-export type SequenceClipCommonEdit = { type: "layer"; layerId: number } | { type: "scope"; scope: SequenceClipScope } | { type: "start"; startSeconds: number } | { type: "duration"; durationSeconds: number } | { type: "param"; name: string; value: SequenceParamValue };
 
 /**
  *  What the inspector edits on one clip, fetched for the selected clips only:
@@ -1474,7 +1421,7 @@ export type SequenceClipMatch = {
 	end: SequenceClipTimeMatch,
 	duration: SequenceClipTimeMatch,
 	sameLane: boolean,
-	automationClips: boolean,
+	envelopes: boolean,
 };
 
 /**
@@ -1483,7 +1430,7 @@ export type SequenceClipMatch = {
  */
 export type SequenceClipMatchRequest = {
 	/**  The seed clips. */
-	clips: SequenceClipRef[],
+	ids: number[],
 	criteria: SequenceClipMatch,
 	params: SequenceClipParamMatch[],
 };
@@ -1548,9 +1495,6 @@ export type SequenceClipRasterResultBatch = {
 	pending: number,
 };
 
-/**  A clip or an automation clip of a sequence. */
-export type SequenceClipRef = { type: "clip"; id: number } | { type: "automation"; id: number };
-
 export type SequenceClipScope = "perFixture" | "wholeTarget";
 
 /**  A time property matches within `tolerance_seconds` of the seed's. */
@@ -1580,10 +1524,6 @@ export type SequenceCurvePoint = {
 export type SequenceCurveValue = {
 	points: SequenceCurvePoint[],
 	link: SequenceLibraryLink,
-};
-
-export type SequenceDetachedAutomationBinding = {
-	target: SequenceAutomationTarget,
 };
 
 export type SequenceEffectDefinition = {
@@ -1697,7 +1637,6 @@ export type SequenceGraphOperator = {
 
 export type SequenceGraphOperatorDefinition = {
 	operator: SequenceGraphOperator,
-	sourceName: string,
 	displayName: string,
 	/**  The script's description of the operator. */
 	description: string | null,
@@ -1707,7 +1646,7 @@ export type SequenceGraphOperatorDefinition = {
 };
 
 export type SequenceGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	/**  The open object's description, edited with a description `GuiEdit::Put`. */
 	description: string | null,
 	sourceRef: GuiObjectRef,
 	durationSeconds: number,
@@ -1716,41 +1655,33 @@ export type SequenceGuiDocument = {
 	markCollections: SequenceMarkCollection[],
 	/**  Whether the audio its effects read is analyzed. */
 	derivedData: DerivedDataStatus,
-	lanes: SequenceLane[],
+	targets: SequenceLane[],
 	effectDefinitions: SequenceEffectDefinition[],
 	curveLibrary: SequenceCurveLibraryItem[],
 	gradientLibrary: SequenceGradientLibraryItem[],
 	layers: SequenceLayer[],
-	clips: SequenceClip[],
+	clips: GuiClip[],
 	compositionGraph: SequenceCompositionGraph,
-	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } | { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addClip"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceClipScope; startSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | 
+export type SequenceGuiEdit = { type: "composition"; edit: CompositionGuiEdit } | { type: "addClip"; target: FixtureTarget; startSeconds: number; durationSeconds: number; content: NewClipContent } | 
 /**
- *  Cut each clip at `time_seconds` into two back-to-back clips. The right
- *  half shares the left half's automation, so automation continues across
- *  the cut.
+ *  Cut each clip at `time_seconds` into two back-to-back clips. An
+ *  envelope's curve is cut; the right half of an effect clip shares the
+ *  left half's envelopes, so they continue across the cut.
  */
-{ type: "splitClips"; ids: number[]; timeSeconds: number } | { type: "retargetClip"; id: number; target: FixtureTarget } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "bindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; automationClipId: number; target: SequenceAutomationTarget } | { type: "setAutomationWindow"; automationClipId: number; target: SequenceAutomationTarget; window: GuiWindow } | { type: "rebindDetachedAutomation"; automationClipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; automationClipId: number; detachedIndex: number } | 
-/**
- *  Each name becomes a unique `snake_case` name; the edit reports the
- *  names made, in order.
- */
-{ type: "createMarkCollections"; collections: NewMarkCollection[] } | { type: "addMarks"; collectionKey: string; timesSeconds: number[] } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | 
-/**  Set how long a mark lasts; zero makes it instantaneous. */
-{ type: "setMarkDuration"; collectionKey: string; index: number; durationSeconds: number } | 
-/**  Label a mark, or clear its label with `None` or a blank label. */
-{ type: "setMarkLabel"; collectionKey: string; index: number; label: string | null } | { type: "deleteSelection"; selection: SequenceSelection } | { type: "moveClips"; clips: SequenceClipRef[]; timeDeltaSeconds: number; 
+{ type: "splitClips"; ids: number[]; timeSeconds: number } | 
+/**  A new envelope over `target`'s clip or the whole sequence, bound to it. */
+{ type: "addEnvelopeFor"; target: SequenceAutomationTarget } | 
+/**  Envelope `clip` also drives `target`. */
+{ type: "bind"; clip: number; target: SequenceAutomationTarget } | { type: "addMarks"; collectionId: number; timesSeconds: number[] } | { type: "reassignMarkCollection"; collectionId: number; index: number; targetCollectionId: number } | { type: "deleteSelection"; selection: SequenceSelection } | { type: "moveClips"; ids: number[]; timeDeltaSeconds: number; 
 /**
  *  The lane the move started on. Each clip moves from the lane of its
  *  target nearest this one.
  */
-anchorLane: number; laneDelta: number } | { type: "resizeClips"; clips: SequenceClipRef[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | 
-/**  Set a property of clips. */
-{ type: "editClips"; clips: SequenceClipRef[]; edit: SequenceClipCommonEdit } | 
+anchorLane: number; laneDelta: number } | { type: "resizeClips"; ids: number[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | 
 /**  Retime the clips together; the selection stays the same. */
-{ type: "arrangeClips"; clips: SequenceClipRef[]; arrangement: SequenceClipArrangement } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
+{ type: "arrangeClips"; ids: number[]; arrangement: SequenceClipArrangement } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
 
 /**
  *  An image file, by its project-relative path, scaled so its longer side
@@ -1790,8 +1721,9 @@ export type SequenceLayer = {
 export type SequenceLibraryLink = { type: "inline" } | { type: "library"; path: string; objectKey: string; displayName: string };
 
 export type SequenceMarkCollection = {
-	/**  The collection's name, which clip parameters use. */
-	key: string,
+	/**  The collection's id, which clip parameters and marks refer to. */
+	id: number,
+	name: string,
 	description: string | null,
 	color: string,
 	marksSeconds: number[],
@@ -1805,12 +1737,13 @@ export type SequenceMarkCollection = {
 };
 
 export type SequenceMarkRef = {
-	collectionKey: string,
+	collectionId: number,
 	index: number,
 };
 
 export type SequenceParamAutomation = {
-	automationClipId: number,
+	/**  The envelope that drives it. */
+	clipId: number,
 	/**  The part of the clip's `0..1` the binding uses. */
 	window: GuiWindow,
 };
@@ -1821,7 +1754,7 @@ export type SequenceParamField = {
 	value: SequenceParamValue,
 };
 
-export type SequenceParamKind = "int" | "float" | "bool" | "color" | "enum" | "curve" | "gradient" | "intArray" | "floatArray" | "boolArray" | "colorArray" | "curveArray" | "gradientArray" | "marks" | "text" | "font" | "image";
+export type SequenceParamKind = { type: "int" } | { type: "float" } | { type: "bool" } | { type: "color" } | { type: "enum" } | { type: "curve" } | { type: "gradient" } | { type: "array"; element: SequenceParamKind } | { type: "marks" } | { type: "text" } | { type: "font" } | { type: "image" };
 
 /**  An enum option and the fields it carries, each valued at its default. */
 export type SequenceParamOption = {
@@ -1837,9 +1770,14 @@ export type SequenceParamRange = {
 
 export type SequenceParamValue = { type: "int"; value: number } | { type: "float"; value: number } | { type: "bool"; value: boolean } | { type: "color"; value: string } | 
 /**  An option and, in order, every field it carries. */
-{ type: "enum"; value: string; fields: SequenceParamField[] } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | { type: "intArray"; values: number[] } | { type: "floatArray"; values: number[] } | { type: "boolArray"; values: boolean[] } | { type: "colorArray"; values: string[] } | { type: "curveArray"; values: SequenceCurveValue[] } | { type: "gradientArray"; values: SequenceGradientValue[] } | 
-/**  `None` is no collection: the parameter has no marks. */
-{ type: "marks"; key: string | null } | { type: "text"; value: string } | 
+{ type: "enum"; value: string; fields: SequenceParamField[] } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | 
+/**  Each item valued as the array's element kind. */
+{ type: "array"; values: SequenceParamValue[] } | 
+/**
+ *  A mark collection by id; `None` is no collection: the parameter has no
+ *  marks.
+ */
+{ type: "marks"; id: number | null } | { type: "text"; value: string } | 
 /**  `None` is no font: every character is blank. */
 { type: "font"; value: SequenceFont | null } | 
 /**  `None` is no image: every point is black. */
@@ -1853,7 +1791,7 @@ export type SequencePasteAnchor = {
 
 export type SequenceResizeEdge = "left" | "right";
 
-export type SequenceSelection = { type: "clips"; clips: SequenceClipRef[] } | { type: "marks"; marks: SequenceMarkRef[] };
+export type SequenceSelection = { type: "clips"; ids: number[] } | { type: "marks"; marks: SequenceMarkRef[] };
 
 export type SetupController = {
 	label: string,
@@ -1870,7 +1808,7 @@ fseqChannel: number | null } | { type: "donder"; device: string };
 
 export type SetupControllerPort = {
 	id: number,
-	/**  Free text, unique within the controller; patch routes refer to it. */
+	/**  Free text, unique within the controller; routes refer to it. */
 	name: string,
 	/**  Empty text means none. */
 	description: string | null,
@@ -1888,31 +1826,7 @@ export type SetupDonderOutput = {
 	slotCount: number,
 };
 
-export type SetupGuiDocument = {
-	/**  The open object's description, edited with `GuiEditCommand::SetDescription`. */
-	description: string | null,
-	sourceRef: GuiObjectRef,
-	layoutRef: GuiObjectRef,
-	patchRef: GuiObjectRef,
-	controllers: SetupController[],
-	availableControllers: SetupController[],
-	inputDevices: SetupInputDevice[],
-	availableInputDevices: SetupInputDevice[],
-	/**  Every key a new input device's control can read, in the language's order. */
-	keyCodes: string[],
-	inputLimits: GuiInputLimits,
-	/**  The names a new controller and input device are offered. */
-	newControllerName: string,
-	newInputDeviceName: string,
-};
-
-export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[]; 
-/**  The name of the controller and of its file. */
-name: string } | { type: "attachController"; controller: GuiObjectRef } | { type: "addInputDevice"; driver: GuiInputDriver; controls: GuiInputControl[]; 
-/**  The name of the device and of its file. */
-name: string } | { type: "attachInputDevice"; device: GuiObjectRef };
-
-/**  An input device as a setup lists it and its editor edits it. */
+/**  An input device as the project lists it and its editor edits it. */
 export type SetupInputDevice = {
 	/**  The declared name, or the name the device is stored under. */
 	name: string,
@@ -2056,7 +1970,7 @@ export type WorkspacePathChangeRequest = {
 
 export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string; initialColor: string } | 
 /**
- *  A new project holding the layout, controllers and patch of the
+ *  A new project holding the layout, controllers and routes of the
  *  xLights or Vixen profile in `profile_path`.
  */
 { type: "importProject"; parentPath: string; directoryName: string; initialColor: string; profilePath: string } | { type: "closeApplication" };

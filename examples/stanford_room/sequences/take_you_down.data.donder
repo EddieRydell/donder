@@ -1,5 +1,4 @@
 import operators from <operators/standard.donder>;
-import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 
 Sequence take_you_down {
@@ -149,114 +148,168 @@ Sequence take_you_down {
     Clip {
       name: mark_pulse,
       description: none,
-      layer: predrop_16ths,
-      start: 57.383237252s,
-      duration: 21.527042991s,
-      target: layouts.layout.desk_top,
-      scope: WholeTarget,
-      effect: effects.MarkPulse,
-      params: {
-        beats: predrop_16ths,
-        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.776, #ff0000)] },
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        offset_seconds: -0.08,
-        decay_seconds: 0.3,
-        clusters_per_mark: 8,
-        seed: 1.0,
-        overlap_marks: true,
+      target: desk_top,
+      placement: Timed { start: 57.383237252s, duration: 21.527042991s },
+      content: Effect {
+        layer: predrop_16ths,
+        scope: WholeTarget,
+        effect: effects.MarkPulse,
+        params: {
+          beats: predrop_16ths,
+          accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.776, #ff0000)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          offset_seconds: -0.08,
+          decay_seconds: 0.3,
+          clusters_per_mark: 8,
+          seed: 1.0,
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: wipe,
       description: none,
-      layer: default,
-      start: 78.721098125s,
-      duration: 0.63232953s,
-      target: layouts.layout.desk_top,
-      scope: WholeTarget,
-      effect: effects.Wipe,
-      params: {
-        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-        pulse_width: 0.7,
-        direction_angle: 90.0,
-        wipe_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        extend_to_start: false,
-        extend_to_end: false,
-        pulse_shape: Curve { points: [(0.0, 0.0), (0.202, 0.319), (1.0, 0.0)] },
+      target: desk_top,
+      placement: Timed { start: 78.721098125s, duration: 0.63232953s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_width: 0.7,
+          direction_angle: 90.0,
+          wipe_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.202, 0.319), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_pulse_2,
       description: none,
-      layer: predrop_snares,
-      start: 68.758991777s,
-      duration: 10.293877659s,
-      target: layouts.layout.desk_top,
-      scope: WholeTarget,
-      effect: effects.MarkPulse,
-      params: {
-        beats: predrop_snares,
-        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        offset_seconds: -0.08,
-        decay_seconds: 0.3,
-        cluster_width_pixels: 1,
-        clusters_per_mark: 16,
-        seed: 1.0,
-        overlap_marks: true,
+      target: desk_top,
+      placement: Timed { start: 68.758991777s, duration: 10.293877659s },
+      content: Effect {
+        layer: predrop_snares,
+        scope: WholeTarget,
+        effect: effects.MarkPulse,
+        params: {
+          beats: predrop_snares,
+          accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          offset_seconds: -0.08,
+          decay_seconds: 0.3,
+          cluster_width_pixels: 1,
+          clusters_per_mark: 16,
+          seed: 1.0,
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: pulse,
       description: none,
-      layer: default,
-      start: 79.433873158s,
-      duration: 0.53476502s,
-      target: layouts.layout.desk_top,
-      scope: WholeTarget,
-      effect: effects.Pulse,
-      params: {
-        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: desk_top,
+      placement: Timed { start: 79.433873158s, duration: 0.53476502s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_pulse_3,
       description: none,
-      layer: default,
-      start: 80.040648409s,
-      duration: 21.62746935s,
-      target: layouts.layout.desk_top,
-      scope: WholeTarget,
-      effect: effects.MarkPulse,
-      params: {
-        beats: marks,
-        accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        offset_seconds: -0.08,
-        decay_seconds: 0.3,
-        cluster_width_pixels: 100,
-        clusters_per_mark: 10,
+      target: desk_top,
+      placement: Timed { start: 80.040648409s, duration: 21.62746935s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.MarkPulse,
+        params: {
+          beats: marks,
+          accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          offset_seconds: -0.08,
+          decay_seconds: 0.3,
+          cluster_width_pixels: 100,
+          clusters_per_mark: 10,
+        },
       },
     },
     Clip {
       name: vixen_alternating,
       description: none,
-      layer: default,
-      start: 44.153180949s,
-      duration: 5.92499999s,
-      target: layouts.layout.desk_top,
-      scope: WholeTarget,
-      effect: effects.Alternating,
-      params: {
-        colors: [
-          Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-          Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
-          Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+      target: desk_top,
+      placement: Timed { start: 44.153180949s, duration: 5.92499999s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Alternating,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          ],
+          levels: [Curve { points: [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0)] }],
+          interval_ms: 2.0,
+          enable_static: true,
+        },
+      },
+    },
+    Clip {
+      name: envelope,
+      description: none,
+      target: desk,
+      placement: Timed { start: 56.715087772s, duration: 22.702652045s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.021734985), (0.030460222, 0.022), (0.5260764, 0.087), (0.77475405, 0.281),
+            (0.9294398, 1.0), (0.9910441, 1.0), (1.0, 1.0),
+          ],
+        },
+        bindings: [Bound { binding: NodeParam { node: dim, param: amount }, window: (0.0, 1.0) }],
+      },
+    },
+    Clip {
+      name: envelope_2,
+      description: none,
+      target: desk,
+      placement: Timed { start: 56.818961559s, duration: 22.394494431s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.9886584), (0.029105762, 1.0), (0.5380385, 1.0), (0.5380385, 0.983),
+            (0.7895747, 0.928), (0.98242944, 0.565), (1.0, 0.56620085),
+          ],
+        },
+        bindings: [
+          Bound { binding: NodeParam { node: saturate, param: amount }, window: (0.0, 1.0) },
         ],
-        levels: [Curve { points: [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0)] }],
-        interval_ms: 2.0,
-        enable_static: true,
+      },
+    },
+    Clip {
+      name: envelope_3,
+      description: none,
+      target: desk,
+      placement: Timed { start: 56.606261359s, duration: 23.022695851s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.75), (0.48461574, 0.668), (0.7717163, 0.421), (0.89916164, 0.0), (1.0, 0.0),
+          ],
+        },
+        bindings: [
+          Bound { binding: NodeParam { node: hue_shift, param: shift }, window: (0.0, 1.0) },
+        ],
       },
     },
   ],
@@ -294,48 +347,4 @@ Sequence take_you_down {
       Edge { from: layers.predrop_snares, to: dim.input },
     ],
   },
-  automation: [
-    AutomationClip {
-      row: layouts.layout.desk,
-      start: 56.715087772s,
-      duration: 22.702652045s,
-      curve: Curve {
-        points: [
-          (0.0, 0.021734985), (0.030460222, 0.022), (0.5260764, 0.087), (0.77475405, 0.281),
-          (0.9294398, 1.0), (0.9910441, 1.0), (1.0, 1.0),
-        ],
-      },
-      bindings: [Bound { binding: NodeParam { node: dim, param: amount }, window: (0.0, 1.0) }],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.layout.desk,
-      start: 56.818961559s,
-      duration: 22.394494431s,
-      curve: Curve {
-        points: [
-          (0.0, 0.9886584), (0.029105762, 1.0), (0.5380385, 1.0), (0.5380385, 0.983),
-          (0.7895747, 0.928), (0.98242944, 0.565), (1.0, 0.56620085),
-        ],
-      },
-      bindings: [
-        Bound { binding: NodeParam { node: saturate, param: amount }, window: (0.0, 1.0) },
-      ],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.layout.desk,
-      start: 56.606261359s,
-      duration: 23.022695851s,
-      curve: Curve {
-        points: [
-          (0.0, 0.75), (0.48461574, 0.668), (0.7717163, 0.421), (0.89916164, 0.0), (1.0, 0.0),
-        ],
-      },
-      bindings: [
-        Bound { binding: NodeParam { node: hue_shift, param: shift }, window: (0.0, 1.0) },
-      ],
-      detached: [],
-    },
-  ],
 }

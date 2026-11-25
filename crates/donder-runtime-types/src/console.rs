@@ -14,6 +14,16 @@ pub enum InputHappening {
     Move,
 }
 
+/// What a copy of a console clip takes a parameter from: how the press that
+/// started it was played.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PlayedSource {
+    /// How hard a note was struck; a computer key or a pedal plays at 1.
+    Velocity,
+    /// The note's name, from C at 0 up the chromatic scale to B at 11/12.
+    PitchClass,
+}
+
 /// One input on one of a console's controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InputEvent {

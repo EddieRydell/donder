@@ -10,14 +10,8 @@ use std::num::NonZeroU32;
     rename_all_fields = "camelCase"
 )]
 pub enum GuiDocument {
-    Patch {
-        document: PatchGuiDocument,
-    },
     Project {
         document: ProjectGuiDocument,
-    },
-    Setup {
-        document: SetupGuiDocument,
     },
     Sequence {
         document: SequenceGuiDocument,
@@ -51,19 +45,16 @@ pub enum GuiDocument {
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-/// An object a GUI editor opens: a declared object, or an object owned beneath
-/// one. The object's kind picks the editor.
+/// An object a GUI editor opens. The object's kind picks the editor.
 pub struct GuiDocumentRequest {
-    pub owned_path: Vec<OwnedObjectSlot>,
     pub project_revision: u32,
     pub path: String,
     pub object_key: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiObjectRef {
-    pub owned_path: Vec<OwnedObjectSlot>,
     pub path: String,
     pub object_key: String,
     pub kind: ObjectKind,
@@ -75,12 +66,17 @@ pub struct GuiObjectRef {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum GuiEditCommand {
-    Patch {
-        routes: Vec<GuiPixelRoute>,
+pub enum GuiEdit {
+    /// Write `value` at each of `sites`: one field of several members edits
+    /// them together.
+    Put {
+        sites: Vec<GuiSite>,
+        value: GuiValue,
     },
-    Setup {
-        edit: SetupGuiEdit,
+    /// Remove the object or member at `site`, or the part of a member its
+    /// field names; what named it gives way.
+    Remove {
+        site: GuiSite,
     },
     Sequence {
         edit: SequenceGuiEdit,
@@ -91,11 +87,77 @@ pub enum GuiEditCommand {
     Fixture {
         edit: FixtureGuiEdit,
     },
+    Console {
+        edit: ConsoleGuiEdit,
+    },
+    Project {
+        edit: ProjectGuiEdit,
+    },
+}
+
+/// A value a [`GuiEdit::Put`] writes; the site's field says what it is.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiValue {
+    /// A name, which becomes a `snake_case` name the edit reports, or a color.
+    Text {
+        text: String,
+    },
+    /// A description, where empty text is none, or a sequence's audio file.
+    OptionalText {
+        text: Option<String>,
+    },
+    Seconds {
+        seconds: f64,
+    },
+    /// How long a console clip that plays for the whole session repeats;
+    /// none when it does not.
+    OptionalSeconds {
+        seconds: Option<f64>,
+    },
+    /// A frame rate.
+    Count {
+        count: u32,
+    },
+    /// A clip's layer.
+    Id {
+        id: u32,
+    },
+    Target {
+        target: FixtureTarget,
+    },
+    Scope {
+        scope: SequenceClipScope,
+    },
+    /// The effect a clip plays; its required parameters start from
+    /// `initial_color`.
+    Effect {
+        initial_color: String,
+        effect: SequenceEffectReference,
+    },
+    Param {
+        value: SequenceParamValue,
+    },
+    /// The part of an envelope a binding uses.
+    Window {
+        window: GuiWindow,
+    },
     Curve {
         points: Vec<SequenceCurvePoint>,
     },
     Gradient {
         gradient: SequenceGradient,
+    },
+    Marks {
+        marks: Vec<GuiMark>,
+    },
+    /// An event's actions.
+    Actions {
+        actions: Vec<ConsoleAction>,
     },
     Controller {
         config: SetupControllerConfig,
@@ -105,60 +167,20 @@ pub enum GuiEditCommand {
         driver: GuiInputDriver,
         controls: Vec<GuiInputControl>,
     },
-    Console {
-        edit: ConsoleGuiEdit,
-    },
-    Project {
-        edit: ProjectGuiEdit,
-    },
-    /// The name becomes a `snake_case` name, which the edit reports; renaming
-    /// marks renames every parameter and action that names them.
-    Rename {
-        item: GuiItem,
-        name: String,
-    },
-    /// Empty text removes the description.
-    SetDescription {
-        item: GuiItem,
-        description: Option<String>,
-    },
-    SetColor {
-        item: GuiItem,
-        color: String,
-    },
-    /// Parameters that named deleted marks keep working with no marks.
-    Delete {
-        item: GuiItem,
+    /// The project's routes from fixtures to controllers.
+    Routes {
+        routes: Vec<GuiPixelRoute>,
     },
 }
 
-/// A part of the open object a generic edit names: the object itself, or one
-/// of its clips, mark collections (a console's live marks), layers, graph nodes,
-/// or a console's live automations and events.
+/// A mark of a collection; a zero duration is instantaneous and a blank
+/// label none.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum GuiItem {
-    Object,
-    Clip {
-        id: u32,
-    },
-    MarkCollection {
-        key: String,
-    },
-    Layer {
-        id: u32,
-    },
-    GraphNode {
-        node_id: u32,
-    },
-    /// Events have no name or description; they are only deleted.
-    Event {
-        id: u32,
-    },
+#[serde(rename_all = "camelCase")]
+pub struct GuiMark {
+    pub(crate) time_seconds: f64,
+    pub(crate) duration_seconds: f64,
+    pub(crate) label: Option<String>,
 }
 
 /// How an edit changed the open GUI document, relative to the document at the
@@ -194,9 +216,6 @@ pub struct GuiEditUpdate {
     pub change: GuiDocumentChange,
     /// The sequence selection a selection edit leaves; `None` clears it.
     pub selection: Option<SequenceSelection>,
-    /// The items a copy, cut or paste took, and those it could not.
-    pub copied_count: u32,
-    pub skipped_count: u32,
     /// The names or keys of the items the edit created, in order.
     pub created: Vec<String>,
 }
@@ -212,7 +231,7 @@ pub enum BufferExternalState {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CurveGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub(crate) path: String,
     pub(crate) object_key: String,
@@ -222,7 +241,7 @@ pub struct CurveGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GradientGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub(crate) path: String,
     pub(crate) object_key: String,
@@ -232,30 +251,20 @@ pub struct GradientGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub(crate) path: String,
     pub(crate) object_key: String,
-    pub(crate) setup: GuiObjectRef,
     pub(crate) sequences: Vec<GuiObjectRef>,
     pub consoles: Vec<GuiObjectRef>,
     /// The names a new sequence and console are offered.
     pub(crate) new_sequence_name: String,
     pub(crate) new_console_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SetupGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
-    pub(crate) description: Option<String>,
-    pub(crate) source_ref: GuiObjectRef,
     pub layout_ref: GuiObjectRef,
-    pub patch_ref: GuiObjectRef,
+    /// How the layout's fixtures are wired to the controllers.
+    pub outputs: PatchGuiDocument,
     pub controllers: Vec<SetupController>,
-    pub(crate) available_controllers: Vec<SetupController>,
     pub input_devices: Vec<SetupInputDevice>,
-    pub available_input_devices: Vec<SetupInputDevice>,
     /// Every key a new input device's control can read, in the language's order.
     pub(crate) key_codes: Vec<String>,
     pub(crate) input_limits: GuiInputLimits,
@@ -276,7 +285,7 @@ pub struct SetupController {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ControllerGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::SetDescription`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub(crate) path: String,
     pub(crate) object_key: String,
@@ -287,7 +296,7 @@ pub struct ControllerGuiDocument {
 #[serde(rename_all = "camelCase")]
 pub struct SetupControllerPort {
     pub id: u32,
-    /// Free text, unique within the controller; patch routes refer to it.
+    /// Free text, unique within the controller; routes refer to it.
     pub name: String,
     /// Empty text means none.
     pub description: Option<String>,
@@ -314,33 +323,6 @@ pub struct GuiUniverses {
     pub count: u16,
     /// Channels per universe.
     pub channels: u16,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SetupGuiEdit {
-    AddController {
-        config: SetupControllerConfig,
-        ports: Vec<SetupControllerPort>,
-        /// The name of the controller and of its file.
-        name: String,
-    },
-    AttachController {
-        controller: GuiObjectRef,
-    },
-    AddInputDevice {
-        driver: GuiInputDriver,
-        controls: Vec<GuiInputControl>,
-        /// The name of the device and of its file.
-        name: String,
-    },
-    AttachInputDevice {
-        device: GuiObjectRef,
-    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -421,71 +403,58 @@ impl From<&donder_model::ControllerProtocol> for SetupControllerConfig {
     }
 }
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize, Type)]
-#[serde(tag = "type", rename_all = "camelCase")]
-/// A stable ownership slot: owned members are named, never addressed by position.
-pub enum OwnedObjectSlot {
-    Setup,
-    Layout,
-    Patch,
-    /// Owned controllers, input devices, sequences and consoles are named.
-    Controller {
-        name: String,
-    },
-    InputDevice {
-        name: String,
-    },
-    Sequence {
-        name: String,
-    },
-    Console {
-        name: String,
-    },
-    Fixture {
-        id: u32,
-    },
-}
-
-impl From<&donder_project_io::OwnedObjectSlot> for OwnedObjectSlot {
-    fn from(slot: &donder_project_io::OwnedObjectSlot) -> Self {
-        use donder_project_io::OwnedObjectSlot as Slot;
-        match slot {
-            Slot::Setup => Self::Setup,
-            Slot::Layout => Self::Layout,
-            Slot::Patch => Self::Patch,
-            Slot::Controller(name) => Self::Controller {
-                name: name.as_str().to_string(),
-            },
-            Slot::InputDevice(name) => Self::InputDevice {
-                name: name.as_str().to_string(),
-            },
-            Slot::Sequence(name) => Self::Sequence {
-                name: name.as_str().to_string(),
-            },
-            Slot::Console(name) => Self::Console {
-                name: name.as_str().to_string(),
-            },
-            Slot::Fixture(id) => Self::Fixture { id: *id },
+impl GuiEdit {
+    /// Write `value` at `site`.
+    pub fn put(site: GuiSite, value: GuiValue) -> Self {
+        Self::Put {
+            sites: vec![site],
+            value,
         }
     }
-}
-impl TryFrom<&OwnedObjectSlot> for donder_project_io::OwnedObjectSlot {
-    type Error = String;
 
-    fn try_from(slot: &OwnedObjectSlot) -> Result<Self, String> {
-        let name = |name: &str| {
-            donder_runtime_types::Identifier::new(name.to_string())
-                .map_err(|_| format!("`{name}` is not an object name."))
+    /// The site the edit writes: where a refusal shows when the rule it
+    /// breaks names no field.
+    pub fn site(&self) -> Option<GuiSite> {
+        let param = |member, param: &str| {
+            GuiSite::of(
+                Some(member),
+                Some(GuiField::Param {
+                    name: param.to_string(),
+                }),
+            )
         };
-        Ok(match slot {
-            OwnedObjectSlot::Setup => Self::Setup,
-            OwnedObjectSlot::Layout => Self::Layout,
-            OwnedObjectSlot::Patch => Self::Patch,
-            OwnedObjectSlot::Controller { name: text } => Self::Controller(name(text)?),
-            OwnedObjectSlot::InputDevice { name: text } => Self::InputDevice(name(text)?),
-            OwnedObjectSlot::Sequence { name: text } => Self::Sequence(name(text)?),
-            OwnedObjectSlot::Console { name: text } => Self::Console(name(text)?),
-            OwnedObjectSlot::Fixture { id } => Self::Fixture(*id),
-        })
+        match self {
+            Self::Put { sites, .. } => sites.first().cloned(),
+            Self::Remove { site } => Some(site.clone()),
+            Self::Project { .. } => Some(GuiSite::object(GuiField::Name)),
+            Self::Fixture {
+                edit: FixtureGuiEdit::MoveHandle { id, .. } | FixtureGuiEdit::ConvertToPixels { id },
+            } => Some(GuiSite::of(Some(GuiMember::Shape { id: *id }), None)),
+            Self::Console {
+                edit: ConsoleGuiEdit::ControlParam { target, .. },
+            } => Some(match target {
+                SequenceAutomationTarget::ClipParam {
+                    clip_id,
+                    param: name,
+                } => param(GuiMember::Clip { id: *clip_id }, name),
+                SequenceAutomationTarget::CompositionNodeParam {
+                    node_id,
+                    param: name,
+                } => param(GuiMember::Node { id: *node_id }, name),
+            }),
+            _ => None,
+        }
+    }
+
+    /// The edit, with the object its site names moved to the file at `path`.
+    pub fn with_object_path(mut self, path: String) -> Self {
+        if let Self::Put { sites, .. } = &mut self {
+            for site in sites {
+                if let Some(object) = &mut site.object {
+                    object.path.clone_from(&path);
+                }
+            }
+        }
+        self
     }
 }

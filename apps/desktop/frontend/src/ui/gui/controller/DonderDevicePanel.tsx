@@ -7,11 +7,11 @@ import { Badge, Button, Field, Section, TextField } from "../../kit";
 
 const MAX_DEVICE_NAME = 32;
 
-/** Live status and settings for the Donder controller a setup controller targets. */
+/** Live status and settings for the Donder controller a controller of the project targets. */
 export function DonderDevicePanel({ deviceId }: { deviceId: string }) {
   useDeviceWatch(true);
   const device = useAppStore((state) => state.snapshot?.devices.find((candidate) => candidate.id === deviceId));
-  return <section className="setup-section">
+  return <section className="object-section">
     <h3>Controller device</h3>
     {device === undefined
       ? <p>{deviceId} <Badge icon={WifiOff} tip={`Not on the network. Power it on, then join its Wi-Fi network (Donder-${deviceId.slice(8)}, password ${ACCESS_POINT_PASSWORD}) or the network it joined.`}>Offline</Badge></p>

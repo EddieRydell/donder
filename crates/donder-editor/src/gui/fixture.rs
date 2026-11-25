@@ -9,7 +9,7 @@ use crate::dto::{
 use donder_language::DistanceSpan;
 use donder_model::{
     FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
-    FixtureTransform, GridAxis, GridCorner, OwnedFixture,
+    FixtureTransform, GridAxis, GridCorner,
 };
 use donder_project_io::ProjectSession;
 
@@ -21,41 +21,19 @@ pub(super) fn edit_fixture(
     update_fixture_definition(session, resolved, |fixture| edit_geometry(fixture, edit))
 }
 
-/// Update the open fixture definition, declared or owned by a layout fixture.
-/// [`super::resolve_request`] found an owned one inline in its layout.
+/// Update the open fixture definition.
 pub(super) fn update_fixture_definition(
     session: &mut ProjectSession,
     resolved: &super::ResolvedGuiObject,
     update: impl FnOnce(&mut FixtureDefinition) -> Result<(), GuiMutationError>,
 ) -> Result<(), GuiMutationError> {
-    match resolved.owned_path.as_slice() {
-        [] => {
-            let mut fixture = FixtureDefinition::clone(&resolved.view(session));
-            update(&mut fixture)?;
-            session
-                .apply_edits([donder_model::ProjectEdit::Put(
-                    donder_model::Object::FixtureDefinition(resolved.id(), fixture),
-                )])
-                .map_err(GuiMutationError::from)
-        }
-        [.., crate::dto::OwnedObjectSlot::Fixture { id }] => {
-            let mut layout = donder_model::Layout::clone(&resolved.view(session));
-            let Some(donder_model::LayoutFixture {
-                kind:
-                    donder_model::LayoutFixtureKind::Fixture {
-                        definition: OwnedFixture::Inline(value),
-                        ..
-                    },
-                ..
-            }) = layout.fixture_mut(donder_model::FixtureInstanceId(*id))
-            else {
-                unreachable!("resolved owned fixtures are inline in their layout");
-            };
-            update(value)?;
-            session.put(layout).map_err(GuiMutationError::from)
-        }
-        _ => unreachable!("only a layout fixture owns a fixture definition"),
-    }
+    let mut fixture = FixtureDefinition::clone(&resolved.view(session));
+    update(&mut fixture)?;
+    session
+        .apply_edits([donder_model::ProjectEdit::Put(
+            donder_model::Object::FixtureDefinition(resolved.id(), fixture),
+        )])
+        .map_err(GuiMutationError::from)
 }
 
 fn edit_geometry(
@@ -68,18 +46,6 @@ fn edit_geometry(
                 .into_iter()
                 .map(domain_element)
                 .collect::<Result<_, _>>()?;
-        }
-        FixtureGuiEdit::MoveElement { id, delta } => {
-            let element = fixture
-                .elements
-                .iter_mut()
-                .find(|element| element.id.0 == id)
-                .ok_or_else(|| GuiMutationError::Invalid("Shape was not found.".into()))?;
-            element.transform.position = checked_point(Point3Meters {
-                x_meters: element.transform.position.x.as_meters_f32() + delta.x_meters,
-                y_meters: element.transform.position.y.as_meters_f32() + delta.y_meters,
-                z_meters: element.transform.position.z.as_meters_f32() + delta.z_meters,
-            })?;
         }
         FixtureGuiEdit::MoveHandle {
             id,
@@ -133,18 +99,6 @@ fn edit_geometry(
         }
     }
     Ok(())
-}
-
-pub(super) fn domain_geometry(
-    elements: Vec<GuiFixtureElement>,
-) -> Result<FixtureDefinition, GuiMutationError> {
-    Ok(FixtureDefinition {
-        description: None,
-        elements: elements
-            .into_iter()
-            .map(domain_element)
-            .collect::<Result<_, _>>()?,
-    })
 }
 
 fn domain_element(element: GuiFixtureElement) -> Result<FixtureElement, GuiMutationError> {
@@ -389,11 +343,10 @@ fn move_handle(
 }
 
 pub(super) fn reference_definition(
-    session: &mut ProjectSession,
-    owner: &donder_project_io::DocumentId,
+    session: &ProjectSession,
     reference: GuiObjectRef,
 ) -> Result<FixtureDefinitionId, GuiMutationError> {
-    if !reference.owned_path.is_empty() || !matches!(reference.kind, ObjectKind::Fixture) {
+    if !matches!(reference.kind, ObjectKind::Fixture) {
         return Err(GuiMutationError::Invalid(
             "Choose a fixture definition.".into(),
         ));
@@ -409,8 +362,6 @@ pub(super) fn reference_definition(
             "Fixture definition was not found.".into(),
         ));
     }
-    donder_project_io::link_declaration(session, owner, id.into())
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(id)
 }
 
@@ -453,34 +404,13 @@ pub(crate) fn checked_point(
     Ok(domain_point3_meters(point))
 }
 
-/// The open fixture definition, declared or owned by a layout fixture, and
-/// its name.
+/// The open fixture definition and its name.
 pub fn open_fixture_definition<'a>(
     session: &'a ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> (&'a FixtureDefinition, String) {
-    match resolved.owned_path.as_slice() {
-        [] => (
-            resolved.view::<FixtureDefinition>(session).object(),
-            resolved.identity.object().to_string(),
-        ),
-        [.., crate::dto::OwnedObjectSlot::Fixture { id }] => {
-            let layout = resolved.view::<donder_model::Layout>(session).object();
-            let Some(
-                placement @ donder_model::LayoutFixture {
-                    kind:
-                        donder_model::LayoutFixtureKind::Fixture {
-                            definition: OwnedFixture::Inline(value),
-                            ..
-                        },
-                    ..
-                },
-            ) = layout.fixture(donder_model::FixtureInstanceId(*id))
-            else {
-                unreachable!("resolved owned fixtures are inline in their layout");
-            };
-            (value, placement.name.as_str().to_string())
-        }
-        _ => unreachable!("only a layout fixture owns a fixture definition"),
-    }
+    (
+        resolved.view::<FixtureDefinition>(session).object(),
+        resolved.identity.object().to_string(),
+    )
 }

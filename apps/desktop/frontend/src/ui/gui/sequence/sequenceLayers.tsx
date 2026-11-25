@@ -1,13 +1,14 @@
 import { useAppStore } from "../../../store";
 import { Plus, Trash2, Workflow } from "lucide-react";
 import { useCallback } from "react";
+import { recolor, rename } from "../edits";
 import { useFieldProblem } from "../problems";
 import { THEME_COLORS } from "../../../theme";
 import type { SequenceLayer } from "../../../types";
 import type { CompositionDocument, CompositionEditing } from "./composition";
 import { ColorPicker } from "../../ColorPicker";
 import { Button, IconButton, Problem, TextField, Toggle } from "../../kit";
-import { requestOpenLayerGraph } from "../../uiEvents";
+import { openLayerGraph } from "../documentUi";
 import { graphEdgeId } from "./graphEdge";
 
 export function useSequenceEditable() {
@@ -41,13 +42,13 @@ export function LayerProperties({ layer, composition, onDelete }: { layer: Seque
       void composition.apply({ type: "setLayerEnabled", id: layer.id, enabled });
     }} />
     <ColorPicker value={layer.color} label={`${layer.name} color`} commit={(color) =>
-      composition.applyItem({ type: "setColor", item: { type: "layer", id: layer.id }, color }).then(() => undefined)
+      recolor({ type: "layer", id: layer.id }, color).then(() => undefined)
     } />
     <Problem error={nameProblem}>
       <TextField name="Layer name" value={layer.name} disabled={!editable} invalid={nameProblem !== null} onCommit={(value) => {
         const name = value.trim();
         if (name === "" || name === layer.name) return;
-        void composition.applyItem({ type: "rename", item: { type: "layer", id: layer.id }, name });
+        void rename({ type: "layer", id: layer.id }, name);
       }} />
     </Problem>
     {onDelete !== undefined && <IconButton icon={Trash2} label={`Delete ${layer.name}`} danger disabled={!editable} onClick={onDelete} />}
@@ -86,7 +87,7 @@ export function LayerList({ composition }: { composition: CompositionEditing }) 
   const requestDelete = useGraphDeletion(composition);
   return <>
     <h2>Layers</h2>
-    <Button icon={Workflow} tip="Open layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph}>Layer graph</Button>
+    <Button icon={Workflow} tip="Open layer graph" command="view.openLayerGraph" onClick={openLayerGraph}>Layer graph</Button>
     <Button icon={Plus} disabled={!editable} onClick={() => {
       void composition.apply({
         type: "createLayer", name: "Layer", color: defaultLayerColor(document.layers.length)

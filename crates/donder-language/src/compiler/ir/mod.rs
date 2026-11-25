@@ -12,7 +12,7 @@ mod rebuild;
 mod stencil;
 
 pub(crate) use eval::{Evaluator, evaluate, reduce_identity};
-pub(crate) use rebuild::{Rebuild, Substitute};
+pub(crate) use rebuild::{CurveQuery, Rebuild, Substitute};
 pub(crate) use stencil::{StencilError, reads, scan_weight};
 
 use donder_runtime_types::Color;
@@ -110,13 +110,9 @@ impl LoopSet {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Context {
     Time,
-    Progress,
     Duration,
     FrameRate,
-    /// Frames since the start, as `time` counts seconds.
-    Frame,
     PixelIndex,
-    PixelFraction,
     PixelX,
     PixelY,
     PixelZ,
@@ -133,19 +129,24 @@ pub(crate) enum Context {
     TargetMembers,
     TargetStrands,
     TargetStrandLength,
+    /// The show's seconds at which `time` is zero: an invocation's start.
+    /// Automation reads it; no script names it.
+    Origin,
 }
 
 impl Context {
     fn ty(self) -> Type {
-        crate::compiler::builtins::context_type(self)
+        match self {
+            Self::Origin => Type::Float,
+            _ => crate::compiler::builtins::context_type(self),
+        }
     }
 
     fn domain(self) -> Domain {
         match self {
-            Self::Time | Self::Progress | Self::Frame => Domain::TIME,
+            Self::Time | Self::Origin => Domain::TIME,
             Self::Duration | Self::FrameRate => Domain::PARAM,
             Self::PixelIndex
-            | Self::PixelFraction
             | Self::PixelX
             | Self::PixelY
             | Self::PixelZ
@@ -166,11 +167,11 @@ impl Context {
     }
 }
 
+/// Operations of one operand. The operand's type chooses the semantics: `Negate`
+/// and `Abs` of an int wrap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Unary {
     Negate,
-    IntNegate,
-    IntAbs,
     Not,
     Sin,
     Cos,
@@ -196,7 +197,6 @@ pub(crate) enum Unary {
     Blue,
     Invert,
     Len,
-    MarkCount,
     /// A font's line height.
     FontHeight,
     /// An image's width, height and frames a second.
@@ -204,11 +204,15 @@ pub(crate) enum Unary {
     ImageHeight,
     ImageRate,
     ImageFrames,
-    /// Sections of an integer width over the pixel's section population.
-    SectionCount,
-    SectionIndex,
+    /// The live store word an int names: a console value playback sets.
+    Live,
 }
 
+/// Operations of two operands. The operands' types choose the semantics:
+/// int arithmetic wraps, an int `Divide` is the floored quotient with
+/// division by zero giving zero, color arithmetic works per channel, and a
+/// color `Multiply` by a float scales it. `Power` raises a float to an int
+/// count of multiplications or to a float exponent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Binary {
     Add,
@@ -216,14 +220,6 @@ pub(crate) enum Binary {
     Multiply,
     Divide,
     Remainder,
-    IntAdd,
-    IntSubtract,
-    IntMultiply,
-    IntRemainder,
-    /// Floored quotient; division by zero is zero.
-    IntFloorDivide,
-    IntMin,
-    IntMax,
     Min,
     Max,
     ValueOr,
@@ -232,17 +228,9 @@ pub(crate) enum Binary {
     LessEqual,
     Greater,
     GreaterEqual,
-    IntLess,
-    IntLessEqual,
-    IntGreater,
-    IntGreaterEqual,
     /// Same-typed scalar equality; floats compare by IEEE rules.
     Equal,
     NotEqual,
-    ColorAdd,
-    ColorMultiply,
-    ColorMax,
-    ColorScale,
     CurveSample,
     CurveIntegral,
     GradientSample,
@@ -253,34 +241,15 @@ pub(crate) enum Binary {
     GlyphAdvance,
     MarkAt,
     MarkDuration,
-    MarkLast,
     MarkLastIndex,
-    CurveFirstCrossing,
-    /// Position within a section, from a width of at least one and its reciprocal.
-    SectionPosition,
-    /// A float multiplied by itself an integer number of times.
     Power,
-    /// A float raised to a float exponent.
-    PowerFloat,
 }
 
 impl Binary {
     fn commutative(self) -> bool {
         matches!(
             self,
-            Self::Add
-                | Self::Multiply
-                | Self::IntAdd
-                | Self::IntMultiply
-                | Self::IntMin
-                | Self::IntMax
-                | Self::Min
-                | Self::Max
-                | Self::Equal
-                | Self::NotEqual
-                | Self::ColorAdd
-                | Self::ColorMultiply
-                | Self::ColorMax
+            Self::Add | Self::Multiply | Self::Min | Self::Max | Self::Equal | Self::NotEqual
         )
     }
 }
@@ -288,10 +257,12 @@ impl Binary {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Ternary {
     Clamp,
+    /// Of floats, or of colors by a float.
     Mix,
-    MixColor,
     Rgb,
     Hsv,
+    /// The first position at or after a position where a curve reaches a value.
+    CurveFirstCrossing,
     CurveLastCrossing,
     /// A track's channel at a time.
     TrackAt,
@@ -309,8 +280,10 @@ pub(crate) enum Quaternary {
     ImageColor,
 }
 
+/// A reduction over a range of indexes; its keyword and summary are in
+/// `builtins.rs`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Reducer {
+pub enum Reducer {
     Max,
     Min,
     Sum,
@@ -321,8 +294,8 @@ pub(crate) enum Reducer {
     /// An array of the body at each index, computed once per query or
     /// target run.
     Table,
-    /// An array one entry longer than the range: entry `k` sums the body at
-    /// the first `k` indices.
+    /// `table sum`: an array one entry longer than the range; entry `k` sums
+    /// the body at the first `k` indices.
     RunningSum,
 }
 
@@ -704,9 +677,10 @@ impl Graph {
                 };
                 (ty, (domain, loops.without(*id)))
             }
-            Op::Unary(op, _) => (unary_type(*op), none),
+            Op::Unary(Unary::Live, _) => (Type::Float, (Domain::TIME, LoopSet::default())),
+            Op::Unary(op, a) => (unary_type(*op, self.ty(*a)), none),
             Op::Binary(op, a, _) => (binary_type(*op, self.ty(*a)), none),
-            Op::Ternary(op, ..) => (ternary_type(*op), none),
+            Op::Ternary(op, a, ..) => (ternary_type(*op, self.ty(*a)), none),
             Op::Quaternary(Quaternary::GlyphCoverage, ..) => (Type::Float, none),
             Op::Quaternary(Quaternary::ImageColor, ..) => (Type::Color, none),
             Op::Select(_, a, _) => (self.ty(*a).clone(), none),
@@ -725,12 +699,6 @@ impl Graph {
                 Type::Color,
                 (Domain::SIGNAL.union(Domain::PIXEL), LoopSet::single(*id)),
             ),
-        };
-        // Sections are counted per pixel: per-fixture sections differ by fixture.
-        let domain = match op {
-            Op::Unary(Unary::SectionCount | Unary::SectionIndex, _)
-            | Op::Binary(Binary::SectionPosition, ..) => domain.union(Domain::PIXEL),
-            _ => domain,
         };
         (ty, domain, loops)
     }
@@ -824,28 +792,20 @@ fn value_type(value: &Value) -> Type {
     }
 }
 
-fn unary_type(op: Unary) -> Type {
+fn unary_type(op: Unary, operand: &Type) -> Type {
     match op {
-        Unary::IntNegate
-        | Unary::IntAbs
-        | Unary::FloatToInt
-        | Unary::Len
-        | Unary::MarkCount
-        | Unary::ImageFrames
-        | Unary::SectionCount
-        | Unary::SectionIndex => Type::Int,
+        Unary::Negate | Unary::Abs => operand.clone(),
+        Unary::FloatToInt | Unary::Len | Unary::ImageFrames => Type::Int,
         Unary::Not => Type::Bool,
         Unary::FontHeight | Unary::ImageWidth | Unary::ImageHeight | Unary::ImageRate => {
             Type::Float
         }
         Unary::Invert => Type::Color,
-        Unary::Negate
-        | Unary::Sin
+        Unary::Sin
         | Unary::Cos
         | Unary::Tan
         | Unary::Exp
         | Unary::Log
-        | Unary::Abs
         | Unary::Floor
         | Unary::Ceil
         | Unary::Trunc
@@ -858,7 +818,8 @@ fn unary_type(op: Unary) -> Type {
         | Unary::Green
         | Unary::Blue
         | Unary::Saturation
-        | Unary::Intensity => Type::Float,
+        | Unary::Intensity
+        | Unary::Live => Type::Float,
     }
 }
 
@@ -870,42 +831,23 @@ fn binary_type(op: Binary, left: &Type) -> Type {
         | Binary::Divide
         | Binary::Remainder
         | Binary::Min
-        | Binary::Max
-        | Binary::ValueOr
+        | Binary::Max => left.clone(),
+        Binary::ValueOr
         | Binary::Atan2
         | Binary::CurveSample
         | Binary::CurveIntegral
         | Binary::MarkAt
         | Binary::MarkDuration
         | Binary::GlyphAdvance
-        | Binary::MarkLast
-        | Binary::CurveFirstCrossing
-        | Binary::SectionPosition
-        | Binary::Power
-        | Binary::PowerFloat => Type::Float,
-        Binary::IntAdd
-        | Binary::IntSubtract
-        | Binary::IntMultiply
-        | Binary::IntRemainder
-        | Binary::IntFloorDivide
-        | Binary::IntMin
-        | Binary::IntMax
-        | Binary::MarkLastIndex => Type::Int,
+        | Binary::Power => Type::Float,
+        Binary::MarkLastIndex => Type::Int,
         Binary::Less
         | Binary::LessEqual
         | Binary::Greater
         | Binary::GreaterEqual
-        | Binary::IntLess
-        | Binary::IntLessEqual
-        | Binary::IntGreater
-        | Binary::IntGreaterEqual
         | Binary::Equal
         | Binary::NotEqual => Type::Bool,
-        Binary::ColorAdd
-        | Binary::ColorMultiply
-        | Binary::ColorMax
-        | Binary::ColorScale
-        | Binary::GradientSample => Type::Color,
+        Binary::GradientSample => Type::Color,
         Binary::Index | Binary::Entry => match left {
             Type::Array(item) => item.as_ref().clone(),
             Type::Text => Type::Int,
@@ -914,13 +856,15 @@ fn binary_type(op: Binary, left: &Type) -> Type {
     }
 }
 
-fn ternary_type(op: Ternary) -> Type {
+fn ternary_type(op: Ternary, first: &Type) -> Type {
     match op {
-        Ternary::Clamp | Ternary::Mix | Ternary::CurveLastCrossing | Ternary::TrackAt => {
-            Type::Float
-        }
+        Ternary::Mix => first.clone(),
+        Ternary::Clamp
+        | Ternary::CurveFirstCrossing
+        | Ternary::CurveLastCrossing
+        | Ternary::TrackAt => Type::Float,
         Ternary::MarkText | Ternary::Partition => Type::Int,
-        Ternary::MixColor | Ternary::Rgb | Ternary::Hsv => Type::Color,
+        Ternary::Rgb | Ternary::Hsv => Type::Color,
     }
 }
 

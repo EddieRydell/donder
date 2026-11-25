@@ -7,9 +7,7 @@
 use super::encode::Encoder;
 use crate::ExportProjectError;
 use donder_language::data::{Data, DataImport, list_item};
-use donder_model::{
-    Clip, ClipId, DonderProject, MarkCollection, Sequence, SequenceId, SequenceLayer,
-};
+use donder_model::{Clip, ClipId, DonderProject, Layer, MarkCollection, Sequence, SequenceId};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -26,7 +24,7 @@ pub struct DocumentTextCache {
 /// The printing context of one sequence's clips besides the project's stores.
 struct SequenceClips {
     imports: Vec<DataImport>,
-    layers: Vec<SequenceLayer>,
+    layers: Vec<Layer>,
     marks: Vec<MarkCollection>,
     clips: HashMap<ClipId, (Arc<Clip>, Arc<str>)>,
 }
@@ -51,43 +49,56 @@ impl DocumentTextCache {
         &mut self,
         encoder: &Encoder<'_>,
         imports: &[DataImport],
+        id: donder_model::SequenceId,
         sequence: &Sequence,
     ) -> Result<Vec<Arc<str>>, ExportProjectError> {
-        let cached = self
-            .sequences
-            .entry(sequence.id)
-            .or_insert_with(|| SequenceClips {
-                imports: Vec::new(),
-                layers: Vec::new(),
-                marks: Vec::new(),
-                clips: HashMap::new(),
-            });
+        let cached = self.sequences.entry(id).or_insert_with(|| SequenceClips {
+            imports: Vec::new(),
+            layers: Vec::new(),
+            marks: Vec::new(),
+            clips: HashMap::new(),
+        });
         if cached.imports != imports
-            || cached.layers != sequence.layers
-            || cached.marks != sequence.mark_collections
+            || cached.layers != sequence.composition.layers
+            || cached.marks != sequence.composition.marks
         {
             cached.imports = imports.to_vec();
-            cached.layers = sequence.layers.clone();
-            cached.marks = sequence.mark_collections.clone();
+            cached.layers = sequence.composition.layers.clone();
+            cached.marks = sequence.composition.marks.clone();
             cached.clips.clear();
         }
-        let mut texts = Vec::with_capacity(sequence.clips.len());
-        for clip in &sequence.clips {
+        let mut texts = Vec::with_capacity(sequence.composition.clips.len());
+        for clip in &sequence.composition.clips {
+            // An envelope's text names what it binds, so it is printed every time.
+            if clip.envelope().is_some() {
+                texts.push(
+                    list_item(
+                        &encoder.clip(&sequence.composition, clip)?.encode(),
+                        CLIP_LEVEL,
+                    )
+                    .into(),
+                );
+                continue;
+            }
             let text = match cached.clips.get(&clip.id) {
                 Some((printed, text)) if Arc::ptr_eq(printed, clip) => Arc::clone(text),
                 _ => {
-                    let text: Arc<str> =
-                        list_item(&encoder.clip(sequence, clip)?.encode(), CLIP_LEVEL).into();
+                    let text: Arc<str> = list_item(
+                        &encoder.clip(&sequence.composition, clip)?.encode(),
+                        CLIP_LEVEL,
+                    )
+                    .into();
                     cached
                         .clips
-                        .insert(clip.id.clone(), (Arc::clone(clip), Arc::clone(&text)));
+                        .insert(clip.id, (Arc::clone(clip), Arc::clone(&text)));
                     text
                 }
             };
             texts.push(text);
         }
-        if cached.clips.len() > sequence.clips.len() {
+        if cached.clips.len() > sequence.composition.clips.len() {
             let current = sequence
+                .composition
                 .clips
                 .iter()
                 .map(|clip| &clip.id)

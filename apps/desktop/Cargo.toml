@@ -31,7 +31,6 @@ donder-import.workspace = true
 glam.workspace = true
 ignore.workspace = true
 notify.workspace = true
-indexmap.workspace = true
 kira.workspace = true
 mimalloc.workspace = true
 reqwest.workspace = true

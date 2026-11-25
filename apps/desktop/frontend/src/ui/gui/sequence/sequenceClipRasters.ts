@@ -37,7 +37,7 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
   const [version, setVersion] = useState(0);
   // Rasters live outside React: worker callbacks fill the cache and `version`
   // tells the canvas to redraw.
-  const { ownedPath, path, objectKey } = document.sourceRef;
+  const { path, objectKey } = document.sourceRef;
   const { clips } = document;
 
   // Rasters of clips the sequence no longer has are dropped; the canvas
@@ -57,7 +57,7 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
     if (projectRevision === null) return;
     const cache = rasterCache(documentKey);
     cache.visible = visibleKey === "" ? [] : visibleKey.split(",").map(Number);
-    const request = { ownedPath, projectRevision, path, objectKey };
+    const request = { projectRevision, path, objectKey };
     let cancelled = false;
     let pollTimeout: number | null = null;
     const publish = () => {
@@ -96,7 +96,7 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
       window.clearTimeout(requestTimeout);
       if (pollTimeout !== null) window.clearTimeout(pollTimeout);
     };
-  }, [documentKey, objectKey, ownedPath, path, projectRevision, visibleKey]);
+  }, [documentKey, objectKey, path, projectRevision, visibleKey]);
 
   return useMemo(() => ({
     version,

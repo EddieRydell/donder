@@ -73,9 +73,7 @@ macro_rules! object_ids {
 
 object_ids! {
     Project(ProjectId),
-    Setup(SetupId),
     Layout(LayoutId),
-    Patch(PatchId),
     Controller(ControllerId),
     InputDevice(InputDeviceId),
     Sequence(SequenceId),
@@ -83,6 +81,5 @@ object_ids! {
     FixtureDefinition(FixtureDefinitionId),
     Curve(CurveId),
     Gradient(GradientId),
-    EffectDefinition(EffectDefinitionId),
-    OperatorDefinition(OperatorDefinitionId),
+    Script(ScriptId),
 }

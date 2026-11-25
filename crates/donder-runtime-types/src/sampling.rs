@@ -89,13 +89,9 @@ pub fn rgb(red: f32, green: f32, blue: f32) -> Color {
     Color { red, green, blue }
 }
 
-#[inline(always)]
+/// A curve's value at `position`; an empty curve is missing, NaN.
 pub fn sample_curve(curve: &Curve, position: f32) -> f32 {
-    // An authored curve may be empty, which is missing; images never are.
-    if curve.points.is_empty() {
-        return f32::NAN;
-    }
-    sample_curve_points(&curve.points, position)
+    CurveTables::new(&curve.points).view().sample(position)
 }
 
 /// The slope of the segment from `start` to `finish`.
@@ -113,19 +109,9 @@ pub fn curve_slopes(points: &[CurvePoint], slopes: &mut [f32]) {
     }
 }
 
-/// A curve's value at `position`, holding its end values beyond its points.
-/// A curve has at least one point.
-#[inline(always)]
-pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
-    sample_curve_sloped(
-        points,
-        |index| segment_slope(&points[index - 1], &points[index]),
-        position,
-    )
-}
-
-/// [`sample_curve_points`] with each segment's slope given by the index of
-/// its last point: a search, then a multiply-add.
+/// A curve's value at `position`, holding its end values beyond its points,
+/// with each segment's slope given by the index of its last point: a search,
+/// then a multiply-add. A curve has at least one point.
 #[inline(always)]
 pub fn sample_curve_sloped(
     points: &[CurvePoint],
@@ -145,12 +131,6 @@ pub fn sample_curve_sloped(
     previous.value + (position - previous.position) * slope(index)
 }
 
-/// The area under the curve from position 0 to `position`. End values are
-/// held beyond the authored points, as in sampling.
-pub fn curve_integral(points: &[CurvePoint], position: f32) -> f32 {
-    curve_area(points, 0.0, position)
-}
-
 /// Each point's area from the first point, for [`curve_integral_table`].
 /// Accumulated in the order [`curve_area`] adds segments, so the two agree.
 pub fn curve_prefix_areas(points: &[CurvePoint], areas: &mut [f32]) {
@@ -164,7 +144,9 @@ pub fn curve_prefix_areas(points: &[CurvePoint], areas: &mut [f32]) {
     }
 }
 
-/// [`curve_integral`] from the points' prefix areas: a search for the
+/// The area under the curve from position 0 to `position`, holding end
+/// values beyond the authored points as in sampling, from the points' prefix
+/// areas: a search for the
 /// segment, not a walk over the segments before it.
 pub fn curve_integral_table(points: &[CurvePoint], areas: &[f32], position: f32) -> f32 {
     area_from_start_table(points, areas, position) - area_from_start_table(points, areas, 0.0)
@@ -212,30 +194,6 @@ fn curve_area_from_start(points: &[CurvePoint], position: f32) -> f32 {
     area + (position - last.position) * last.value
 }
 
-/// The first position where the curve reaches `value`, or NaN; a flat
-/// segment at `value` is reached at its start.
-pub fn curve_first_crossing(points: &[CurvePoint], value: f32) -> f32 {
-    if let [point] = points {
-        return if point.value == value {
-            point.position
-        } else {
-            f32::NAN
-        };
-    }
-    for pair in points.windows(2) {
-        let (start, finish) = (&pair[0], &pair[1]);
-        if value >= start.value.min(finish.value) && value <= start.value.max(finish.value) {
-            let span = finish.value - start.value;
-            if span == 0.0 {
-                return start.position;
-            }
-            return start.position
-                + (finish.position - start.position) * (value - start.value) / span;
-        }
-    }
-    f32::NAN
-}
-
 /// Latest arrival at `value`, including an exact touch, or NaN. A plateau
 /// triggers on arrival, not continuously while held or again when leaving
 /// it. Endpoint extension is a sampling rule and does not create crossing
@@ -272,6 +230,185 @@ pub fn curve_last_crossing(points: &[CurvePoint], value: f32, before: f32) -> f3
         first.position
     } else {
         f32::NAN
+    }
+}
+
+/// Whether a curve's segments only rise, only fall, or both.
+pub const CROSSINGS_INCREASING: u32 = 0;
+pub const CROSSINGS_DECREASING: u32 = 1;
+pub const CROSSINGS_MIXED: u32 = 2;
+
+/// A curve segment solved for position: the position where it reaches a
+/// value from `min_value` to `max_value`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct CrossingSegment {
+    pub position_bias: f32,
+    pub position_scale: f32,
+    pub min_value: f32,
+    pub max_value: f32,
+}
+
+/// A curve: its points and the tables that sample, integrate and invert it.
+/// A curve has at least one point.
+#[derive(Clone, Copy, Debug)]
+pub struct CurveView<'a> {
+    pub points: &'a [CurvePoint],
+    /// Each point's area from the first ([`curve_prefix_areas`]).
+    pub areas: &'a [f32],
+    /// Each point's slope from the point before it ([`curve_slopes`]).
+    pub slopes: &'a [f32],
+    /// The crossings' kind ([`curve_crossings`]).
+    pub kind: u32,
+    pub crossings: &'a [CrossingSegment],
+}
+
+impl CurveView<'_> {
+    pub fn sample(self, position: f32) -> f32 {
+        sample_curve_sloped(self.points, |index| self.slopes[index], position)
+    }
+
+    pub fn integral(self, position: f32) -> f32 {
+        curve_integral_table(self.points, self.areas, position)
+    }
+
+    pub fn last_crossing(self, value: f32, before: f32) -> f32 {
+        curve_last_crossing(self.points, value, before)
+    }
+
+    /// The first position at or after `after` where the curve reaches
+    /// `value`, or NaN; a flat segment at `value` is reached where it starts,
+    /// or at `after` when it starts before. Rising or falling curves search
+    /// their segments; others scan them.
+    pub fn crossing(self, value: f32, after: f32) -> f32 {
+        let reach = |segment: &CrossingSegment| {
+            (value >= segment.min_value && value <= segment.max_value)
+                .then_some(segment.position_bias + value * segment.position_scale)
+        };
+        let segments = self.crossings;
+        let first = match segments {
+            [] => None,
+            [segment] => reach(segment),
+            _ => match self.kind {
+                CROSSINGS_INCREASING => {
+                    let index = segments.partition_point(|segment| segment.max_value < value);
+                    segments.get(index).and_then(reach)
+                }
+                CROSSINGS_DECREASING => {
+                    let index = segments.partition_point(|segment| segment.min_value > value);
+                    segments.get(index).and_then(reach)
+                }
+                _ => segments.iter().find_map(reach),
+            },
+        };
+        match first {
+            None => f32::NAN,
+            Some(position) if position >= after => position,
+            // Reached before `after`: search the segments ending at or after it.
+            Some(_) => {
+                let start = self.points[1..].partition_point(|point| point.position < after);
+                segments
+                    .iter()
+                    .skip(start)
+                    .find_map(|segment| match reach(segment) {
+                        Some(position) if position >= after => Some(position),
+                        Some(_) if segment.position_scale == 0.0 => Some(after),
+                        _ => None,
+                    })
+                    .unwrap_or(f32::NAN)
+            }
+        }
+    }
+}
+
+/// The crossing segments of `points` into `output`, at least
+/// `points.len().max(1)` long; returns their kind and count.
+pub fn curve_crossings(points: &[CurvePoint], output: &mut [CrossingSegment]) -> (u32, usize) {
+    let mut increasing = true;
+    let mut decreasing = true;
+    let mut len = 0;
+    for pair in points.windows(2) {
+        let (start, end) = (&pair[0], &pair[1]);
+        increasing &= start.value <= end.value;
+        decreasing &= start.value >= end.value;
+        let span = end.value - start.value;
+        let position_scale = if span == 0.0 {
+            0.0
+        } else {
+            (end.position - start.position) / span
+        };
+        output[len] = CrossingSegment {
+            position_bias: start.position - start.value * position_scale,
+            position_scale,
+            min_value: start.value.min(end.value),
+            max_value: start.value.max(end.value),
+        };
+        len += 1;
+    }
+    if let [point] = points {
+        output[0] = CrossingSegment {
+            position_bias: point.position,
+            position_scale: 0.0,
+            min_value: point.value,
+            max_value: point.value,
+        };
+        len = 1;
+    }
+    let kind = if increasing {
+        CROSSINGS_INCREASING
+    } else if decreasing {
+        CROSSINGS_DECREASING
+    } else {
+        CROSSINGS_MIXED
+    };
+    (kind, len)
+}
+
+/// A curve's points and tables as a show image holds them. An empty curve is
+/// missing: one NaN point, so evaluation never meets an empty one.
+#[derive(Clone, Debug)]
+pub struct CurveTables {
+    pub points: Vec<CurvePoint>,
+    pub areas: Vec<f32>,
+    pub slopes: Vec<f32>,
+    pub crossings: Vec<CrossingSegment>,
+    pub kind: u32,
+}
+
+impl CurveTables {
+    pub fn new(points: &[CurvePoint]) -> Self {
+        let points = if points.is_empty() {
+            alloc::vec![CurvePoint {
+                position: 0.0,
+                value: f32::NAN,
+            }]
+        } else {
+            points.to_vec()
+        };
+        let mut areas = alloc::vec![0.0; points.len()];
+        curve_prefix_areas(&points, &mut areas);
+        let mut slopes = alloc::vec![0.0; points.len()];
+        curve_slopes(&points, &mut slopes);
+        let mut crossings = alloc::vec![CrossingSegment::default(); points.len()];
+        let (kind, len) = curve_crossings(&points, &mut crossings);
+        crossings.truncate(len);
+        Self {
+            points,
+            areas,
+            slopes,
+            crossings,
+            kind,
+        }
+    }
+
+    pub fn view(&self) -> CurveView<'_> {
+        CurveView {
+            points: &self.points,
+            areas: &self.areas,
+            slopes: &self.slopes,
+            kind: self.kind,
+            crossings: &self.crossings,
+        }
     }
 }
 

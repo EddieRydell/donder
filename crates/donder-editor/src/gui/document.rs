@@ -6,7 +6,7 @@ pub enum GuiMutationError {
     Invalid(String),
     /// A value the edit sets at a field of the open editor cannot be made,
     /// for the reason the message gives.
-    At(crate::dto::GuiProblemSite, String),
+    At(crate::dto::GuiSite, String),
     /// The model refused the edit.
     Rejected(donder_model::EditRejection),
     /// The edited project breaks a project rule.
@@ -15,7 +15,7 @@ pub enum GuiMutationError {
 
 impl GuiMutationError {
     /// This error at `site`, unless it already names where it lies.
-    pub(crate) fn at(self, site: crate::dto::GuiProblemSite) -> Self {
+    pub(crate) fn at(self, site: crate::dto::GuiSite) -> Self {
         match self {
             Self::Invalid(message) => Self::At(site, message),
             Self::Rejected(rejection) => Self::At(site, rejection.to_string()),
@@ -72,16 +72,14 @@ pub fn project_gui_document(
     let mut gui = match resolved.kind {
         Kind::Project => project_root(session, &resolved),
         Kind::Sequence => project_sequence(session, &resolved),
-        Kind::Setup => project_setup(session, &resolved),
         Kind::Controller => super::controller::project_document(session, &resolved),
         Kind::InputDevice => super::input_device::project_document(session, &resolved),
         Kind::Console => super::console::project_console(session, &resolved),
-        Kind::Patch => super::patch::project_document(session, &resolved),
         Kind::Layout => project_layout(session, &resolved),
         Kind::FixtureDefinition => project_fixture(session, &resolved),
         Kind::Curve => super::library::project_curve(session, &resolved),
         Kind::Gradient => super::library::project_gradient(session, &resolved),
-        Kind::EffectDefinition | Kind::OperatorDefinition => {
+        Kind::Script => {
             unreachable!("requests resolve only to objects with a GUI editor")
         }
     };
@@ -92,10 +90,8 @@ pub fn project_gui_document(
         GuiDocument::Curve { document } => document.path.clone_from(&request.path),
         GuiDocument::Gradient { document } => document.path.clone_from(&request.path),
         GuiDocument::Controller { document } => document.path.clone_from(&request.path),
-        GuiDocument::Patch { document } => document.path.clone_from(&request.path),
         GuiDocument::InputDevice { document } => document.path.clone_from(&request.path),
-        GuiDocument::Setup { .. }
-        | GuiDocument::Sequence { .. }
+        GuiDocument::Sequence { .. }
         | GuiDocument::Console { .. }
         | GuiDocument::Blocked { .. } => {}
     }
@@ -119,6 +115,7 @@ pub fn project_gui_document_change(
         )
     {
         let previous = previous
+            .composition
             .clips
             .iter()
             .map(|clip| (clip.id.0, clip))
@@ -133,7 +130,12 @@ pub fn project_gui_document_change(
         {
             return GuiDocumentChange::SequenceClips {
                 document,
-                clip_ids: sequence.clips.iter().map(|clip| clip.id.0).collect(),
+                clip_ids: sequence
+                    .composition
+                    .clips
+                    .iter()
+                    .map(|clip| clip.id.0)
+                    .collect(),
             };
         }
     }
@@ -142,15 +144,18 @@ pub fn project_gui_document_change(
     }
 }
 
-/// The inspector's view of `clip_ids` in a sequence request's document.
+/// The inspector's view of `clip_ids` in a sequence or console request's document.
 pub fn sequence_clip_details(
     session: &ProjectSession,
     request: &GuiDocumentRequest,
     clip_ids: &[u32],
 ) -> Result<Vec<SequenceClipDetails>, String> {
     let resolved = resolve_request(session, request)?;
-    if resolved.kind != donder_model::ObjectKind::Sequence {
-        return Err("Clip details belong to sequence documents.".into());
+    if !matches!(
+        resolved.kind,
+        donder_model::ObjectKind::Sequence | donder_model::ObjectKind::Console
+    ) {
+        return Err("Clip details belong to sequence and console documents.".into());
     }
     super::projection::sequence_clip_details(session, &resolved, clip_ids)
 }
@@ -164,8 +169,6 @@ pub fn affected_paths(
     if matches!(
         resolved.kind,
         Kind::Project
-            | Kind::Setup
-            | Kind::Patch
             | Kind::Controller
             | Kind::InputDevice
             | Kind::FixtureDefinition
@@ -181,32 +184,17 @@ pub fn affected_paths(
     Ok(BTreeSet::from([resolved.identity.document().to_string()]))
 }
 
+#[derive(Clone)]
 pub struct ResolvedGuiObject {
-    pub(crate) owned_path: Vec<crate::dto::OwnedObjectSlot>,
-    /// The declared object the address starts at.
+    /// The object's declaration.
     pub(crate) identity: SourceIdentity,
     pub(crate) kind: donder_model::ObjectKind,
-    /// The object, or for a fixture definition a layout owns, that layout.
+    /// The object.
     pub object: donder_model::ObjectId,
 }
 
 impl ResolvedGuiObject {
-    /// The resolved object's address. Owned paths are checked when the object
-    /// is resolved, so every step converts.
-    fn object_identity(&self) -> donder_project_io::ObjectAddress {
-        self.owned_path.iter().fold(
-            self.identity.clone().into(),
-            |address: donder_project_io::ObjectAddress, step| {
-                address.owned(
-                    step.try_into()
-                        .unwrap_or_else(|_| unreachable!("resolved owned paths are valid")),
-                )
-            },
-        )
-    }
-
-    /// The kind of the resolved object; an owned fixture definition is a
-    /// fixture definition.
+    /// The kind of the resolved object.
     pub fn kind(&self) -> donder_model::ObjectKind {
         self.kind
     }
@@ -219,8 +207,7 @@ impl ResolvedGuiObject {
     }
 
     /// The resolved object in `session`, the session it resolved against:
-    /// its inventory declares exactly its project's objects, and owned objects
-    /// resolve through the project itself.
+    /// its inventory declares exactly its project's objects.
     pub(crate) fn view<'s, T: donder_model::ProjectObject>(
         &self,
         session: &'s ProjectSession,
@@ -238,7 +225,6 @@ impl ResolvedGuiObject {
 
     pub fn source_ref(&self) -> GuiObjectRef {
         GuiObjectRef {
-            owned_path: self.owned_path.clone(),
             path: self.identity.document().to_string(),
             object_key: self.identity.object().to_string(),
             kind: self.kind.into(),
@@ -259,8 +245,7 @@ pub fn resolve_request(
         .iter()
         .find(|object| object.name().as_str() == request.object_key)
         .ok_or("No matching GUI object was found for this request.")?;
-    let mut resolved = ResolvedGuiObject {
-        owned_path: request.owned_path.clone(),
+    let resolved = ResolvedGuiObject {
         identity: SourceIdentity::from_document(
             document_id.clone(),
             declared.name().as_str().to_string(),
@@ -268,45 +253,8 @@ pub fn resolve_request(
         kind: declared.kind(),
         object: declared.id(),
     };
-    for step in &request.owned_path {
-        resolved.kind = donder_project_io::OwnedObjectSlot::try_from(step)?
-            .child_kind(resolved.kind)
-            .ok_or("Invalid owned object path.")?;
-    }
     if gui_editor_order(resolved.kind).is_none() {
         return Err("This object has no GUI editor; edit it as text.".into());
-    }
-    if !request.owned_path.is_empty() {
-        let missing =
-            || "Owned object was not found. Linked objects must be opened at their source.";
-        let address = resolved.object_identity();
-        resolved.object = match address.owned_path().last() {
-            Some(donder_project_io::OwnedObjectSlot::Fixture(fixture)) => {
-                let layout = address
-                    .parent()
-                    .and_then(|parent| session.resolve_address(&parent))
-                    .and_then(|id| donder_model::LayoutId::try_from(id).ok())
-                    .ok_or_else(missing)?;
-                let inline = session
-                    .project()
-                    .get::<donder_model::Layout>(layout)
-                    .and_then(|layout| layout.fixture(donder_model::FixtureInstanceId(*fixture)))
-                    .is_some_and(|fixture| {
-                        matches!(
-                            fixture.kind,
-                            donder_model::LayoutFixtureKind::Fixture {
-                                definition: donder_model::OwnedFixture::Inline(_),
-                                ..
-                            }
-                        )
-                    });
-                if !inline {
-                    return Err(missing().into());
-                }
-                layout.into()
-            }
-            _ => session.resolve_address(&address).ok_or_else(missing)?,
-        };
     }
     Ok(resolved)
 }
@@ -319,14 +267,12 @@ pub fn gui_editor_order(kind: donder_model::ObjectKind) -> Option<u8> {
         Kind::Project => 0,
         Kind::Sequence => 1,
         Kind::Console => 2,
-        Kind::Setup => 3,
-        Kind::Layout => 4,
-        Kind::FixtureDefinition => 5,
-        Kind::Patch => 6,
-        Kind::Controller => 7,
-        Kind::InputDevice => 8,
-        Kind::Curve => 9,
-        Kind::Gradient => 10,
-        Kind::EffectDefinition | Kind::OperatorDefinition => return None,
+        Kind::Layout => 3,
+        Kind::FixtureDefinition => 4,
+        Kind::Controller => 5,
+        Kind::InputDevice => 6,
+        Kind::Curve => 7,
+        Kind::Gradient => 8,
+        Kind::Script => return None,
     })
 }

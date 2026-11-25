@@ -20,7 +20,7 @@
     "rust:fmt": "cargo fmt --check",
     "rust:hakari": "cargo hakari generate --diff && cargo hakari manage-deps --dry-run",
     "rust:test": "cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace",
-    "storage:test": "node -e \"const p=process.env.DONDER_HOST_LIBCLANG_PATH; if (!p || !require('node:fs').existsSync(p)) { console.error('Set DONDER_HOST_LIBCLANG_PATH to your native LLVM library or its containing directory. See docs/development.md.'); process.exit(1); } const r=require('node:child_process').spawnSync('cargo',['test','--manifest-path','firmware/esp32/Cargo.toml','-p','donder-device-storage','--lib','--locked'],{stdio:'inherit',env:{...process.env,LIBCLANG_PATH:p,CARGO_TARGET_DIR:require('node:path').resolve('target/storage-host')}}); if (r.error) console.error(r.error.message); process.exit(r.status ?? 1);\"",
+    "storage:test": "node firmware/esp32/firmware.mjs storage-test",
     "check": "pnpm rust:fmt && pnpm rust:hakari && pnpm rust:test && pnpm lint && pnpm --dir apps/desktop/frontend knip && pnpm frontend:build && pnpm frontend:test && pnpm storage:test",
     "bench:effect-vm": "pnpm bench:effect-vm:quick && cargo bench -p donder-runtime --bench prepared_playback_bench && cargo bench -p donder-elaboration --bench render_bench",
     "bench:effect-vm:quick": "cargo bench -p donder-runtime --bench prepared_playback_bench -- --quick && cargo bench -p donder-elaboration --bench render_bench -- --quick",

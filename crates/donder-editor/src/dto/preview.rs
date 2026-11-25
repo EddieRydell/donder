@@ -18,7 +18,7 @@ pub struct PreviewAppearance {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FixtureGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub name: String,
     pub(crate) path: String,
@@ -27,7 +27,7 @@ pub struct FixtureGuiDocument {
     pub elements: Vec<GuiFixtureElement>,
     pub handles: Vec<GuiFixtureHandle>,
     pub render_plan: SpatialRenderPlan,
-    /// The setup's E1.31 and Art-Net controllers, which can play the
+    /// The project's E1.31 and Art-Net controllers, which can play the
     /// capture pattern.
     pub capture_controllers: Vec<GuiCaptureController>,
 }
@@ -130,10 +130,6 @@ pub enum FixtureGuiEdit {
     SetElements {
         elements: Vec<GuiFixtureElement>,
     },
-    MoveElement {
-        id: u32,
-        delta: Point3Meters,
-    },
     MoveHandle {
         id: u32,
         index: u32,
@@ -147,7 +143,7 @@ pub enum FixtureGuiEdit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
+    /// The open object's description, edited with a description `GuiEdit::Put`.
     pub(crate) description: Option<String>,
     pub path: String,
     pub source_ref: GuiObjectRef,
@@ -177,7 +173,7 @@ pub struct GuiLayoutFixture {
 )]
 pub enum GuiLayoutFixtureKind {
     Fixture {
-        definition: GuiOwnedFixture,
+        definition: GuiObjectRef,
         transform: Transform,
     },
     /// Members may belong to several groups.
@@ -230,9 +226,6 @@ pub enum LayoutGuiEdit {
     RemoveItems {
         ids: Vec<u32>,
     },
-    DuplicateFixture {
-        id: u32,
-    },
     RepeatFixtures {
         ids: Vec<u32>,
         offsets: Vec<Point3Meters>,
@@ -245,10 +238,6 @@ pub enum LayoutGuiEdit {
     SetFixtures {
         fixtures: Vec<GuiLayoutFixture>,
         root: Vec<u32>,
-    },
-    MoveFixture {
-        id: u32,
-        delta: Point3Meters,
     },
 }
 
@@ -276,11 +265,4 @@ pub struct GeometryRenderBounds {
     pub(crate) min_y_meters: f32,
     pub(crate) max_x_meters: f32,
     pub(crate) max_y_meters: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum GuiOwnedFixture {
-    Inline { elements: Vec<GuiFixtureElement> },
-    Reference { object: GuiObjectRef },
 }

@@ -11,16 +11,16 @@
 #![cfg_attr(feature = "iram", allow(unsafe_code))]
 use crate::dsl::bytecode::{Edges, SignalPixel};
 use crate::dsl::{
-    Bound, Extent, NeighborWeights, OUTSIDE, Override, ParamsRef, Pixels, RunContext, STRIP,
-    ScanQuery, Scratch, Strip, StripSignals, StripWorkspace, params_at,
+    Bound, Extent, NeighborWeights, OUTSIDE, Pixels, RunContext, STRIP, ScanQuery, Strip,
+    StripSignals, StripWorkspace,
 };
 use crate::format::{self, NONE};
 use crate::resources::{LiveView, ParamsView};
-use crate::sections::SectionsView;
 use crate::targets::{PreparedPixel, TargetCursor, TargetView};
 use crate::view::{ProgramView, Show};
 use crate::workspace::{CachedClipColor, ConsoleState, Timing, Workspace};
 use core::cell::Cell;
+use donder_runtime_iram::iram;
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 /// One clip at one time, evaluated over any selection of pixel coordinates.
@@ -41,8 +41,8 @@ pub(crate) struct Timeline<'a> {
     timing: &'a [Timing],
 }
 
+#[iram]
 impl<'a> Timeline<'a> {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn new(show: Show<'a>, timing: &'a [Timing], order: &'a [u32], ends: &'a [u32]) -> Self {
         let (order, ends) = if timing.is_empty() {
             (show.s.layer_order, show.s.layer_ends)
@@ -58,7 +58,6 @@ impl<'a> Timeline<'a> {
     }
 
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn timing(&self, clip: usize) -> Timing {
         match self.timing.get(clip) {
             Some(timing) => *timing,
@@ -74,7 +73,6 @@ impl<'a> Timeline<'a> {
 
     /// The layer's clips that may be active at `time`: those starting by
     /// then, from the first whose latest end so far is after it.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn live(&self, layer: &format::Layer, time: SampleTime) -> &'a [u32] {
         let order = layer.clips.get(self.order);
         let ends = layer.clips.get(self.ends);
@@ -106,9 +104,9 @@ pub(crate) enum PixelSet<'s, 'a> {
     Listed(&'s [RunPixel]),
 }
 
+#[iram]
 impl PixelSet<'_, '_> {
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn get(&self, k: usize) -> RunPixel {
         match *self {
             Self::Target(cursor) => RunPixel {
@@ -143,40 +141,41 @@ struct StripLayout<'a> {
     spatial: bool,
     /// Whether the program reads pixels' depth or structure.
     structure: bool,
-    sections: Option<SectionsView<'a>>,
     /// Strips must not mix pixel counts or bounds.
     split: bool,
 }
 
+#[iram]
 impl<'a> StripLayout<'a> {
     /// What `program` reads of `target`'s pixels.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn new(show: Show<'a>, program: ProgramView<'a>, target: TargetView<'a>) -> Self {
         Self {
             show,
             target,
             spatial: program.flag(format::PROGRAM_USES_SPATIAL),
             structure: program.flag(format::PROGRAM_USES_STRUCTURE),
-            sections: program
-                .flag(format::PROGRAM_USES_SECTIONS)
-                .then_some(target.sections),
             split: program.flag(format::PROGRAM_READS_TARGET),
         }
     }
 }
 
-/// A program's run context `time` into a span of `duration`.
+/// A program's run context `time` into a span of `duration` that starts at
+/// `origin`.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn run_context(show: Show<'_>, time: SampleDuration, duration: SampleDuration) -> RunContext {
+#[iram]
+fn run_context(
+    show: Show<'_>,
+    time: SampleDuration,
+    duration: SampleDuration,
+    origin: SampleTime,
+) -> RunContext {
     RunContext {
-        progress: time.as_ticks() as f32 / duration.as_ticks() as f32,
         time,
         duration,
         frame_rate: show.frame_rate() as f32,
-        frame: crate::playback::frame_at(time.as_ticks(), show.frame_rate()),
         pixel_count: 0,
+        origin,
     }
 }
 
@@ -185,7 +184,7 @@ fn run_context(show: Show<'_>, time: SampleDuration, duration: SampleDuration) -
 /// change, or the addresses stop being consecutive. One copy serves every
 /// traversal.
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn fill_strip(
     strip: &Pixels<'_>,
     layout: StripLayout<'_>,
@@ -197,7 +196,6 @@ fn fill_strip(
         target,
         spatial,
         structure,
-        sections,
         split,
     } = layout;
     let (start, end) = (pixels.start, pixels.end);
@@ -206,7 +204,7 @@ fn fill_strip(
         pixel_count: 0,
         extent: Extent::default(),
     };
-    if !spatial && !structure && sections.is_none() {
+    if !spatial && !structure {
         // Without geometry only the pixel count can split a run.
         for index in start..end.min(start + STRIP) {
             let pixel_at = pixel.get(index).pixel;
@@ -217,7 +215,6 @@ fn fill_strip(
                 break;
             }
             strip.index[offset].set(pixel_at.pixel_index as i32);
-            strip.fraction[offset].set(pixel_at.fraction());
             shape.len += 1;
         }
         return shape;
@@ -250,35 +247,28 @@ fn fill_strip(
             break;
         }
         strip.index[offset].set(pixel_at.pixel_index as i32);
-        strip.fraction[offset].set(pixel_at.fraction());
-        if let Some(sections) = sections {
-            strip.sections[offset].set(sections.pixel(target_index));
-        }
         shape.len += 1;
     }
     shape
 }
 
+#[iram]
 impl<'a> ClipEvaluator<'a> {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn strip<'s, 'w>(&'s self, workspace: &'s mut StripWorkspace<'w>) -> Strip<'s, 'w> {
         Strip::new(self.bound, &self.context, workspace)
     }
 
     /// Whether every pixel of the clip has one color.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn uniform(&self) -> bool {
         !self.bound.program.flag(format::PROGRAM_USES_PIXEL_CONTEXT)
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn layout(&self) -> StripLayout<'a> {
         StripLayout::new(self.bound.show, self.bound.program, self.target)
     }
 
     /// Evaluate `count` pixels of this clip's target, `pixel(0..count)`, and
     /// hand each color with its position to `write`. A uniform clip runs once.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn evaluate_pixels(
         &self,
         count: usize,
@@ -319,7 +309,7 @@ impl<'a> ClipEvaluator<'a> {
 
 /// A plan-target pixel's place: its fixture's offset plus its cell.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn base(show: Show<'_>, fixture: usize, cell: u32) -> usize {
     show.s.fixtures[fixture].offset as usize + cell as usize
 }
@@ -335,10 +325,10 @@ struct InputFrames<'f> {
     pixels: usize,
 }
 
+#[iram]
 impl<'f> InputFrames<'f> {
     /// Pixel `index` of input `input`'s frame.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn pixel(&self, input: usize, index: usize) -> Color {
         let [half, start] = self.inputs[input];
         self.halves[half as usize & 1][start as usize + index]
@@ -346,7 +336,6 @@ impl<'f> InputFrames<'f> {
 
     /// Input `input`'s frame.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn frame(&self, input: usize) -> &'f [Color] {
         let [half, start] = self.inputs[input];
         let start = start as usize;
@@ -367,18 +356,17 @@ pub(crate) struct FrameSignals<'g> {
     count: usize,
 }
 
+#[iram]
 impl FrameSignals<'_> {
     /// The frame a program reads as `input`: an input node's frame of this
     /// frame.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn frame(&self, input: usize) -> &[Color] {
         self.frames.frame(input)
     }
 
     /// Before each node and clip: its program's scans are not computed yet.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn forget_scans(&self) {
         for scanned in self.scanned {
             scanned.set(false);
@@ -386,14 +374,13 @@ impl FrameSignals<'_> {
     }
 }
 
+#[iram]
 impl StripSignals for FrameSignals<'_> {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn read_strip(&mut self, input: usize, output: &mut [Color; STRIP]) {
         let (first, count) = (self.first, self.count);
         output[..count].copy_from_slice(&self.frame(input)[first..first + count]);
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn read_pixel(&mut self, input: usize, offset: usize, pixel: SignalPixel<i32>) -> Color {
         match signal_pixel(self.plan, self.first + offset, pixel) {
             Some(index) => self.frames.pixel(input, index),
@@ -401,7 +388,6 @@ impl StripSignals for FrameSignals<'_> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn scan(
         &mut self,
         query: &ScanQuery,
@@ -420,7 +406,6 @@ impl StripSignals for FrameSignals<'_> {
         output[..self.count].copy_from_slice(&self.scans[first..first + self.count]);
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn sample_range(
         &mut self,
         input: usize,
@@ -448,7 +433,7 @@ impl StripSignals for FrameSignals<'_> {
     }
 }
 
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn signal_pixel(plan: TargetView<'_>, flat: usize, pixel: SignalPixel<i32>) -> Option<usize> {
     match pixel {
         SignalPixel::Current => Some(flat),
@@ -464,7 +449,7 @@ fn signal_pixel(plan: TargetView<'_>, flat: usize, pixel: SignalPixel<i32>) -> O
 /// Plan-target pixel `shift` pixels from `flat` along its fixture, read
 /// past the fixture's ends as `edges` say.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn shifted(flat: usize, pixel: &PreparedPixel, shift: i32, edges: Edges) -> Option<usize> {
     let local = pixel.pixel_index as i32;
     let read = edges.local(local.wrapping_add(shift), pixel.pixel_count as i32)?;
@@ -474,40 +459,19 @@ fn shifted(flat: usize, pixel: &PreparedPixel, shift: i32, edges: Edges) -> Opti
 /// What every program of a frame runs with.
 struct Programs<'r, 'w> {
     strip: &'r mut StripWorkspace<'w>,
-    scratch: &'r mut Scratch<'w>,
-    overrides: &'r [Override],
     live: LiveView<'r>,
     time: SampleTime,
 }
 
+#[iram]
 impl<'w> Programs<'_, 'w> {
-    /// An invocation's parameters at this frame.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    /// Parameter set `set`, reading this frame's live store.
     fn params<'s>(
         &'s mut self,
         show: Show<'s>,
-        params_ref: ParamsRef,
+        set: u32,
     ) -> (ParamsView<'s>, &'s mut StripWorkspace<'w>) {
-        let overrides = overrides(show, params_ref.plan, self.overrides);
-        let params = params_at(
-            show,
-            self.scratch,
-            params_ref,
-            self.time,
-            overrides,
-            self.live,
-        );
-        (params, self.strip)
-    }
-}
-
-/// The live automations of `plan`'s bindings, or none.
-#[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn overrides<'o>(show: Show<'_>, plan: u32, all: &'o [Override]) -> &'o [Override] {
-    match show.plan(plan) {
-        Some(plan) if !all.is_empty() => plan.bindings.get(all),
-        _ => &[],
+        (ParamsView::show(show, set, self.live), self.strip)
     }
 }
 
@@ -516,7 +480,7 @@ fn overrides<'o>(show: Show<'_>, plan: u32, all: &'o [Override]) -> &'o [Overrid
 // Called once per layer per frame, but its loops over the layer's clips
 // stay here.
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_layer(
     show: Show<'_>,
@@ -542,14 +506,7 @@ fn evaluate_layer(
         }
         active = true;
         let clip = &show.s.clips[clip_index];
-        let (params, workspace) = programs.params(
-            show,
-            ParamsRef {
-                params: clip.params,
-                plan: clip.automation,
-                origin: timing.start,
-            },
-        );
+        let (params, workspace) = programs.params(show, clip.params);
         let sampler = clip_evaluator(show, clip, timing, time, params);
         let target = sampler.target;
         signals.forget_scans();
@@ -577,7 +534,7 @@ fn evaluate_layer(
         // unless the clip reads its layer's frame by address.
         let sample_count = target.sample_count();
         let layout = sampler.layout();
-        let cacheable = sample_count != 0 && !layout.spatial && layout.sections.is_none();
+        let cacheable = sample_count != 0 && !layout.spatial;
         if cacheable {
             for sample in &mut clip_colors[..sample_count] {
                 sample.pixel_count = 0;
@@ -627,7 +584,7 @@ fn evaluate_layer(
 /// Run gathered pixels, each a target index and its address in `rendered`,
 /// in as few strips as the program's layout allows. With `samples`, each
 /// result is kept for duplicate fixture layouts.
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn run_gathered(
     layout: StripLayout<'_>,
     strip: &mut Strip<'_, '_>,
@@ -668,7 +625,7 @@ fn run_gathered(
 
 /// Operator `node` over every plan-target pixel into `rendered`.
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn evaluate_operator(
     show: Show<'_>,
     node: &format::Node,
@@ -682,20 +639,13 @@ fn evaluate_operator(
         show,
         SampleDuration::from_ticks(programs.time.as_ticks()),
         show.duration(),
+        SampleTime::from_ticks(0),
     );
-    let (params, workspace) = programs.params(
-        show,
-        ParamsRef {
-            params: node.params,
-            plan: node.automation,
-            origin: 0,
-        },
-    );
+    let (params, workspace) = programs.params(show, node.params);
     let bound = Bound {
         show,
         program,
         params,
-        sections: Some(plan.sections),
     };
     let mut strip = Strip::new(bound, &context, workspace);
     let pixels = plan.cursor();
@@ -718,14 +668,14 @@ fn evaluate_operator(
 }
 
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn compose_max(target: &mut Color, source: Color) {
     target.red = target.red.max(source.red);
     target.green = target.green.max(source.green);
     target.blue = target.blue.max(source.blue);
 }
 
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 const fn black() -> Color {
     Color::BLACK
 }
@@ -799,7 +749,6 @@ mod frames {
             scanned,
             input_frames,
             strip,
-            scratch,
             gather,
             clip_colors,
             console,
@@ -809,7 +758,7 @@ mod frames {
             timing,
             layer_order,
             layer_ends,
-            overrides,
+            live,
             live_tracks,
             live_ticks,
         } = console;
@@ -817,11 +766,10 @@ mod frames {
         let plan = TargetView::of(show, &show.s.targets[show.meta().plan_target as usize]);
         let mut programs = Programs {
             strip,
-            scratch,
-            overrides,
             live: LiveView {
                 tracks: live_tracks,
                 ticks: live_ticks,
+                values: live,
             },
             time,
         };
@@ -905,12 +853,12 @@ mod frames {
                 show,
                 program,
                 params,
-                sections: Some(target.sections),
             },
             context: run_context(
                 show,
                 SampleDuration::from_ticks(elapsed),
                 SampleDuration::from_ticks(timing.duration),
+                SampleTime::from_ticks(timing.start),
             ),
             target,
         }

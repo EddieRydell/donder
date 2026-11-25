@@ -17,13 +17,7 @@ fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
     use donder_model::{PixelRouteId, PixelSpan};
     use donder_runtime_types::PixelEncoding;
     let mut project = project().project().clone();
-    let patch_id = *project.reusable::<donder_model::Setup>()[project.root().setup.id()]
-        .patch
-        .id();
-    let mut patch = project
-        .get::<donder_model::Patch>(patch_id)
-        .unwrap()
-        .clone();
+    let mut patch = project.root().clone();
     patch.routes.truncate(1);
     patch.routes[0].pixels = Some(PixelSpan { start: 0, count: 1 });
     let mut second = patch.routes[0].clone();

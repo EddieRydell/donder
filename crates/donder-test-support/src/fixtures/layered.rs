@@ -12,7 +12,7 @@ pub fn layered_600() -> PreparedShow {
     };
     let effects = crate::fixtures::cases().map(|(name, source, params)| {
         crate::playback::bind(
-            &crate::fixtures::prepared_effect(name, source, params).instance(constants),
+            &crate::fixtures::prepared_effect(name, source, params).instance(constants, &[]),
         )
     });
     let source = include_str!("../../../../examples/starter/operators/standard.donder");
@@ -22,10 +22,13 @@ pub fn layered_600() -> PreparedShow {
         ("Dim", vec![("amount", Value::Float(0.8))]),
     ]
     .map(|(name, values)| {
-        invoke(&definition(source, name), &values).instance(ProgramConstants {
-            pixel_count: None,
-            ..constants
-        })
+        invoke(&definition(source, name), &values).instance(
+            ProgramConstants {
+                pixel_count: None,
+                ..constants
+            },
+            &[],
+        )
     });
     // Each operator consumes only the previous one, so preparation fuses the chain.
     let mut fused: Vec<Instance> = Vec::new();

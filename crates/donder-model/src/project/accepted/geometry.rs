@@ -1,13 +1,13 @@
 //! The runtime geometry contract is established with the authored layout, not
 //! rediscovered while preparing a selected sequence.
 use super::DonderProject;
-use crate::layout::{FixtureInstanceId, LayoutId};
+use crate::layout::{FixtureId, LayoutId};
 use crate::validation::{AdmissionProblem, ProjectValidationError, ValidationProblem, at};
 use donder_runtime_types::FixtureGeometry;
 use indexmap::IndexMap;
 use std::sync::Arc;
 
-pub(super) type LayoutGeometry = Arc<[(FixtureInstanceId, FixtureGeometry)]>;
+pub(super) type LayoutGeometry = Arc<[(FixtureId, FixtureGeometry)]>;
 
 pub(super) fn admit(
     project: &DonderProject,
@@ -23,18 +23,15 @@ pub(super) fn admit(
     let mut definitions = None;
     project
         .objects::<crate::Layout>()
-        .map(|layout| {
+        .map(|(id, layout)| {
             if let Some(previous) = previous
                 && previous
-                    .get::<crate::Layout>(layout.id)
+                    .get::<crate::Layout>(id)
                     .is_some_and(|previous_layout| {
                         std::ptr::eq(layout, previous_layout) || layout == previous_layout
                     })
             {
-                return Ok((
-                    layout.id,
-                    Arc::clone(&previous.accepted_inputs.layouts[&layout.id]),
-                ));
+                return Ok((id, Arc::clone(&previous.accepted_inputs.layouts[&id])));
             }
             let definitions = definitions.get_or_insert_with(|| {
                 crate::geometry::PreparedFixtureDefinitions::prepare(
@@ -67,8 +64,8 @@ pub(super) fn admit(
                     Ok((instance.id, geometry))
                 })
                 .collect::<Result<LayoutGeometry, ValidationProblem>>()
-                .map_err(at(layout.id))?;
-            Ok((layout.id, fixtures))
+                .map_err(at(id))?;
+            Ok((id, fixtures))
         })
         .collect()
 }

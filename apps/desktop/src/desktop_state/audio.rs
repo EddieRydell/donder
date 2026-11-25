@@ -18,7 +18,7 @@ impl DesktopState {
         let sequence_id = self.resolve_sequence_id(&request);
         let sequence_address = sequence_id.and_then(|id| {
             self.project_session()
-                .and_then(|session| session.find_address(id.into()))
+                .and_then(|session| session.source_identity(id.into()))
         });
         // Donder controllers playing a performance keep playing it.
         if !self.is_performing()
@@ -46,14 +46,9 @@ impl DesktopState {
             .as_ref()
             .filter(|_| sequence_id.is_some())
             .and_then(|project| donder_editor::resolve_request(project, &request).ok())
-            .and_then(|resolved| {
+            .map(|resolved| {
                 let reference = resolved.source_ref();
-                sequence_viewport_key(
-                    &reference.path,
-                    &reference.object_key,
-                    &reference.owned_path,
-                )
-                .ok()
+                sequence_viewport_key(&reference.path, &reference.object_key)
             });
         let audio_transport = self.restore_sequence_transport(view_key, audio_transport);
         match (project, sequence_id) {
@@ -255,28 +250,6 @@ impl DesktopState {
         }
     }
 
-    #[cfg(test)]
-    fn render_current_sequence_frame(
-        &self,
-    ) -> Result<crate::rendering::AudioClockRenderedFrame, crate::rendering::SequenceRenderError>
-    {
-        self.render_refresh.finish_pending();
-        let _authoring = lock_unpoisoned(&self.authoring);
-        let audio_transport = self.audio_snapshot();
-        lock_unpoisoned(&self.sequence_render).render_current_sequence_frame(&audio_transport)
-    }
-
-    #[cfg(test)]
-    fn active_preview_render_identity(
-        &self,
-    ) -> Result<crate::rendering::AudioClockRenderIdentity, crate::rendering::SequenceRenderError>
-    {
-        self.render_refresh.finish_pending();
-        let _authoring = lock_unpoisoned(&self.authoring);
-        let audio_transport = self.audio_snapshot();
-        lock_unpoisoned(&self.sequence_render).active_render_identity(&audio_transport)
-    }
-
     pub(crate) fn preview_content_identity(&self) -> crate::preview::PreviewContentIdentity {
         self.render_refresh.finish_pending();
         let _authoring = lock_unpoisoned(&self.authoring);
@@ -284,16 +257,18 @@ impl DesktopState {
         crate::preview::PreviewContentIdentity {
             project_epoch: snapshot.project_epoch,
             project_revision: self.project_revision(),
-            sequence_generation: lock_unpoisoned(&self.sequence_render).session_generation(),
             project_loaded: self.project_session().is_some(),
-            performance: self.performance_generation(),
+            playing: self.with_playing(|playing| playing.map(|playing| playing.generation)),
         }
     }
 
     /// The clock the Preview plays on: the performance's while performing.
     pub(crate) fn preview_clock(&self) -> crate::preview::PreviewClock {
-        self.performance_clock()
-            .unwrap_or_else(|| self.audio_snapshot().into())
+        let audio = self.audio_snapshot();
+        self.with_playing(|playing| match playing {
+            Some(playing) => playing.preview_clock(audio),
+            None => audio.into(),
+        })
     }
 
     pub(crate) fn preview_content(&self) -> Result<crate::preview::PreviewContent, String> {
@@ -307,27 +282,21 @@ impl DesktopState {
             });
         };
         let geometry = crate::preview::PreviewGeometry::from_project(session.project());
-        if let Some(performance) = self.preview_performance() {
-            if performance.fixtures != geometry.fixtures {
-                return Err("The performed console does not match the active layout.".to_string());
+        self.with_playing(|playing| {
+            if let Some(playing) = playing
+                && playing.fixtures() != geometry.fixtures
+            {
+                return Err("The prepared show does not match the active layout.".to_string());
             }
-            return Ok(crate::preview::PreviewContent {
+            Ok(crate::preview::PreviewContent {
                 instances: geometry.instances,
-                show: Some(performance.show),
-                performance: Some(performance.generation),
-            });
-        }
-        let sequence = lock_unpoisoned(&self.sequence_render).encode_preview_sequence();
-        if let Some(sequence) = sequence.as_ref()
-            && sequence.fixtures != geometry.fixtures
-        {
-            return Err("Prepared Preview sequence does not match the active layout.".to_string());
-        }
-
-        Ok(crate::preview::PreviewContent {
-            instances: geometry.instances,
-            show: sequence.map(|sequence| sequence.bytes),
-            performance: None,
+                show: playing.map(|playing| playing.show.encode()),
+                performance: playing
+                    .filter(|playing| {
+                        matches!(playing.clock, crate::playing::PlayClock::Session(_))
+                    })
+                    .map(|playing| playing.generation),
+            })
         })
     }
 }
@@ -344,45 +313,23 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
         write_new_project_files(&root, &new_test_project_files("Show").unwrap()).unwrap();
-        let mut session =
+        let session =
             donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
                 .into_session()
                 .unwrap();
-        for (site, path) in [
-            (
-                donder_model::OwnershipSite::Member {
-                    owner: session.project().root().id.into(),
-                    member: (*session.project().root().setup.id()).into(),
-                },
-                "setups/main.data.donder",
-            ),
-            (
-                donder_model::OwnershipSite::Member {
-                    owner: session.project().root().id.into(),
-                    member: (*session.project().root().sequences[0].id()).into(),
-                },
-                "sequences/main.data.donder",
-            ),
-        ] {
-            session
-                .edit(|edit| {
-                    let id = donder_model::make_reusable(edit.project_mut(), &site)?;
-                    edit.add_data_document(
-                        path.into(),
-                        vec![(id, donder_language::object_name("main"))],
-                    )?;
-                    Ok::<_, donder_project_io::SessionEditError>(())
-                })
-                .unwrap();
-        }
         donder_project_io::save_project(&session).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let loaded = state.project_session().unwrap();
-        let imported = *loaded.project().root().sequences[0].id();
+        let imported = *loaded
+            .project()
+            .reusable::<donder_model::Sequence>()
+            .get_index(0)
+            .unwrap()
+            .0;
         let address = loaded.address_of(imported);
         let request = state
-            .resolve_gui_source(address.document().as_str(), address.root_source().object())
+            .resolve_gui_source(address.document().as_str(), address.object())
             .unwrap();
         state.open_file_path(&request.path);
         let projected = state.get_gui_document(request.clone()).document;
@@ -408,25 +355,33 @@ mod tests {
             state.audio_pause().audio_transport.state,
             AudioTransportState::Paused
         );
-        let frame = state.render_current_sequence_frame().unwrap();
+        state.render_refresh.finish_pending();
+        let (id, frame_rate, frame_count) = state
+            .with_playing(|playing| {
+                playing.map(|playing| {
+                    (
+                        playing.id,
+                        playing.show.frame_rate(),
+                        playing.show.frame_count(),
+                    )
+                })
+            })
+            .unwrap();
+        assert_eq!(id, donder_model::ShowId::Sequence(imported));
         assert_eq!(
-            lock_unpoisoned(&state.sequence_render).active_target(),
-            Some((*loaded.project().root().setup.id(), imported))
-        );
-        assert_eq!(
-            frame.frame.frame_rate,
+            frame_rate,
             loaded.project().reusable::<donder_model::Sequence>()[&imported].frame_rate
         );
-        assert!(state.active_preview_render_identity().unwrap().frame_count > 0);
+        assert!(frame_count > 0);
         state.unload_audio();
         assert!(std::sync::Arc::ptr_eq(
             &loaded,
             &state.project_session().unwrap()
         ));
-        let setup = loaded.address_of(*loaded.project().root().setup.id());
+        let setup = loaded.address_of(loaded.project().root().id);
         let mut wrong_view = request.clone();
         wrong_view.path = setup.document().to_string();
-        wrong_view.object_key = setup.root_source().object().into();
+        wrong_view.object_key = setup.object().into();
         assert!(state.resolve_sequence_id(&wrong_view).is_none());
         let mut stale = request;
         stale.project_revision += 1;

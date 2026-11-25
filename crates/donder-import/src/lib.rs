@@ -1,9 +1,9 @@
-//! Import a profile's layout, controllers and patch, from xLights or Vixen,
+//! Import a profile's layout, controllers and routes, from xLights or Vixen,
 //! into a Donder project.
 //!
 //! Each source's reader turns its profile into the fixtures, controllers and
 //! groups of [`setup`], whose pixels sit where the source draws them, in
-//! channel order; one builder then makes them the project's setup.
+//! channel order; one builder then puts them in the project.
 #![deny(unsafe_code)]
 #![cfg_attr(
     not(test),
@@ -56,7 +56,7 @@ impl Source {
     }
 }
 
-/// Import the profile in `folder` into the project, whose setup must be empty.
+/// Import the profile in `folder` into the project, whose layout, controllers and routes must be empty.
 pub fn import_profile(
     session: &mut ProjectSession,
     folder: &Utf8Path,

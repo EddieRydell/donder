@@ -16,19 +16,16 @@ const DECLARED: &str = "clipboard";
 /// project's objects through imports.
 pub fn write_sequence_clipboard(
     session: &ProjectSession,
-    mut sequence: Sequence,
+    sequence: Sequence,
 ) -> Result<String, String> {
     let mut session = session.clone();
     let document = clipboard_document(&session);
     let name = Identifier::new(DECLARED.to_string()).map_err(|error| format!("{error:?}"))?;
     session
         .edit(|edit| {
-            sequence.id = SequenceId(edit.project_mut().new_id());
-            edit.add_data_document(
-                document.path().to_path_buf(),
-                vec![(sequence.id.into(), name)],
-            )?;
-            edit.project_mut().put(sequence)?;
+            let id = SequenceId(edit.project_mut().new_id());
+            edit.add_data_document(document.path().to_path_buf(), vec![(id.into(), name)])?;
+            edit.project_mut().put((id, sequence))?;
             Ok::<_, SessionEditError>(())
         })
         .map_err(|error| error.to_string())?;

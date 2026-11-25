@@ -2,8 +2,8 @@ use donder_elaboration::{PreparedShow, Retain, prepare};
 use donder_model::DonderProject;
 use donder_model::GraphOperatorNode;
 use donder_model::{
-    CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
-    GraphNodePosition, Sequence, SequenceCompositionGraph, SequenceId,
+    CompositionGraph, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
+    EffectGraphEdge, GraphNodePosition, Sequence, SequenceId,
 };
 use donder_runtime_types::SampleTime;
 
@@ -17,10 +17,9 @@ fn layer_test() -> (DonderProject, SequenceId) {
             .unwrap();
     let id = session
         .project()
-        .root()
-        .sequences
-        .iter()
-        .map(|source| *source.id())
+        .reusable::<donder_model::Sequence>()
+        .keys()
+        .copied()
         .find(|id| {
             session
                 .source()
@@ -60,11 +59,11 @@ fn project_operator(project: &DonderProject, id: u32, name: &str) -> Composition
     CompositionGraphNodeKind::Operator(GraphOperatorNode {
         name: donder_language::object_name(&format!("operator_{id}")),
         operator: *project
-            .reusable::<donder_model::OperatorDefinition>()
-            .values()
-            .find(|definition| definition.name() == name)
+            .reusable::<donder_model::ScriptDefinition>()
+            .iter()
+            .find(|(_, definition)| definition.name() == name)
             .unwrap()
-            .id(),
+            .0,
         params: Default::default(),
     })
 }
@@ -73,7 +72,7 @@ fn project_operator(project: &DonderProject, id: u32, name: &str) -> Composition
 fn fusion_preserves_shared_sources_and_addressed_reads() {
     use donder_language::compiler::compile_script;
     use donder_model::ProjectEdit;
-    use donder_model::{OperatorDefinition, OperatorDefinitionId};
+    use donder_model::{ScriptDefinition, ScriptId};
 
     let (mut project, id) = layer_test();
     let definitions = compile_script(
@@ -81,25 +80,29 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
         sample { max(source, rgb(progress, 0.05, 0.1)) }
     }
     operator Early { input source;
-        sample { source.at(pixel.index - 1) * 0.4 }
+        sample { source[pixel.index - 1] * 0.4 }
     }
     operator Late { input source;
-        sample { source.at(pixel.index + 2) * 0.8 }
+        sample { source[pixel.index + 2] * 0.8 }
     }",
     )
     .unwrap();
     let mut refs = Vec::new();
     for compiled in definitions {
-        let definition = OperatorDefinitionId(project.new_id());
+        let definition = ScriptId(project.new_id());
         refs.push(definition);
         project
-            .apply_edits([ProjectEdit::Put(donder_model::Object::OperatorDefinition(
-                OperatorDefinition::new(definition, compiled),
+            .apply_edits([ProjectEdit::Put(donder_model::Object::Script(
+                definition,
+                ScriptDefinition::new(compiled),
             ))])
             .unwrap();
     }
     let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
-    sequence.automation_clips.clear();
+    sequence
+        .composition
+        .clips
+        .retain(|clip| clip.effect().is_some());
     // Node `id` runs operator `index`.
     let operator = |id: u32, index: usize| {
         CompositionGraphNodeKind::Operator(GraphOperatorNode {
@@ -108,12 +111,12 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
             params: Default::default(),
         })
     };
-    sequence.composition_graph = SequenceCompositionGraph {
+    sequence.composition.graph = CompositionGraph {
         nodes: vec![
             node(
                 0,
                 CompositionGraphNodeKind::Layer {
-                    layer_id: sequence.layers[0].id.clone(),
+                    layer_id: sequence.composition.layers[0].id.clone(),
                 },
             ),
             node(1, operator(1, 0)),
@@ -129,24 +132,27 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
             to_root(3, 4),
         ],
     };
-    project.put(sequence.clone()).unwrap();
+    project.put((id, sequence.clone())).unwrap();
     let shared = prepare(&project, &id, Retain::All).unwrap();
     // The shared source stays a graph node. Duplicating it gives each consumer
     // a private source, which stays a boundary for the consumers' addressed
     // reads, while preserving the authored behavior.
     sequence
-        .composition_graph
+        .composition
+        .graph
         .nodes
         .push(node(5, operator(5, 0)));
     sequence
-        .composition_graph
+        .composition
+        .graph
         .edges
         .retain(|edge| !(edge.from.0 == 1 && edge.to.0 == 3));
     sequence
-        .composition_graph
+        .composition
+        .graph
         .edges
         .extend([edge(0, 5, "source"), edge(5, 3, "source")]);
-    project.put(sequence).unwrap();
+    project.put((id, sequence)).unwrap();
     let duplicated = prepare(&project, &id, Retain::All).unwrap();
     let mut shared = shared.into_playback();
     let mut duplicated = duplicated.into_playback();
@@ -167,10 +173,13 @@ fn fusion_preserves_shared_sources_and_addressed_reads() {
 fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -> PreparedShow {
     let (mut project, id) = layer_test();
     let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
-    sequence.automation_clips.clear();
+    sequence
+        .composition
+        .clips
+        .retain(|clip| clip.effect().is_some());
     blacken(&mut sequence);
     let layer = |index: usize| CompositionGraphNodeKind::Layer {
-        layer_id: sequence.layers[index].id.clone(),
+        layer_id: sequence.composition.layers[index].id.clone(),
     };
     let mut nodes = vec![
         node(0, layer(0)),
@@ -185,8 +194,8 @@ fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -
         previous = id;
     }
     edges.push(to_root(previous, 2));
-    sequence.composition_graph = SequenceCompositionGraph { nodes, edges };
-    project.put(sequence).unwrap();
+    sequence.composition.graph = CompositionGraph { nodes, edges };
+    project.put((id, sequence)).unwrap();
     prepare(&project, &id, Retain::All).unwrap()
 }
 
@@ -196,12 +205,15 @@ fn encoded(sequence: &PreparedShow) -> Vec<u8> {
 }
 
 fn disable_layer(sequence: &mut Sequence) {
-    sequence.layers[1].enabled = false;
+    sequence.composition.layers[1].enabled = false;
 }
 
 fn empty_layer(sequence: &mut Sequence) {
-    let layer = sequence.layers[1].id.clone();
-    sequence.clips.retain(|clip| clip.layer_id != layer);
+    let layer = sequence.composition.layers[1].id.clone();
+    sequence
+        .composition
+        .clips
+        .retain(|clip| clip.effect().is_some_and(|effect| effect.layer != layer));
 }
 
 #[test]
@@ -253,13 +265,13 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     use donder_model::validate_composition_graph;
     let (mut project, id) = layer_test();
     let baseline = prepare(&project, &id, Retain::All).unwrap();
-    let definitions = project.reusable::<donder_model::OperatorDefinition>();
+    let definitions = project.reusable::<donder_model::ScriptDefinition>();
     let make_node = |id, name| CompositionGraphNode {
         position: GraphNodePosition { x: 100.0, y: 100.0 },
         ..node(id, project_operator(&project, id, name))
     };
     let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
-    let graph = &mut sequence.composition_graph;
+    let graph = &mut sequence.composition.graph;
     graph
         .nodes
         .extend([make_node(8000, "Add"), make_node(8001, "HueShift")]);
@@ -284,15 +296,16 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         validate_composition_graph(&invalid, definitions).is_err(),
         "unknown port accepted"
     );
-    project.put(sequence.clone()).unwrap();
+    project.put((id, sequence.clone())).unwrap();
     let disconnected = prepare(&project, &id, Retain::All).unwrap();
     assert!(encoded(&baseline) == encoded(&disconnected));
     sequence
-        .composition_graph
+        .composition
+        .graph
         .edges
         .push(edge(8001, output, "input"));
     assert!(
-        project.put(sequence).is_err(),
+        project.put((id, sequence)).is_err(),
         "incomplete branch contributing to output accepted"
     );
 }

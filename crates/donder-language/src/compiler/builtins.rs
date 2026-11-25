@@ -3,20 +3,18 @@
 //! checking, editor analysis and `docs/effect_builtins.md` all read these
 //! tables.
 use super::check::Checker;
-use super::ir::{Binary, Context, Node, Op, Quaternary, Reducer as Tabulation, Ternary, Unary};
-use super::syntax::ast::ReducerKind;
+use super::ir::{Binary, Context, Node, Op, Quaternary, Reducer, Ternary, Unary};
 use core::fmt::Write;
 use donder_runtime_types::{Identifier, Type};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BuiltinGroup {
+pub(crate) enum BuiltinGroup {
     Math,
     Rounding,
     MissingValues,
     Color,
     Resources,
     Events,
-    Sections,
     Random,
     Collections,
     Audio,
@@ -25,14 +23,13 @@ pub enum BuiltinGroup {
 }
 
 impl BuiltinGroup {
-    const ALL: [Self; 12] = [
+    const ALL: [Self; 11] = [
         Self::Math,
         Self::Rounding,
         Self::MissingValues,
         Self::Color,
         Self::Resources,
         Self::Events,
-        Self::Sections,
         Self::Random,
         Self::Collections,
         Self::Audio,
@@ -48,7 +45,6 @@ impl BuiltinGroup {
             Self::Color => "Color",
             Self::Resources => "Curves and gradients",
             Self::Events => "Marks and crossings",
-            Self::Sections => "Sections",
             Self::Random => "Randomness",
             Self::Collections => "Collections",
             Self::Audio => "Audio",
@@ -60,7 +56,7 @@ impl BuiltinGroup {
 
 /// What an argument of a builtin takes.
 #[derive(Debug)]
-pub enum ArgType {
+pub(crate) enum ArgType {
     /// A value of this type; a float also takes an int, widened.
     Is(Type),
     /// An array of any items.
@@ -125,7 +121,7 @@ pub(crate) enum Lowering {
 /// One way to call a builtin: argument names with types, the result type,
 /// and the operation it lowers to.
 #[derive(Debug)]
-pub struct Signature {
+pub(crate) struct Signature {
     pub(crate) args: &'static [(&'static str, ArgType)],
     result: Type,
     pub(crate) lowering: Lowering,
@@ -184,7 +180,6 @@ const INT: ArgType = ArgType::Is(Type::Int);
 const FLOAT: ArgType = ArgType::Is(Type::Float);
 const COLOR: ArgType = ArgType::Is(Type::Color);
 const CURVE: ArgType = ArgType::Is(Type::Curve);
-const GRADIENT: ArgType = ArgType::Is(Type::Gradient);
 const MARKS: ArgType = ArgType::Is(Type::Marks);
 const ANY_ARRAY: ArgType = ArgType::Array;
 const TEXT: ArgType = ArgType::Text;
@@ -267,7 +262,7 @@ pub const BUILTINS: &[Builtin] = &[
             sig(
                 &[("base", FLOAT), ("exponent", FLOAT)],
                 Type::Float,
-                B(Binary::PowerFloat),
+                B(Binary::Power),
             ),
         ],
         summary: "`base` raised to `exponent`.",
@@ -278,7 +273,7 @@ pub const BUILTINS: &[Builtin] = &[
         name: "abs",
         group: G::Math,
         signatures: &[
-            sig(&[("x", INT)], Type::Int, U(Unary::IntAbs)),
+            sig(&[("x", INT)], Type::Int, U(Unary::Abs)),
             sig(X, Type::Float, U(Unary::Abs)),
         ],
         summary: "Absolute value; an int stays an int.",
@@ -300,7 +295,7 @@ pub const BUILTINS: &[Builtin] = &[
         name: "min",
         group: G::Math,
         signatures: &[
-            sig(&[("a", INT), ("b", INT)], Type::Int, B(Binary::IntMin)),
+            sig(&[("a", INT), ("b", INT)], Type::Int, B(Binary::Min)),
             sig(&[("a", FLOAT), ("b", FLOAT)], Type::Float, B(Binary::Min)),
         ],
         summary: "The smaller argument. Two ints give an int; otherwise both are floats.",
@@ -311,13 +306,9 @@ pub const BUILTINS: &[Builtin] = &[
         name: "max",
         group: G::Math,
         signatures: &[
-            sig(&[("a", INT), ("b", INT)], Type::Int, B(Binary::IntMax)),
+            sig(&[("a", INT), ("b", INT)], Type::Int, B(Binary::Max)),
             sig(&[("a", FLOAT), ("b", FLOAT)], Type::Float, B(Binary::Max)),
-            sig(
-                &[("a", COLOR), ("b", COLOR)],
-                Type::Color,
-                B(Binary::ColorMax),
-            ),
+            sig(&[("a", COLOR), ("b", COLOR)], Type::Color, B(Binary::Max)),
         ],
         summary: "The larger argument. Two ints give an int; two colors take the larger of each channel.",
         details: "NaN in either float argument gives NaN.",
@@ -354,7 +345,7 @@ pub const BUILTINS: &[Builtin] = &[
             sig(
                 &[("a", COLOR), ("b", COLOR), ("t", FLOAT)],
                 Type::Color,
-                T(Ternary::MixColor),
+                T(Ternary::Mix),
             ),
         ],
         summary: "Linear interpolation from `a` at `t = 0` to `b` at `t = 1`.",
@@ -451,7 +442,7 @@ pub const BUILTINS: &[Builtin] = &[
         )],
         summary: "`x`, or `replacement` when `x` is NaN.",
         details: "Both arguments are always computed; use an `if` when the replacement is expensive.",
-        example: "let age = value_or(time - mark_last(beats, time), 1000.0);",
+        example: "let age = value_or(time - mark_at(beats, mark_last_index(beats, time)), 1000.0);",
     },
     Builtin {
         name: "rgb",
@@ -534,23 +525,6 @@ pub const BUILTINS: &[Builtin] = &[
         example: "invert(input)",
     },
     Builtin {
-        name: "curve_clamped",
-        group: G::Resources,
-        signatures: &[sig(
-            &[
-                ("curve", CURVE),
-                ("position", FLOAT),
-                ("low", FLOAT),
-                ("high", FLOAT),
-            ],
-            Type::Float,
-            E(curve_clamped),
-        )],
-        summary: "`clamp(curve[position], low, high)` as one operation.",
-        details: "Indexing a curve, `curve[position]`, samples it at a position in 0..1; an empty curve gives NaN.",
-        example: "let level = curve_clamped(envelope, progress, 0.0, 1.0);",
-    },
-    Builtin {
         name: "curve_integral",
         group: G::Resources,
         signatures: &[sig(
@@ -561,34 +535,6 @@ pub const BUILTINS: &[Builtin] = &[
         summary: "The area under the curve from position 0 to `position`.",
         details: "End values are held beyond the authored points, so the area keeps growing past them; a negative position gives a negative area. Multiply by `duration` to integrate a rate over the clip's seconds. An empty curve or a NaN position gives NaN.",
         example: "let spawned = curve_integral(rate, progress) * duration;",
-    },
-    Builtin {
-        name: "gradient_color_scaled",
-        group: G::Resources,
-        signatures: &[sig(
-            &[
-                ("gradient", GRADIENT),
-                ("position", FLOAT),
-                ("scale", FLOAT),
-            ],
-            Type::Color,
-            E(gradient_color_scaled),
-        )],
-        summary: "`gradient[position] * clamp(scale, 0, 1)` as one operation.",
-        details: "Indexing a gradient, `gradient[position]`, samples its color at a position in 0..1; an empty gradient gives black.",
-        example: "gradient_color_scaled(colors, pixel.fraction, level)",
-    },
-    Builtin {
-        name: "mark_last",
-        group: G::Events,
-        signatures: &[sig(
-            &[("marks", MARKS), ("time", FLOAT)],
-            Type::Float,
-            B(Binary::MarkLast),
-        )],
-        summary: "The time in seconds of the last mark at or before `time`.",
-        details: "NaN before the first mark.",
-        example: "let age = time - mark_last(beats, time);",
     },
     Builtin {
         name: "mark_last_index",
@@ -611,7 +557,7 @@ pub const BUILTINS: &[Builtin] = &[
             B(Binary::MarkAt),
         )],
         summary: "The time in seconds of the mark at `index`.",
-        details: "NaN outside `0..mark_count(marks)`.",
+        details: "NaN outside `0..len(marks)`.",
         example: "let next = mark_at(beats, beat + 1);",
     },
     Builtin {
@@ -799,16 +745,8 @@ pub const BUILTINS: &[Builtin] = &[
             B(Binary::MarkDuration),
         )],
         summary: "How long the mark at `index` lasts, in seconds.",
-        details: "Zero for an instantaneous mark and for every live mark; NaN outside `0..mark_count(marks)`.",
+        details: "Zero for an instantaneous mark and for every live mark; NaN outside `0..len(marks)`.",
         example: "let span = mark_duration(words, mark_last_index(words, time));",
-    },
-    Builtin {
-        name: "mark_count",
-        group: G::Events,
-        signatures: &[sig(&[("marks", MARKS)], Type::Int, U(Unary::MarkCount))],
-        summary: "How many marks the collection holds; the same as `len(marks)`.",
-        details: "",
-        example: "guard mark_count(beats) > 0;",
     },
     Builtin {
         name: "curve_first_crossing",
@@ -816,7 +754,7 @@ pub const BUILTINS: &[Builtin] = &[
         signatures: &[sig(
             &[("curve", CURVE), ("value", FLOAT)],
             Type::Float,
-            B(Binary::CurveFirstCrossing),
+            E(first_crossing),
         )],
         summary: "The first position in 0..1 where the curve reaches `value`.",
         details: "NaN when it never does, or for an empty curve.",
@@ -835,30 +773,6 @@ pub const BUILTINS: &[Builtin] = &[
         example: "let left = curve_last_crossing(chase, pixel.fraction, progress);",
     },
     Builtin {
-        name: "section_count",
-        group: G::Sections,
-        signatures: &[sig(&[("width", INT)], Type::Int, U(Unary::SectionCount))],
-        summary: "How many runs of `width` pixels the target is split into.",
-        details: "A per-fixture effect sections each fixture; a whole-target effect sections the target's fixtures in order. Widths below one count as one.",
-        example: "let sections = section_count(10);",
-    },
-    Builtin {
-        name: "section_index",
-        group: G::Sections,
-        signatures: &[sig(&[("width", INT)], Type::Int, U(Unary::SectionIndex))],
-        summary: "The zero-based run of `width` pixels the current pixel is in.",
-        details: "",
-        example: "let lit = section_index(10) % 2 == 0;",
-    },
-    Builtin {
-        name: "section_position",
-        group: G::Sections,
-        signatures: &[sig(&[("width", FLOAT)], Type::Float, E(section_position))],
-        summary: "The current pixel's position within its run of `width` pixels, in `[0, 1)`.",
-        details: "Widths below one count as one.",
-        example: "let ramp = section_position(10.0);",
-    },
-    Builtin {
         name: "rand",
         group: G::Random,
         signatures: &[sig(&[("seed", FLOAT)], Type::Float, U(Unary::Rand))],
@@ -871,13 +785,49 @@ pub const BUILTINS: &[Builtin] = &[
         group: G::Collections,
         signatures: &[
             sig(&[("array", ANY_ARRAY)], Type::Int, U(Unary::Len)),
-            sig(&[("marks", MARKS)], Type::Int, U(Unary::MarkCount)),
+            sig(&[("marks", MARKS)], Type::Int, U(Unary::Len)),
         ],
         summary: "How many items an array or marks collection holds.",
         details: "Indexing an array, `array[i]`, clamps `i` to the first or last item and floors a float `i`; an empty array gives the item type's default.",
         example: "let color = colors[pixel.index % len(colors)];",
     },
 ];
+
+// Context values built from other context values.
+
+/// `time / duration`.
+fn progress(checker: &mut Checker) -> Node {
+    let graph = &mut checker.graph;
+    let time = graph.add(Op::Context(Context::Time));
+    let duration = graph.add(Op::Context(Context::Duration));
+    graph.binary(Binary::Divide, time, duration)
+}
+
+/// The frame nearest `time`, halves rounding up.
+fn frame(checker: &mut Checker) -> Node {
+    let graph = &mut checker.graph;
+    let time = graph.add(Op::Context(Context::Time));
+    let rate = graph.add(Op::Context(Context::FrameRate));
+    let frames = graph.binary(Binary::Multiply, time, rate);
+    let half = graph.float(0.5);
+    let rounded = graph.binary(Binary::Add, frames, half);
+    graph.unary(Unary::FloatToInt, rounded)
+}
+
+/// `pixel.index / (target.count - 1)`, or 0 for a single pixel.
+fn pixel_fraction(checker: &mut Checker) -> Node {
+    let graph = &mut checker.graph;
+    let index = graph.add(Op::Context(Context::PixelIndex));
+    let count = graph.add(Op::Context(Context::TargetCount));
+    let one = graph.int(1);
+    let last = graph.binary(Binary::Subtract, count, one);
+    let last = graph.binary(Binary::Max, last, one);
+    let (index, last) = (
+        graph.unary(Unary::IntToFloat, index),
+        graph.unary(Unary::IntToFloat, last),
+    );
+    graph.binary(Binary::Divide, index, last)
+}
 
 // Builtins that desugar to several operations.
 
@@ -890,15 +840,15 @@ fn power(checker: &mut Checker, args: &[Node]) -> Node {
         return checker.graph.binary(Binary::Power, base, exponent);
     }
     let exponent = checker.graph.unary(Unary::IntToFloat, exponent);
-    checker.graph.binary(Binary::PowerFloat, base, exponent)
+    checker.graph.binary(Binary::Power, base, exponent)
 }
 
 fn int_sign(checker: &mut Checker, args: &[Node]) -> Node {
     let graph = &mut checker.graph;
     let value = args[0];
     let zero = graph.int(0);
-    let positive = graph.binary(Binary::IntGreater, value, zero);
-    let negative = graph.binary(Binary::IntLess, value, zero);
+    let positive = graph.binary(Binary::Greater, value, zero);
+    let negative = graph.binary(Binary::Less, value, zero);
     let (one, minus_one) = (graph.int(1), graph.int(-1));
     let low = graph.select(negative, minus_one, zero);
     graph.select(positive, one, low)
@@ -909,8 +859,8 @@ fn float_sign(checker: &mut Checker, args: &[Node]) -> Node {
 }
 
 fn int_clamp(checker: &mut Checker, args: &[Node]) -> Node {
-    let raised = checker.graph.binary(Binary::IntMax, args[0], args[1]);
-    checker.graph.binary(Binary::IntMin, raised, args[2])
+    let raised = checker.graph.binary(Binary::Max, args[0], args[1]);
+    checker.graph.binary(Binary::Min, raised, args[2])
 }
 
 fn smoothstep(checker: &mut Checker, args: &[Node]) -> Node {
@@ -930,6 +880,13 @@ fn step(checker: &mut Checker, args: &[Node]) -> Node {
     let (one, zero, nan) = (graph.float(1.0), graph.float(0.0), graph.float(f32::NAN));
     let low = graph.select(below, zero, nan);
     graph.select(above, one, low)
+}
+
+/// The first crossing anywhere: at or after minus infinity.
+fn first_crossing(checker: &mut Checker, args: &[Node]) -> Node {
+    let graph = &mut checker.graph;
+    let after = graph.float(f32::NEG_INFINITY);
+    graph.ternary(Ternary::CurveFirstCrossing, args[0], args[1], after)
 }
 
 /// Halves round away from zero; adding 0.5 would round 0.49999997 up.
@@ -954,18 +911,11 @@ fn is_nan(checker: &mut Checker, args: &[Node]) -> Node {
     checker.graph.binary(Binary::NotEqual, args[0], args[0])
 }
 
-fn curve_clamped(checker: &mut Checker, args: &[Node]) -> Node {
-    let value = checker.graph.binary(Binary::CurveSample, args[0], args[1]);
-    checker
-        .graph
-        .ternary(Ternary::Clamp, value, args[2], args[3])
-}
-
 /// The running total of each character's advance: entry `k` is where
 /// character `k` starts, and the last entry the text's width.
 fn starts(checker: &mut Checker, font: Node, text: Node) -> Node {
     let characters = checker.characters(text);
-    checker.tabulated(Tabulation::RunningSum, TEXT_LENGTH, |checker, index| {
+    checker.tabulated(Reducer::RunningSum, TEXT_LENGTH, |checker, index| {
         let code = checker.graph.binary(Binary::Index, characters, index);
         checker.graph.binary(Binary::GlyphAdvance, font, code)
     })
@@ -978,7 +928,7 @@ fn placed(checker: &mut Checker, starts: Node, x: Node) -> Node {
         .graph
         .ternary(Ternary::Partition, starts, entries, x);
     let one = checker.graph.int(1);
-    checker.graph.binary(Binary::IntSubtract, placed, one)
+    checker.graph.binary(Binary::Subtract, placed, one)
 }
 
 fn glyph_coverage(checker: &mut Checker, args: &[Node]) -> Node {
@@ -988,7 +938,7 @@ fn glyph_coverage(checker: &mut Checker, args: &[Node]) -> Node {
     let index = placed(checker, starts, x);
     let graph = &mut checker.graph;
     let zero = graph.int(0);
-    let before = graph.binary(Binary::IntLess, index, zero);
+    let before = graph.binary(Binary::Less, index, zero);
     let code = graph.binary(Binary::Index, characters, index);
     let code = graph.select(before, zero, code);
     let pen = graph.binary(Binary::Index, starts, index);
@@ -1017,7 +967,7 @@ fn char_index(checker: &mut Checker, args: &[Node]) -> Node {
 
 fn text_length(checker: &mut Checker, args: &[Node]) -> Node {
     let characters = checker.characters(args[0]);
-    let counts = checker.tabulated(Tabulation::RunningSum, TEXT_LENGTH, |checker, index| {
+    let counts = checker.tabulated(Reducer::RunningSum, TEXT_LENGTH, |checker, index| {
         let graph = &mut checker.graph;
         let code = graph.binary(Binary::Index, characters, index);
         let zero = graph.int(0);
@@ -1031,7 +981,7 @@ fn text_length(checker: &mut Checker, args: &[Node]) -> Node {
 
 fn mark_text(checker: &mut Checker, args: &[Node]) -> Node {
     let (marks, mark) = (args[0], args[1]);
-    checker.tabulated(Tabulation::Table, TEXT_LENGTH, |checker, index| {
+    checker.tabulated(Reducer::Table, TEXT_LENGTH, |checker, index| {
         checker.graph.ternary(Ternary::MarkText, marks, mark, index)
     })
 }
@@ -1054,21 +1004,21 @@ fn number_text(checker: &mut Checker, args: &[Node]) -> Node {
     let (value, digits) = (args[0], args[1]);
     let graph = &mut checker.graph;
     let whole = graph.unary(Unary::FloatToInt, value);
-    let magnitude = graph.unary(Unary::IntAbs, whole);
+    let magnitude = graph.unary(Unary::Abs, whole);
     let zero = graph.int(0);
-    let negative = graph.binary(Binary::IntLess, whole, zero);
+    let negative = graph.binary(Binary::Less, whole, zero);
     let powers: Vec<Node> = POWERS.iter().map(|&power| graph.int(power)).collect();
     let powers = graph.add(Op::Items(powers.into()));
     // Digits past the first: the powers of ten the magnitude reaches.
     let reached = checker.tabulated(
-        Tabulation::RunningSum,
+        Reducer::RunningSum,
         POWERS.len() as i32 - 1,
         |checker, index| {
             let graph = &mut checker.graph;
             let one = graph.int(1);
-            let next = graph.binary(Binary::IntAdd, index, one);
+            let next = graph.binary(Binary::Add, index, one);
             let power = graph.binary(Binary::Index, powers, next);
-            let reaches = graph.binary(Binary::IntGreaterEqual, magnitude, power);
+            let reaches = graph.binary(Binary::GreaterEqual, magnitude, power);
             let zero = graph.int(0);
             graph.select(reaches, one, zero)
         },
@@ -1077,27 +1027,27 @@ fn number_text(checker: &mut Checker, args: &[Node]) -> Node {
     let last = graph.int(POWERS.len() as i32 - 1);
     let extra = graph.binary(Binary::Index, reached, last);
     let one = graph.int(1);
-    let own = graph.binary(Binary::IntAdd, extra, one);
+    let own = graph.binary(Binary::Add, extra, one);
     let most = graph.int(POWERS.len() as i32);
-    let digits = graph.binary(Binary::IntMin, digits, most);
-    let count = graph.binary(Binary::IntMax, own, digits);
+    let digits = graph.binary(Binary::Min, digits, most);
+    let count = graph.binary(Binary::Max, own, digits);
     let sign = graph.select(negative, one, zero);
-    let length = graph.binary(Binary::IntAdd, count, sign);
-    checker.tabulated(Tabulation::Table, TEXT_LENGTH, |checker, index| {
+    let length = graph.binary(Binary::Add, count, sign);
+    checker.tabulated(Reducer::Table, TEXT_LENGTH, |checker, index| {
         let graph = &mut checker.graph;
         let zero = graph.int(0);
         let one = graph.int(1);
-        let past = graph.binary(Binary::IntGreaterEqual, index, length);
-        let at_sign = graph.binary(Binary::IntLess, index, sign);
-        let place = graph.binary(Binary::IntSubtract, index, sign);
-        let from_end = graph.binary(Binary::IntSubtract, count, place);
-        let power_index = graph.binary(Binary::IntSubtract, from_end, one);
+        let past = graph.binary(Binary::GreaterEqual, index, length);
+        let at_sign = graph.binary(Binary::Less, index, sign);
+        let place = graph.binary(Binary::Subtract, index, sign);
+        let from_end = graph.binary(Binary::Subtract, count, place);
+        let power_index = graph.binary(Binary::Subtract, from_end, one);
         let power = graph.binary(Binary::Index, powers, power_index);
-        let shifted = graph.binary(Binary::IntFloorDivide, magnitude, power);
+        let shifted = graph.binary(Binary::Divide, magnitude, power);
         let ten = graph.int(10);
-        let digit = graph.binary(Binary::IntRemainder, shifted, ten);
+        let digit = graph.binary(Binary::Remainder, shifted, ten);
         let zero_code = graph.int(i32::from(b'0'));
-        let digit_code = graph.binary(Binary::IntAdd, digit, zero_code);
+        let digit_code = graph.binary(Binary::Add, digit, zero_code);
         let minus = graph.int(i32::from(b'-'));
         let character = graph.select(at_sign, minus, digit_code);
         graph.select(past, zero, character)
@@ -1108,31 +1058,14 @@ fn concat(checker: &mut Checker, args: &[Node]) -> Node {
     let first = checker.characters(args[0]);
     let second = checker.characters(args[1]);
     let length = text_length(checker, &[first]);
-    checker.tabulated(Tabulation::Table, TEXT_LENGTH, |checker, index| {
+    checker.tabulated(Reducer::Table, TEXT_LENGTH, |checker, index| {
         let graph = &mut checker.graph;
-        let within = graph.binary(Binary::IntLess, index, length);
+        let within = graph.binary(Binary::Less, index, length);
         let own = graph.binary(Binary::Index, first, index);
-        let after = graph.binary(Binary::IntSubtract, index, length);
+        let after = graph.binary(Binary::Subtract, index, length);
         let other = graph.binary(Binary::Index, second, after);
         graph.select(within, own, other)
     })
-}
-
-fn gradient_color_scaled(checker: &mut Checker, args: &[Node]) -> Node {
-    let graph = &mut checker.graph;
-    let (zero, one) = (graph.float(0.0), graph.float(1.0));
-    let scale = graph.ternary(Ternary::Clamp, args[2], zero, one);
-    let color = graph.binary(Binary::GradientSample, args[0], args[1]);
-    graph.binary(Binary::ColorScale, color, scale)
-}
-
-/// Widths below one count as one.
-fn section_position(checker: &mut Checker, args: &[Node]) -> Node {
-    let graph = &mut checker.graph;
-    let one = graph.float(1.0);
-    let width = graph.binary(Binary::Max, args[0], one);
-    let inverse = graph.binary(Binary::Divide, one, width);
-    graph.binary(Binary::SectionPosition, width, inverse)
 }
 
 pub(crate) fn builtin(name: &str) -> Option<&'static Builtin> {
@@ -1140,10 +1073,12 @@ pub(crate) fn builtin(name: &str) -> Option<&'static Builtin> {
 }
 
 /// What a context value reads.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum Read {
     Context(Context),
     Constant(f32),
+    /// Several operations on other context values.
+    Expand(fn(&mut Checker) -> Node),
 }
 
 /// A context value: a reserved name or a field of `pixel` or `target`.
@@ -1192,7 +1127,7 @@ pub(crate) fn is_context_name(name: &str) -> bool {
 pub(crate) fn context_type(context: Context) -> Type {
     CONTEXT
         .iter()
-        .find(|value| value.read == Read::Context(context))
+        .find(|value| matches!(value.read, Read::Context(read) if read == context))
         .map_or_else(
             || unreachable!("every context has a table row"),
             |value| value.ty.clone(),
@@ -1216,13 +1151,13 @@ pub const CONTEXT: &[ContextValue] = &[
         name: "progress",
         ty: Type::Float,
         summary: "`time / duration`, in 0..1.",
-        read: Read::Context(Context::Progress),
+        read: Read::Expand(progress),
     },
     ContextValue {
         name: "frame",
         ty: Type::Int,
         summary: "Frames since the effect's clip started, the nearest frame to `time`; in an operator, since the sequence started.",
-        read: Read::Context(Context::Frame),
+        read: Read::Expand(frame),
     },
     ContextValue {
         name: "frame_rate",
@@ -1240,7 +1175,7 @@ pub const CONTEXT: &[ContextValue] = &[
         name: "pixel.fraction",
         ty: Type::Float,
         summary: "The pixel's index scaled to 0..1 across the target; in an operator, across its fixture instance.",
-        read: Read::Context(Context::PixelFraction),
+        read: Read::Expand(pixel_fraction),
     },
     ContextValue {
         name: "pixel.x",
@@ -1352,96 +1287,62 @@ pub const CONTEXT: &[ContextValue] = &[
     },
 ];
 
-/// A method of operator inputs.
-#[derive(Debug)]
-pub struct Method {
-    pub(crate) name: &'static str,
-    args: &'static [(&'static str, ArgType)],
-    result: Type,
-    pub(crate) summary: &'static str,
-}
+impl Reducer {
+    /// Every reducer, in reference order.
+    pub(crate) const ALL: [Self; 9] = [
+        Self::Max,
+        Self::Min,
+        Self::Sum,
+        Self::Any,
+        Self::All,
+        Self::First,
+        Self::Last,
+        Self::Table,
+        Self::RunningSum,
+    ];
 
-impl Method {
-    /// `name(a: int) -> color`.
-    pub(crate) fn label(&self) -> String {
-        label(self.name, self.args, &self.result)
+    /// The words scripts write.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Max => "max",
+            Self::Min => "min",
+            Self::Sum => "sum",
+            Self::Any => "any",
+            Self::All => "all",
+            Self::First => "first",
+            Self::Last => "last",
+            Self::Table => "table",
+            Self::RunningSum => "table sum",
+        }
     }
-}
 
-/// `at`, the only method.
-pub const AT: Method = Method {
-    name: "at",
-    args: &[("pixel", INT)],
-    result: Type::Color,
-    summary: "The signal at another pixel of this fixture, at this frame; `pixel` is a zero-based index within the fixture.",
-};
+    pub(crate) fn summary(self) -> &'static str {
+        match self {
+            Self::Max => "The largest value of the body over the range.",
+            Self::Min => "The smallest value of the body over the range.",
+            Self::Sum => "The sum of the body over the range.",
+            Self::Any => "Whether the body holds for some index.",
+            Self::All => "Whether the body holds for every index.",
+            Self::First => "The body at the first index whose guards pass, or `else`.",
+            Self::Last => "The body at the last index whose guards pass, or `else`.",
+            Self::Table => {
+                "An array of the body at each index of at most 128, computed once per frame from parameters, time and the target; index it with `[k]` from 0."
+            }
+            Self::RunningSum => {
+                "The body's running sums over at most 127 indices: entry `k` sums the first `k` values, so entry 0 is zero and the last is the total."
+            }
+        }
+    }
 
-/// A reduction over a range of indexes.
-#[derive(Debug)]
-pub struct Reducer {
-    pub(crate) name: &'static str,
-    pub(crate) summary: &'static str,
-    pub(crate) kind: ReducerKind,
-}
-
-pub const REDUCERS: &[Reducer] = &[
-    Reducer {
-        name: "max",
-        summary: "The largest value of the body over the range.",
-        kind: ReducerKind::Max,
-    },
-    Reducer {
-        name: "min",
-        summary: "The smallest value of the body over the range.",
-        kind: ReducerKind::Min,
-    },
-    Reducer {
-        name: "sum",
-        summary: "The sum of the body over the range.",
-        kind: ReducerKind::Sum,
-    },
-    Reducer {
-        name: "any",
-        summary: "Whether the body holds for some index.",
-        kind: ReducerKind::Any,
-    },
-    Reducer {
-        name: "all",
-        summary: "Whether the body holds for every index.",
-        kind: ReducerKind::All,
-    },
-    Reducer {
-        name: "first",
-        summary: "The body at the first index whose guards pass, or `else`.",
-        kind: ReducerKind::First,
-    },
-    Reducer {
-        name: "last",
-        summary: "The body at the last index whose guards pass, or `else`.",
-        kind: ReducerKind::Last,
-    },
-    Reducer {
-        name: "table",
-        summary: "An array of the body at each index of at most 128, computed once per frame from parameters, time and the target; index it with `[k]` from 0.",
-        kind: ReducerKind::Table,
-    },
-    Reducer {
-        name: "table sum",
-        summary: "The body's running sums over at most 127 indices: entry `k` sums the first `k` values, so entry 0 is zero and the last is the total.",
-        kind: ReducerKind::TableSum,
-    },
-];
-
-pub(crate) fn reducer(kind: ReducerKind) -> &'static Reducer {
-    REDUCERS
-        .iter()
-        .find(|reducer| reducer.kind == kind)
-        .unwrap_or_else(|| unreachable!("every reducer has a table row"))
+    /// The reducer a one-word name spells.
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|reducer| reducer.name() == name)
+    }
 }
 
 /// The type names scripts write; other types are `enum { ... }` and
 /// `array<...>`.
-pub const NAMED_TYPES: [(&str, Type); 10] = [
+pub(crate) const NAMED_TYPES: [(&str, Type); 10] = [
     ("int", Type::Int),
     ("float", Type::Float),
     ("bool", Type::Bool),
@@ -1453,11 +1354,11 @@ pub const NAMED_TYPES: [(&str, Type); 10] = [
     ("font", Type::Font),
     ("image", Type::Image),
 ];
-pub const ENUM_WORD: &str = "enum";
-pub const ARRAY_WORD: &str = "array";
+pub(crate) const ENUM_WORD: &str = "enum";
+pub(crate) const ARRAY_WORD: &str = "array";
 
 /// A type as scripts spell it.
-pub fn type_text(ty: &Type) -> String {
+pub(crate) fn type_text(ty: &Type) -> String {
     match ty {
         Type::Void => "void".into(),
         Type::Array(item) => format!("{ARRAY_WORD}<{}>", type_text(item)),
@@ -1523,12 +1424,6 @@ pub fn builtin_reference() -> String {
             value.summary
         );
     }
-    let _ = writeln!(
-        text,
-        "\n## Signal methods\n\nOperator inputs are signals.\n\n```text\n{}\n```\n\n{}",
-        AT.label(),
-        AT.summary
-    );
     for group in BuiltinGroup::ALL {
         let _ = writeln!(text, "\n## {}", group.title());
         for builtin in BUILTINS.iter().filter(|builtin| builtin.group == group) {

@@ -1,11 +1,11 @@
 import { guiObjectKey, objectViewKey } from "../../workspace/guiIdentity";
 import { CompositionEditor } from "./composition/CompositionEditor";
-import { useEffect, useState } from "react";
 
 import type { GuiDocument, WorkspaceLayoutState } from "../../types";
 import type { AppStaticSnapshot } from "../../store";
 
-import type { AutomationClipChooser, GuiFocus, InspectedGuiDocument, ReadyGuiDocument, SequenceSelection } from "./shared";
+import type { InspectedGuiDocument, ReadyGuiDocument } from "./shared";
+import { useOpenDocumentUi } from "./documentUi";
 
 
 
@@ -14,76 +14,69 @@ import { GuiInspector } from "./GuiInspector";
 import { BlockedGui } from "./BlockedGui";
 
 import { SequenceEditor } from "./sequence/SequenceEditor";
-import { runGuiEditCommand, useAppStore } from "../../store";
-import { commands } from "../../api";
+import { useAppStore } from "../../store";
+import { describe } from "./edits";
 import { DescriptionText } from "./DescriptionField";
 import { OBJECT } from "./problems";
 import { THEME_METRICS } from "../../theme";
 
 
 import { WorkspaceResizeHandle } from "../WorkspaceResizeHandle";
-import { listenUiEvent } from "../uiEvents";
-import { SetupEditor } from "./setup/SetupEditor";
 import { ProjectEditor } from "./project/ProjectEditor";
 import { LibraryEditor } from "./library/LibraryEditor";
 import { ControllerEditor } from "./controller/ControllerEditor";
-import { PatchEditor } from "./patch/PatchEditor";
 import { InputDeviceEditor } from "./inputDevice/InputDeviceEditor";
 import { ConsoleEditor } from "./console/ConsoleEditor";
 
 const INSPECTOR_MIN_WIDTH_PX = THEME_METRICS.inspectorMinWidth;
 const INSPECTOR_MAX_WIDTH_PX = THEME_METRICS.inspectorMaxWidth;
 
-export function GuiEditor(props: Parameters<typeof ResourceEditor>[0]) {
+type GuiEditorProps = {
+  guiDocument: GuiDocument | null;
+  snapshot: AppStaticSnapshot;
+  workspaceLayout: WorkspaceLayoutState;
+  onWorkspaceLayoutChange: (layout: WorkspaceLayoutState) => void;
+  resetRevision: number;
+};
+
+export function GuiEditor(props: GuiEditorProps) {
   const gui = props.guiDocument;
   const key = gui !== null && gui.type !== "blocked" ? guiEditorKey(props.snapshot.activeFile, gui) : "unavailable";
+  const editorKey = `${key}:${props.resetRevision}`;
   return <div className="resource-editor-frame">
     {gui !== null && gui.type !== "blocked" && <ObjectDescription key={key} description={gui.document.description} />}
-    <fieldset className="resource-editor-content"><ResourceEditor key={`${key}:${props.resetRevision}`} {...props} /></fieldset>
+    <fieldset className="resource-editor-content"><ResourceEditor key={editorKey} editorKey={editorKey} {...props} /></fieldset>
   </div>;
 }
 
 /** The open object's description, edited in place above its editor. */
 function ObjectDescription({ description }: { description: string | null }) {
-  return <DescriptionText className="gui-object-description" description={description} member={OBJECT} onCommit={(next) =>
-    runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setDescription", item: { type: "object" }, description: next }))} />;
+  return <DescriptionText className="gui-object-description" description={description} member={OBJECT} onCommit={(next) => describe(OBJECT, next)} />;
 }
 
 function ResourceEditor({
   guiDocument,
+  editorKey,
   workspaceLayout,
-  onWorkspaceLayoutChange,
-  sequenceSelection,
-  setSequenceSelection
-}: {
-  guiDocument: GuiDocument | null;
-  snapshot: AppStaticSnapshot;
-  workspaceLayout: WorkspaceLayoutState;
-  onWorkspaceLayoutChange: (layout: WorkspaceLayoutState) => void;
-  sequenceSelection: SequenceSelection;
-  setSequenceSelection: (selection: SequenceSelection) => void;
-  resetRevision: number;
-}) {
+  onWorkspaceLayoutChange
+}: GuiEditorProps & { editorKey: string }) {
   const gui = guiDocument;
   if (gui === null) return <BlockedGui reason="GUI data is not available for this document." diagnostics={[]} />;
   switch (gui.type) {
     case "blocked": return <BlockedGui reason={gui.reason} diagnostics={gui.diagnostics} />;
-    case "setup": return <SetupEditor document={gui.document} />;
     case "project": return <ProjectEditor document={gui.document} />;
     case "curve":
     case "gradient": return <LibraryEditor gui={gui} />;
     case "controller": return <ControllerEditor document={gui.document} />;
-    case "patch": return <PatchEditor document={gui.document} />;
     case "inputDevice": return <InputDeviceEditor document={gui.document} />;
     case "fixture":
     case "layout": return <CompositionEditor gui={gui} />;
     case "sequence":
     case "console": return <GuiEditorInner
       gui={gui}
+      editorKey={editorKey}
       workspaceLayout={workspaceLayout}
       onWorkspaceLayoutChange={onWorkspaceLayoutChange}
-      sequenceSelection={sequenceSelection}
-      setSequenceSelection={setSequenceSelection}
     />;
     default: {
       const unhandled: never = gui;
@@ -94,46 +87,26 @@ function ResourceEditor({
 
 function GuiEditorInner({
   gui,
+  editorKey,
   workspaceLayout,
-  onWorkspaceLayoutChange,
-  sequenceSelection,
-  setSequenceSelection
+  onWorkspaceLayoutChange
 }: {
   gui: InspectedGuiDocument;
+  editorKey: string;
   workspaceLayout: WorkspaceLayoutState;
   onWorkspaceLayoutChange: (layout: WorkspaceLayoutState) => void;
-  sequenceSelection: SequenceSelection;
-  setSequenceSelection: (selection: SequenceSelection) => void;
 }) {
   const restoreState = useAppStore((store) => store.restoreState);
-  const sequenceRestore =
-    gui.type === "sequence"
-      ? restoreState?.sequenceViewports[objectViewKey(gui.document.sourceRef)]
-      : undefined;
-  const [selected, setSelected] = useState<GuiFocus>(null);
-  const compositionGraphOpen = useAppStore((store) => store.compositionGraphEditing);
-  const setCompositionGraphOpen = useAppStore((store) => store.setCompositionGraphEditing);
-  const [automationClipChooser, setAutomationClipChooser] = useState<AutomationClipChooser>(null);
-  const [activeMarkCollectionKey, setActiveMarkCollectionKey] = useState<string | null>(() =>
-    gui.type === "sequence"
-      ? sequenceRestore?.activeMarkCollectionKey ?? gui.document.markCollections[0]?.key ?? null
-      : null
-  );
-  const [visibleMarkCollectionKeys, setVisibleMarkCollectionKeys] = useState<Set<string>>(() =>
-    new Set(
-      gui.type === "sequence" && sequenceRestore !== undefined
-        ? sequenceRestore.visibleMarkCollectionKeys
-        : gui.type === "sequence"
-          ? gui.document.markCollections.map((collection) => collection.key)
-          : []
-    )
-  );
-
-  useEffect(() => {
-    const stop = listenUiEvent("openLayerGraph", () => { setCompositionGraphOpen(true); });
-    return () => { stop(); setCompositionGraphOpen(false); };
-  }, [setCompositionGraphOpen]);
-
+  const open = useOpenDocumentUi(editorKey, () => {
+    if (gui.type !== "sequence") return {};
+    const restored = restoreState?.sequenceViewports[objectViewKey(gui.document.sourceRef)];
+    const names = gui.document.markCollections.map((collection) => collection.name);
+    return {
+      activeMarks: restored?.activeMarkCollectionKey ?? names[0] ?? null,
+      visibleMarks: new Set(restored?.visibleMarkCollectionKeys ?? names)
+    };
+  });
+  if (!open) return null;
   return (
     <div
       className="gui-editor-shell"
@@ -144,24 +117,9 @@ function GuiEditorInner({
       }}
     >
       {gui.type === "sequence" && (
-        <SequenceEditor
-
-          document={gui.document}
-          selected={selected}
-          setSelected={setSelected}
-          compositionGraphOpen={compositionGraphOpen}
-          setCompositionGraphOpen={setCompositionGraphOpen}
-          sequenceSelection={sequenceSelection}
-          setSequenceSelection={setSequenceSelection}
-          automationClipChooser={automationClipChooser}
-          setAutomationClipChooser={setAutomationClipChooser}
-          activeMarkCollectionKey={activeMarkCollectionKey}
-          setActiveMarkCollectionKey={setActiveMarkCollectionKey}
-          visibleMarkCollectionKeys={visibleMarkCollectionKeys}
-          setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
-        />
+        <SequenceEditor document={gui.document} />
       )}
-      {gui.type === "console" && <ConsoleEditor document={gui.document} selected={selected} setSelected={setSelected} />}
+      {gui.type === "console" && <ConsoleEditor document={gui.document} />}
       <div className={`gui-inspector-resize-shell ${workspaceLayout.inspectorCollapsed ? "collapsed" : ""}`}>
         <WorkspaceResizeHandle
           ariaLabel="Resize inspector"
@@ -179,19 +137,7 @@ function GuiEditorInner({
           }}
         />
         {!workspaceLayout.inspectorCollapsed && (
-          <GuiInspector
-            gui={gui}
-            selected={selected}
-            setSelected={setSelected}
-            sequenceSelection={sequenceSelection}
-            setSequenceSelection={setSequenceSelection}
-            automationClipChooser={automationClipChooser}
-            setAutomationClipChooser={setAutomationClipChooser}
-            activeMarkCollectionKey={activeMarkCollectionKey}
-            setActiveMarkCollectionKey={setActiveMarkCollectionKey}
-            visibleMarkCollectionKeys={visibleMarkCollectionKeys}
-            setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
-          />
+          <GuiInspector gui={gui} />
         )}
       </div>
     </div>

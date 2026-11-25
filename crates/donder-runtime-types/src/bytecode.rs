@@ -47,7 +47,6 @@ pub enum Input {
     /// Int: the pixel's index in its fixture.
     PixelIndex,
     /// Floats.
-    PixelFraction,
     PixelX,
     PixelY,
     PixelZ,
@@ -59,9 +58,8 @@ pub enum Input {
 }
 
 impl Input {
-    pub(crate) const ALL: [Self; 8] = [
+    pub(crate) const ALL: [Self; 7] = [
         Self::PixelIndex,
-        Self::PixelFraction,
         Self::PixelX,
         Self::PixelY,
         Self::PixelZ,
@@ -73,13 +71,12 @@ impl Input {
     pub(crate) fn number(self) -> u16 {
         match self {
             Self::PixelIndex => 0,
-            Self::PixelFraction => 1,
-            Self::PixelX => 2,
-            Self::PixelY => 3,
-            Self::PixelZ => 4,
-            Self::PixelMember => 5,
-            Self::PixelStrand => 6,
-            Self::PixelAlong => 7,
+            Self::PixelX => 1,
+            Self::PixelY => 2,
+            Self::PixelZ => 3,
+            Self::PixelMember => 4,
+            Self::PixelStrand => 5,
+            Self::PixelAlong => 6,
         }
     }
 
@@ -250,12 +247,9 @@ impl Banks {
 pub enum ContextRead {
     /// Floats of the query.
     Seconds,
-    Progress,
     Duration,
     /// The sequence's frames per second.
     FrameRate,
-    /// Int of the query: frames since the start.
-    Frame,
     /// Int of the target.
     PixelCount,
     /// Floats of the target.
@@ -270,13 +264,16 @@ pub enum ContextRead {
     TargetMembers,
     TargetStrands,
     TargetStrandLength,
+    /// Float of the query: the seconds of the show its time counts from.
+    Origin,
+    /// Float of the query: the live store's word that the int `word` names.
+    Live,
 }
 
 impl ContextRead {
     fn bank(self) -> Bank {
         match self {
             Self::PixelCount
-            | Self::Frame
             | Self::TargetMembers
             | Self::TargetStrands
             | Self::TargetStrandLength => Bank::Int,
@@ -287,7 +284,7 @@ impl ContextRead {
     fn reads_target(self) -> bool {
         !matches!(
             self,
-            Self::Seconds | Self::Progress | Self::Duration | Self::FrameRate | Self::Frame
+            Self::Seconds | Self::Duration | Self::FrameRate | Self::Origin | Self::Live
         )
     }
 
@@ -438,7 +435,8 @@ pub enum CurveOp {
     Sample,
     /// Its area from position 0 to a float position.
     Integral,
-    /// The first position where it reaches a float value.
+    /// The first position at or after a float position (the `before` slot)
+    /// where it reaches a float value.
     Crossing,
     /// The last such position before a float position.
     LastCrossing,
@@ -471,25 +469,9 @@ pub enum MarkOp {
     At,
     /// Float: the duration of the mark at an int index.
     Duration,
-    /// Float: the latest mark at or before float seconds.
-    Last,
-    /// Int: its index.
+    /// Int: the index of the latest mark at or before float seconds.
     LastIndex,
 }
-
-/// A resource kind.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum Resource {
-    Curve,
-    Gradient,
-    Marks,
-    Array,
-    Track,
-    Font,
-    Image,
-}
-
-impl Resource {}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Reducer {
@@ -588,8 +570,13 @@ pub enum Instruction {
     /// of a float, int, bool or color parameter, or a resource. An enum
     /// parameter is an int, its option's index in the program's names.
     Param { bank: Bank, dst: Slot, index: u16 },
-    /// A scalar of the query or target, of its read's bank.
-    Context { dst: Slot, read: ContextRead },
+    /// A scalar of the query or target, of its read's bank; a live read
+    /// names its word in the int `word`.
+    Context {
+        dst: Slot,
+        read: ContextRead,
+        word: Slot,
+    },
     /// Floats.
     FloatUnary { op: FloatUnary, dst: Slot, a: Slot },
     FloatBinary {
@@ -653,8 +640,9 @@ pub enum Instruction {
         color: Slot,
         hue: Slot,
     },
-    /// Float: a query of a curve resource with a float `value`, and for the
-    /// last crossing the float position `before`.
+    /// Float: a query of a curve resource with a float `value`, and for a
+    /// crossing the float position it is at or after, or for the last
+    /// crossing the position it is at or before, in `before`.
     Curve {
         op: CurveOp,
         dst: Slot,
@@ -724,10 +712,10 @@ pub enum Instruction {
         x: Slot,
         y: Slot,
     },
-    /// Int: the length of a marks or array resource of `kind`, or a track's
-    /// channels.
+    /// Int: the length of an array resource, or with `marks` of a marks
+    /// resource.
     Length {
-        kind: Resource,
+        marks: bool,
         dst: Slot,
         resource: Slot,
     },
@@ -750,9 +738,6 @@ pub enum Instruction {
     },
     /// A copy.
     Move { bank: Bank, dst: Slot, src: Slot },
-    /// Int: the pixel's section index for an int width, or with `!index` the
-    /// section count.
-    Section { index: bool, dst: Slot, width: Slot },
     /// Color: an operator input at this frame and a pixel.
     Read {
         dst: Slot,
@@ -981,7 +966,10 @@ impl Instruction {
         };
         match self {
             I::Const { bank, dst, .. } | I::Param { bank, dst, .. } => v(*bank, dst, Write),
-            I::Context { dst, read } => v(read.bank(), dst, Write),
+            I::Context { dst, read, word } => {
+                v(Int, word, Read);
+                v(read.bank(), dst, Write);
+            }
             I::FloatUnary { dst, a, .. } => {
                 v(Float, a, Read);
                 v(Float, dst, Write);
@@ -1097,10 +1085,6 @@ impl Instruction {
                         v(Int, operand, Read);
                         v(Float, dst, Write);
                     }
-                    MarkOp::Last => {
-                        v(Float, operand, Read);
-                        v(Float, dst, Write);
-                    }
                     MarkOp::LastIndex => {
                         v(Float, operand, Read);
                         v(Int, dst, Write);
@@ -1209,10 +1193,6 @@ impl Instruction {
             I::Move { bank, dst, src } => {
                 v(*bank, src, Read);
                 v(*bank, dst, Write);
-            }
-            I::Section { dst, width, .. } => {
-                v(Int, width, Read);
-                v(Int, dst, Write);
             }
             I::Read { dst, pixel, .. } => {
                 if let Some(index) = pixel.index_mut() {
@@ -1420,10 +1400,6 @@ impl BytecodeProgram {
             } => *edges != Edges::Skip,
             _ => false,
         })
-    }
-
-    pub fn uses_sections(&self) -> bool {
-        self.reads(|instruction| matches!(instruction, Instruction::Section { .. }))
     }
 
     /// Whether its body holds a neighborhood reduction.

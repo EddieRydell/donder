@@ -1,7 +1,6 @@
 //! Immutable, schema-checked inputs for portable program construction.
 //! Runtime parameter banks and prepared curve caches belong to the interpreter.
-use crate::automation::AutomationMapping;
-use crate::prepared::{AutomatedQuantity, PreparedAutomation};
+use crate::prepared::{AutomationSource, PreparedAutomation};
 use crate::{Type, Value};
 use alloc::{boxed::Box, string::String, vec::Vec};
 
@@ -34,13 +33,7 @@ impl BoundParams {
     pub fn from_values<'a>(values: impl IntoIterator<Item = (&'a Type, Value)>) -> Self {
         let (types, values): (Vec<_>, Vec<_>) = values
             .into_iter()
-            .map(|(ty, value)| {
-                let value = match (ty, value) {
-                    (Type::Float, Value::Int(value)) => Value::Float(value as f32),
-                    (_, value) => value,
-                };
-                (ty.clone(), value)
-            })
+            .map(|(ty, value)| (ty.clone(), floats(ty, value)))
             .unzip();
         Self {
             types: types.into(),
@@ -57,15 +50,48 @@ impl BoundParams {
 
     pub fn accepts_automation(&self, bindings: &[PreparedAutomation]) -> bool {
         bindings.iter().all(|binding| {
-            binding.duration.as_ticks() != 0
-                && binding.curve.validate().is_ok()
+            let source = match &binding.source {
+                AutomationSource::Envelope {
+                    duration, curve, ..
+                } => duration.as_ticks() != 0 && curve.validate().is_ok(),
+                AutomationSource::Live(_) => true,
+            };
+            source
                 && binding.mapping.is_well_formed()
-                && (binding.quantity == AutomatedQuantity::Value
-                    || matches!(binding.mapping, AutomationMapping::Float { .. }))
                 && self
                     .types
                     .get(usize::from(binding.param_index))
                     .is_some_and(|ty| binding.mapping.accepts_type(ty))
         })
+    }
+}
+
+/// `value` with each int that `ty` takes as a float, an array's items
+/// among them, made a float: playback reads values by their declared type.
+fn floats(ty: &Type, value: Value) -> Value {
+    match (ty, value) {
+        (Type::Float, Value::Int(value)) => Value::Float(value as f32),
+        (Type::Array(item), Value::Array(items))
+            if items.iter().any(|value| takes_int(item, value)) =>
+        {
+            Value::Array(
+                items
+                    .iter()
+                    .map(|value| floats(item, value.clone()))
+                    .collect(),
+            )
+        }
+        (_, value) => value,
+    }
+}
+
+/// Whether `value` holds an int where `ty` takes a float.
+fn takes_int(ty: &Type, value: &Value) -> bool {
+    match (ty, value) {
+        (Type::Float, Value::Int(_)) => true,
+        (Type::Array(item), Value::Array(items)) => {
+            items.iter().any(|value| takes_int(item, value))
+        }
+        _ => false,
     }
 }

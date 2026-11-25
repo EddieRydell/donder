@@ -1,4 +1,4 @@
-use donder_language::compiler::{DeclarationKind, partial_declaration_spans};
+use donder_language::compiler::partial_declaration_spans;
 use donder_model::ObjectKind;
 use donder_runtime_types::Identifier;
 use fs_err as fs;
@@ -98,10 +98,7 @@ pub(crate) fn analyze_project_documents(
                 objects: declarations
                     .into_iter()
                     .map(|declaration| RecoveryObject {
-                        kind: match declaration.kind {
-                            DeclarationKind::Effect => ObjectKind::EffectDefinition,
-                            DeclarationKind::Operator => ObjectKind::OperatorDefinition,
-                        },
+                        kind: ObjectKind::Script,
                         name: declaration.name,
                     })
                     .collect(),

@@ -264,18 +264,15 @@ pub enum EditorCommandId {
 #[serde(rename_all = "camelCase")]
 pub enum ObjectKind {
     Project,
-    Setup,
     Controller,
     InputDevice,
     Layout,
     Fixture,
-    Patch,
     Sequence,
     Console,
     Curve,
     Gradient,
-    Effect,
-    Operator,
+    Script,
 }
 
 impl From<donder_model::ObjectKind> for ObjectKind {
@@ -283,18 +280,15 @@ impl From<donder_model::ObjectKind> for ObjectKind {
         use donder_model::ObjectKind as Kind;
         match kind {
             Kind::Project => Self::Project,
-            Kind::Setup => Self::Setup,
             Kind::Controller => Self::Controller,
             Kind::InputDevice => Self::InputDevice,
             Kind::Layout => Self::Layout,
-            Kind::Patch => Self::Patch,
             Kind::FixtureDefinition => Self::Fixture,
             Kind::Curve => Self::Curve,
             Kind::Gradient => Self::Gradient,
             Kind::Sequence => Self::Sequence,
             Kind::Console => Self::Console,
-            Kind::EffectDefinition => Self::Effect,
-            Kind::OperatorDefinition => Self::Operator,
+            Kind::Script => Self::Script,
         }
     }
 }
@@ -533,7 +527,7 @@ pub struct SequenceClipMatch {
     pub end: SequenceClipTimeMatch,
     pub duration: SequenceClipTimeMatch,
     pub(crate) same_lane: bool,
-    pub(crate) automation_clips: bool,
+    pub(crate) envelopes: bool,
 }
 
 /// A time property matches within `tolerance_seconds` of the seed's.
@@ -556,7 +550,7 @@ impl Default for SequenceClipMatch {
             end: time(false),
             duration: time(false),
             same_lane: false,
-            automation_clips: false,
+            envelopes: false,
         }
     }
 }

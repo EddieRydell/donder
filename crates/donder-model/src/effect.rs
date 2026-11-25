@@ -1,36 +1,116 @@
-pub(crate) use crate::identity::{CurveId, EffectDefinitionId, GradientId};
-use crate::layout::FixtureTarget;
-use crate::sequence::{AssetId, MarkCollectionKey, SequenceLayerId};
-use donder_language::compiler::{CompiledDefinition, ParamDecl, ParamRange};
+use crate::composition::{LayerId, MarkCollectionId};
+use crate::console::PlayedValue;
+pub(crate) use crate::identity::{CurveId, GradientId, ScriptId};
+use crate::sequence::AssetId;
+use crate::sequence::Envelope;
+use donder_language::compiler::{
+    CompiledDefinition, DeclarationKind, OperatorInputDecl, ParamDecl, ParamRange,
+};
 use donder_language::{DonderDuration, DonderTime};
 use donder_runtime_types::Identifier;
+use donder_runtime_types::TargetScope;
 use donder_runtime_types::Type;
 use donder_runtime_types::{Curve, Gradient};
 use indexmap::IndexMap;
 
+/// What a sequence or console plays over a fixture or group of the layout:
+/// an effect on one of its layers, or an envelope that drives parameters.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Clip {
     pub id: ClipId,
-    /// Unique among the sequence's clips; automation bindings use it.
+    /// Unique among its composition's clips; envelopes and actions name it.
     pub name: Identifier,
     pub description: Option<String>,
-    pub layer_id: SequenceLayerId,
-    pub start: DonderTime,
-    pub duration: DonderDuration,
-    pub target: FixtureTarget,
-    pub scope: ClipScope,
-    pub definition: EffectDefinitionId,
-    pub param_overrides: IndexMap<Identifier, ParamValue>,
+    /// What the clip plays over; an envelope's row.
+    pub target: crate::layout::FixtureId,
+    pub placement: Placement,
+    pub content: ClipContent,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+/// What a clip plays.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ClipContent {
+    Effect(Effect),
+    Envelope(Envelope),
+}
+
+/// An effect played on a layer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Effect {
+    pub layer: LayerId,
+    pub scope: TargetScope,
+    pub definition: ScriptId,
+    /// Overrides of the effect's parameters; the rest follow its defaults.
+    pub params: IndexMap<Identifier, ParamValue>,
+}
+
+/// When a clip plays.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Placement {
+    /// From `start` for `duration` on the sequence's or session's clock.
+    Timed {
+        start: DonderTime,
+        duration: DonderDuration,
+    },
+    /// When a console's actions play it, each copy taking these parameters
+    /// from the press that started it.
+    Played(Vec<PlayedValue>),
+}
+
+impl Clip {
+    /// Its start and duration, when it is timed.
+    pub fn timing(&self) -> Option<(&DonderTime, &DonderDuration)> {
+        match &self.placement {
+            Placement::Timed { start, duration } => Some((start, duration)),
+            Placement::Played(_) => None,
+        }
+    }
+
+    /// The parameters each copy takes from its press; none for a timed clip.
+    pub fn played(&self) -> &[PlayedValue] {
+        match &self.placement {
+            Placement::Played(values) => values,
+            Placement::Timed { .. } => &[],
+        }
+    }
+
+    /// The effect it plays, when it is not an envelope.
+    pub fn effect(&self) -> Option<&Effect> {
+        match &self.content {
+            ClipContent::Effect(effect) => Some(effect),
+            ClipContent::Envelope(_) => None,
+        }
+    }
+
+    pub fn effect_mut(&mut self) -> Option<&mut Effect> {
+        match &mut self.content {
+            ClipContent::Effect(effect) => Some(effect),
+            ClipContent::Envelope(_) => None,
+        }
+    }
+
+    pub fn envelope(&self) -> Option<&Envelope> {
+        match &self.content {
+            ClipContent::Envelope(envelope) => Some(envelope),
+            ClipContent::Effect(_) => None,
+        }
+    }
+
+    pub fn envelope_mut(&mut self) -> Option<&mut Envelope> {
+        match &mut self.content {
+            ClipContent::Envelope(envelope) => Some(envelope),
+            ClipContent::Effect(_) => None,
+        }
+    }
+
+    /// The effect a timed effect clip plays: what an envelope can bind.
+    pub fn bindable(&self) -> Option<&Effect> {
+        self.timing().and(self.effect())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ClipId(pub u32);
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ClipScope {
-    PerFixture,
-    WholeTarget,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParamValue {
@@ -45,9 +125,9 @@ pub enum ParamValue {
         fields: IndexMap<Identifier, ParamValue>,
     },
     /// `None` is no collection: an empty set of marks, which never triggers.
-    Marks(Option<MarkCollectionKey>),
-    Curve(OwnedCurve),
-    Gradient(OwnedGradient),
+    Marks(Option<MarkCollectionId>),
+    Curve(CurveValue),
+    Gradient(GradientValue),
     Array(Vec<ParamValue>),
     /// At most [`donder_runtime_types::TEXT_LENGTH`] characters, none NUL.
     Text(String),
@@ -161,7 +241,7 @@ impl ParamValue {
             Type::Float => Some(Self::Float(0.0_f32.clamp(min, max))),
             Type::Bool => Some(Self::Bool(false)),
             Type::Color => Some(Self::Color(color)),
-            Type::Curve => Some(Self::Curve(OwnedCurve::Inline(Curve {
+            Type::Curve => Some(Self::Curve(CurveValue::Literal(Curve {
                 points: vec![
                     donder_runtime_types::CurvePoint {
                         position: 0.0,
@@ -173,7 +253,7 @@ impl ParamValue {
                     },
                 ],
             }))),
-            Type::Gradient => Some(Self::Gradient(OwnedGradient::Inline(Gradient {
+            Type::Gradient => Some(Self::Gradient(GradientValue::Literal(Gradient {
                 space: donder_runtime_types::GradientSpace::LinearRgb,
                 stops: vec![donder_runtime_types::GradientStop {
                     position: 0.0,
@@ -197,21 +277,35 @@ impl ParamValue {
     }
 }
 
-pub type OwnedCurve = crate::ownership::Owned<Curve, CurveId>;
-pub type OwnedGradient = crate::ownership::Owned<Gradient, GradientId>;
-
+/// A curve parameter: a curve written in the value, or a link to a declared one.
 #[derive(Clone, Debug, PartialEq)]
-pub struct EffectDefinition {
-    pub(crate) id: EffectDefinitionId,
+pub enum CurveValue {
+    Literal(Curve),
+    Linked(CurveId),
+}
+
+/// A gradient parameter: a gradient written in the value, or a link to a
+/// declared one.
+#[derive(Clone, Debug, PartialEq)]
+pub enum GradientValue {
+    Literal(Gradient),
+    Linked(GradientId),
+}
+
+/// An effect or operator declared in a script document. Which one it is
+/// matters only where it is referenced: clips play effects and graph nodes
+/// run operators.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScriptDefinition {
     compiled: CompiledDefinition,
 }
 
-impl EffectDefinition {
-    pub fn new(id: EffectDefinitionId, compiled: CompiledDefinition) -> Self {
-        Self { id, compiled }
+impl ScriptDefinition {
+    pub fn new(compiled: CompiledDefinition) -> Self {
+        Self { compiled }
     }
-    pub(crate) fn id(&self) -> &EffectDefinitionId {
-        &self.id
+    pub fn kind(&self) -> DeclarationKind {
+        self.compiled.kind()
     }
     pub fn name(&self) -> &str {
         self.compiled.name().as_str()
@@ -219,11 +313,55 @@ impl EffectDefinition {
     pub fn params(&self) -> &[ParamDecl] {
         self.compiled.params()
     }
+    /// The operator's inputs, in declaration order; an effect has none.
+    pub fn inputs(&self) -> impl Iterator<Item = &Identifier> {
+        self.compiled
+            .inputs()
+            .iter()
+            .map(|OperatorInputDecl { name }| name)
+    }
     pub(crate) fn compiled(&self) -> &CompiledDefinition {
         &self.compiled
     }
     pub fn description(&self) -> Option<&str> {
         self.compiled.description()
+    }
+}
+
+/// Why a reference to a script definition does not name one of the kind it
+/// needs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DefinitionProblem {
+    Missing,
+    NotAnEffect,
+    NotAnOperator,
+}
+
+/// The definition of `definitions` that `id` names, when it is of `kind`.
+pub(crate) fn script_of_kind(
+    definitions: &IndexMap<ScriptId, ScriptDefinition>,
+    id: ScriptId,
+    kind: DeclarationKind,
+) -> Result<&ScriptDefinition, DefinitionProblem> {
+    let definition = definitions.get(&id).ok_or(DefinitionProblem::Missing)?;
+    if definition.kind() == kind {
+        Ok(definition)
+    } else {
+        Err(match kind {
+            DeclarationKind::Effect => DefinitionProblem::NotAnEffect,
+            DeclarationKind::Operator => DefinitionProblem::NotAnOperator,
+        })
+    }
+}
+
+impl crate::project::DonderProject {
+    /// The definition `id` names, when it is of `kind`.
+    pub(crate) fn script(
+        &self,
+        id: ScriptId,
+        kind: DeclarationKind,
+    ) -> Result<&ScriptDefinition, DefinitionProblem> {
+        script_of_kind(self.reusable::<ScriptDefinition>(), id, kind)
     }
 }
 

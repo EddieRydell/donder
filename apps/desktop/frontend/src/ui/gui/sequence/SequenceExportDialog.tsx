@@ -1,11 +1,11 @@
 import { Channel } from "@tauri-apps/api/core";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { commands, errorMessage } from "../../../api";
 import { PREVIEW_APPEARANCE } from "../../../previewAppearance";
 import { useAppStore } from "../../../store";
 import type { ExportProgress, GuiDocumentRequest, SequenceExportOptions } from "../../../types";
 import { Button, Dialog, Field, NumberField, Select, Toggle, type SelectOption } from "../../kit";
-import { listenUiEvent } from "../../uiEvents";
+import { useDocumentUi } from "../documentUi";
 
 /** Common FPP frame steps, offered beside the step closest to the authored rate. */
 const FSEQ_PRESET_STEPS = [10, 20, 25, 50];
@@ -55,7 +55,13 @@ export function SequenceExportDialog() {
   };
   // File > Export opens the dialog for the open sequence.
   const openExport = useEffectEvent(() => { void begin(); });
-  useEffect(() => listenUiEvent("openExport", openExport), []);
+  const requests = useDocumentUi((ui) => ui.exportRequests);
+  const answered = useRef(requests);
+  useEffect(() => {
+    if (requests === answered.current) return;
+    answered.current = requests;
+    openExport();
+  }, [requests]);
   const save = async (format: "dondershow" | "fseq" | "mp4") => {
     if (origin === null || stale) return;
     setPending(format); setError(null); setSaved(null);
@@ -76,7 +82,7 @@ export function SequenceExportDialog() {
   const exportVideo = (target: GuiDocumentRequest) => commands.exportVideoFile(target, PREVIEW_APPEARANCE, videoFrameRate, progressChannel());
   const busy = pending !== null;
   const locked = busy || stale;
-  const problem = stale ? "Project changed; reopen export" : error ?? (options !== null && ports.length === 0 ? "No outputs in Display Setup" : null);
+  const problem = stale ? "Project changed; reopen export" : error ?? (options !== null && ports.length === 0 ? "No outputs in the project" : null);
   return <>
     <Dialog
       open={origin !== null}
@@ -86,7 +92,7 @@ export function SequenceExportDialog() {
       actions={<>
         <Button disabled={locked} tip="The Preview with the song, ready to share" onClick={() => { void save("mp4"); }}>{pending === "mp4" ? "Exporting…" : "Save .mp4"}</Button>
         <Button disabled={locked || fseqSelected.length === 0 || !stepValid} tip="The outputs in FSEQ, each at its FSEQ channel, for FPP and other players" onClick={() => { void save("fseq"); }}>{pending === "fseq" ? "Exporting…" : "Save .fseq"}</Button>
-        <Button variant="primary" disabled={locked || selected.length === 0} tip="The show a Donder controller plays, outputs in order. Controllers in the setup receive it on Play" onClick={() => { void save("dondershow"); }}>{pending === "dondershow" ? "Preparing…" : "Save .dondershow"}</Button>
+        <Button variant="primary" disabled={locked || selected.length === 0} tip="The show a Donder controller plays, outputs in order. The project's controllers receive it on Play" onClick={() => { void save("dondershow"); }}>{pending === "dondershow" ? "Preparing…" : "Save .dondershow"}</Button>
       </>}
     >
       {pending === "options" && <p role="status">Loading…</p>}

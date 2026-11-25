@@ -31,16 +31,16 @@ const OPERATOR_TEMPLATE: &str = "operator Probe {
   param gain: float in 0.0..1.0 = 0.5;
   param taps: int in 1..4 = 2;
   sample {
-    let mirrored = source.at(target.count - 1 - pixel.index);
-    let neighbor = other.at(pixel.index + 1);
-    let echo = sum for tap in 1..=taps { source.at(pixel.index - tap) * pow(gain, tap) };
+    let mirrored = source[target.count - 1 - pixel.index];
+    let neighbor = other[pixel.index + 1];
+    let echo = sum for tap in 1..=taps { source[pixel.index - tap] * pow(gain, tap) };
     guard intensity(source) < 0.99 else source;
     max(max(source, mirrored), neighbor + echo)
   }
 }";
 
 /// Event queries, `first`/`last`/`any`/`all` reductions bounded by `len()`,
-/// curves, sections and randomness.
+/// curves and randomness.
 const MARKS_TEMPLATE: &str = "effect Probe {
   param beats: marks;
   param shape: curve in 0.0..1.0;
@@ -48,7 +48,7 @@ const MARKS_TEMPLATE: &str = "effect Probe {
   param decay: float in 0.01..10.0 = 0.5;
   param seed: float in 0.0..1000.0 = 0.0;
   sample {
-    let hit = mark_last(beats, time);
+    let hit = mark_at(beats, mark_last_index(beats, time));
     guard !is_nan(hit);
     let age = time - hit;
     guard age >= 0.0 && age < decay;
@@ -56,7 +56,7 @@ const MARKS_TEMPLATE: &str = "effect Probe {
     let prior = last for i in 0..len(beats) { guard mark_at(beats, i) < hit; i } else { -1 };
     let lit = (any for i in 0..len(beats) { mark_at(beats, i) <= time }) && (all for j in 0..=2 { j < 3 });
     guard lit;
-    let section = section_index(3);
+    let section = pixel.index / 3;
     let sparkle = rand((seed + hit * 1000.0) * 31.0 + section);
     hsv(hue(tint) + sparkle, 1.0, shape[age / decay]) * value_or(next - hit, 1.0) * (prior + 2)
   }
@@ -164,9 +164,8 @@ fn compile_and_lower(source: &str) -> Option<usize> {
         let invoke = |values, automation| definition.invoke(values, automation);
         for invocation in invocations(definition.params(), invoke) {
             for constants in constants() {
-                let instance = invocation.instance(constants);
+                let instance = invocation.instance(constants, &[]);
                 let _ = instance.lower();
-                let _ = instance.explain();
                 for input in 0..instance.inputs() {
                     let _ = instance.with_black_input(input).lower();
                     if let Some(fused) = instance.fuse_input(input, &instance) {
@@ -202,11 +201,12 @@ fn invocations(
         .enumerate()
         .filter_map(|(index, param)| {
             Some(PreparedAutomation {
-                start: SampleTime::from_ticks(0),
-                duration: SampleDuration::from_ticks(2_000_000),
-                curve: Shared::new(ramp()),
+                source: donder_runtime_types::AutomationSource::Envelope {
+                    start: SampleTime::from_ticks(0),
+                    duration: SampleDuration::from_ticks(2_000_000),
+                    curve: Shared::new(ramp()),
+                },
                 mapping: param.automation_mapping()?,
-                quantity: donder_runtime_types::AutomatedQuantity::Value,
                 param_index: index as u16,
             })
         })

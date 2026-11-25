@@ -5,22 +5,12 @@ use specta::Type;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchGuiDocument {
-    /// The open object's description, edited with `GuiEditCommand::Description`.
-    pub(crate) description: Option<String>,
-    pub(crate) path: String,
-    pub(crate) object_key: String,
     pub(crate) routes: Vec<GuiPixelRoute>,
     /// Where each valid route's channels land.
     pub(crate) placements: Vec<GuiRoutePlacement>,
-    pub(crate) layouts: Vec<PatchLayout>,
-    pub(crate) controllers: Vec<SetupController>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct PatchLayout {
-    pub(crate) source_ref: GuiObjectRef,
+    /// The fixtures of the project's layout, which routes target.
     pub(crate) fixtures: Vec<PatchFixtureTarget>,
+    pub(crate) controllers: Vec<SetupController>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -35,7 +25,7 @@ pub struct PatchFixtureTarget {
 #[serde(rename_all = "camelCase")]
 pub struct GuiPixelRoute {
     pub id: u32,
-    pub layout: GuiObjectRef,
+    /// A fixture of the project's layout.
     pub fixture: u32,
     pub pixels: Option<GuiPixelSpan>,
     /// Sends the pixels last first.

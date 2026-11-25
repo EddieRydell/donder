@@ -2,10 +2,37 @@
 //! and constant signals are rebuilds. Building in the target refolds every
 //! node, so a substituted constant simplifies everything that depends on it,
 //! and a decided condition copies only the arm it selects.
-use super::{Binary, Context, Graph, LoopId, Node, Op, TooManyLoops};
+use super::{Binary, Context, Graph, LoopId, Node, Op, Ternary, TooManyLoops};
 use donder_runtime_types::bytecode::SignalPixel;
 use donder_runtime_types::{Color, Value};
 use std::collections::HashMap;
+
+/// A query of a curve, with its other operands, as built in the target.
+#[derive(Clone, Copy)]
+pub(crate) enum CurveQuery {
+    Sample(Node),
+    Integral(Node),
+    /// A value, and the position it is reached at or after.
+    FirstCrossing(Node, Node),
+    /// A value, and the position it is reached at or before.
+    LastCrossing(Node, Node),
+}
+
+impl CurveQuery {
+    /// The query of `curve`.
+    pub(crate) fn of(self, target: &mut Graph, curve: Node) -> Node {
+        match self {
+            Self::Sample(at) => target.binary(Binary::CurveSample, curve, at),
+            Self::Integral(at) => target.binary(Binary::CurveIntegral, curve, at),
+            Self::FirstCrossing(value, after) => {
+                target.ternary(Ternary::CurveFirstCrossing, curve, value, after)
+            }
+            Self::LastCrossing(value, before) => {
+                target.ternary(Ternary::CurveLastCrossing, curve, value, before)
+            }
+        }
+    }
+}
 
 pub(crate) trait Substitute {
     /// A replacement for a whole node of the graph being rebuilt, before its operands are copied.
@@ -28,6 +55,15 @@ pub(crate) trait Substitute {
         pixel: SignalPixel<Node>,
     ) -> Result<Node, TooManyLoops> {
         Ok(target.add(Op::Read { input, pixel }))
+    }
+    /// A replacement for a query of `curve`, both already built in the target.
+    fn curve_query(
+        &mut self,
+        _target: &mut Graph,
+        _curve: Node,
+        _query: CurveQuery,
+    ) -> Option<Node> {
+        None
     }
     /// A node to multiply by instead of dividing by `divisor`.
     fn reciprocal(&mut self, _target: &mut Graph, _divisor: Node) -> Option<Node> {
@@ -79,6 +115,34 @@ impl<'a> Rebuild<'a> {
             Op::Unary(op, a) => {
                 let a = self.node(target, a, substitute)?;
                 target.unary(op, a)
+            }
+            Op::Binary(op @ (Binary::CurveSample | Binary::CurveIntegral), curve, at) => {
+                let curve = self.node(target, curve, substitute)?;
+                let at = self.node(target, at, substitute)?;
+                let query = match op {
+                    Binary::CurveSample => CurveQuery::Sample(at),
+                    _ => CurveQuery::Integral(at),
+                };
+                substitute
+                    .curve_query(target, curve, query)
+                    .unwrap_or_else(|| query.of(target, curve))
+            }
+            Op::Ternary(
+                op @ (Ternary::CurveFirstCrossing | Ternary::CurveLastCrossing),
+                curve,
+                value,
+                bound,
+            ) => {
+                let curve = self.node(target, curve, substitute)?;
+                let value = self.node(target, value, substitute)?;
+                let bound = self.node(target, bound, substitute)?;
+                let query = match op {
+                    Ternary::CurveFirstCrossing => CurveQuery::FirstCrossing(value, bound),
+                    _ => CurveQuery::LastCrossing(value, bound),
+                };
+                substitute
+                    .curve_query(target, curve, query)
+                    .unwrap_or_else(|| query.of(target, curve))
             }
             Op::Binary(op, a, b) => {
                 let a = self.node(target, a, substitute)?;

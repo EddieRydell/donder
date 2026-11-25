@@ -62,8 +62,6 @@ impl TargetPixel {
 #[derive(Clone, PartialEq)]
 pub struct TargetGeometry {
     pixels: Box<[TargetPixel]>,
-    selection: Box<[(usize, u32)]>,
-    scope: TargetScope,
 }
 
 impl TargetGeometry {
@@ -121,7 +119,6 @@ impl TargetGeometry {
             .max()
             .unwrap_or(0);
         let mut pixels = Vec::with_capacity(total);
-        let mut selection = Vec::with_capacity(total);
         let mut logical_offset = 0;
         let mut strand_offset = 0;
         for (member, (fixture, geometry, cells)) in parts.into_iter().enumerate() {
@@ -137,7 +134,6 @@ impl TargetGeometry {
             };
             if let Some((min, max)) = extent {
                 for (offset, &cell) in cells.iter().enumerate() {
-                    selection.push((fixture, cell));
                     let Ok(storage_cell) = geometry.cells().binary_search(&cell) else {
                         continue;
                     };
@@ -176,19 +172,11 @@ impl TargetGeometry {
         pixels.sort_by_key(|pixel| (pixel.fixture, pixel.cell));
         Self {
             pixels: pixels.into(),
-            selection: selection.into(),
-            scope,
         }
     }
 
     pub fn pixels(&self) -> &[TargetPixel] {
         &self.pixels
-    }
-    pub fn selection(&self) -> &[(usize, u32)] {
-        &self.selection
-    }
-    pub fn scope(&self) -> TargetScope {
-        self.scope
     }
 
     /// Intersect a physical target range before storage selection. This changes
@@ -201,20 +189,7 @@ impl TargetGeometry {
             .filter(|(index, _)| range.contains(index))
             .map(|(_, pixel)| *pixel)
             .collect();
-        let selected: BTreeSet<_> = pixels
-            .iter()
-            .map(|pixel| (pixel.fixture, pixel.source_cell))
-            .collect();
-        Self {
-            pixels,
-            selection: self
-                .selection
-                .iter()
-                .filter(|address| selected.contains(address))
-                .copied()
-                .collect(),
-            scope: self.scope,
-        }
+        Self { pixels }
     }
 }
 

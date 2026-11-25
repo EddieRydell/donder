@@ -14,7 +14,7 @@ use donder_runtime_types::{PreparedAutomation, SpatialContext};
 use std::prelude::rust_2024::*;
 
 fn instance(operator: &CompiledDefinition, values: &[(&str, Value)]) -> Instance {
-    bind(operator, values).instance(ProgramConstants::default())
+    bind(operator, values).instance(ProgramConstants::default(), &[])
 }
 
 fn operators(source: &str) -> Vec<CompiledDefinition> {
@@ -76,7 +76,7 @@ fn fusion_samples_conditionally() {
         } }
         operator Outer { input other; input source; sample {
             guard pixel.index != -1;
-            other.at(0) + source + other.at(1)
+            other[0] + source + other[1]
         } }",
     );
     let source = instance(&definitions[0], &[]);
@@ -412,31 +412,32 @@ fn automated_sources_and_consumers_fuse_with_their_automation() {
     );
     let automation = || {
         Box::new([PreparedAutomation {
-            start: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(8_000_000),
             param_index: 0,
-            curve: Curve {
-                points: vec![
-                    CurvePoint {
-                        position: 0.0,
-                        value: 0.0,
-                    },
-                    CurvePoint {
-                        position: 1.0,
-                        value: 1.0,
-                    },
-                ],
-            }
-            .into(),
+            source: donder_runtime_types::AutomationSource::Envelope {
+                start: SampleTime::from_ticks(0),
+                duration: SampleDuration::from_ticks(8_000_000),
+                curve: Curve {
+                    points: vec![
+                        CurvePoint {
+                            position: 0.0,
+                            value: 0.0,
+                        },
+                        CurvePoint {
+                            position: 1.0,
+                            value: 1.0,
+                        },
+                    ],
+                }
+                .into(),
+            },
             mapping: AutomationMapping::Float { min: 0.2, max: 0.9 },
-            quantity: donder_runtime_types::AutomatedQuantity::Value,
         }]) as Box<[PreparedAutomation]>
     };
     let automated = |operator: &CompiledDefinition| {
         operator
             .invoke(vec![Value::Float(0.5)], automation())
             .unwrap()
-            .instance(ProgramConstants::default())
+            .instance(ProgramConstants::default(), &[])
     };
     let gain = instance(&definitions[0], &[]);
     let scaled = automated(&definitions[1]);
@@ -454,7 +455,6 @@ fn automated_sources_and_consumers_fuse_with_their_automation() {
     let consumer = instance(&definitions[0], &[("gain", Value::Float(0.4))]);
     let upstream = automated(&definitions[0]);
     let fused = consumer.fuse_input(0, &upstream).unwrap();
-    assert_eq!(playback::bind(&fused).automation().len(), 1);
     assert_fused_playback(
         17,
         &source,
@@ -471,9 +471,9 @@ fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
         &[],
     );
     for consumer in [
-        "max(source, source.at(pixel.index + 1))",
-        "source.at(pixel.index + 1)",
-        "source.at(pixel.index)",
+        "max(source, source[pixel.index + 1])",
+        "source[pixel.index + 1]",
+        "source[pixel.index]",
     ] {
         let consumer = instance(
             &compile(&format!(

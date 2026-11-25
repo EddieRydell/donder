@@ -152,12 +152,6 @@ fn shape_text(shape: &Shape) -> String {
             .collect::<Vec<_>>()
             .join(", or "),
         Shape::Named(name) => format!("`{name}`"),
-        Shape::OwnedRecord(name) => {
-            format!("a `{name}` reference, or `{name} {{ ... }}` owned here")
-        }
-        Shape::OwnedNamedRecord(name) => {
-            format!("a `{name}` reference, or `{name} name {{ ... }}` owned here")
-        }
     }
 }
 
@@ -390,7 +384,6 @@ fn wanted(schema: &Schema, ty: &str, field: &str) -> Option<Refers> {
     fn refers(shape: &Shape) -> Option<Refers> {
         match shape {
             Shape::Reference(refers) => Some(*refers),
-            Shape::OwnedRecord(ty) | Shape::OwnedNamedRecord(ty) => Some(Refers::Declaration(ty)),
             Shape::Option(inner) | Shape::List(inner) => refers(inner),
             _ => None,
         }
@@ -479,6 +472,38 @@ fn object_types<'a>(schema: &'a Schema, ty: &str) -> Vec<(&'static str, &'a Fiel
     }
 }
 
+/// The fixtures and groups of the project's layout, which a fixture reference
+/// names alone: the layout the root's `layout` names or writes in place.
+fn layout_fixtures(workspace: &Workspace, schema: &Schema) -> Vec<String> {
+    let Some(owner) = reference_targets(Refers::Fixture).into_iter().next() else {
+        return Vec::new();
+    };
+    let Some(root) = workspace
+        .uri(camino::Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE))
+        .and_then(|uri| workspace.document(&uri))
+    else {
+        return Vec::new();
+    };
+    let layout = root
+        .tree()
+        .declarations
+        .iter()
+        .flat_map(|declaration| &declaration.fields.value)
+        .find(|field| field.name.value.as_str() == "layout")
+        .map(|field| &field.value.value);
+    match layout {
+        Some(DataValue::Reference(segments)) => {
+            let prefix = segments
+                .iter()
+                .map(|segment| segment.value.as_str())
+                .collect::<Vec<_>>();
+            declaration_members(workspace, &root, schema, &prefix, owner)
+        }
+        Some(DataValue::Record(_, fields)) => record_members(schema, owner, &fields.value),
+        _ => Vec::new(),
+    }
+}
+
 /// The field that names an object.
 fn name_field(fields: &Fields) -> Option<&'static str> {
     fields
@@ -537,15 +562,8 @@ fn members(schema: &Schema, ty: &str) -> Vec<(&'static str, Vec<&'static str>)> 
         .collect()
 }
 
-/// The names of the members of the declaration of type `owner` a reference
-/// names.
-fn declaration_members(
-    workspace: &Workspace,
-    document: &Document,
-    schema: &Schema,
-    prefix: &[&str],
-    owner: &str,
-) -> Vec<String> {
+/// The names of the members `fields` of an object of type `owner` hold.
+fn record_members(schema: &Schema, owner: &str, fields: &[DataField]) -> Vec<String> {
     fn collect(value: &Spanned<DataValue>, types: &[&str], names: &mut Vec<String>) {
         match &value.value {
             DataValue::Record(ty, fields) if types.contains(&ty.value.as_str()) => {
@@ -562,22 +580,37 @@ fn declaration_members(
             _ => {}
         }
     }
-    let members = members(schema, owner);
-    let declared = |source: &Document, name: &str| {
-        let mut names = Vec::new();
-        for declaration in &source.tree().declarations {
-            if declaration.ty.value.as_str() == owner && declaration.name.value.as_str() == name {
-                for field in &declaration.fields.value {
-                    for (_, types) in members
-                        .iter()
-                        .filter(|(member, _)| field.name.value.as_str() == *member)
-                    {
-                        collect(&field.value, types, &mut names);
-                    }
-                }
-            }
+    let mut names = Vec::new();
+    for (member, types) in members(schema, owner) {
+        for field in fields
+            .iter()
+            .filter(|field| field.name.value.as_str() == member)
+        {
+            collect(&field.value, &types, &mut names);
         }
-        names
+    }
+    names
+}
+
+/// The names of the members of the declaration of type `owner` a reference
+/// names.
+fn declaration_members(
+    workspace: &Workspace,
+    document: &Document,
+    schema: &Schema,
+    prefix: &[&str],
+    owner: &str,
+) -> Vec<String> {
+    let declared = |source: &Document, name: &str| {
+        source
+            .tree()
+            .declarations
+            .iter()
+            .filter(|declaration| {
+                declaration.ty.value.as_str() == owner && declaration.name.value.as_str() == name
+            })
+            .flat_map(|declaration| record_members(schema, owner, &declaration.fields.value))
+            .collect::<Vec<_>>()
     };
     match prefix {
         [name] => declared(document, name),
@@ -669,14 +702,6 @@ fn shape_completions(schema: &Schema, shape: &Shape, references: &[String]) -> V
                 .collect(),
             _ => record_completions(schema, ty, false),
         },
-        Shape::OwnedRecord(ty) => reference_items()
-            .into_iter()
-            .chain(record_completions(schema, ty, false))
-            .collect(),
-        Shape::OwnedNamedRecord(ty) => reference_items()
-            .into_iter()
-            .chain(record_completions(schema, ty, true))
-            .collect(),
         Shape::Reference(_) | Shape::Name => reference_items(),
         _ => Vec::new(),
     }
@@ -752,8 +777,9 @@ pub(crate) fn completions(
             Refers::Declaration(_) => declared(None),
             Refers::Effect => declared(Some(SymbolKind::Effect)),
             Refers::Operator => declared(Some(SymbolKind::Operator)),
+            Refers::Fixture => layout_fixtures(workspace, &schema),
             // A member, written `declaration.member`.
-            Refers::Fixture | Refers::Control => declared(None)
+            Refers::Control => declared(None)
                 .into_iter()
                 .map(|name| format!("{name}."))
                 .collect(),
@@ -783,13 +809,11 @@ pub(crate) fn completions(
         _ => None,
     };
     if !prefix.is_empty() {
-        // After a dot: a layout's fixtures, or an alias's declarations.
+        // After a dot: a device's controls, or an alias's declarations.
         let owner = field_owner
             .as_ref()
             .and_then(|(ty, field)| match wanted(&schema, ty, field) {
-                Some(refers @ (Refers::Fixture | Refers::Control)) => {
-                    reference_targets(refers).into_iter().next()
-                }
+                Some(Refers::Control) => reference_targets(Refers::Control).into_iter().next(),
                 _ => None,
             });
         if let Some(owner) = owner

@@ -5,7 +5,7 @@
 use super::Diagnostic;
 use super::audio::{AudioKind, AudioSpec, Setting};
 use super::builtins::{
-    self, AT, Fit, Lowering, NAMED_TYPES, Read, builtin, context_field, context_value, describe,
+    self, Fit, Lowering, NAMED_TYPES, Read, builtin, context_field, context_value, describe,
     is_context_scope, type_text,
 };
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange, program_params};
@@ -917,15 +917,13 @@ impl Checker {
             ExprKind::Name(name) => return self.name(name, expr.span),
             ExprKind::Field(target, field) => self.field(target, field)?,
             ExprKind::Call(name, args) => self.call(name, args, expr.span)?,
-            ExprKind::Method(target, method, args) => {
-                self.method(target, method, args, expr.span)?
-            }
             ExprKind::Index(target, index) => self.index(target, index)?,
             ExprKind::Unary(op, operand) => {
                 let value = self.value(operand)?;
                 match (op, self.ty(value)) {
-                    (UnaryOp::Negate, Type::Int) => self.graph.unary(Unary::IntNegate, value),
-                    (UnaryOp::Negate, Type::Float) => self.graph.unary(Unary::Negate, value),
+                    (UnaryOp::Negate, Type::Int | Type::Float) => {
+                        self.graph.unary(Unary::Negate, value)
+                    }
                     (UnaryOp::Not, Type::Bool) => self.graph.unary(Unary::Not, value),
                     (UnaryOp::Negate, ty) => {
                         let message = format!("`-` needs a number, found {}", describe(ty));
@@ -1015,7 +1013,7 @@ impl Checker {
             |checker, index| {
                 let graph = &mut checker.graph;
                 let length = graph.unary(Unary::Len, text);
-                let within = graph.binary(Binary::IntLess, index, length);
+                let within = graph.binary(Binary::Less, index, length);
                 let code = graph.binary(Binary::Index, text, index);
                 let zero = graph.int(0);
                 graph.select(within, code, zero)
@@ -1076,6 +1074,7 @@ impl Checker {
         match read {
             Read::Context(context) => self.graph.add(Op::Context(context)),
             Read::Constant(value) => self.graph.float(value),
+            Read::Expand(expand) => expand(self),
         }
     }
 
@@ -1129,48 +1128,6 @@ impl Checker {
         Some(index as u32)
     }
 
-    fn method(
-        &mut self,
-        target: &Expr,
-        method: &Name,
-        args: &[Expr],
-        span: TextSpan,
-    ) -> Checked<Node> {
-        let input = match &target.kind {
-            ExprKind::Name(name) => self.signal(&Name {
-                name: name.clone(),
-                span: target.span,
-            }),
-            _ => None,
-        };
-        let Some(input) = input else {
-            self.error(method.span, "only operator inputs have methods");
-            return None;
-        };
-        if method.name.as_str() != AT.name {
-            let message = format!(
-                "signals have no method `{}`; use `{}`",
-                method.name.as_str(),
-                AT.name
-            );
-            self.error(method.span, message);
-            return None;
-        }
-        self.refer(method.span, ScriptTarget::Method(&AT));
-        if args.len() != 1 {
-            self.error(
-                span,
-                format!(
-                    "`{}` takes a local pixel index; signals are read at this frame",
-                    AT.name
-                ),
-            );
-            return None;
-        }
-        let pixel = SignalPixel::Local(self.int(&args[0])?);
-        Some(self.graph.add(Op::Read { input, pixel }))
-    }
-
     /// An array literal of one item type; ints widen when any item is a float.
     fn array(&mut self, items: &[Expr], span: TextSpan) -> Checked<Node> {
         let nodes = items
@@ -1195,6 +1152,16 @@ impl Checker {
     }
 
     fn index(&mut self, target: &Expr, index: &Expr) -> Checked<Node> {
+        // An operator input at another pixel of this fixture, at this frame.
+        if let ExprKind::Name(name) = &target.kind
+            && let Some(input) = self.signal(&Name {
+                name: name.clone(),
+                span: target.span,
+            })
+        {
+            let pixel = SignalPixel::Local(self.int(index)?);
+            return Some(self.graph.add(Op::Read { input, pixel }));
+        }
         let collection = self.value(target)?;
         match self.ty(collection).clone() {
             Type::Array(_) | Type::Text => {
@@ -1219,7 +1186,7 @@ impl Checker {
             }
             ty => {
                 let message = format!(
-                    "only arrays, curves and gradients can be indexed, not {}",
+                    "only arrays, texts, curves, gradients and operator inputs can be indexed, not {}",
                     describe(&ty)
                 );
                 self.error(target.span, message);
@@ -1260,78 +1227,59 @@ impl Checker {
                     graph.or(a, b)
                 }
             }
-            BinaryOp::Add if left_ty == Type::Color && right_ty == Type::Color => {
-                graph.binary(Binary::ColorAdd, a, b)
-            }
-            BinaryOp::Multiply if left_ty == Type::Color && right_ty == Type::Color => {
-                graph.binary(Binary::ColorMultiply, a, b)
-            }
-            BinaryOp::Multiply if left_ty == Type::Color && numeric(&right_ty) => {
-                let (_, scale) = floats(graph);
-                graph.binary(Binary::ColorScale, a, scale)
-            }
-            BinaryOp::Multiply if numeric(&left_ty) && right_ty == Type::Color => {
-                let (scale, _) = floats(graph);
-                graph.binary(Binary::ColorScale, b, scale)
-            }
-            BinaryOp::Add
-            | BinaryOp::Subtract
-            | BinaryOp::Multiply
-            | BinaryOp::Remainder
-            | BinaryOp::FloorDivide
-                if ints =>
+            BinaryOp::Add | BinaryOp::Multiply
+                if left_ty == Type::Color && right_ty == Type::Color =>
             {
-                let op = match op {
-                    BinaryOp::Add => Binary::IntAdd,
-                    BinaryOp::Subtract => Binary::IntSubtract,
-                    BinaryOp::Multiply => Binary::IntMultiply,
-                    BinaryOp::FloorDivide => Binary::IntFloorDivide,
-                    _ => Binary::IntRemainder,
+                let op = if op == BinaryOp::Add {
+                    Binary::Add
+                } else {
+                    Binary::Multiply
                 };
                 graph.binary(op, a, b)
             }
-            BinaryOp::FloorDivide if numeric(&left_ty) && numeric(&right_ty) => {
+            // A color scaled by a number, the color first.
+            BinaryOp::Multiply if left_ty == Type::Color && numeric(&right_ty) => {
+                let (_, scale) = floats(graph);
+                graph.binary(Binary::Multiply, a, scale)
+            }
+            BinaryOp::Multiply if numeric(&left_ty) && right_ty == Type::Color => {
+                let (scale, _) = floats(graph);
+                graph.binary(Binary::Multiply, b, scale)
+            }
+            BinaryOp::FloorDivide if !ints && numeric(&left_ty) && numeric(&right_ty) => {
                 let (a, b) = floats(graph);
                 let quotient = graph.binary(Binary::Divide, a, b);
                 graph.unary(Unary::Floor, quotient)
             }
+            // Ints keep their type, so `//` of ints is the floored quotient;
+            // `/` divides floats.
             BinaryOp::Add
             | BinaryOp::Subtract
             | BinaryOp::Multiply
             | BinaryOp::Divide
+            | BinaryOp::FloorDivide
             | BinaryOp::Remainder
+            | BinaryOp::Less
+            | BinaryOp::LessEqual
+            | BinaryOp::Greater
+            | BinaryOp::GreaterEqual
                 if numeric(&left_ty) && numeric(&right_ty) =>
             {
-                let (a, b) = floats(graph);
+                let (a, b) = if ints && op != BinaryOp::Divide {
+                    (a, b)
+                } else {
+                    floats(graph)
+                };
                 let op = match op {
                     BinaryOp::Add => Binary::Add,
                     BinaryOp::Subtract => Binary::Subtract,
                     BinaryOp::Multiply => Binary::Multiply,
-                    BinaryOp::Divide => Binary::Divide,
-                    _ => Binary::Remainder,
-                };
-                graph.binary(op, a, b)
-            }
-            BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual
-                if numeric(&left_ty) && numeric(&right_ty) =>
-            {
-                let (op, a, b) = if ints {
-                    let op = match op {
-                        BinaryOp::Less => Binary::IntLess,
-                        BinaryOp::LessEqual => Binary::IntLessEqual,
-                        BinaryOp::Greater => Binary::IntGreater,
-                        _ => Binary::IntGreaterEqual,
-                    };
-                    (op, a, b)
-                } else {
-                    let (a, b) = floats(graph);
-                    let op = match op {
-                        BinaryOp::Less => Binary::Less,
-                        BinaryOp::LessEqual => Binary::LessEqual,
-                        BinaryOp::Greater => Binary::Greater,
-                        _ => Binary::GreaterEqual,
-                    };
-                    (op, a, b)
+                    BinaryOp::Divide | BinaryOp::FloorDivide => Binary::Divide,
+                    BinaryOp::Remainder => Binary::Remainder,
+                    BinaryOp::Less => Binary::Less,
+                    BinaryOp::LessEqual => Binary::LessEqual,
+                    BinaryOp::Greater => Binary::Greater,
+                    _ => Binary::GreaterEqual,
                 };
                 graph.binary(op, a, b)
             }
@@ -1613,26 +1561,26 @@ impl Checker {
             around,
         } = reduction;
         let (reducer, otherwise, around) = (*reducer, otherwise.as_ref(), around.as_ref());
-        let reducer_name = builtins::reducer(reducer).name;
+        let reducer_name = reducer.name();
         self.refer(
             TextSpan {
                 start: span.start,
                 end: span.start + reducer_name.len(),
             },
-            ScriptTarget::Reducer(builtins::reducer(reducer)),
+            ScriptTarget::Reducer(reducer),
         );
         let start = self.bound_value(start);
         let end = self.bound_value(end);
         let (start, end) = (start?, end?);
         let end = if *inclusive {
             let one = self.graph.int(1);
-            self.graph.binary(Binary::IntAdd, end, one)
+            self.graph.binary(Binary::Add, end, one)
         } else {
             end
         };
-        let count = self.graph.binary(Binary::IntSubtract, end, start);
+        let count = self.graph.binary(Binary::Subtract, end, start);
         self.bound(count, span, "reduction")?;
-        if matches!(reducer, ReducerKind::Table | ReducerKind::TableSum) {
+        if reducer.tabulates() {
             self.table_bounds(reducer_name, count, around.is_some(), span)?;
         }
         if let Some(around) = around {
@@ -1682,34 +1630,29 @@ impl Checker {
         let filter = (self.graph.constant_value(outcome.valid) != Some(&Value::Bool(true)))
             .then_some(outcome.valid);
         let (reducer, body, filter, default) = match reducer {
-            ReducerKind::Max | ReducerKind::Min | ReducerKind::Sum => {
-                let colors = reducer != ReducerKind::Min && ty == Type::Color;
+            Reducer::Max | Reducer::Min | Reducer::Sum => {
+                let colors = reducer != Reducer::Min && ty == Type::Color;
                 if !(matches!(ty, Type::Int | Type::Float) || colors) {
                     let message = format!("`{reducer_name}` cannot combine {}", describe(&ty));
                     self.error(body.result.span, message);
                     return None;
                 }
-                let reducer = match reducer {
-                    ReducerKind::Max => Reducer::Max,
-                    ReducerKind::Min => Reducer::Min,
-                    _ => Reducer::Sum,
-                };
                 (reducer, value, filter, None)
             }
-            ReducerKind::Any | ReducerKind::All => {
+            Reducer::Any | Reducer::All => {
                 let value = self.require(value, &Type::Bool, body.result.span)?;
-                let (reducer, body) = if reducer == ReducerKind::Any {
-                    (Reducer::Any, self.graph.and(outcome.valid, value))
+                let body = if reducer == Reducer::Any {
+                    self.graph.and(outcome.valid, value)
                 } else {
                     let skipped = self.graph.unary(Unary::Not, outcome.valid);
-                    (Reducer::All, self.graph.or(skipped, value))
+                    self.graph.or(skipped, value)
                 };
                 (reducer, body, None, None)
             }
-            ReducerKind::Table | ReducerKind::TableSum => {
+            Reducer::Table | Reducer::RunningSum => {
                 return self.table(reducer, id, value, filter, body.result.span);
             }
-            ReducerKind::First | ReducerKind::Last => {
+            Reducer::First | Reducer::Last => {
                 if matches!(ty, Type::Array(_)) {
                     self.error(
                         body.result.span,
@@ -1731,11 +1674,6 @@ impl Checker {
                         self.error(span, message);
                         return None;
                     }
-                };
-                let reducer = if reducer == ReducerKind::First {
-                    Reducer::First
-                } else {
-                    Reducer::Last
                 };
                 (reducer, value, filter, Some(default))
             }
@@ -1766,7 +1704,7 @@ impl Checker {
             return None;
         }
         // Running sums take one entry more than their range.
-        let limit = if name == builtins::reducer(ReducerKind::TableSum).name {
+        let limit = if name == Reducer::RunningSum.name() {
             STRIP - 1
         } else {
             STRIP
@@ -1786,13 +1724,13 @@ impl Checker {
     /// frame.
     fn table(
         &mut self,
-        reducer: ReducerKind,
+        reducer: Reducer,
         id: LoopId,
         value: Node,
         filter: Option<Node>,
         result_span: TextSpan,
     ) -> Checked<Node> {
-        let name = builtins::reducer(reducer).name;
+        let name = reducer.name();
         if filter.is_some() {
             let message =
                 format!("a `{name}` has an entry at every index, so its body cannot skip one");
@@ -1800,22 +1738,16 @@ impl Checker {
             return None;
         }
         let ty = self.ty(value).clone();
-        let (ir, holds) = match reducer {
-            ReducerKind::Table => (
-                Reducer::Table,
-                matches!(ty, Type::Int | Type::Float | Type::Bool | Type::Color),
-            ),
-            _ => (
-                Reducer::RunningSum,
-                matches!(ty, Type::Int | Type::Float | Type::Color),
-            ),
+        let holds = match reducer {
+            Reducer::Table => matches!(ty, Type::Int | Type::Float | Type::Bool | Type::Color),
+            _ => matches!(ty, Type::Int | Type::Float | Type::Color),
         };
         if !holds {
             let message = format!("a `{name}` cannot hold {}", describe(&ty));
             self.error(result_span, message);
             return None;
         }
-        let table = self.graph.finish_loop(id, ir, value, None, None);
+        let table = self.graph.finish_loop(id, reducer, value, None, None);
         let per_frame = self.graph.loops_of(table).is_empty()
             && !self
                 .graph
@@ -1950,11 +1882,11 @@ impl Checker {
     /// Whether the pixel `offset` pixels along the fixture exists.
     fn present(&mut self, offset: Node) -> Node {
         let index = self.graph.add(Op::Context(Context::PixelIndex));
-        let at = self.graph.binary(Binary::IntAdd, index, offset);
+        let at = self.graph.binary(Binary::Add, index, offset);
         let zero = self.graph.int(0);
         let count = self.graph.add(Op::Context(Context::TargetCount));
-        let low = self.graph.binary(Binary::IntGreaterEqual, at, zero);
-        let high = self.graph.binary(Binary::IntLess, at, count);
+        let low = self.graph.binary(Binary::GreaterEqual, at, zero);
+        let high = self.graph.binary(Binary::Less, at, count);
         self.graph.and(low, high)
     }
 
@@ -2322,8 +2254,7 @@ fn depends_on_length(graph: &Graph, node: Node) -> bool {
             continue;
         }
         match graph.op(node) {
-            Op::Unary(Unary::Len | Unary::MarkCount, operand)
-            | Op::Binary(Binary::MarkLastIndex, operand, _)
+            Op::Unary(Unary::Len, operand) | Op::Binary(Binary::MarkLastIndex, operand, _)
                 if matches!(graph.op(*operand), Op::Param(_)) =>
             {
                 return true;

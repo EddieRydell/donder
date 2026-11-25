@@ -5,31 +5,31 @@
 //! group member may also be a slice: a run of one placed fixture's pixels.
 
 mod editing;
+pub use editing::{FixtureCopies, duplicate_layout_fixture};
 
 use std::collections::HashSet;
 
-use crate::fixture::{FixtureDefinitionId, FixtureGeometryError, FixtureTransform, OwnedFixture};
+use crate::fixture::{FixtureDefinitionId, FixtureTransform};
 pub(crate) use crate::identity::LayoutId;
 use crate::patch::PixelSpan;
 use indexmap::IndexMap;
 
 /// Stable across renames, reordering and membership changes; unique in a layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct FixtureInstanceId(pub u32);
+pub struct FixtureId(pub u32);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layout {
-    pub id: LayoutId,
     pub description: Option<String>,
     /// Every fixture and group exactly once. Fixture order is placement order.
     pub fixtures: Vec<LayoutFixture>,
     /// Top-level members in display order.
-    pub root: Vec<FixtureInstanceId>,
+    pub root: Vec<FixtureId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayoutFixture {
-    pub id: FixtureInstanceId,
+    pub id: FixtureId,
     /// Unique within the layout; references use it.
     pub name: donder_runtime_types::Identifier,
     pub description: Option<String>,
@@ -39,7 +39,7 @@ pub struct LayoutFixture {
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutFixtureKind {
     Fixture {
-        definition: OwnedFixture,
+        definition: FixtureDefinitionId,
         transform: FixtureTransform,
     },
     Group {
@@ -51,23 +51,23 @@ pub enum LayoutFixtureKind {
 /// fixture's pixels in fixture order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum GroupMember {
-    Item(FixtureInstanceId),
+    Item(FixtureId),
     Slice {
-        fixture: FixtureInstanceId,
+        fixture: FixtureId,
         pixels: PixelSpan,
     },
 }
 
 impl GroupMember {
     /// The layout item the member names: the item, or the sliced fixture.
-    pub fn item(&self) -> FixtureInstanceId {
+    pub fn item(&self) -> FixtureId {
         match *self {
             Self::Item(item) | Self::Slice { fixture: item, .. } => item,
         }
     }
 
     /// The listed item, unless the member is a slice.
-    pub fn listed(&self) -> Option<FixtureInstanceId> {
+    pub fn listed(&self) -> Option<FixtureId> {
         match *self {
             Self::Item(item) => Some(item),
             Self::Slice { .. } => None,
@@ -78,46 +78,35 @@ impl GroupMember {
 /// Pixels a target denotes in one placed fixture: all of them, or a span.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct TargetPart {
-    pub fixture: FixtureInstanceId,
+    pub fixture: FixtureId,
     pub pixels: Option<PixelSpan>,
-}
-
-/// Select an entire fixture or group; a group may list slices of fixtures.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct FixtureTarget {
-    pub layout: LayoutId,
-    pub fixture: FixtureInstanceId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LayoutError {
-    TooManyPixels(FixtureInstanceId),
-    DuplicateId(FixtureInstanceId),
-    InvalidName(FixtureInstanceId, donder_runtime_types::Identifier),
-    DuplicateName(FixtureInstanceId, donder_runtime_types::Identifier),
-    MissingDefinition(FixtureDefinitionId),
-    InvalidFixture {
-        fixture: FixtureInstanceId,
-        error: FixtureGeometryError,
-    },
-    InvalidTransform(FixtureInstanceId),
-    MissingFixture(FixtureInstanceId),
-    WrongLayout(LayoutId),
+    TooManyPixels(FixtureId),
+    DuplicateId(FixtureId),
+    InvalidName(FixtureId, donder_runtime_types::Identifier),
+    DuplicateName(FixtureId, donder_runtime_types::Identifier),
+    /// A placed fixture whose definition is missing.
+    MissingDefinition(FixtureId),
+    InvalidTransform(FixtureId),
+    MissingFixture(FixtureId),
     /// A member is listed twice in one group or in the root.
-    DuplicateMember(FixtureInstanceId, donder_runtime_types::Identifier),
+    DuplicateMember(FixtureId, donder_runtime_types::Identifier),
     /// A group contains itself through its members.
-    Cycle(FixtureInstanceId, donder_runtime_types::Identifier),
+    Cycle(FixtureId, donder_runtime_types::Identifier),
     /// An item is not reachable from the root.
-    Unreachable(FixtureInstanceId, donder_runtime_types::Identifier),
+    Unreachable(FixtureId, donder_runtime_types::Identifier),
     /// A group slices a group or a missing item; slices take a placed fixture.
     InvalidSlice {
-        group: FixtureInstanceId,
-        fixture: FixtureInstanceId,
+        group: FixtureId,
+        fixture: FixtureId,
     },
     /// A group's slice selects no pixels, or pixels past its fixture's last.
     SliceOutOfRange {
-        group: FixtureInstanceId,
-        fixture: FixtureInstanceId,
+        group: FixtureId,
+        fixture: FixtureId,
     },
 }
 
@@ -131,7 +120,7 @@ impl LayoutFixture {
     }
 
     /// The items a group lists whole, without its slices.
-    pub fn listed(&self) -> impl Iterator<Item = FixtureInstanceId> + '_ {
+    pub fn listed(&self) -> impl Iterator<Item = FixtureId> + '_ {
         self.members().iter().filter_map(GroupMember::listed)
     }
 }
@@ -142,16 +131,16 @@ impl Layout {
         self.fixtures.iter()
     }
 
-    pub fn fixture(&self, id: FixtureInstanceId) -> Option<&LayoutFixture> {
+    pub fn fixture(&self, id: FixtureId) -> Option<&LayoutFixture> {
         self.fixtures.iter().find(|fixture| fixture.id == id)
     }
 
-    pub fn fixture_mut(&mut self, id: FixtureInstanceId) -> Option<&mut LayoutFixture> {
+    pub fn fixture_mut(&mut self, id: FixtureId) -> Option<&mut LayoutFixture> {
         self.fixtures.iter_mut().find(|fixture| fixture.id == id)
     }
 
     /// The items a group lists whole, or the root for `None`.
-    pub fn children(&self, parent: Option<FixtureInstanceId>) -> Option<Vec<FixtureInstanceId>> {
+    pub fn children(&self, parent: Option<FixtureId>) -> Option<Vec<FixtureId>> {
         match parent {
             None => Some(self.root.clone()),
             Some(parent) => match &self.fixture(parent)?.kind {
@@ -164,7 +153,7 @@ impl Layout {
     }
 
     /// Whether `descendant` is `ancestor` or reachable through its members.
-    pub fn contains(&self, ancestor: FixtureInstanceId, descendant: FixtureInstanceId) -> bool {
+    pub fn contains(&self, ancestor: FixtureId, descendant: FixtureId) -> bool {
         let mut seen = HashSet::new();
         let mut stack = vec![ancestor];
         while let Some(id) = stack.pop() {
@@ -184,9 +173,9 @@ impl Layout {
     /// depth-first in member order. A whole fixture or slice reached more than
     /// once keeps its first position; a pixel both parts select belongs to
     /// the first.
-    pub fn members(&self, id: FixtureInstanceId) -> Vec<TargetPart> {
+    pub fn members(&self, id: FixtureId) -> Vec<TargetPart> {
         fn visit(
-            index: &std::collections::HashMap<FixtureInstanceId, &LayoutFixture>,
+            index: &std::collections::HashMap<FixtureId, &LayoutFixture>,
             member: GroupMember,
             seen: &mut HashSet<GroupMember>,
             parts: &mut Vec<TargetPart>,
@@ -224,27 +213,26 @@ impl Layout {
         parts
     }
 
-    fn index(&self) -> std::collections::HashMap<FixtureInstanceId, &LayoutFixture> {
+    fn index(&self) -> std::collections::HashMap<FixtureId, &LayoutFixture> {
         self.fixtures
             .iter()
             .map(|fixture| (fixture.id, fixture))
             .collect()
     }
 
+    /// The pixels of `target`, a fixture or group: a group may list slices of
+    /// fixtures.
     pub fn target_pixel_count(
         &self,
-        target: &FixtureTarget,
+        target: FixtureId,
         counts: &IndexMap<FixtureDefinitionId, u32>,
     ) -> Result<u32, LayoutError> {
-        if target.layout != self.id {
-            return Err(LayoutError::WrongLayout(target.layout));
-        }
-        if self.fixture(target.fixture).is_none() {
-            return Err(LayoutError::MissingFixture(target.fixture));
+        if self.fixture(target).is_none() {
+            return Err(LayoutError::MissingFixture(target));
         }
         // Each placed fixture's selected ranges, merged so a pixel counts once.
-        let mut selected: IndexMap<FixtureInstanceId, Vec<(u32, u32)>> = IndexMap::new();
-        for part in self.members(target.fixture) {
+        let mut selected: IndexMap<FixtureId, Vec<(u32, u32)>> = IndexMap::new();
+        for part in self.members(target) {
             let count = self.fixture_pixel_count(part.fixture, counts)?;
             let range = part.pixels.map_or((0, count), |span| {
                 (
@@ -267,34 +255,24 @@ impl Layout {
             }
             total
                 .checked_add(covered)
-                .ok_or(LayoutError::TooManyPixels(target.fixture))
+                .ok_or(LayoutError::TooManyPixels(target))
         })
     }
 
     /// A placed fixture's pixel count; a group has none of its own.
     pub fn fixture_pixel_count(
         &self,
-        id: FixtureInstanceId,
+        id: FixtureId,
         counts: &IndexMap<FixtureDefinitionId, u32>,
     ) -> Result<u32, LayoutError> {
         let fixture = self.fixture(id).ok_or(LayoutError::MissingFixture(id))?;
         let LayoutFixtureKind::Fixture { definition, .. } = &fixture.kind else {
             return Ok(0);
         };
-        match definition {
-            OwnedFixture::Inline(value) => {
-                value
-                    .validate_geometry()
-                    .map_err(|error| LayoutError::InvalidFixture {
-                        fixture: fixture.id,
-                        error,
-                    })
-            }
-            OwnedFixture::Reference(definition) => counts
-                .get(definition)
-                .copied()
-                .ok_or(LayoutError::MissingDefinition(*definition)),
-        }
+        counts
+            .get(definition)
+            .copied()
+            .ok_or(LayoutError::MissingDefinition(id))
     }
 
     /// Every slice selects pixels its fixture has, given each reusable
@@ -345,19 +323,8 @@ impl Layout {
                 transform,
             } = &fixture.kind
             {
-                match definition {
-                    OwnedFixture::Inline(value) => {
-                        value
-                            .validate_geometry()
-                            .map_err(|error| LayoutError::InvalidFixture {
-                                fixture: fixture.id,
-                                error,
-                            })?;
-                    }
-                    OwnedFixture::Reference(id) if !definitions.contains_key(id) => {
-                        return Err(LayoutError::MissingDefinition(*id));
-                    }
-                    OwnedFixture::Reference(_) => {}
+                if !definitions.contains_key(definition) {
+                    return Err(LayoutError::MissingDefinition(fixture.id));
                 }
                 if !transform.is_valid() {
                     return Err(LayoutError::InvalidTransform(fixture.id));
@@ -416,9 +383,9 @@ impl Layout {
             Done,
         }
         fn visit(
-            index: &std::collections::HashMap<FixtureInstanceId, &LayoutFixture>,
-            id: FixtureInstanceId,
-            state: &mut IndexMap<FixtureInstanceId, Visit>,
+            index: &std::collections::HashMap<FixtureId, &LayoutFixture>,
+            id: FixtureId,
+            state: &mut IndexMap<FixtureId, Visit>,
         ) -> Result<(), LayoutError> {
             match state.get(&id) {
                 Some(Visit::Done) => return Ok(()),
@@ -450,12 +417,3 @@ impl Layout {
         Ok(())
     }
 }
-
-impl crate::ownership::Identified for Layout {
-    type Id = LayoutId;
-    fn id(&self) -> &Self::Id {
-        &self.id
-    }
-}
-
-pub type OwnedLayout = crate::ownership::Owned<Box<Layout>, LayoutId>;

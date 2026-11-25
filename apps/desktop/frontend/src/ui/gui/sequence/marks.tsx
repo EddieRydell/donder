@@ -1,7 +1,7 @@
 import type { SequenceMarkCollection } from "../../../types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 
-import type { GuiFocus } from "../shared";
+import type { GuiFocus } from "../documentUi";
 
 import { getMarkDraft, markDraftEntries, setMarkDraft, type MarkDraftLookup, type MarkRefLookup } from "./sequenceSelection";
 
@@ -16,7 +16,7 @@ const MARK_DRAWING = {
 
 /** The collection that new marks go into: the active one, else the first. */
 export function activeMarkCollection(collections: SequenceMarkCollection[], activeKey: string | null) {
-  return collections.find((collection) => collection.key === activeKey) ?? collections[0] ?? null;
+  return collections.find((collection) => collection.name === activeKey) ?? collections[0] ?? null;
 }
 
 /**
@@ -42,25 +42,25 @@ export function drawSequenceMarks(
   drafts: MarkDraftLookup
 ) {
   const ordered = [
-    ...collections.filter((collection) => collection.key !== activeCollectionKey),
-    ...collections.filter((collection) => collection.key === activeCollectionKey)
+    ...collections.filter((collection) => collection.name !== activeCollectionKey),
+    ...collections.filter((collection) => collection.name === activeCollectionKey)
   ];
   ctx.save();
   ctx.beginPath();
   ctx.rect(left, linesTop, width, height - linesTop);
   ctx.clip();
   for (const collection of ordered) {
-    const active = collection.key === activeCollectionKey;
+    const active = collection.name === activeCollectionKey;
     for (const [index, timeSeconds] of collection.marksSeconds.entries()) {
-      const mark = { collectionKey: collection.key, index };
+      const mark = { collectionId: collection.id, index };
       const draft = getMarkDraft(drafts, mark);
       const drawnTimeSeconds = draft?.timeSeconds ?? timeSeconds;
       const x = left + (drawnTimeSeconds - scrollXSeconds) * pxPerSecond;
       const spanPx = (collection.markDurationsSeconds[index] ?? 0) * pxPerSecond;
       if (x + spanPx < left - MARK_DRAWING.cullPaddingPx || x > left + width + MARK_DRAWING.cullPaddingPx) continue;
       const isSelected =
-        (selected?.type === "mark" && selected.collectionKey === collection.key && selected.index === index) ||
-        (selectedMarks.get(collection.key)?.has(index) ?? false);
+        (selected?.type === "mark" && selected.collectionId === collection.id && selected.index === index) ||
+        (selectedMarks.get(collection.id)?.has(index) ?? false);
       const lineX = x + THEME_METRICS.visualHairlineOffset;
       ctx.strokeStyle = collection.color;
       if (!laneOnly) {
@@ -112,7 +112,7 @@ export function committedMarkDrafts(collections: SequenceMarkCollection[], draft
       setMarkDraft(next, draft, draft);
       continue;
     }
-    const collection = collections.find((candidate) => candidate.key === draft.collectionKey);
+    const collection = collections.find((candidate) => candidate.id === draft.collectionId);
     if (collection?.marksSeconds[draft.committedIndex] !== draft.timeSeconds) {
       setMarkDraft(next, draft, draft);
     }

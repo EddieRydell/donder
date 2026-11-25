@@ -203,7 +203,7 @@ pub(crate) fn take_sequence_clip_raster_results(
 #[specta::specta]
 pub(crate) fn apply_gui_edit(
     request: GuiDocumentRequest,
-    edit: GuiEditCommand,
+    edit: GuiEdit,
     state: State<'_, DesktopState>,
 ) -> GuiEditUpdate {
     state.edit_gui_document(request, edit)
@@ -220,36 +220,13 @@ pub(crate) fn confirm_gui_edit(
     state.confirm_gui_edit(request)
 }
 
-/// Rename a member of the open project or setup, and its file to match.
-#[tauri::command(async)]
-#[specta::specta]
-pub(crate) fn rename_gui_member(
-    request: GuiDocumentRequest,
-    source: GuiObjectRef,
-    name: String,
-    state: State<'_, DesktopState>,
-) -> GuiEditUpdate {
-    state.rename_gui_member(request, source, name)
-}
-
-/// Delete a member of the open project or setup once the person confirms.
-#[tauri::command(async)]
-#[specta::specta]
-pub(crate) fn delete_gui_member(
-    request: GuiDocumentRequest,
-    source: GuiObjectRef,
-    state: State<'_, DesktopState>,
-) -> GuiEditUpdate {
-    state.delete_gui_member(request, source)
-}
-
 /// What would refuse `edit` of the open object, a draft form's edit; none
 /// when it would be accepted. Nothing changes.
 #[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn check_gui_edit(
     request: GuiDocumentRequest,
-    edit: GuiEditCommand,
+    edit: GuiEdit,
     state: State<'_, DesktopState>,
 ) -> Option<donder_editor::dto::GuiProblem> {
     state.check_gui_edit(&request, edit)
@@ -359,11 +336,12 @@ pub(crate) fn choose_sequence_audio(
     };
     state.edit_gui_document(
         request,
-        GuiEditCommand::Sequence {
-            edit: SequenceGuiEdit::SetAudio {
-                import_path: Some(import_path),
+        GuiEdit::put(
+            GuiSite::object(GuiField::Audio),
+            GuiValue::OptionalText {
+                text: Some(import_path),
             },
-        },
+        ),
     )
 }
 

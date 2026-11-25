@@ -1,6 +1,8 @@
 import { commands, errorMessage } from "../../../api";
 import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
-import { MIN_CLIP_DURATION_SECONDS, markIndexAfterMove } from "./sequenceSelection";
+import { put, site } from "../edits";
+import { MIN_CLIP_DURATION_SECONDS, isTimed, markIndexAfterMove, useSequenceSelection } from "./sequenceSelection";
+import { clipFocus, focusedClipId, setDocumentUi, showMarks, useDocumentUi, type GuiFocus } from "../documentUi";
 import { hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
 import { OverlayPortal } from "../../OverlayPortal";
@@ -13,15 +15,14 @@ import { ChevronRight, Scissors, Trash2 } from "lucide-react";
 import { ContextMenuEntries, Tip, type MenuEntry } from "../../kit";
 
 
-import { scheduleViewStateSave } from "../../../viewStatePersistence";
+import { useObjectViewState } from "../../../viewStatePersistence";
 
-import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceClipParamMatch, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceClipScope, SequenceEffectDefinition, SequenceLane } from "../../../types";
+import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceSelection, SequenceClipParamMatch, GuiDocumentRequest, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceCurvePoint, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceClipScope, SequenceEffectDefinition, SequenceGuiEdit } from "../../../types";
 
 
-import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
+import { clamp, envelopeOf, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot } from "../shared";
 
 import { activeMarkCollection, defaultMarkColor, drawSequenceMarks, committedMarkDrafts } from "./marks";
-import { listenUiEvent } from "../../uiEvents";
 
 import { graphOperatorDefinition } from "./graphOperator";
 import { lanesForTarget, nearestLane, targetAtLane, targetsEqual } from "./sequenceTargets";
@@ -29,42 +30,31 @@ import { SequenceWaveform } from "./sequenceWaveform";
 import { drawClipRaster, useSequenceClipRasters } from "./sequenceClipRasters";
 import { sequenceTransportCommands, useSequenceTransport } from "./SequenceTransportControls";
 import {
-  automationClipsWithDrafts,
   automationCurvePointFromCanvas,
-  automationHoverEqual,
-  automationLaneRowHeight,
-  rowHeightAt,
-  persistRowHeights,
-  restoreRowHeights,
-  buildAutomationClipLayout,
-  drawAutomationClip,
-  expandedTimelineHeight,
+  drawEnvelope,
   fitCanvasLabel,
-  hitTimelineClip,
-  hitAutomationCurvePoint,
-  hitAutomationPoint,
-  minRowHeight,
-  laneIndexFromCanvasY,
-  rowFromCanvasY,
-  sequenceRowLayout,
-  collapseRows,
-  collapsedLanes,
-  type SequenceRowLayout,
-  type SequenceRowKind,
   removeAutomationCurvePoint,
   insertAutomationCurvePoint,
   eraseAutomationCurvePoints,
   moveAutomationCurvePoint,
   alignAutomationCurvePoint,
-  type AutomationClipLayout,
   type AutomationGuide,
-  type AutomationCurvePoint,
-  type SequenceRowHeightMap,
-  type AutomationCurveDraft,
-  type AutomationDraft,
-  type AutomationHover,
-  detachedAutomationTargetLabel
+  type AutomationCurveDraft
 } from "./sequenceAutomationLayout";
+import {
+  automationLaneRowHeight,
+  rowHeightAt,
+  persistRowHeights,
+  restoreRowHeights,
+  expandedTimelineHeight,
+  minRowHeight,
+  laneIndexFromCanvasY,
+  sequenceRowLayout,
+  collapseRows,
+  collapsedLanes,
+  type SequenceRowKind,
+  type SequenceRowHeightMap
+} from "./sequenceRows";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 import { definitionEntries, definitionTree } from "./definitionMenu";
 import { clipEdgeSnapTimes, markSnapTimes, snapDeltaToTimes, snapToTime } from "./sequenceSnap";
@@ -73,7 +63,8 @@ import { CascadeDialog, ClipArrangeMenus } from "./ClipArrange";
 import { ClipMatchDialog, ClipMatchMenuItems, type ClipMatchSeed, type MatchClips } from "./ClipMatch";
 import { sameGuiDocument } from "../../../snapshotState";
 
-import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextClipSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedClipId, selectionCount, selectionFromMarqueeClips, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, sequenceSelectionsEqual, setMarkDraft, singleSelectionFocus, clipIdsOfKind, clipRefs, hasClip, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
+import { hit, laneLabelLayout, reduce, sharedBadgeX, TIMELINE_STRIPS, type CanvasLayout, type GestureContext, type GestureState, type TimelineStrip } from "./canvasGestures";
+import { buildSequenceClipLayout, clipRowKind, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextClipSelection, nextMarkSelection, normalizedRect, selectionCount, selectionFromMarqueeClips, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, sequenceSelectionsEqual, setMarkDraft, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceClipLayout, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
 const SEQUENCE_FOLLOW = {
   edge: THEME_METRICS.sequenceFollowEdge,
@@ -140,22 +131,6 @@ const SEQUENCE_COLORS = {
 
 const SEQUENCE_DRAG_THRESHOLD_PX = THEME_METRICS.sequenceDragThreshold;
 
-type SequenceDragState =
-  | null
-  | { kind: "stripResize"; strip: TimelineStrip; startY: number; initialHeight: number; active: boolean }
-  | { kind: "gutterResize"; startX: number; initialWidth: number; active: boolean }
-  | { kind: "rowResize"; laneIndex: number; rowKind: SequenceRowKind; startY: number; initialHeight: number; active: boolean }
-  | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
-  | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
-  | { kind: "automationPoint"; automationClipId: number; laneIndex: number; index: number; active: boolean; inserted: boolean }
-  | { kind: "automationErase"; automationClipId: number; laneIndex: number }
-  | { kind: "mark"; collectionKey: string; index: number; startX: number; startY: number; active: boolean; originalTimeSeconds: number }
-  | { kind: "marquee"; state: SequenceMarquee }
-  | { kind: "playheadScrub" }
-  | { kind: "slice"; seconds: number; startY: number }
-  // Dragging a range edge anchors the new range at the opposite edge.
-  | { kind: "timeRange"; startX: number; anchorSeconds: number; fromEdge: boolean; active: boolean };
-
 type LaneContextMenu = Extract<SequenceContextMenu, { laneIndex: number }>;
 
 /** What a pointer in the ruler and waveform strip would grab. */
@@ -164,84 +139,29 @@ const SEEK_HOVER_CURSORS = { playhead: "grab", rangeEdge: "ew-resize", home: "te
 /** What the transport overlay shows of a pointer gesture; only the overlay re-renders as it changes. */
 type SequenceOverlayState = { seekHover: SeekHover | null; rangeDraft: PlaybackRange | null };
 
-function rowResizeHit(
-  y: number,
-  top: number,
-  scrollY: number,
-  rows: SequenceRowLayout[]
-): { laneIndex: number; rowKind: SequenceRowKind; edgeY: number } | null {
-  const contentY = y - top + scrollY;
-  for (const row of rows) {
-    if (row.height === 0) continue;
-    if (Math.abs(contentY - row.bottom) <= THEME_METRICS.sequenceLaneResizeHitHeight) {
-      return { laneIndex: row.laneIndex, rowKind: row.kind, edgeY: row.bottom };
-    }
-  }
-  return null;
-}
-
-/** The resizable strips above the lanes, each with its viewport height and limits. */
-type TimelineStrip = "audio" | "marks";
-const TIMELINE_STRIPS = {
-  audio: { height: "audioStripHeight", minPx: THEME_METRICS.sequenceMinAudioStripHeight, maxPx: THEME_METRICS.sequenceMaxAudioStripHeight },
-  marks: { height: "markRulerHeight", minPx: THEME_METRICS.sequenceMinMarkRulerHeight, maxPx: THEME_METRICS.sequenceMaxMarkRulerHeight }
-} as const satisfies Record<TimelineStrip, { height: keyof SequenceViewport; minPx: number; maxPx: number }>;
-
-/**
- * Each strip resizes from its bottom edge. The audio strip's grip lies inside the strip, so it
- * never covers the Marks lane below; the Marks lane's grip straddles its border with the lanes.
- */
-function stripResizeHit(y: number, audioStripBottom: number, markRulerBottom: number): TimelineStrip | null {
-  if (Math.abs(y - markRulerBottom) <= SEQUENCE_CANVAS.audioResizeHitHeightPx / 2) return "marks";
-  if (y <= audioStripBottom && audioStripBottom - y <= SEQUENCE_CANVAS.audioResizeHitHeightPx) return "audio";
-  return null;
-}
-
 /** The slice tool's cut line: a time, and the vertical span it cuts across. */
 type SliceGuide = { seconds: number; fromY: number; toY: number };
 
 /** A shared lane's "×N" badge, in canvas coordinates. */
 type SharedBadgeHover = { laneIndex: number; y: number; height: number; scrollY: number; left: number };
 
-/** The row-name column resizes from its right edge, the timeline's left border. */
-function gutterResizeHit(x: number, left: number): boolean {
-  return Math.abs(x - left) <= SEQUENCE_CANVAS.leftGutterResizeHitWidthPx / 2;
-}
 
 
-export function SequenceCanvas({
-  document,
-  selected,
-  setSelected,
-  sequenceSelection,
-  setSequenceSelection,
-  automationClipChooser,
-  setAutomationClipChooser,
-  activeMarkCollectionKey,
-  setActiveMarkCollectionKey,
-  visibleMarkCollectionKeys,
-  setVisibleMarkCollectionKeys
-}: {
-  document: SequenceGuiDocument;
-  selected: GuiFocus;
-  setSelected: (id: GuiFocus) => void;
-  sequenceSelection: SequenceSelection;
-  setSequenceSelection: (selection: SequenceSelection) => void;
-  automationClipChooser: AutomationClipChooser;
-  setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
-  activeMarkCollectionKey: string | null;
-  setActiveMarkCollectionKey: (key: string | null) => void;
-  visibleMarkCollectionKeys: Set<string>;
-  setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
-}) {
+export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) {
+  const selected = useDocumentUi((ui) => ui.focus);
+  const setSelected = (focus: GuiFocus) => { setDocumentUi({ focus }); };
+  const sequenceSelection = useSequenceSelection(document);
+  const setSequenceSelection = (selection: SequenceSelection | null) => { setDocumentUi({ selection }); };
+  const bindingChooser = useDocumentUi((ui) => ui.bindingChooser);
+  const activeMarkCollectionKey = useDocumentUi((ui) => ui.activeMarks);
+  const visibleMarkCollectionKeys = useDocumentUi((ui) => ui.visibleMarks);
   const overlayContainer = useContext(OverlayPortal);
 
   const canvas = useRef<HTMLCanvasElement | null>(null);
-  const drag = useRef<SequenceDragState>(null);
+  const drag = useRef<GestureState | null>(null);
   const playheadClockRef = useRef<(() => number) | null>(null);
-  const sequenceSelectionRef = useRef<SequenceSelection>(sequenceSelection);
+  const sequenceSelectionRef = useRef<SequenceSelection | null>(sequenceSelection);
   const [revealAutomation, setRevealAutomation] = useState(false);
-  const [automationDrafts, setAutomationDrafts] = useState<AutomationDraft[]>([]);
   const [automationCurveDraft, setAutomationCurveDraft] = useState<AutomationCurveDraft | null>(null);
   const [groupDraft, setGroupDraft] = useState<SequenceDraft[]>([]);
   const [markDrafts, setMarkDrafts] = useState<MarkDraftLookup>(() => new Map());
@@ -300,7 +220,7 @@ export function SequenceCanvas({
   // lane after the layout changes.
   const [selectedRow, setSelectedRow] = useState<{ target: FixtureTarget; lane: number } | null>(null);
   const selectedLaneIndex = selectedRow === null ? null
-    : document.lanes[selectedRow.lane] !== undefined && targetsEqual(targetAtLane(document, selectedRow.lane), selectedRow.target) ? selectedRow.lane
+    : document.targets[selectedRow.lane] !== undefined && targetsEqual(targetAtLane(document, selectedRow.lane), selectedRow.target) ? selectedRow.lane
     : nearestLane(document, selectedRow.target, selectedRow.lane);
   const setSelectedLaneIndex = (index: number) => { setSelectedRow({ target: targetAtLane(document, index), lane: index }); };
   const [selectedTimeSeconds, setSelectedTimeSeconds] = useState<number | null>(null);
@@ -313,7 +233,6 @@ export function SequenceCanvas({
   };
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const sequenceScrollbar = useRef<{ pointerId: number; startX: number; startScroll: number } | null>(null);
-  const restoreState = useAppStore((store) => store.restoreState);
   const gestureRequest = useRef<GuiDocumentRequest | null>(null);
   /** A right-drag that erased points must not also open the context menu its release raises. */
   const suppressContextMenu = useRef(false);
@@ -322,7 +241,7 @@ export function SequenceCanvas({
   // Continuous following owns horizontal scrolling while playing; zoom stays anchored on the playhead.
   const followingContinuously = playing && settings?.sequenceFollowMode === "continuous";
   const restoreKey = objectViewKey(document.sourceRef);
-  const restoredViewport = restoreState?.sequenceViewports[restoreKey];
+  const [restoredViewport, saveViewport] = useObjectViewState("sequenceViewport", document.sourceRef);
   const [viewport, setViewport] = useState<SequenceViewport>(() => sequenceViewportFromPersisted(restoredViewport, document, settings));
   const viewportInitialized = useRef(false);
   const restoredViewportKey = useRef<string | null>(restoredViewport === undefined ? null : restoreKey);
@@ -345,57 +264,45 @@ export function SequenceCanvas({
   /** Drags snap when the snap setting is on; holding Alt inverts it for the gesture. */
   const snaps = (altKey: boolean) => (settings?.sequenceSnap ?? false) !== altKey;
   const top = audioStripBottom + markRulerHeight;
-  const inMarkRuler = (y: number) => y >= audioStripBottom && y < top;
-  const targetMarkCollectionKey = activeMarkCollection(document.markCollections, activeMarkCollectionKey)?.key ?? null;
+  const targetMarkCollectionKey = activeMarkCollection(document.markCollections, activeMarkCollectionKey)?.name ?? null;
   const automationRowHeight = automationLaneRowHeight(initialSequenceLaneHeight(settings));
-  const automationClipsForLayout = useMemo(
-    () => automationClipsWithDrafts(document.automationClips, automationDrafts, automationCurveDraft),
-    [automationCurveDraft, automationDrafts, document.automationClips]
-  );
+  const envelopeTargets = useMemo(() => document.clips.filter((clip) => clip.content.type === "envelope").map((clip) => clip.target), [document.clips]);
   // Group lanes collapse like folders in a file tree; their members take no rows.
-  const hiddenLanes = useMemo(() => collapsedLanes(document.lanes, viewport.collapsedGroups), [document.lanes, viewport.collapsedGroups]);
+  const hiddenLanes = useMemo(() => collapsedLanes(document.targets, viewport.collapsedGroups), [document.targets, viewport.collapsedGroups]);
   const layoutRows = useCallback(
     (rowHeights: SequenceRowHeightMap, reveal: boolean) =>
-      collapseRows(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, reveal), hiddenLanes),
-    [document.lanes, document.automationClips, settings, automationRowHeight, hiddenLanes]
+      collapseRows(sequenceRowLayout(document.targets, envelopeTargets, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, reveal), hiddenLanes),
+    [document.targets, envelopeTargets, settings, automationRowHeight, hiddenLanes]
   );
   const rows = useMemo(() => layoutRows(viewport.rowHeights, revealAutomation), [layoutRows, viewport.rowHeights, revealAutomation]);
   const visibleMarkCollections = useMemo(
-    () => document.markCollections.filter((collection) => visibleMarkCollectionKeys.has(collection.key)),
+    () => document.markCollections.filter((collection) => visibleMarkCollectionKeys.has(collection.name)),
     [document.markCollections, visibleMarkCollectionKeys]
   );
   const markTimes = useMemo(() => markSnapTimes(visibleMarkCollections), [visibleMarkCollections]);
-  const automationHoverRef = useRef<AutomationHover | null>(null);
-  const setAutomationHover = (next: AutomationHover | null) => { if (!automationHoverEqual(automationHoverRef.current, next)) setTransient(automationHoverRef, next); };
-  const sharedBadgeAt = (x: number, y: number): SharedBadgeHover | null => {
-    if (x < sharedBadgeX(left) || x >= left || y < top) return null;
-    const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
-    if (row?.kind !== "clips" || (document.lanes[row.laneIndex]?.occurrences ?? 0) <= 1) return null;
-    return { laneIndex: row.laneIndex, y: top + row.top - viewport.scrollY, height: row.height, scrollY: viewport.scrollY, left };
+  /** The "×N" badge of a shared lane, where its tooltip shows. */
+  const sharedBadge = (laneIndex: number): SharedBadgeHover | null => {
+    const row = rows.find((candidate) => candidate.laneIndex === laneIndex && candidate.kind === "clips");
+    return row === undefined ? null : { laneIndex, y: top + row.top - viewport.scrollY, height: row.height, scrollY: viewport.scrollY, left };
   };
   // The tooltip shows once the hover delay passes, until scrolling or resizing moves the badge.
   const badgeTooltip = badgeHover !== null && badgeDelayed === badgeHover && badgeHover.scrollY === viewport.scrollY && badgeHover.left === left ? badgeHover : null;
-  const badgeLane = badgeTooltip === null ? undefined : document.lanes[badgeTooltip.laneIndex];
+  const badgeLane = badgeTooltip === null ? undefined : document.targets[badgeTooltip.laneIndex];
   const canvasCursor = (slice: SliceGuide | null) => {
     const seekHover = overlay.getState().seekHover;
-    const automationHover = automationHoverRef.current;
     const hover = hoverRef.current;
     return dragCursorRef.current ??
       (slice !== null ? "crosshair" :
       seekHover !== null ? SEEK_HOVER_CURSORS[seekHover.target] :
       stripResizeHoverRef.current !== null || rowResizeHoverRef.current !== null ? "ns-resize" :
       gutterResizeHoverRef.current ? "ew-resize" :
-      (automationClipChooser !== null && automationHover !== null
-        ? "pointer"
-        : automationHover !== null
-        ? automationHover.resize === "none" ? "grab" : "ew-resize"
-        : hover === null ? "" : hover.kind === "mark" ? "pointer" : hover.resize === "none" ? "grab" : "ew-resize"));
+      (hover === null ? "" : hover.kind === "mark" || bindingChooser !== null ? "pointer" : hover.resize === "none" ? "grab" : "ew-resize"));
   };
 
-  const updateSequenceSelection = useCallback((selection: SequenceSelection) => {
+  const updateSequenceSelection = (selection: SequenceSelection | null) => {
     sequenceSelectionRef.current = selection;
     setSequenceSelection(selection);
-  }, [setSequenceSelection]);
+  };
 
   const handleScrollbarPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     // Without this, dragging the scrollbar starts a text selection across the editor.
@@ -501,25 +408,22 @@ export function SequenceCanvas({
     sequenceSelectionRef.current = sequenceSelection;
   }, [sequenceSelection]);
 
-  useEffect(() => {
-    const clearHistorySelection = () => {
-      drag.current = null;
-      gestureRequest.current = null;
-      updateSequenceSelection(null);
-      setSelected(null);
-      setGroupDraft([]);
-      setAutomationDrafts([]);
-      setAutomationCurveDraft(null);
-      setMarkDrafts(new Map());
-      setRevealAutomation(false);
-      dragCursorRef.current = null;
-      marqueeRef.current = null;
-      setClipMarqueeOpen(false);
-      setSequenceContextMenu(null);
-      requestPaint();
-    };
-    return listenUiEvent("guiHistoryChanged", clearHistorySelection);
-  }, [requestPaint, setSelected, updateSequenceSelection]);
+  // An undo or redo replaces the document, and with it what a gesture was drawing.
+  useEffect(() => useAppStore.subscribe((store, previous) => {
+    if (store.guiHistoryRevision === previous.guiHistoryRevision) return;
+    drag.current = null;
+    gestureRequest.current = null;
+    sequenceSelectionRef.current = null;
+    setGroupDraft([]);
+    setAutomationCurveDraft(null);
+    setMarkDrafts(new Map());
+    setRevealAutomation(false);
+    dragCursorRef.current = null;
+    marqueeRef.current = null;
+    setClipMarqueeOpen(false);
+    setSequenceContextMenu(null);
+    requestPaint();
+  }), [requestPaint]);
 
 
   useEffect(() => {
@@ -593,31 +497,29 @@ export function SequenceCanvas({
       activeMarkCollectionKey,
       visibleMarkCollectionKeys: [...visibleMarkCollectionKeys]
     };
-    scheduleSequenceViewportStateSave(document.sourceRef, state);
-  }, [followingContinuously, activeMarkCollectionKey, automationRowHeight, revealAutomation, document, settings, viewport, visibleMarkCollectionKeys]);
+    saveViewport(state);
+  }, [followingContinuously, activeMarkCollectionKey, saveViewport, viewport, visibleMarkCollectionKeys]);
 
   const visibleClips = useMemo(
     () => buildSequenceClipLayout(
       document,
       groupDraft,
+      automationCurveDraft,
       viewport,
       left,
       top,
       canvasSize,
       rows
     ),
-    [canvasSize, document, groupDraft, left, top, viewport, rows]
+    [automationCurveDraft, canvasSize, document, groupDraft, left, top, viewport, rows]
   );
   // A clip box covers the whole sequence, so clips it holds stay selected after they scroll out of view.
   const marqueeContent = useMemo(() => {
     if (!clipMarqueeOpen) return null;
     const content = { ...viewport, scrollXSeconds: 0, scrollY: 0 };
     const bounds = { width: left + document.durationSeconds * viewport.pxPerSecond, height: top + expandedTimelineHeight(rows) };
-    return {
-      clips: buildSequenceClipLayout(document, groupDraft, content, left, top, bounds, rows),
-      automation: buildAutomationClipLayout(automationClipsForLayout, rows, content, left, top, bounds)
-    };
-  }, [automationClipsForLayout, clipMarqueeOpen, document, groupDraft, left, rows, top, viewport]);
+    return buildSequenceClipLayout(document, groupDraft, automationCurveDraft, content, left, top, bounds, rows);
+  }, [automationCurveDraft, clipMarqueeOpen, document, groupDraft, left, rows, top, viewport]);
   const applyMarquee = (state: SequenceMarquee) => {
     const anchorX = left + (state.anchorSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
     const anchorY = state.mode === "marks" ? state.anchorY : top + state.anchorY - viewport.scrollY;
@@ -637,7 +539,7 @@ export function SequenceCanvas({
         x: next.x + viewport.scrollXSeconds * viewport.pxPerSecond,
         y: next.y + viewport.scrollY
       };
-      selectedByBox = selectionFromMarqueeClips(marqueeContent.clips, marqueeContent.automation, box);
+      selectedByBox = selectionFromMarqueeClips(marqueeContent, box);
     }
     const merged = mergeSequenceSelection(sequenceSelectionRef.current, selectedByBox, next.shift, next.ctrl);
     // Most moves keep the box's contents; those leave the editor's state alone.
@@ -655,12 +557,9 @@ export function SequenceCanvas({
   useEffect(() => { reapplyMarquee(); }, [marqueeContent, viewport]);
   const visibleRasterClips = useMemo(() => {
     return visibleClips
-      .filter((clip) => clip.rect.x + clip.rect.width >= left && clip.rect.x <= canvasSize.width && clip.rect.y + clip.rect.height >= top && clip.rect.y <= canvasSize.height);
+      .filter((clip) => clip.clip.content.type === "effect" && clip.rect.x + clip.rect.width >= left && clip.rect.x <= canvasSize.width && clip.rect.y + clip.rect.height >= top && clip.rect.y <= canvasSize.height);
   }, [canvasSize.height, canvasSize.width, left, top, visibleClips]);
-  const visibleAutomationClips = useMemo(
-    () => buildAutomationClipLayout(automationClipsForLayout, rows, viewport, left, top, canvasSize),
-    [automationClipsForLayout, rows, canvasSize, left, top, viewport]
-  );
+  const visibleEnvelopes = useMemo(() => visibleClips.filter((layout) => layout.clip.content.type === "envelope"), [visibleClips]);
   const clipRasters = useSequenceClipRasters(document, visibleRasterClips);
   /** The slice tool's cut line, while the tool is on. */
   const activeSlice = () => tool === "slice" ? sliceGuideRef.current : null;
@@ -671,18 +570,19 @@ export function SequenceCanvas({
     const toY = Math.max(slice.fromY, slice.toY);
     return visibleClips.filter((clip) =>
       clip.rect.y <= toY && clip.rect.y + clip.rect.height >= fromY
-      && clip.clip.startSeconds < slice.seconds && slice.seconds < clip.clip.startSeconds + clip.clip.durationSeconds);
+      && clip.clip.placement.startSeconds < slice.seconds && slice.seconds < clip.clip.placement.startSeconds + clip.clip.placement.durationSeconds);
   };
-  const selectedClipIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? clipIdsOfKind(sequenceSelection.clips, "clip") : []), [sequenceSelection]);
-  const automationTargetClipIds = (automationHover: AutomationHover | null) => {
-    const automationClipIds = new Set<number>();
-    if (selected?.type === "automationClip") automationClipIds.add(selected.id);
-    if (automationHover !== null) automationClipIds.add(automationHover.automationClipId);
+  const selectedClipIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? sequenceSelection.ids : []), [sequenceSelection]);
+  // The clips the focused or hovered envelope drives.
+  const automationTargetClipIds = (hover: SequenceHover) => {
+    const envelopeIds = new Set<number>();
+    const focused = focusedClipId(selected);
+    if (focused !== null) envelopeIds.add(focused);
+    if (hover?.kind === "clip") envelopeIds.add(hover.clipId);
     const clipIds = new Set<number>();
-    if (automationClipIds.size === 0) return clipIds;
-    for (const automationClip of document.automationClips) {
-      if (!automationClipIds.has(automationClip.id)) continue;
-      for (const binding of automationClip.bindings) {
+    for (const clip of document.clips) {
+      if (!envelopeIds.has(clip.id)) continue;
+      for (const binding of envelopeOf(clip)?.bindings ?? []) {
         if (binding.target.type === "clipParam") clipIds.add(binding.target.clipId);
       }
     }
@@ -697,14 +597,13 @@ export function SequenceCanvas({
     const target = canvas.current;
     if (!target) return;
     const hover = hoverRef.current;
-    const automationHover = automationHoverRef.current;
     const rowResizeHover = rowResizeHoverRef.current;
     const stripResizeHover = stripResizeHoverRef.current;
     const gutterResizeHover = gutterResizeHoverRef.current;
     const marquee = marqueeRef.current;
     const slice = activeSlice();
     const sliceTargets = sliceTargetsOf(slice);
-    const activeAutomationTargetClipIds = automationTargetClipIds(automationHover);
+    const activeAutomationTargetClipIds = automationTargetClipIds(hover);
     target.style.cursor = canvasCursor(slice);
     const rect = target.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -753,9 +652,9 @@ export function SequenceCanvas({
       ctx.lineTo(rect.width, y + row.height - THEME_METRICS.visualHairlineOffset);
       ctx.stroke();
       ctx.fillStyle = row.kind === "clips" ? SEQUENCE_COLORS.textMuted : SEQUENCE_COLORS.automation;
-      const lane = document.lanes[row.laneIndex];
+      const lane = document.targets[row.laneIndex];
       if (lane === undefined) throw new Error("Timeline row has no lane.");
-      const label = row.kind === "clips" ? lane.label : "Automation";
+      const label = row.kind === "clips" ? lane.label : "Envelopes";
       const labelLayout = laneLabelLayout(lane);
       const labelY = y + row.height / 2;
       if (row.kind === "clips" && lane.kind === "group") {
@@ -836,11 +735,27 @@ export function SequenceCanvas({
     ctx.beginPath();
     ctx.rect(left, top, timelineWidth, rect.height - top);
     ctx.clip();
+    const markXs = markTimes.map((time) => left + (time - scrollXSeconds) * viewport.pxPerSecond);
     for (const clip of visibleClips) {
       if (clip.rect.x + clip.rect.width < left || clip.rect.x > rect.width || clip.rect.y + clip.rect.height < top || clip.rect.y > rect.height) {
         continue;
       }
       const hoverResize = hover?.kind === "clip" && hover.clipId === clip.clip.id ? hover.resize : null;
+      const envelope = envelopeOf(clip.clip);
+      if (envelope !== null) {
+        const activePointIndex = drag.current?.kind === "automationPoint" && drag.current.clipId === clip.clip.id ? drag.current.index : null;
+        drawEnvelope(ctx, clip, {
+          label: envelopeLabel(document, envelope.bindings),
+          selected: selectedClipIds.has(clip.clip.id),
+          hovered: hoverResize !== null,
+          choosing: bindingChooser !== null,
+          resize: bindingChooser === null ? hoverResize ?? "none" : "none",
+          activePointIndex,
+          guide: automationCurveDraft?.id === clip.clip.id ? automationCurveDraft.guide : null,
+          markXs
+        });
+        continue;
+      }
       ctx.fillStyle = SEQUENCE_COLORS.textFaint;
       ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
       const raster = clipRasters.raster(clip.clip.id);
@@ -856,7 +771,7 @@ export function SequenceCanvas({
         ctx.fillStyle = SEQUENCE_COLORS.overlay;
         ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
       }
-      const clipSelected = selectedClipIds.has(clip.clip.id) || (selected?.type === "clip" && selected.id === clip.clip.id);
+      const clipSelected = selectedClipIds.has(clip.clip.id) || focusedClipId(selected) === clip.clip.id;
       ctx.strokeStyle = clipSelected ? SEQUENCE_COLORS.clipSelected : hoverResize !== null ? SEQUENCE_COLORS.clipHover : automationTargeted ? SEQUENCE_COLORS.accent : SEQUENCE_COLORS.clipBorder;
       ctx.lineWidth = clipSelected || hoverResize !== null || automationTargeted ? THEME_METRICS.visualLineWidthStrong : THEME_METRICS.visualLineWidth;
       ctx.strokeRect(clip.rect.x + THEME_METRICS.visualHairlineOffset, clip.rect.y + THEME_METRICS.visualHairlineOffset, Math.max(0, clip.rect.width - THEME_METRICS.visualLineWidth), Math.max(0, clip.rect.height - THEME_METRICS.visualLineWidth));
@@ -865,23 +780,6 @@ export function SequenceCanvas({
         ctx.fillStyle = SEQUENCE_COLORS.warning;
         ctx.fillRect(handleX - THEME_METRICS.sequenceClipHandleHalfWidth, clip.rect.y + THEME_METRICS.sequenceClipHandleInset, THEME_METRICS.sequenceClipHandleHalfWidth * 2, Math.max(THEME_METRICS.sequenceClipHandleHeight, clip.rect.height - THEME_METRICS.sequenceClipHandleInset * 2));
       }
-    }
-    const markXs = markTimes.map((time) => left + (time - scrollXSeconds) * viewport.pxPerSecond);
-    for (const automationLayout of visibleAutomationClips) {
-      const selectedClip = sequenceSelection?.type === "clips" && hasClip(sequenceSelection.clips, "automation", automationLayout.clip.id);
-      const hoverResize = automationHover?.automationClipId === automationLayout.clip.id ? automationHover.resize : null;
-      const choosingCandidate = automationClipChooser !== null;
-      const activePointIndex = drag.current?.kind === "automationPoint" && drag.current.automationClipId === automationLayout.clip.id ? drag.current.index : null;
-      drawAutomationClip(ctx, automationLayout, {
-        label: automationClipLabel(document, automationLayout.clip),
-        selected: selectedClip,
-        hovered: hoverResize !== null,
-        choosing: choosingCandidate,
-        resize: hoverResize ?? "none",
-        activePointIndex,
-        guide: automationCurveDraft?.id === automationLayout.clip.id ? automationCurveDraft.guide : null,
-        markXs
-      });
     }
     if (slice !== null) {
       const sliceX = left + (slice.seconds - scrollXSeconds) * viewport.pxPerSecond;
@@ -959,18 +857,21 @@ export function SequenceCanvas({
   };
   const rangeFromDrag = (anchorSeconds: number, seconds: number): PlaybackRange =>
     ({ startSeconds: Math.min(anchorSeconds, seconds), endSeconds: Math.max(anchorSeconds, seconds) });
-  // The playhead's head is in the ruler, so range edges under it stay grabbable in the waveform strip.
-  const seekHoverAt = (x: number, y: number): SeekHover => {
-    const transport = useAppStore.getState().snapshot?.audioTransport ?? null;
-    const near = (seconds: number) =>
-      Math.abs(left + (seconds - viewport.scrollXSeconds) * viewport.pxPerSecond - x) <= THEME_METRICS.sequenceTransportHitHalfWidth;
-    const seconds = seekTimeFromCanvasX(x);
-    if (transport !== null && y < audioStripTop && near(transport.positionSeconds)) return { target: "playhead", seconds };
-    const range = transport?.range ?? null;
-    if (range !== null && (near(range.startSeconds) || near(range.endSeconds))) return { target: "rangeEdge", seconds };
-    if (transport !== null && near(transport.homeSeconds)) return { target: "home", seconds };
-    return { target: "time", seconds };
-  };
+  /** What the canvas draws where, for hit testing a point. */
+  const canvasLayout = (): CanvasLayout => ({
+    left, top, audioStripTop, audioStripBottom, viewport, rows, lanes: document.targets, clips: visibleClips, envelopes: visibleEnvelopes,
+    marks: visibleMarkCollections, activeMarks: targetMarkCollectionKey, transport: useAppStore.getState().snapshot?.audioTransport ?? null
+  });
+  /** What a drag reads as `event` moves or releases it. */
+  const gestureContext = (event: { altKey: boolean; ctrlKey: boolean; metaKey: boolean }): GestureContext => ({
+    document,
+    selection: sequenceSelectionRef.current,
+    pxPerSecond: viewport.pxPerSecond,
+    laneAt: (y) => laneIndexFromCanvasY(y, top, viewport.scrollY, document.targets.length, rows),
+    clipDelta: (state, x, destinationLane) => clipGestureDelta(state, x, event.altKey, destinationLane),
+    envelopeResize: hasPrimaryModifier(event) ? "stretch" : "crop",
+    sliced: () => sliceTargetsOf(activeSlice()).map((clip) => clip.clip.id)
+  });
   const effectTree = useMemo(
     () => definitionTree(document.effectDefinitions, (definition) => definition.effect.path),
     [document.effectDefinitions]
@@ -979,55 +880,61 @@ export function SequenceCanvas({
    * The collection a new mark goes into: the given one, else the active one, creating a collection
    * when the sequence has none. It reads the latest document, so queued taps see earlier taps' edits.
    */
-  const markCollectionForEdit = async (collectionKey: string | null): Promise<string | null> => {
-    const guiDocument = useAppStore.getState().guiDocument;
-    if (guiDocument?.type !== "sequence") throw new Error("Marks can only be added to an open sequence.");
-    const collections = guiDocument.document.markCollections;
-    let key = collectionKey ?? activeMarkCollection(collections, activeMarkCollectionKey)?.key ?? null;
+  const markCollectionKey = (id: number) => document.markCollections.find((collection) => collection.id === id)?.name ?? null;
+  const markCollectionForEdit = async (collectionId: number | null): Promise<number | null> => {
+    const collectionsNow = () => {
+      const guiDocument = useAppStore.getState().guiDocument;
+      if (guiDocument?.type !== "sequence") throw new Error("Marks can only be added to an open sequence.");
+      return guiDocument.document.markCollections;
+    };
+    const collections = collectionsNow();
+    const chosen = collectionId === null ? activeMarkCollection(collections, activeMarkCollectionKey) : collections.find((collection) => collection.id === collectionId);
+    let key = chosen?.name ?? null;
     if (key === null) {
       const result = await runGuiEditCommand((request) =>
-        commands.applyGuiEdit(request, { type: "sequence", edit: {
-          type: "createMarkCollections",
+        commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit: {
+          type: "addMarkCollections",
           collections: [{ name: "Marks", color: defaultMarkColor(collections.length), marksSeconds: [] }]
-        } })
+        } } })
       );
       if (result === null) return null;
       key = result.created[0] ?? null;
       if (key === null) throw new Error("Creating a mark collection reported no collection.");
-      setActiveMarkCollectionKey(key);
-    }
-    if (!visibleMarkCollectionKeys.has(key)) setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, key]));
-    return key;
+      showMarks([key], true);
+    } else if (!visibleMarkCollectionKeys.has(key)) showMarks([key], false);
+    const name = key;
+    const collection = collectionsNow().find((candidate) => candidate.name === name);
+    if (collection === undefined) throw new Error("The mark collection was not found.");
+    return collection.id;
   };
   const addClipFromContextMenu = async (definition: SequenceEffectDefinition, menu: LaneContextMenu) => {
-    const target = document.lanes[menu.laneIndex]?.target ?? document.lanes[0]?.target;
+    const target = document.targets[menu.laneIndex]?.target ?? document.targets[0]?.target;
     if (target === undefined) return;
     const scope: SequenceClipScope = "wholeTarget";
     await runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "addClip",
-        initialColor: THEME_COLORS.white,
-        effect: definition.effect,
         target,
-        scope,
-        startSeconds: menu.startSeconds
+        startSeconds: menu.startSeconds,
+        durationSeconds: 1,
+        content: { type: "effect", initialColor: THEME_COLORS.white, effect: definition.effect, scope }
       } })
     );
   };
-  const addMark = async (collectionKey: string | null, timeSeconds: number) => {
-    const key = await markCollectionForEdit(collectionKey);
-    if (key === null) return;
+  const addMark = async (collectionId: number | null, timeSeconds: number) => {
+    const id = await markCollectionForEdit(collectionId);
+    if (id === null) return;
     await runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "addMarks",
-        collectionKey: key,
+        collectionId: id,
         timesSeconds: [timeSeconds]
       } })
     );
   };
   // Taps run in order, so fast tapping creates a missing collection once.
   const tapQueue = useRef<Promise<void>>(Promise.resolve());
-  const tapMark = useEffectEvent(() => {
+  const tapMark = () => {
     const clock = playheadClockRef.current;
     if (clock === null) throw new Error("A mark was tapped without a playhead.");
     const timeSeconds = clock();
@@ -1035,29 +942,29 @@ export function SequenceCanvas({
       .then(() => addMark(null, timeSeconds))
       // A tap on a document that is no longer a sequence is dropped; later taps still run.
       .catch((error: unknown) => { console.error(error); });
-  });
-  useEffect(() => listenUiEvent("tapMark", () => { tapMark(); }), []);
-  const addAutomationClipFromContextMenu = async (menu: LaneContextMenu) => {
+  };
+  const addEnvelopeFromContextMenu = async (menu: LaneContextMenu) => {
     await runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "addAutomationClip",
+        type: "addClip",
+        target: targetAtLane(document, menu.laneIndex),
         startSeconds: menu.startSeconds,
         durationSeconds: Math.min(2, Math.max(MIN_CLIP_DURATION_SECONDS, document.durationSeconds - menu.startSeconds)),
-        rowTarget: targetAtLane(document, menu.laneIndex)
+        content: { type: "envelope" }
       } })
     );
   };
-  const chooseAutomationClip = (automationClipId: number) => {
-    if (automationClipChooser === null) return;
-    const chooser = automationClipChooser;
+  const bindEnvelope = (clip: number) => {
+    if (bindingChooser === null) return;
+    const chooser = bindingChooser;
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "bindAutomationParam",
-        automationClipId,
+        type: "bind",
+        clip,
         target: chooser.target
       } })
     ).then((result) => {
-      if (result !== null) setAutomationClipChooser(null);
+      if (result !== null) setDocumentUi({ bindingChooser: null });
     });
   };
   const deleteItems = async (selection: NonNullable<SequenceSelection>) => {
@@ -1067,110 +974,100 @@ export function SequenceCanvas({
     updateSequenceSelection(result.selection);
   };
 
+  const applySequenceEdit = (edit: SequenceGuiEdit, origin?: GuiDocumentRequest | null) =>
+    runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit }), origin);
   const splitClips = async (clipIds: number[], timeSeconds: number) => {
-    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitClips", ids: clipIds, timeSeconds } }));
+    await applySequenceEdit({ type: "splitClips", ids: clipIds, timeSeconds });
   };
 
-  const splitAutomationClip = async (automationClipId: number, timeSeconds: number) => {
-    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "splitAutomationClip", id: automationClipId, timeSeconds } }));
-  };
-
-  const commitAutomationCurve = (automationClipId: number, curve: AutomationCurvePoint[], origin?: GuiDocumentRequest | null) => {
-    setAutomationCurveDraft({ id: automationClipId, curve, guide: { time: null, value: null } });
-    void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "updateAutomationCurve", id: automationClipId, curve } }), origin ?? undefined
-    ).finally(() => {
+  const commitAutomationCurve = (clipId: number, curve: SequenceCurvePoint[], origin?: GuiDocumentRequest | null) => {
+    setAutomationCurveDraft({ id: clipId, curve, guide: { time: null, value: null } });
+    void put(site({ type: "clip", id: clipId }, { type: "points" }), { type: "curve", points: curve }, origin ?? undefined).finally(() => {
       setAutomationCurveDraft(null);
     });
   };
 
   /** The clip-drag delta, snapped to marks and to the edges of unselected clips in the row the grabbed clip lands in. */
-  const clipGestureDelta = (current: Extract<SequenceDragState, { kind: "sequence" | "automation" }>, event: { altKey: boolean; nativeEvent: { offsetX: number } }, selection: Extract<SequenceSelection, { type: "clips" }>, destinationLane: number) => {
-    const delta = roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond);
-    if (!snaps(event.altKey)) return delta;
-    const clip = current.kind === "automation"
-      ? document.automationClips.find((candidate) => candidate.id === current.id)
-      : document.clips.find((candidate) => candidate.id === current.id);
+  const clipGestureDelta = (current: Extract<GestureState, { kind: "sequence" }>, x: number, altKey: boolean, destinationLane: number) => {
+    const delta = roundToNanosecond((x - current.startX) / viewport.pxPerSecond);
+    const selection = sequenceSelectionRef.current;
+    if (!snaps(altKey) || selection?.type !== "clips") return delta;
+    const clip = document.clips.filter(isTimed).find((candidate) => candidate.id === current.id);
     if (clip === undefined) return delta;
-    const end = clip.startSeconds + clip.durationSeconds;
-    const edges = current.resize === "left" ? [clip.startSeconds] : current.resize === "right" ? [end] : [clip.startSeconds, end];
+    const { startSeconds, durationSeconds } = clip.placement;
+    const end = startSeconds + durationSeconds;
+    const edges = current.resize === "left" ? [startSeconds] : current.resize === "right" ? [end] : [startSeconds, end];
     const rowTarget = targetAtLane(document, current.resize === "none" ? destinationLane : current.laneIndex);
-    const peers = current.kind === "automation"
-      ? document.automationClips.filter((peer) => !hasClip(selection.clips, "automation", peer.id) && targetsEqual(peer.rowTarget, rowTarget))
-      : document.clips.filter((peer) => !hasClip(selection.clips, "clip", peer.id) && targetsEqual(peer.target, rowTarget));
-    return roundToNanosecond(snapDeltaToTimes(edges, delta, [...markTimes, ...clipEdgeSnapTimes(peers)], viewport.pxPerSecond));
+    // The peers are the unselected clips of the row the grabbed one lands in.
+    const peers = document.clips.filter(isTimed).filter((peer) => !selection.ids.includes(peer.id) && clipRowKind(peer) === clipRowKind(clip) && targetsEqual(peer.target, rowTarget));
+    return roundToNanosecond(snapDeltaToTimes(edges, delta, [...markTimes, ...clipEdgeSnapTimes(peers.map((peer) => peer.placement))], viewport.pxPerSecond));
   };
 
   /** Move a curve point, aligning it to neighbors with Shift and snapping its time to marks when snapping applies. */
-  const dragAutomationPoint = (layout: AutomationClipLayout, index: number, x: number, y: number, modifiers: { shiftKey: boolean; altKey: boolean }) => {
+  const dragAutomationPoint = (layout: SequenceClipLayout, index: number, x: number, y: number, modifiers: { shiftKey: boolean; altKey: boolean }) => {
     const { clip } = layout;
+    const { startSeconds, durationSeconds } = clip.placement;
+    const curve = envelopeOf(clip)?.curve ?? [];
     let point = automationCurvePointFromCanvas(layout.curveRect, x, y);
     let guide: AutomationGuide = { time: null, value: null };
     if (snaps(modifiers.altKey)) {
-      const mark = snapToTime(clip.contentStartSeconds + point.time * clip.contentDurationSeconds, markTimes, viewport.pxPerSecond);
-      const time = mark === null ? null : (mark - clip.contentStartSeconds) / clip.contentDurationSeconds;
+      const mark = snapToTime(startSeconds + point.time * durationSeconds, markTimes, viewport.pxPerSecond);
+      const time = mark === null ? null : (mark - startSeconds) / durationSeconds;
       if (time !== null && time >= 0 && time <= 1) {
         point = { ...point, time };
         guide = { ...guide, time };
       }
     }
     if (modifiers.shiftKey) {
-      const aligned = alignAutomationCurvePoint(clip.curve, index, point, layout.curveRect);
+      const aligned = alignAutomationCurvePoint(curve, index, point, layout.curveRect);
       point = aligned.point;
       guide = { time: aligned.guide.time ?? guide.time, value: aligned.guide.value };
     }
-    setAutomationCurveDraft({ id: clip.id, curve: moveAutomationCurvePoint(clip.curve, index, point), guide });
+    setAutomationCurveDraft({ id: clip.id, curve: moveAutomationCurvePoint(curve, index, point), guide });
   };
   const retargetContextClip = async (clipId: number, target: FixtureTarget) => {
-    await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "retargetClip", id: clipId, target } }));
+    await put(site({ type: "clip", id: clipId }, { type: "target" }), { type: "target", target });
   };
-  const laneContextMenu = sequenceContextMenu?.kind === "blank" || sequenceContextMenu?.kind === "clip" || sequenceContextMenu?.kind === "automation" ? sequenceContextMenu : null;
+  const laneContextMenu = sequenceContextMenu?.kind === "blank" || sequenceContextMenu?.kind === "clip" ? sequenceContextMenu : null;
   const markCollectionsForMenu = () => {
     if (activeMarkCollectionKey === null) return document.markCollections;
     return [
-      ...document.markCollections.filter((collection) => collection.key === activeMarkCollectionKey),
-      ...document.markCollections.filter((collection) => collection.key !== activeMarkCollectionKey)
+      ...document.markCollections.filter((collection) => collection.name === activeMarkCollectionKey),
+      ...document.markCollections.filter((collection) => collection.name !== activeMarkCollectionKey)
     ];
   };
   /** The context menu's items for the place right-clicked, before the clip-arranging submenus. */
   const placeMenuEntries = (menu: SequenceContextMenu): MenuEntry[] => {
     const markEntries: MenuEntry[] = document.markCollections.length === 0
       ? [{ type: "action", label: "Marks", onSelect: () => { void addMark(null, menu.startSeconds); } }]
-      : markCollectionsForMenu().map((collection) => ({ type: "action", label: collection.key, color: collection.color, onSelect: () => { void addMark(collection.key, menu.startSeconds); } }));
+      : markCollectionsForMenu().map((collection) => ({ type: "action", label: collection.name, color: collection.color, onSelect: () => { void addMark(collection.id, menu.startSeconds); } }));
     return [
       { type: "action", label: "Set Playhead", onSelect: () => { void runSnapshotCommand(() => commands.audioSeek(menu.startSeconds)); } },
       { type: "submenu", label: "Add Mark", entries: markEntries },
-      ...(laneContextMenu === null ? [] : [{ type: "action", label: "Add Automation", onSelect: () => { void addAutomationClipFromContextMenu(laneContextMenu); } } satisfies MenuEntry])
+      ...(laneContextMenu === null ? [] : [{ type: "action", label: "Add Envelope", onSelect: () => { void addEnvelopeFromContextMenu(laneContextMenu); } } satisfies MenuEntry])
     ];
   };
   /** The context menu's items for the object right-clicked. */
   const objectMenuEntries = (menu: SequenceContextMenu): MenuEntry[] => {
     if (menu.kind === "clip") {
-      const targets = document.lanes.filter((lane, index) => document.lanes.findIndex((other) => targetsEqual(other.target, lane.target)) === index);
+      const targets = document.targets.filter((lane, index) => document.targets.findIndex((other) => targetsEqual(other.target, lane.target)) === index);
       return [
         { type: "separator" },
         { type: "submenu", label: "Retarget", entries: targets.map((lane) => ({ type: "action", label: lane.label, onSelect: () => { void retargetContextClip(menu.clipId, lane.target); } })) },
         { type: "action", label: "Split", icon: Scissors, onSelect: () => { void splitClips([menu.clipId], menu.startSeconds); } },
-        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "clips", clips: [{ type: "clip", id: menu.clipId }] }); } }
-      ];
-    }
-    if (menu.kind === "automation") {
-      return [
-        { type: "separator" },
-        { type: "action", label: "Split", icon: Scissors, onSelect: () => { void splitAutomationClip(menu.automationClipId, menu.startSeconds); } },
-        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "clips", clips: [{ type: "automation", id: menu.automationClipId }] }); } }
+        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "clips", ids: [menu.clipId] }); } }
       ];
     }
     if (menu.kind === "mark") {
       return [
         { type: "separator" },
-        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "marks", marks: [{ collectionKey: menu.collectionKey, index: menu.index }] }); } }
+        { type: "action", label: "Delete", icon: Trash2, danger: true, shortcut: "edit.delete", onSelect: () => { void deleteItems({ type: "marks", marks: [{ collectionId: menu.collectionId, index: menu.index }] }); } }
       ];
     }
     return [];
   };
 
-  const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
+  const selectedMark = selected?.type === "mark" ? { collectionId: selected.collectionId, index: selected.index } : null;
   const activeSelection = sequenceSelection ?? selectionFromSingle(selected);
   const editable = () => !useAppStore.getState().guiEditPending;
   const hasSelection = () => editable() && activeSelection !== null && selectionCount(activeSelection) > 0;
@@ -1186,7 +1083,7 @@ export function SequenceCanvas({
   const selectedClipSeed = (): ClipMatchSeed | null => {
     const selection = sequenceSelectionRef.current;
     return selection?.type === "clips" && selectionCount(selection) > 0
-      ? { clips: selection.clips }
+      ? { ids: selection.ids }
       : null;
   };
   const selectMatching = (seed: ClipMatchSeed, criteria: SequenceClipMatch, params: SequenceClipParamMatch[]) => {
@@ -1202,7 +1099,7 @@ export function SequenceCanvas({
   const arrangeClips = (arrangement: SequenceClipArrangement) => {
     const selection = sequenceSelectionRef.current;
     if (selection?.type !== "clips" || selectionCount(selection) === 0) return;
-    void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "arrangeClips", clips: selection.clips, arrangement } })).then((result) => {
+    void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "arrangeClips", ids: selection.ids, arrangement } })).then((result) => {
       if (result !== null) updateSequenceSelection(result.selection);
     });
   };
@@ -1222,12 +1119,10 @@ export function SequenceCanvas({
     });
   };
   const paste = () => {
-    const focused = document.clips.find((clip) => clip.id === selectedClipId(selected));
-    const automation = selected?.type === "automationClip" ? document.automationClips.find((automationClip) => automationClip.id === selected.id) : undefined;
-    const fallbackTarget = focused?.target ?? automation?.rowTarget;
-    const lane = selectedLaneIndex ?? (fallbackTarget === undefined ? -1 : nearestLane(document, fallbackTarget, 0));
-    const markTime = selectedMark === null ? undefined : document.markCollections.find((collection) => collection.key === selectedMark.collectionKey)?.marksSeconds[selectedMark.index];
-    const timeSeconds = selectedTimeSeconds ?? focused?.startSeconds ?? automation?.startSeconds ?? markTime ?? 0;
+    const focused = document.clips.filter(isTimed).find((clip) => clip.id === focusedClipId(selected));
+    const lane = selectedLaneIndex ?? (focused === undefined ? -1 : nearestLane(document, focused.target, 0));
+    const markTime = selectedMark === null ? undefined : document.markCollections.find((collection) => collection.id === selectedMark.collectionId)?.marksSeconds[selectedMark.index];
+    const timeSeconds = selectedTimeSeconds ?? focused?.placement.startSeconds ?? markTime ?? 0;
     void runGuiEditCommand((request) => commands.pasteSequence(request, { lane: lane < 0 ? null : lane, timeSeconds })).then((result) => {
       // A paste that placed nothing keeps the selection.
       if (result === null || result.selection === null) return;
@@ -1241,14 +1136,14 @@ export function SequenceCanvas({
     if (selection !== null) void deleteItems(selection);
   };
   const nudgeMark = (mark: NonNullable<typeof selectedMark>, direction: -1 | 1, shift: boolean) => {
-    const collection = document.markCollections.find((candidate) => candidate.key === mark.collectionKey);
+    const collection = document.markCollections.find((candidate) => candidate.id === mark.collectionId);
     const timeSeconds = collection?.marksSeconds[mark.index];
     if (collection === undefined || timeSeconds === undefined) return;
     const deltaSeconds = direction * (shift ? SEQUENCE_CANVAS.shiftedNudgeSeconds : SEQUENCE_CANVAS.nudgeSeconds);
     const nextTimeSeconds = clamp(timeSeconds + deltaSeconds, 0, document.durationSeconds);
     const nextIndex = markIndexAfterMove(collection, mark.index, nextTimeSeconds);
     const nextDrafts: MarkDraftLookup = new Map();
-    setMarkDraft(nextDrafts, mark, { collectionKey: mark.collectionKey, index: mark.index, timeSeconds: nextTimeSeconds, committedIndex: nextIndex });
+    setMarkDraft(nextDrafts, mark, { collectionId: mark.collectionId, index: mark.index, timeSeconds: nextTimeSeconds, committedIndex: nextIndex });
     setMarkDrafts(nextDrafts);
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
@@ -1289,9 +1184,9 @@ export function SequenceCanvas({
     "view.zoomIn": { run: zoomTimeline(1) },
     "view.zoomOut": { run: zoomTimeline(-1) },
     "edit.cancel": {
-      enabled: () => automationClipChooser !== null || tool === "slice" || (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null,
+      enabled: () => bindingChooser !== null || tool === "slice" || (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null,
       run: () => {
-        if (automationClipChooser !== null) setAutomationClipChooser(null);
+        if (bindingChooser !== null) setDocumentUi({ bindingChooser: null });
         else if (tool === "slice") setTool("select");
         else void runSnapshotCommand(() => commands.audioSetRange(null));
       }
@@ -1302,13 +1197,15 @@ export function SequenceCanvas({
     "edit.delete": { enabled: editable, run: deleteSelection },
     "edit.selectAll": {
       run: () => {
-        const all: NonNullable<SequenceSelection> = { type: "clips", clips: [...clipRefs("clip", document.clips.map((clip) => clip.id)), ...clipRefs("automation", document.automationClips.map((automationClip) => automationClip.id))] };
+        const all: NonNullable<SequenceSelection> = { type: "clips", ids: document.clips.map((clip) => clip.id) };
         updateSequenceSelection(selectionCount(all) > 0 ? all : null);
         setSelected(singleSelectionFocus(all));
       }
     },
     "edit.moveLeft": arrowCommand(-1),
     "edit.moveRight": arrowCommand(1),
+    // M drops a mark at the playhead, so marks can be tapped along with the music.
+    "transport.tapMark": { enabled: transportCommands["transport.togglePlayback"].enabled, run: ({ repeat }) => { if (!repeat) tapMark(); } },
     "sequence.toggleSliceTool": { run: toggleSliceTool },
     "sequence.selectMatching": {
       enabled: () => clipMatch !== null && selectedClipSeed() !== null,
@@ -1338,199 +1235,167 @@ export function SequenceCanvas({
         }
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
-        if (automationClipChooser !== null) {
-          event.preventDefault();
-          setSequenceContextMenu(null);
-          return;
-        }
-        if (x >= left && inMarkRuler(y)) {
-          const startSeconds = timeFromCanvasX(x);
-          const markHit = hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport);
-          if (markHit === null) {
+        const target = bindingChooser === null ? hit(canvasLayout(), { x, y }, { curves: true, envelopesOnly: false }) : { type: "none" as const };
+        const startSeconds = timeFromCanvasX(x);
+        switch (target.type) {
+          case "markRuler":
             setSelectedTimeSeconds(startSeconds);
             setSequenceContextMenu({ kind: "markRuler", startSeconds });
             return;
+          case "mark": {
+            const { mark } = target;
+            setSelected({ type: "mark", collectionId: mark.collectionId, index: mark.index });
+            updateSequenceSelection({ type: "marks", marks: [{ collectionId: mark.collectionId, index: mark.index }] });
+            setDocumentUi({ activeMarks: markCollectionKey(mark.collectionId) });
+            setSelectedTimeSeconds(mark.timeSeconds);
+            setSequenceContextMenu({ kind: "mark", startSeconds, collectionId: mark.collectionId, index: mark.index });
+            return;
           }
-          setSelected({ type: "mark", collectionKey: markHit.collectionKey, index: markHit.index });
-          updateSequenceSelection({ type: "marks", marks: [{ collectionKey: markHit.collectionKey, index: markHit.index }] });
-          setActiveMarkCollectionKey(markHit.collectionKey);
-          setSelectedTimeSeconds(markHit.timeSeconds);
-          setSequenceContextMenu({ kind: "mark", startSeconds, collectionKey: markHit.collectionKey, index: markHit.index });
-          return;
+          case "curve":
+          case "clip":
+          case "lane":
+          case "curvePoint": {
+            const laneIndex = target.type === "lane" ? target.laneIndex : target.type === "curvePoint" ? target.layout.laneIndex : target.hit.laneIndex;
+            setSelectedLaneIndex(laneIndex);
+            setSelectedTimeSeconds(startSeconds);
+            // Right-clicking a curve point erases it (pointer events do that), so no menu opens over it.
+            if (target.type === "curvePoint") break;
+            if (target.type === "lane") {
+              setSelected(null);
+              updateSequenceSelection(null);
+              setSequenceContextMenu({ kind: "blank", laneIndex, startSeconds });
+              return;
+            }
+            const id = target.hit.clip.id;
+            setSelected(clipFocus(id));
+            const active = sequenceSelectionRef.current;
+            updateSequenceSelection(active?.type === "clips" && active.ids.includes(id) ? active : { type: "clips", ids: [id] });
+            setSequenceContextMenu({ kind: "clip", laneIndex, startSeconds, clipId: id });
+            return;
+          }
+          case "seek":
+          case "none":
+          case "stripResize":
+          case "gutterResize":
+          case "rowResize":
+          case "sharedBadge":
+          case "disclosure":
+          case "rowLabel":
         }
-        if (x < left || y < top || document.lanes.length === 0) {
-          event.preventDefault();
-          setSequenceContextMenu(null);
-          return;
-        }
-        const laneIndex = laneIndexFromCanvasY(y, top, viewport.scrollY, document.lanes.length, rows);
-        const startSeconds = timeFromCanvasX(x);
-        setSelectedLaneIndex(laneIndex);
-        setSelectedTimeSeconds(startSeconds);
-        // Right-clicking a curve point erases it (pointer events do that), so no menu opens over it.
-        if (hitAutomationPoint(visibleAutomationClips, x, y) !== null) {
-          event.preventDefault();
-          setSequenceContextMenu(null);
-          return;
-        }
-        const automationHit = hitTimelineClip(visibleAutomationClips, x, y);
-        if (automationHit !== null) {
-          setSelected({ type: "automationClip", id: automationHit.clip.id });
-          const active = sequenceSelectionRef.current;
-          updateSequenceSelection(active?.type === "clips" && hasClip(active.clips, "automation", automationHit.clip.id) ? active : { type: "clips", clips: [{ type: "automation", id: automationHit.clip.id }] });
-          setSequenceContextMenu({
-            kind: "automation",
-            laneIndex: automationHit.laneIndex,
-            startSeconds,
-            automationClipId: automationHit.clip.id
-          });
-          return;
-        }
-        const hit = hitSequence(visibleClips, x, y);
-        if (hit !== null) {
-          setSelected({ type: "clip", id: hit.clip.id });
-          const active = sequenceSelectionRef.current;
-          updateSequenceSelection(active?.type === "clips" && hasClip(active.clips, "clip", hit.clip.id) ? active : { type: "clips", clips: [{ type: "clip", id: hit.clip.id }] });
-          setSequenceContextMenu({ kind: "clip", laneIndex: hit.laneIndex, startSeconds, clipId: hit.clip.id });
-          return;
-        }
-        setSelected(null);
-        updateSequenceSelection(null);
-        setSequenceContextMenu({ kind: "blank", laneIndex, startSeconds });
+        event.preventDefault();
+        setSequenceContextMenu(null);
       }}
       onDoubleClick={(event) => {
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
         if (tool === "slice" && y >= top) return;
         // Double-clicking empty mark ruler adds a mark to the active collection.
-        if (inMarkRuler(y)) {
-          if (x >= left && hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport) === null) {
-            void addMark(null, timeFromCanvasX(x));
-          }
-          return;
-        }
+        if (hit(canvasLayout(), { x, y }, { curves: false, envelopesOnly: false }).type === "markRuler") void addMark(null, timeFromCanvasX(x));
       }}
       onPointerDown={(event) => {
         gestureRequest.current = useAppStore.getState().guiRequest;
         suppressContextMenu.current = false;
-        if (isSecondaryClick(event) && automationClipChooser === null && event.nativeEvent.offsetX >= left) {
-          const sweep = hitAutomationPoint(visibleAutomationClips, event.nativeEvent.offsetX, event.nativeEvent.offsetY);
-          if (sweep !== null && sweep.layout.clip.curve.length > 1) {
+        const x = event.nativeEvent.offsetX;
+        const y = event.nativeEvent.offsetY;
+        const layout = canvasLayout();
+        if (isSecondaryClick(event) && bindingChooser === null) {
+          const sweep = hit(layout, { x, y }, { curves: true, envelopesOnly: false });
+          const sweptCurve = sweep.type === "curvePoint" ? envelopeOf(sweep.layout.clip)?.curve ?? [] : [];
+          if (sweep.type === "curvePoint" && sweptCurve.length > 1) {
             event.currentTarget.setPointerCapture(event.pointerId);
-            drag.current = { kind: "automationErase", automationClipId: sweep.layout.clip.id, laneIndex: sweep.layout.laneIndex };
-            setAutomationCurveDraft({ id: sweep.layout.clip.id, curve: removeAutomationCurvePoint(sweep.layout.clip.curve, sweep.index), guide: { time: null, value: null } });
+            drag.current = { kind: "automationErase", clipId: sweep.layout.clip.id, laneIndex: sweep.layout.laneIndex };
+            setAutomationCurveDraft({ id: sweep.layout.clip.id, curve: removeAutomationCurvePoint(sweptCurve, sweep.index), guide: { time: null, value: null } });
             return;
           }
         }
         if (event.button !== 0 || isSecondaryClick(event)) return;
         event.currentTarget.focus();
         event.currentTarget.setPointerCapture(event.pointerId);
-        const x = event.nativeEvent.offsetX;
-        const y = event.nativeEvent.offsetY;
         setMarkDrafts(new Map());
         setBadgeHover(null);
-        const resizedStrip = stripResizeHit(y, audioStripBottom, top);
-        if (resizedStrip !== null) {
+        // A curve is edited by a plain click on one clip.
+        const editsCurve = !event.shiftKey && !event.ctrlKey && !event.metaKey && (sequenceSelection?.type !== "clips" || selectionCount(sequenceSelection) <= 1);
+        const target = hit(layout, { x, y }, { curves: editsCurve, envelopesOnly: bindingChooser !== null });
+        if (target.type === "stripResize") {
           event.preventDefault();
-          drag.current = {
-            kind: "stripResize",
-            strip: resizedStrip,
-            startY: y,
-            initialHeight: viewport[TIMELINE_STRIPS[resizedStrip].height],
-            active: false
-          };
-          setStripResizeHover(resizedStrip);
+          drag.current = { kind: "stripResize", strip: target.strip, startY: y, initialHeight: viewport[TIMELINE_STRIPS[target.strip].height], active: false };
+          setStripResizeHover(target.strip);
           return;
         }
-        if (gutterResizeHit(x, left)) {
+        if (target.type === "gutterResize") {
           event.preventDefault();
           drag.current = { kind: "gutterResize", startX: x, initialWidth: viewport.leftGutterWidth, active: false };
           setGutterResizeHover(true);
           return;
         }
-        if (automationClipChooser !== null) {
-          const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
-          if (automationHit !== null) {
+        if (bindingChooser !== null) {
+          if (target.type === "clip") {
             event.preventDefault();
             event.stopPropagation();
-            chooseAutomationClip(automationHit.clip.id);
+            bindEnvelope(target.hit.clip.id);
           }
           return;
         }
-        if (x >= left && y < audioStripBottom) {
-          const grabbed = seekHoverAt(x, y);
-          setSeekHover(null);
-          if (grabbed.target === "playhead") {
-            drag.current = { kind: "playheadScrub" };
-            setDragCursor("grabbing");
-            seekFromCanvas(event);
+        switch (target.type) {
+          case "seek": {
+            setSeekHover(null);
+            if (target.target === "playhead") {
+              drag.current = { kind: "playheadScrub" };
+              setDragCursor("grabbing");
+              seekFromCanvas(event);
+              return;
+            }
+            const range = useAppStore.getState().snapshot?.audioTransport.range ?? null;
+            if (target.target === "rangeEdge" && range !== null) {
+              const fromEnd = Math.abs(timeFromCanvasX(x) - range.endSeconds) <= Math.abs(timeFromCanvasX(x) - range.startSeconds);
+              drag.current = { kind: "timeRange", startX: x, anchorSeconds: fromEnd ? range.startSeconds : range.endSeconds, fromEdge: true, active: false };
+              return;
+            }
+            drag.current = { kind: "timeRange", startX: x, anchorSeconds: rangeTimeFromCanvasX(x, snaps(event.altKey)), fromEdge: false, active: false };
             return;
           }
-          const range = useAppStore.getState().snapshot?.audioTransport.range ?? null;
-          if (grabbed.target === "rangeEdge" && range !== null) {
-            const fromEnd = Math.abs(timeFromCanvasX(x) - range.endSeconds) <= Math.abs(timeFromCanvasX(x) - range.startSeconds);
-            drag.current = { kind: "timeRange", startX: x, anchorSeconds: fromEnd ? range.startSeconds : range.endSeconds, fromEdge: true, active: false };
-            return;
-          }
-          drag.current = { kind: "timeRange", startX: x, anchorSeconds: rangeTimeFromCanvasX(x, snaps(event.altKey)), fromEdge: false, active: false };
-          return;
-        }
-        if (inMarkRuler(y)) {
-          if (x < left) return;
-          const markHit = hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport);
-          if (markHit !== null) {
-            const mark = { collectionKey: markHit.collectionKey, index: markHit.index };
+          case "mark": {
+            const { mark: markHit } = target;
+            const mark = { collectionId: markHit.collectionId, index: markHit.index };
             const activeSelection = sequenceSelectionRef.current;
-            const wasAlreadySelected = activeSelection?.type === "marks" && activeSelection.marks.some((candidate) => candidate.collectionKey === mark.collectionKey && candidate.index === mark.index);
+            const wasAlreadySelected = activeSelection?.type === "marks" && activeSelection.marks.some((candidate) => candidate.collectionId === mark.collectionId && candidate.index === mark.index);
             const nextSelection = wasAlreadySelected && !event.shiftKey && !event.ctrlKey && !event.metaKey
               ? activeSelection
               : nextMarkSelection(activeSelection?.type === "marks" ? activeSelection : null, mark, event.shiftKey, event.ctrlKey || event.metaKey);
             updateSequenceSelection(nextSelection);
-            setSelected({ type: "mark", collectionKey: mark.collectionKey, index: mark.index });
-            setActiveMarkCollectionKey(markHit.collectionKey);
+            setSelected({ type: "mark", collectionId: mark.collectionId, index: mark.index });
+            setDocumentUi({ activeMarks: markCollectionKey(markHit.collectionId) });
             setSelectedTimeSeconds(markHit.timeSeconds);
-            drag.current = {
-              kind: "mark",
-              collectionKey: markHit.collectionKey,
-              index: markHit.index,
-              startX: x,
-              startY: y,
-              active: false,
-              originalTimeSeconds: markHit.timeSeconds
-            };
+            drag.current = { kind: "mark", collectionId: markHit.collectionId, index: markHit.index, startX: x, startY: y, active: false, originalTimeSeconds: markHit.timeSeconds };
             return;
           }
-          // Dragging across empty ruler box-selects marks by time.
-          setSelectedTimeSeconds(timeFromCanvasX(x));
-          setSelected(null);
-          updateSequenceSelection(null);
-          const state = { mode: "marks" as const, anchorSeconds: timeFromCanvasX(x), anchorY: y, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
-          drag.current = { kind: "marquee", state };
-          setMarquee(state);
-          return;
-        }
-        if (x < left && y >= top && document.lanes.length > 0) {
-          const resizeHit = rowResizeHit(y, top, viewport.scrollY, rows);
-          if (resizeHit !== null) {
+          case "markRuler": {
+            // Dragging across empty ruler box-selects marks by time.
+            setSelectedTimeSeconds(timeFromCanvasX(x));
+            setSelected(null);
+            updateSequenceSelection(null);
+            const state = { mode: "marks" as const, anchorSeconds: timeFromCanvasX(x), anchorY: y, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
+            drag.current = { kind: "marquee", state };
+            setMarquee(state);
+            return;
+          }
+          case "rowResize":
             event.preventDefault();
             drag.current = {
               kind: "rowResize",
-              laneIndex: resizeHit.laneIndex,
-              rowKind: resizeHit.rowKind,
+              laneIndex: target.laneIndex,
+              rowKind: target.rowKind,
               startY: y,
-              initialHeight: rowHeightAt(viewport.rowHeights, targetAtLane(document, resizeHit.laneIndex), resizeHit.rowKind, resizeHit.rowKind === "clips" ? initialSequenceLaneHeight(settings) : automationRowHeight),
+              initialHeight: rowHeightAt(viewport.rowHeights, targetAtLane(document, target.laneIndex), target.rowKind, target.rowKind === "clips" ? initialSequenceLaneHeight(settings) : automationRowHeight),
               active: false
             };
-            setRowResizeHover({ laneIndex: resizeHit.laneIndex, rowKind: resizeHit.rowKind });
+            setRowResizeHover({ laneIndex: target.laneIndex, rowKind: target.rowKind });
             return;
-          }
-          const laneIndex = laneIndexFromCanvasY(y, top, viewport.scrollY, document.lanes.length, rows);
-          const lane = document.lanes[laneIndex];
-          if (lane === undefined) return;
-          const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
-          if (row?.kind === "clips" && lane.occurrences > 1 && x >= sharedBadgeX(left)) {
+          case "sharedBadge": {
+            const lane = document.targets[target.laneIndex];
+            if (lane === undefined) return;
             const copies = lanesForTarget(document, lane.target);
-            const next = copies.find((copy) => copy > laneIndex) ?? copies[0] ?? laneIndex;
+            const next = copies.find((copy) => copy > target.laneIndex) ?? copies[0] ?? target.laneIndex;
             const nextRow = rows.find((candidate) => candidate.laneIndex === next && candidate.kind === "clips");
             setSelectedLaneIndex(next);
             if (nextRow !== undefined) {
@@ -1539,8 +1404,8 @@ export function SequenceCanvas({
             }
             return;
           }
-          if (row?.kind === "clips" && lane.kind === "group" && x < laneLabelLayout(lane).textX) {
-            const group = lane.target.fixture;
+          case "disclosure": {
+            const group = targetAtLane(document, target.laneIndex).fixture;
             setViewport((previous) => {
               const collapsedGroups = new Set(previous.collapsedGroups);
               if (!collapsedGroups.delete(group)) collapsedGroups.add(group);
@@ -1548,13 +1413,20 @@ export function SequenceCanvas({
             });
             return;
           }
-          const rowSelection: NonNullable<SequenceSelection> = { type: "clips", clips: row?.kind === "clips"
-            ? clipRefs("clip", document.clips.filter((clip) => targetsEqual(clip.target, lane.target)).map((clip) => clip.id))
-            : row?.kind === "automation" ? clipRefs("automation", document.automationClips.filter((automationClip) => targetsEqual(automationClip.rowTarget, lane.target)).map((automationClip) => automationClip.id)) : [] };
-          setSelectedLaneIndex(laneIndex);
-          updateSequenceSelection(selectionCount(rowSelection) > 0 ? rowSelection : null);
-          setSelected(singleSelectionFocus(rowSelection));
-          return;
+          case "rowLabel": {
+            const { row } = target;
+            const laneTarget = targetAtLane(document, target.laneIndex);
+            const rowSelection: SequenceSelection = { type: "clips", ids: row === null ? [] : document.clips.filter((clip) => clipRowKind(clip) === row.kind && targetsEqual(clip.target, laneTarget)).map((clip) => clip.id) };
+            setSelectedLaneIndex(target.laneIndex);
+            updateSequenceSelection(selectionCount(rowSelection) > 0 ? rowSelection : null);
+            setSelected(singleSelectionFocus(rowSelection));
+            return;
+          }
+          case "curve":
+          case "clip":
+          case "curvePoint":
+          case "lane":
+          case "none":
         }
         if (tool === "slice" && x >= left && y >= top) {
           event.preventDefault();
@@ -1563,79 +1435,36 @@ export function SequenceCanvas({
           setSlice({ seconds, fromY: y, toY: y });
           return;
         }
-        const editsCurve = !event.shiftKey && !event.ctrlKey && !event.metaKey && (sequenceSelection?.type !== "clips" || selectionCount(sequenceSelection) <= 1);
-        const pointTarget = x >= left && editsCurve ? hitAutomationPoint(visibleAutomationClips, x, y) : null;
-        const automationHit = pointTarget !== null
-          ? { ...pointTarget.layout, resize: "none" as const }
-          : x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
-        if (automationHit !== null) {
-          const belowHeader = y > automationHit.rect.y + Math.min(THEME_METRICS.automationClipHeaderHeight, automationHit.rect.height);
-          const pointHit = editsCurve ? hitAutomationCurvePoint(automationHit, x, y) : null;
-          const addsPoint = editsCurve && pointHit === null && belowHeader && automationHit.resize === "none";
-          if (pointHit !== null || addsPoint) {
-            setSelected({ type: "automationClip", id: automationHit.clip.id });
-            updateSequenceSelection({ type: "clips", clips: [{ type: "automation", id: automationHit.clip.id }] });
-            let index = pointHit ?? 0;
-            if (addsPoint) {
-              const added = insertAutomationCurvePoint(automationHit.clip.curve, automationCurvePointFromCanvas(automationHit.curveRect, x, y));
-              setAutomationCurveDraft({ id: automationHit.clip.id, curve: added.curve, guide: { time: null, value: null } });
-              index = added.index;
-            }
-            drag.current = {
-              kind: "automationPoint",
-              automationClipId: automationHit.clip.id,
-              laneIndex: automationHit.laneIndex,
-              index,
-              active: false,
-              inserted: addsPoint
-            };
-            return;
+        if (target.type === "curvePoint" || target.type === "curve") {
+          const envelope = target.type === "curvePoint" ? target.layout : target.hit;
+          setSelected(clipFocus(envelope.clip.id));
+          updateSequenceSelection({ type: "clips", ids: [envelope.clip.id] });
+          let index = target.type === "curvePoint" ? target.index : 0;
+          if (target.type === "curve") {
+            const added = insertAutomationCurvePoint(envelopeOf(envelope.clip)?.curve ?? [], automationCurvePointFromCanvas(envelope.curveRect, x, y));
+            setAutomationCurveDraft({ id: envelope.clip.id, curve: added.curve, guide: { time: null, value: null } });
+            index = added.index;
           }
-          setSelected({ type: "automationClip", id: automationHit.clip.id });
-          const active = sequenceSelectionRef.current;
-          const nextSelection = active?.type === "clips" && hasClip(active.clips, "automation", automationHit.clip.id) && !event.shiftKey && !event.ctrlKey && !event.metaKey ? active : nextAutomationSelection(active, automationHit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey);
-          updateSequenceSelection(nextSelection);
-          setSelectedLaneIndex(automationHit.laneIndex);
-          setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? automationHit.clip.startSeconds);
-          drag.current = {
-            kind: "automation",
-            id: automationHit.clip.id,
-            startX: x,
-            startY: y,
-            active: false,
-            originalStartSeconds: automationHit.clip.startSeconds,
-            laneIndex: automationHit.laneIndex,
-            resize: automationHit.resize
-          };
+          drag.current = { kind: "automationPoint", clipId: envelope.clip.id, laneIndex: envelope.laneIndex, index, active: false, inserted: target.type === "curve" };
           return;
         }
-        const hit = x >= left ? hitSequence(visibleClips, x, y) : null;
-        if (hit !== null) {
+        if (target.type === "clip") {
+          const { hit: clipHit } = target;
           const activeSelection = sequenceSelectionRef.current;
-          const wasAlreadySelected = activeSelection?.type === "clips" && hasClip(activeSelection.clips, "clip", hit.clip.id);
+          const wasAlreadySelected = activeSelection?.type === "clips" && activeSelection.ids.includes(clipHit.clip.id);
           const nextSelection = wasAlreadySelected && !event.shiftKey && !event.ctrlKey && !event.metaKey
             ? activeSelection
-            : nextClipSelection(activeSelection?.type === "clips" ? activeSelection : null, hit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey);
+            : nextClipSelection(activeSelection?.type === "clips" ? activeSelection : null, clipHit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey);
           updateSequenceSelection(nextSelection);
-          setSelected(singleSelectionFocus(nextSelection) ?? { type: "clip", id: hit.clip.id });
-          setSelectedLaneIndex(hit.laneIndex);
-          setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? hit.clip.startSeconds);
-          drag.current = {
-            kind: "sequence",
-            id: hit.clip.id,
-            startX: event.nativeEvent.offsetX,
-            startY: event.nativeEvent.offsetY,
-            active: false,
-            originalStartSeconds: hit.clip.startSeconds,
-            laneIndex: hit.laneIndex,
-            resize: hit.resize
-          };
+          setSelected(singleSelectionFocus(nextSelection) ?? clipFocus(clipHit.clip.id));
+          setSelectedLaneIndex(clipHit.laneIndex);
+          setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? clipHit.clip.placement.startSeconds);
+          drag.current = { kind: "sequence", id: clipHit.clip.id, startX: x, startY: y, active: false, originalStartSeconds: clipHit.clip.placement.startSeconds, laneIndex: clipHit.laneIndex, resize: clipHit.resize };
           return;
         }
-        if (x >= left && y >= top) {
-        const laneIndex = laneIndexFromCanvasY(y, top, viewport.scrollY, document.lanes.length, rows);
+        if (target.type === "lane") {
           const timeSeconds = timeFromCanvasX(x);
-          setSelectedLaneIndex(laneIndex);
+          setSelectedLaneIndex(target.laneIndex);
           setSelectedTimeSeconds(timeSeconds);
           setSelected(null);
           updateSequenceSelection(null);
@@ -1646,302 +1475,224 @@ export function SequenceCanvas({
         }
       }}
       onPointerMove={(event) => {
+        const x = event.nativeEvent.offsetX;
+        const y = event.nativeEvent.offsetY;
         const current = drag.current;
-        if (current?.kind === "stripResize") {
-          if (!current.active) {
-            if (Math.abs(event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
-            current.active = true;
-            setDragCursor("grabbing");
-          }
-          const strip = TIMELINE_STRIPS[current.strip];
-          const height = clamp(current.initialHeight + event.nativeEvent.offsetY - current.startY, strip.minPx, strip.maxPx);
-          setViewport((previous) => {
-            const next = { ...previous, [strip.height]: height };
-            const nextTop = SEQUENCE_CANVAS.audioStripTopPx + next.audioStripHeight + next.markRulerHeight;
-            const visibleHeight = Math.max(1, canvasSize.height - nextTop);
-            const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(previous.rowHeights, revealAutomation)) - visibleHeight);
-            return { ...next, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
-          });
-          return;
-        }
-        if (current?.kind === "gutterResize") {
-          if (!current.active) {
-            if (Math.abs(event.nativeEvent.offsetX - current.startX) < SEQUENCE_DRAG_THRESHOLD_PX) return;
-            current.active = true;
-            setDragCursor("grabbing");
-          }
-          // The timeline keeps at least its minimum gutter's worth of width.
-          const maxWidth = Math.max(SEQUENCE_CANVAS.minLeftGutterPx, Math.min(SEQUENCE_CANVAS.maxLeftGutterPx, canvasSize.width - SEQUENCE_CANVAS.minLeftGutterPx));
-          const leftGutterWidth = clamp(current.initialWidth + event.nativeEvent.offsetX - current.startX, SEQUENCE_CANVAS.minLeftGutterPx, maxWidth);
-          setViewport((previous) => ({ ...previous, leftGutterWidth }));
-          return;
-        }
-        if (current?.kind === "rowResize") {
-          if (!current.active) {
-            if (Math.abs(event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
-            current.active = true;
-            setDragCursor("grabbing");
-          }
-          const nextHeight = clamp(
-            current.initialHeight + event.nativeEvent.offsetY - current.startY,
-            minRowHeight(current.rowKind),
-            SEQUENCE_CANVAS.maxLaneHeightPx
-          );
-          setViewport((previous) => {
-            const target = document.lanes[current.laneIndex]?.target;
-            if (target === undefined) return previous;
-            const complete = completeRowHeights(previous.rowHeights, document, settings);
-            const heights = complete[target.fixture];
-            if (heights === undefined) throw new Error("Timeline row heights are missing.");
-            const rowHeights = { ...complete, [target.fixture]: { ...heights, [current.rowKind]: nextHeight } };
-            const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(rowHeights, revealAutomation)) - Math.max(1, canvasSize.height - top));
-            return { ...previous, rowHeights, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
-          });
-          return;
-        }
-        if (current?.kind === "playheadScrub") {
-          seekFromCanvas(event);
-          return;
-        }
-        if (current?.kind === "slice") {
-          setSlice({ seconds: current.seconds, fromY: current.startY, toY: event.nativeEvent.offsetY });
-          return;
-        }
-        if (current?.kind === "timeRange") {
-          if (!current.active) {
-            if (Math.abs(event.nativeEvent.offsetX - current.startX) < SEQUENCE_DRAG_THRESHOLD_PX) return;
-            current.active = true;
-          }
-          setRangeDraft(rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, snaps(event.altKey))));
-          return;
-        }
-        if (current?.kind === "marquee") {
-          applyMarquee({ ...current.state, x: event.nativeEvent.offsetX, y: event.nativeEvent.offsetY });
-          return;
-        }
-        if (current?.kind === "mark") {
-          if (!current.active) {
-            if (Math.hypot(event.nativeEvent.offsetX - current.startX, event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
-            current.active = true;
-          }
-          const deltaSeconds = roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond);
-          const timeSeconds = clamp(current.originalTimeSeconds + deltaSeconds, 0, document.durationSeconds);
-          setSelected({ type: "mark", collectionKey: current.collectionKey, index: current.index });
-          const collection = document.markCollections.find((candidate) => candidate.key === current.collectionKey);
-          const committedIndex = collection === undefined ? current.index : markIndexAfterMove(collection, current.index, timeSeconds);
-          const activeSelection = sequenceSelectionRef.current;
-          if (activeSelection?.type === "marks" && activeSelection.marks.length > 1 && activeSelection.marks.some((mark) => mark.collectionKey === current.collectionKey && mark.index === current.index)) {
-            const constrainedDelta = constrainMarkDelta(document, activeSelection.marks, deltaSeconds);
-            setMarkDrafts(markMoveDrafts(document, activeSelection.marks, constrainedDelta));
-          } else {
-            const nextDrafts: MarkDraftLookup = new Map();
-            setMarkDraft(nextDrafts, { collectionKey: current.collectionKey, index: current.index }, { collectionKey: current.collectionKey, index: current.index, timeSeconds, committedIndex });
-            setMarkDrafts(nextDrafts);
-          }
-          setAutomationDrafts([]);
-          setRevealAutomation(false);
-          setGroupDraft([]);
-          return;
-        }
-        if (current?.kind === "automationErase") {
-          const layout = visibleAutomationClips.find((candidate) => candidate.clip.id === current.automationClipId && candidate.laneIndex === current.laneIndex);
-          if (layout === undefined) return;
-          const curve = eraseAutomationCurvePoints(layout.clip.curve, layout, event.nativeEvent.offsetX, event.nativeEvent.offsetY);
-          if (curve.length !== layout.clip.curve.length) setAutomationCurveDraft({ id: layout.clip.id, curve, guide: { time: null, value: null } });
-          return;
-        }
-        if (current?.kind === "automationPoint") {
-          const layout = visibleAutomationClips.find((candidate) => candidate.clip.id === current.automationClipId && candidate.laneIndex === current.laneIndex);
-          if (layout === undefined) return;
-          dragAutomationPoint(layout, current.index, event.nativeEvent.offsetX, event.nativeEvent.offsetY, event);
-          current.active = true;
-          return;
-        }
-        if (!current) {
-          const x = event.nativeEvent.offsetX;
-          const y = event.nativeEvent.offsetY;
-          const stripResize = stripResizeHit(y, audioStripBottom, top);
-          setStripResizeHover(stripResize);
-          const gutterResize = stripResize === null && gutterResizeHit(x, left);
-          setGutterResizeHover(gutterResize);
-          const nextSeekHover = stripResize === null && !gutterResize && x >= left && y < audioStripBottom ? seekHoverAt(x, y) : null;
-          setSeekHover(nextSeekHover);
-          if (stripResize !== null || gutterResize || nextSeekHover !== null) {
+        if (current === null) {
+          const target = hit(canvasLayout(), { x, y }, { curves: true, envelopesOnly: bindingChooser !== null });
+          setStripResizeHover(target.type === "stripResize" ? target.strip : null);
+          setGutterResizeHover(target.type === "gutterResize");
+          setSeekHover(target.type === "seek" ? { target: target.target, seconds: seekTimeFromCanvasX(x) } : null);
+          if (target.type === "stripResize" || target.type === "gutterResize" || target.type === "seek") {
             setSlice(null);
             setRowResizeHover(null);
             setHover(null);
-            setAutomationHover(null);
             setBadgeHover(null);
             return;
           }
-          const nextBadgeHover = sharedBadgeAt(x, y);
+          const nextBadgeHover = target.type === "sharedBadge" ? sharedBadge(target.laneIndex) : null;
           setBadgeHover((previous) => previous?.laneIndex === nextBadgeHover?.laneIndex && previous?.y === nextBadgeHover?.y && previous?.scrollY === nextBadgeHover?.scrollY && previous?.left === nextBadgeHover?.left ? previous : nextBadgeHover);
-          const resizeHit = x < left && y >= top
-            ? rowResizeHit(y, top, viewport.scrollY, rows)
-            : null;
-          setRowResizeHover(resizeHit === null ? null : { laneIndex: resizeHit.laneIndex, rowKind: resizeHit.rowKind });
+          setRowResizeHover(target.type === "rowResize" ? { laneIndex: target.laneIndex, rowKind: target.rowKind } : null);
           if (tool === "slice") {
             const inLanes = x >= left && y >= top;
             setSlice(inLanes ? { seconds: rangeTimeFromCanvasX(x, snaps(event.altKey)), fromY: y, toY: y } : null);
             if (inLanes) {
               setHover(null);
-              setAutomationHover(null);
               return;
             }
           }
-          const hoveredPoint = x >= left && y >= top && automationClipChooser === null ? hitAutomationPoint(visibleAutomationClips, x, y) : null;
-          const automationHit = hoveredPoint !== null
-            ? { ...hoveredPoint.layout, resize: "none" as const }
-            : x >= left && y >= top ? hitTimelineClip(visibleAutomationClips, x, y) : null;
-          const choosingAutomation = automationClipChooser !== null;
-          const hit = x >= left && y >= top && automationHit === null && !choosingAutomation ? hitSequence(visibleClips, x, y) : null;
-          const markHit = inMarkRuler(y) && !choosingAutomation ? hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport) : null;
-          const nextHover: SequenceHover =
-            hit !== null
-              ? { kind: "clip", clipId: hit.clip.id, resize: hit.resize }
-              : markHit !== null
-                ? { kind: "mark", collectionKey: markHit.collectionKey, index: markHit.index }
-                : null;
-          const nextAutomationHover: AutomationHover | null = automationHit === null ? null : { kind: "automation", automationClipId: automationHit.clip.id, resize: choosingAutomation ? "none" : automationHit.resize };
-          setHover(nextHover);
-          setAutomationHover(nextAutomationHover);
+          setHover(
+            target.type === "curvePoint" ? { kind: "clip", clipId: target.layout.clip.id, resize: "none" }
+              : target.type === "clip" || target.type === "curve" ? { kind: "clip", clipId: target.hit.clip.id, resize: target.hit.resize }
+                : target.type === "mark" ? { kind: "mark", collectionId: target.mark.collectionId, index: target.mark.index }
+                  : null
+          );
           return;
         }
-        if (!current.active) {
-          if (Math.hypot(event.nativeEvent.offsetX - current.startX, event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
-          current.active = true;
-          setDragCursor("grabbing");
-          const selection = sequenceSelectionRef.current;
-          if (current.resize === "none" && selection?.type === "clips" && selection.clips.some((clip) => clip.type === "automation")) {
-            const sourceKind = current.kind === "automation" ? "automation" : "clips";
-            const before = rows.find((row) => row.laneIndex === current.laneIndex && row.kind === sourceKind);
-            const expanded = layoutRows(viewport.rowHeights, true);
-            const after = expanded.find((row) => row.laneIndex === current.laneIndex && row.kind === sourceKind);
-            if (before === undefined || after === undefined) throw new Error("Dragged clip row is missing.");
-            // Keep the grabbed row under the pointer while exposing empty drop rows.
-            setViewport((previous) => ({ ...previous, scrollY: previous.scrollY + after.top - before.top }));
-            setRevealAutomation(true);
+        const { state, started, clips } = reduce(current, { type: "move", x, y }, gestureContext(event));
+        drag.current = state;
+        if (state === null) return;
+        const grabs = state.kind === "stripResize" || state.kind === "gutterResize" || state.kind === "rowResize" || state.kind === "sequence";
+        if (started && grabs) setDragCursor("grabbing");
+        if ("active" in state && !state.active) return;
+        switch (state.kind) {
+          case "stripResize": {
+            const strip = TIMELINE_STRIPS[state.strip];
+            const height = clamp(state.initialHeight + y - state.startY, strip.minPx, strip.maxPx);
+            setViewport((previous) => {
+              const next = { ...previous, [strip.height]: height };
+              const nextTop = SEQUENCE_CANVAS.audioStripTopPx + next.audioStripHeight + next.markRulerHeight;
+              const visibleHeight = Math.max(1, canvasSize.height - nextTop);
+              const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(previous.rowHeights, revealAutomation)) - visibleHeight);
+              return { ...next, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
+            });
             return;
           }
+          case "gutterResize": {
+            // The timeline keeps at least its minimum gutter's worth of width.
+            const maxWidth = Math.max(SEQUENCE_CANVAS.minLeftGutterPx, Math.min(SEQUENCE_CANVAS.maxLeftGutterPx, canvasSize.width - SEQUENCE_CANVAS.minLeftGutterPx));
+            const leftGutterWidth = clamp(state.initialWidth + x - state.startX, SEQUENCE_CANVAS.minLeftGutterPx, maxWidth);
+            setViewport((previous) => ({ ...previous, leftGutterWidth }));
+            return;
+          }
+          case "rowResize": {
+            const nextHeight = clamp(state.initialHeight + y - state.startY, minRowHeight(state.rowKind), SEQUENCE_CANVAS.maxLaneHeightPx);
+            setViewport((previous) => {
+              const target = document.targets[state.laneIndex]?.target;
+              if (target === undefined) return previous;
+              const complete = completeRowHeights(previous.rowHeights, document, settings);
+              const heights = complete[target.fixture];
+              if (heights === undefined) throw new Error("Timeline row heights are missing.");
+              const rowHeights = { ...complete, [target.fixture]: { ...heights, [state.rowKind]: nextHeight } };
+              const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(rowHeights, revealAutomation)) - Math.max(1, canvasSize.height - top));
+              return { ...previous, rowHeights, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
+            });
+            return;
+          }
+          case "playheadScrub":
+            seekFromCanvas(event);
+            return;
+          case "slice":
+            setSlice({ seconds: state.seconds, fromY: state.startY, toY: y });
+            return;
+          case "timeRange":
+            setRangeDraft(rangeFromDrag(state.anchorSeconds, rangeTimeFromCanvasX(x, snaps(event.altKey))));
+            return;
+          case "marquee":
+            applyMarquee({ ...state.state, x, y });
+            return;
+          case "mark": {
+            const deltaSeconds = roundToNanosecond((x - state.startX) / viewport.pxPerSecond);
+            const timeSeconds = clamp(state.originalTimeSeconds + deltaSeconds, 0, document.durationSeconds);
+            setSelected({ type: "mark", collectionId: state.collectionId, index: state.index });
+            const collection = document.markCollections.find((candidate) => candidate.id === state.collectionId);
+            const committedIndex = collection === undefined ? state.index : markIndexAfterMove(collection, state.index, timeSeconds);
+            const activeSelection = sequenceSelectionRef.current;
+            if (activeSelection?.type === "marks" && activeSelection.marks.length > 1 && activeSelection.marks.some((mark) => mark.collectionId === state.collectionId && mark.index === state.index)) {
+              setMarkDrafts(markMoveDrafts(document, activeSelection.marks, constrainMarkDelta(document, activeSelection.marks, deltaSeconds)));
+            } else {
+              const nextDrafts: MarkDraftLookup = new Map();
+              setMarkDraft(nextDrafts, { collectionId: state.collectionId, index: state.index }, { collectionId: state.collectionId, index: state.index, timeSeconds, committedIndex });
+              setMarkDrafts(nextDrafts);
+            }
+            setRevealAutomation(false);
+            setGroupDraft([]);
+            return;
+          }
+          case "automationErase": {
+            const layout = visibleEnvelopes.find((candidate) => candidate.clip.id === state.clipId && candidate.laneIndex === state.laneIndex);
+            if (layout === undefined) return;
+            const before = envelopeOf(layout.clip)?.curve ?? [];
+            const curve = eraseAutomationCurvePoints(before, layout, x, y);
+            if (curve.length !== before.length) setAutomationCurveDraft({ id: layout.clip.id, curve, guide: { time: null, value: null } });
+            return;
+          }
+          case "automationPoint": {
+            const layout = visibleEnvelopes.find((candidate) => candidate.clip.id === state.clipId && candidate.laneIndex === state.laneIndex);
+            if (layout !== undefined) dragAutomationPoint(layout, state.index, x, y, event);
+            return;
+          }
+          case "sequence": {
+            const selection = sequenceSelectionRef.current;
+            const grabbed = document.clips.find((clip) => clip.id === state.id);
+            if (started && state.resize === "none" && grabbed !== undefined && selection?.type === "clips" && document.clips.some((clip) => clip.content.type === "envelope" && selection.ids.includes(clip.id))) {
+              const sourceKind = clipRowKind(grabbed);
+              const before = rows.find((row) => row.laneIndex === state.laneIndex && row.kind === sourceKind);
+              const expanded = layoutRows(viewport.rowHeights, true);
+              const after = expanded.find((row) => row.laneIndex === state.laneIndex && row.kind === sourceKind);
+              if (before === undefined || after === undefined) throw new Error("Dragged clip row is missing.");
+              // Keep the grabbed row under the pointer while exposing empty drop rows.
+              setViewport((previous) => ({ ...previous, scrollY: previous.scrollY + after.top - before.top }));
+              setRevealAutomation(true);
+              return;
+            }
+            if (clips !== undefined) setGroupDraft(clips);
+          }
         }
-        const selection = sequenceSelectionRef.current;
-        if (selection?.type !== "clips") return;
-        const sourceLane = current.laneIndex;
-        const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event, selection, destinationLane), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
-        setGroupDraft(gesture.clips);
-        setAutomationDrafts(gesture.automation);
       }}
       onPointerUp={(event) => {
         const current = drag.current;
         drag.current = null;
         setDragCursor(null);
         setMarquee(null);
-        if (current?.kind === "stripResize") {
-          setStripResizeHover(null);
-          return;
-        }
-        if (current?.kind === "gutterResize") {
-          setGutterResizeHover(false);
-          return;
-        }
-        if (current?.kind === "rowResize") {
-          setRowResizeHover(null);
-          return;
-        }
-        if (current?.kind === "timeRange") {
-          if (current.active) {
-            const range = rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, snaps(event.altKey)));
-            if (range.endSeconds <= range.startSeconds) {
-              setRangeDraft(null);
+        if (current === null) return;
+        const x = event.nativeEvent.offsetX;
+        const result = reduce(current, { type: "up", x, y: event.nativeEvent.offsetY }, gestureContext(event));
+        switch (current.kind) {
+          case "stripResize": setStripResizeHover(null); return;
+          case "gutterResize": setGutterResizeHover(false); return;
+          case "rowResize": setRowResizeHover(null); return;
+          case "timeRange": {
+            if (current.active) {
+              const range = rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(x, snaps(event.altKey)));
+              if (range.endSeconds <= range.startSeconds) {
+                setRangeDraft(null);
+                return;
+              }
+              void runSnapshotCommand(() => commands.audioSetRange(range)).finally(() => { setRangeDraft(null); });
               return;
             }
-            void runSnapshotCommand(() => commands.audioSetRange(range)).finally(() => { setRangeDraft(null); });
+            if (current.fromEdge) return;
+            // A click places the playhead and clears the range.
+            const positionSeconds = seekTimeFromCanvasX(current.startX);
+            const hadRange = (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null;
+            void runSnapshotCommand(async () => {
+              if (hadRange) await commands.audioSetRange(null);
+              return commands.audioSeek(positionSeconds);
+            });
             return;
           }
-          if (current.fromEdge) return;
-          // A click places the playhead and clears the range.
-          const positionSeconds = seekTimeFromCanvasX(current.startX);
-          const hadRange = (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null;
-          void runSnapshotCommand(async () => {
-            if (hadRange) await commands.audioSetRange(null);
-            return commands.audioSeek(positionSeconds);
-          });
-          return;
-        }
-        if (current?.kind === "marquee") return;
-        if (current?.kind === "slice") {
-          const clipIds = sliceTargetsOf(activeSlice()).map((clip) => clip.clip.id);
-          setSlice({ seconds: current.seconds, fromY: event.nativeEvent.offsetY, toY: event.nativeEvent.offsetY });
-          if (clipIds.length > 0) void splitClips(clipIds, current.seconds);
-          return;
-        }
-        if (current?.kind === "mark") {
-          if (!current.active) {
-            setMarkDrafts(new Map());
+          case "slice":
+            setSlice({ seconds: current.seconds, fromY: event.nativeEvent.offsetY, toY: event.nativeEvent.offsetY });
+            if (result.edit !== undefined) void applySequenceEdit(result.edit);
+            return;
+          case "mark": {
+            if (result.edit === undefined) {
+              setMarkDrafts(new Map());
               setGroupDraft([]);
+              return;
+            }
+            void applySequenceEdit(result.edit, gestureRequest.current).then((update) => {
+              setMarkDrafts(new Map());
+              if (update === null) return;
+              updateSequenceSelection(update.selection);
+              setSelected(singleSelectionFocus(update.selection));
+            });
             return;
           }
-          const deltaSeconds = roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond);
-          const activeSelection = sequenceSelectionRef.current;
-          // A selected mark moves the whole mark selection; another mark moves alone.
-          const marks = activeSelection?.type === "marks" && activeSelection.marks.some((mark) => mark.collectionKey === current.collectionKey && mark.index === current.index)
-            ? activeSelection.marks
-            : [{ collectionKey: current.collectionKey, index: current.index }];
-          const constrainedDelta = constrainMarkDelta(document, marks, deltaSeconds);
-          if (constrainedDelta === 0) {
-            setMarkDrafts(new Map());
+          case "automationErase":
+            suppressContextMenu.current = true;
+            if (automationCurveDraft !== null) commitAutomationCurve(automationCurveDraft.id, automationCurveDraft.curve, gestureRequest.current);
+            return;
+          case "automationPoint":
+            if (!(current.active || current.inserted) || automationCurveDraft === null) {
+              setAutomationCurveDraft(null);
+              return;
+            }
+            commitAutomationCurve(automationCurveDraft.id, automationCurveDraft.curve, gestureRequest.current);
+            return;
+          case "sequence": {
+            const clearDrafts = () => { setGroupDraft([]); setRevealAutomation(false); };
+            const { edit, clips } = result;
+            if (edit === undefined || clips === undefined) { clearDrafts(); return; }
+            void applySequenceEdit(edit, gestureRequest.current).then((update) => {
+              if (update === null) return;
+              updateSequenceSelection(update.selection);
+              setSelected(singleSelectionFocus(update.selection));
+              setSelectedLaneIndex(current.laneIndex + (edit.type === "moveClips" ? edit.laneDelta : 0));
+              const startSeconds = earliestStartSeconds(clips);
+              if (startSeconds !== null) setSelectedTimeSeconds(startSeconds);
+            }).finally(clearDrafts);
             return;
           }
-          void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
-            type: "moveMarks",
-            marks,
-            timeDeltaSeconds: constrainedDelta
-          } }), gestureRequest.current).then((result) => {
-            setMarkDrafts(new Map());
-            if (result === null) return;
-            updateSequenceSelection(result.selection);
-            setSelected(singleSelectionFocus(result.selection));
-          });
-          return;
+          case "marquee":
+          case "playheadScrub":
         }
-        if (current?.kind === "automationErase") {
-          suppressContextMenu.current = true;
-          if (automationCurveDraft !== null) commitAutomationCurve(automationCurveDraft.id, automationCurveDraft.curve, gestureRequest.current);
-          return;
-        }
-        if (current?.kind === "automationPoint") {
-          const committedDraft = automationCurveDraft;
-          if (!(current.active || current.inserted) || committedDraft === null) {
-            setAutomationCurveDraft(null);
-            return;
-          }
-          commitAutomationCurve(committedDraft.id, committedDraft.curve, gestureRequest.current);
-          return;
-        }
-        if (current?.kind !== "sequence" && current?.kind !== "automation") return;
-        const clearDrafts = () => { setGroupDraft([]); setAutomationDrafts([]); setRevealAutomation(false); };
-        const selection = sequenceSelectionRef.current;
-        if (!current.active || selection?.type !== "clips") { clearDrafts(); return; }
-        const sourceLane = current.laneIndex;
-        const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event, selection, destinationLane), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
-        if (!gesture.changed) { clearDrafts(); return; }
-        void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: gesture.edit }), gestureRequest.current).then((result) => {
-          if (result === null) return;
-          updateSequenceSelection(result.selection);
-          setSelected(singleSelectionFocus(result.selection));
-          const laneDelta = gesture.edit.type === "moveClips" ? gesture.edit.laneDelta : 0;
-          setSelectedLaneIndex(sourceLane + laneDelta);
-          const startSeconds = earliestStartSeconds([...gesture.clips, ...gesture.automation]);
-          if (startSeconds !== null) setSelectedTimeSeconds(startSeconds);
-        }).finally(clearDrafts);
       }}
       onPointerCancel={() => {
         drag.current = null;
         gestureRequest.current = null;
         setGroupDraft([]);
-        setAutomationDrafts([]);
         setAutomationCurveDraft(null);
         setMarkDrafts(new Map());
         setRevealAutomation(false);
@@ -1954,7 +1705,6 @@ export function SequenceCanvas({
         if (drag.current === null) {
           setSeekHover(null);
           setHover(null);
-          setAutomationHover(null);
           setRowResizeHover(null);
           setStripResizeHover(null);
           setGutterResizeHover(false);
@@ -1975,7 +1725,7 @@ export function SequenceCanvas({
                 }] satisfies MenuEntry[]),
                 ...placeMenuEntries(sequenceContextMenu)
               ]} />
-              {(sequenceContextMenu.kind === "clip" || sequenceContextMenu.kind === "automation") && clipMatch !== null && (
+              {sequenceContextMenu.kind === "clip" && clipMatch !== null && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
                   <ContextMenu.Sub>
@@ -1997,9 +1747,9 @@ export function SequenceCanvas({
                     </ContextMenu.Portal>
                   </ContextMenu.Sub>
                   <ClipArrangeMenus
-                    reference={sequenceContextMenu.kind === "clip" ? { type: "clip", id: sequenceContextMenu.clipId } : { type: "automation", id: sequenceContextMenu.automationClipId }}
+                    reference={sequenceContextMenu.clipId}
                     canAlign={activeSelection !== null && selectionCount(activeSelection) > 1}
-                    markCollections={markTimes.length === 0 ? [] : visibleMarkCollections.map((collection) => collection.key)}
+                    markCollections={markTimes.length === 0 ? [] : visibleMarkCollections.map((collection) => collection.id)}
                     onArrange={arrangeClips}
                     onCascade={() => { setCascadeOpen(true); }}
                   />
@@ -2226,51 +1976,24 @@ function SequenceTransportMarkers({
   );
 }
 
-function automationClipLabel(document: SequenceGuiDocument, clip: SequenceAutomationClip) {
-  const primary = clip.bindings[0];
-  const detached = clip.detachedBindings[0];
-  if (primary === undefined && detached === undefined) return "Unassigned automation";
-  const target = primary?.target ?? detached?.target;
-  if (target === undefined) throw new Error("Automation clip label has no target");
-  const label = primary === undefined
-    ? `Detached: ${detachedAutomationTargetLabel(target)}`
-    : automationTargetLabel(document, target);
-  const additionalBindingCount = clip.bindings.length + clip.detachedBindings.length - 1;
-  return additionalBindingCount > 0 ? `${label} +${additionalBindingCount}` : label;
+function envelopeLabel(document: SequenceGuiDocument, bindings: NonNullable<ReturnType<typeof envelopeOf>>["bindings"]) {
+  const primary = bindings[0];
+  if (primary === undefined) return "Unassigned envelope";
+  const label = automationTargetLabel(document, primary.target);
+  return bindings.length > 1 ? `${label} +${bindings.length - 1}` : label;
 }
 
 function automationTargetLabel(document: SequenceGuiDocument, target: SequenceAutomationTarget) {
   if (target.type === "clipParam") {
     const clip = document.clips.find((candidate) => candidate.id === target.clipId);
-    if (clip === undefined) throw new Error(`Automation target clip ${target.clipId} is missing`);
-    return `${clip.effect}: ${target.param}`;
+    if (clip?.content.type !== "effect") throw new Error(`Automation target clip ${target.clipId} is missing`);
+    return `${clip.content.effectName}: ${target.param}`;
   }
   const node = document.compositionGraph.nodes.find((candidate) => candidate.id === target.nodeId);
   if (node === undefined || node.kind.type !== "operator") {
     throw new Error(`Automation target operator ${target.nodeId} is missing`);
   }
   return `${graphOperatorDefinition(document.compositionGraph.operatorCatalog, node.kind.operator).displayName}: ${target.param}`;
-}
-
-function scheduleSequenceViewportStateSave(reference: GuiObjectRef, state: PersistedSequenceViewportState) {
-
-  const { path, objectKey, ownedPath } = reference;
-  const store = useAppStore.getState();
-  if (store.restoreState !== null) {
-    store.setRestoreState({ ...store.restoreState, sequenceViewports: { ...store.restoreState.sequenceViewports, [objectViewKey(reference)]: state } });
-  }
-  scheduleViewStateSave(JSON.stringify(["sequence", objectViewKey(reference)]), () => commands.saveViewState({ type: "sequenceViewport", state: { path, objectKey, ownedPath, state } }));
-}
-
-/** A lane label's disclosure triangle and text positions, indented by depth like a file tree. */
-/** Left edge of a shared lane's "×N" badge in the label column. */
-function sharedBadgeX(left: number) {
-  return left - THEME_METRICS.sequenceLabelX - THEME_METRICS.sequenceSharedBadgeWidth;
-}
-
-function laneLabelLayout(lane: SequenceLane) {
-  const disclosureX = THEME_METRICS.sequenceLabelX + lane.depth * THEME_METRICS.sequenceLaneIndent;
-  return { disclosureX, textX: disclosureX + THEME_METRICS.sequenceDisclosureSize + THEME_METRICS.sequenceDisclosureGap };
 }
 
 /** A filled triangle: pointing right when collapsed, down when expanded. */
@@ -2292,7 +2015,7 @@ function drawDisclosure(ctx: CanvasRenderingContext2D, x: number, centerY: numbe
 }
 
 function completeRowHeights(heights: SequenceRowHeightMap, document: SequenceGuiDocument, settings: AppSettings | null): SequenceRowHeightMap {
-  const missing = document.lanes.filter((lane) => heights[lane.target.fixture] === undefined);
+  const missing = document.targets.filter((lane) => heights[lane.target.fixture] === undefined);
   if (missing.length === 0) return heights;
   const defaultHeight = initialSequenceLaneHeight(settings);
   return { ...heights, ...Object.fromEntries(missing.map((lane) => [lane.target.fixture, { clips: defaultHeight, automation: automationLaneRowHeight(defaultHeight) }])) };
@@ -2304,7 +2027,7 @@ function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | u
     leftGutterWidth: clamp(state?.leftGutterWidthPx ?? SEQUENCE_CANVAS.initialLeftGutterPx, SEQUENCE_CANVAS.minLeftGutterPx, SEQUENCE_CANVAS.maxLeftGutterPx),
     audioStripHeight: clamp(state?.audioStripHeightPx ?? SEQUENCE_CANVAS.initialAudioStripHeightPx, TIMELINE_STRIPS.audio.minPx, TIMELINE_STRIPS.audio.maxPx),
     markRulerHeight: clamp(state?.markRulerHeightPx ?? SEQUENCE_CANVAS.initialMarkRulerHeightPx, TIMELINE_STRIPS.marks.minPx, TIMELINE_STRIPS.marks.maxPx),
-    rowHeights: restoreRowHeights(document.lanes, state?.rowHeights, initialSequenceLaneHeight(settings)),
+    rowHeights: restoreRowHeights(document.targets, state?.rowHeights, initialSequenceLaneHeight(settings)),
     collapsedGroups: new Set(state?.collapsedGroups ?? []),
     scrollXSeconds: Math.max(0, state?.scrollXSeconds ?? 0),
     scrollY: Math.max(0, state?.scrollY ?? 0)

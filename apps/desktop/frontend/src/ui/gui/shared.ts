@@ -1,14 +1,12 @@
 import { visibleGridStep, formatDistance } from "./composition/spatialSnapping";
 import type {
   SpatialUnit,
+  GuiClip,
   GuiDocument,
   AppSnapshot,
   GeometryRenderBounds,
   Point3Meters,
-  SequenceAutomationTarget,
-  GuiEditCommand,
-  GuiItem,
-  SequenceSelection as WireSequenceSelection
+  SequenceAutomationTarget
 } from "../../types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../theme";
 
@@ -21,14 +19,16 @@ export type ReadyGuiDocument = Exclude<GuiDocument, { type: "blocked" }>;
 /** The documents whose editor has a selection inspector beside it. */
 export type InspectedGuiDocument = Extract<GuiDocument, { type: "sequence" | "console" }>;
 
-/** A rename, description, color or deletion of one item of the open object. */
-export type GuiItemEdit = Extract<GuiEditCommand, { item: GuiItem }>;
+/** The effect a clip plays; an envelope plays none. */
+export function effectOf(clip: GuiClip): Extract<GuiClip["content"], { type: "effect" }> {
+  if (clip.content.type !== "effect") throw new Error("An envelope plays no effect.");
+  return clip.content;
+}
 
-export type SequenceSelection = WireSequenceSelection | null;
-
-export type AutomationClipChooser = {
-  target: SequenceAutomationTarget;
-} | null;
+/** An envelope's curve and bindings; an effect clip has neither. */
+export function envelopeOf(clip: GuiClip): Extract<GuiClip["content"], { type: "envelope" }> | null {
+  return clip.content.type === "envelope" ? clip.content : null;
+}
 
 export function automationTargetsEqual(
   left: SequenceAutomationTarget,
@@ -40,21 +40,7 @@ export function automationTargetsEqual(
     : left.nodeId === (right.type === "compositionNodeParam" ? right.nodeId : undefined) && left.param === right.param;
 }
 
-export type GuiFocus =
-  | { type: "clip"; id: number }
-  | { type: "graphNode"; nodeId: number }
-  | { type: "graphEdge"; edgeId: string }
-  | { type: "automationClip"; id: number }
-  | { type: "mark"; collectionKey: string; index: number }
-  /** An action of a console control, by its event and place among that event's actions. */
-  | { type: "consoleAction"; on: number; index: number }
-  /** An effect a console plays for the whole session. */
-  | { type: "consoleEffect"; id: number }
-  | null;
-
 export const GUI_CANVAS = {
-  spatialPaddingPx: THEME_METRICS.canvasPadding,
-  pointHitMeters: THEME_METRICS.canvasPointHitRadius,
   nanosecondRoundScale: 1_000_000_000
 } as const;
 
@@ -96,10 +82,9 @@ export function normalizeBounds(bounds: GeometryRenderBounds): RenderBounds {
 
 export function drawSpatialCanvas(
   canvas: HTMLCanvasElement | null,
-  bounds: RenderBounds,
   draw: (ctx: CanvasRenderingContext2D, project: (point: Point3) => { x: number; y: number }) => void,
-  viewport?: SpatialViewport,
-  gridSpacingMeters?: number,
+  view: SpatialViewport,
+  gridSpacingMeters: number,
   unit: SpatialUnit = "meters"
 ) {
   if (!canvas) return;
@@ -114,11 +99,10 @@ export function drawSpatialCanvas(
   ctx.fillStyle = GUI_COLORS.canvasBackground;
   ctx.fillRect(0, 0, rect.width, rect.height);
   ctx.font = THEME_TYPOGRAPHY.canvas;
-  const view = viewport ?? fitViewport(bounds, rect.width, rect.height);
-  const project = (point: Point3) => projectPoint(point, rect.width, rect.height, view);
-  drawGrid(ctx, rect.width, rect.height, view, gridSpacingMeters, unit);
+  const project = (point: Point3) => ({ x: view.offsetX + point.x * view.scale, y: view.offsetY - point.y * view.scale });
+  drawGrid(ctx, rect.width, rect.height, view, gridSpacingMeters);
   draw(ctx, project);
-  if (gridSpacingMeters !== undefined) drawRulers(ctx, rect.width, rect.height, view, gridSpacingMeters, unit);
+  drawRulers(ctx, rect.width, rect.height, view, gridSpacingMeters, unit);
 }
 
 export type SpatialViewport = { scale: number; fitScale: number; offsetX: number; offsetY: number };
@@ -133,20 +117,16 @@ export function fitViewport(bounds: RenderBounds, width: number, height: number)
   return { scale, fitScale: scale, offsetX: left - bounds.minX * scale, offsetY: height - bottom + bounds.minY * scale };
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: SpatialViewport, spacing: number | undefined, unit: SpatialUnit) {
-  const adaptive = view.scale > 180 ? 1 : view.scale > 70 ? 2 : view.scale > 25 ? 5 : view.scale > 8 ? 10 : 20;
-  const meters = spacing === undefined ? adaptive : visibleGridStep(spacing, view.scale, THEME_METRICS.spatialGridMinimumPixels);
-  const label = (value: number) => formatDistance(value, unit);
+function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: SpatialViewport, spacing: number) {
+  const meters = visibleGridStep(spacing, view.scale, THEME_METRICS.spatialGridMinimumPixels);
   const left = -view.offsetX / view.scale;
   const right = (width - view.offsetX) / view.scale;
   const bottom = (view.offsetY - height) / view.scale;
   const top = view.offsetY / view.scale;
-  ctx.font = THEME_TYPOGRAPHY.canvasLabel;
   for (let value = Math.floor(left / meters) * meters; value <= right; value += meters) {
     const x = view.offsetX + value * view.scale;
     ctx.strokeStyle = Math.abs(value) < 1e-8 ? GUI_COLORS.axis : (Math.round(value / meters) % 5 === 0 ? GUI_COLORS.majorGrid : GUI_COLORS.canvasGrid);
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-    if (x > THEME_METRICS.canvasLabelLeftInset && x < width - THEME_METRICS.canvasLabelRightInset) { ctx.fillStyle = GUI_COLORS.label; ctx.fillText(label(value), x + THEME_METRICS.canvasLabelLeftInset - 1, height - THEME_METRICS.canvasLabelBottomInset); }
   }
   for (let value = Math.floor(bottom / meters) * meters; value <= top; value += meters) {
     const y = view.offsetY - value * view.scale;
@@ -154,19 +134,10 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, 
     ctx.beginPath();
     ctx.moveTo(0, y); ctx.lineTo(width, y);
     ctx.stroke();
-    if (y > THEME_METRICS.canvasLabelTopInset && y < height - THEME_METRICS.canvasLabelLeftInset) { ctx.fillStyle = GUI_COLORS.label; ctx.fillText(label(value), THEME_METRICS.canvasLabelXOffset, y - THEME_METRICS.canvasLabelYOffset); }
   }
 }
 
-function projectPoint(point: Point3, _width: number, _height: number, view: SpatialViewport) {
-  return { x: view.offsetX + point.x * view.scale, y: view.offsetY - point.y * view.scale };
-}
-
-export function unproject(x: number, y: number, canvas: HTMLCanvasElement | null, bounds: RenderBounds, viewport?: SpatialViewport): Point3 {
-  const rect = canvas?.getBoundingClientRect();
-  const width = rect?.width ?? 1;
-  const height = rect?.height ?? 1;
-  const view = viewport ?? fitViewport(bounds, width, height);
+export function unproject(x: number, y: number, view: SpatialViewport): Point3 {
   return {
     x: (x - view.offsetX) / view.scale,
     y: (view.offsetY - y) / view.scale,
@@ -174,7 +145,7 @@ export function unproject(x: number, y: number, canvas: HTMLCanvasElement | null
   };
 }
 
-export function nearestPoint(points: Point3[], point: Point3, hitRadiusMeters: number = GUI_CANVAS.pointHitMeters) {
+export function nearestPoint(points: Point3[], point: Point3, hitRadiusMeters: number) {
   let best: number | null = null;
   let bestDistance = Infinity;
   for (let index = 0; index < points.length; index += 1) {

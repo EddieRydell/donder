@@ -5,28 +5,24 @@ use crate::common;
 use camino::Utf8PathBuf;
 use donder_model::{
     Action, AutomationTarget, CompositionGraphNodeId, ConsoleValidationError, EditError,
-    EventProblem, InputControlKind, InputEvent, Member, NameProblem, PlayLength,
-    ProjectValidationError, ValidationProblem,
+    EventProblem, InputControlKind, PlayLength, ProjectValidationError, ValidationProblem,
 };
 use donder_project_io::{check_project, project_source_texts};
+use donder_runtime_types::InputHappening;
 
 const KEYBOARD: &str = "input_devices/keyboard.data.donder";
 const JAM: &str = "consoles/jam.data.donder";
-const SETUP: &str = "setups/setup.data.donder";
 
 #[test]
 fn starter_keyboard_and_jam_console_load_typed() {
     let session = common::load_project(&common::starter_root());
     let project = session.project();
-    let setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .unwrap();
-    let [device] = setup.input_devices.as_slice() else {
-        panic!("the starter setup lists one input device");
+    let devices = project
+        .objects::<donder_model::InputDevice>()
+        .collect::<Vec<_>>();
+    let [(device_id, device)] = devices.as_slice() else {
+        panic!("the starter project has one input device");
     };
-    let device = project
-        .get::<donder_model::InputDevice>(*device.id())
-        .unwrap();
     assert_eq!(device.controls.len(), 4);
     assert!(
         device
@@ -34,32 +30,38 @@ fn starter_keyboard_and_jam_console_load_typed() {
             .iter()
             .all(|control| matches!(control.kind, InputControlKind::Button(_)))
     );
-    let [console] = project.root().consoles.as_slice() else {
-        panic!("the starter project lists one console");
+    let consoles = project
+        .objects::<donder_model::Console>()
+        .map(|(_, console)| console)
+        .collect::<Vec<_>>();
+    let [console] = consoles.as_slice() else {
+        panic!("the starter project has one console");
     };
-    let console = project.get::<donder_model::Console>(*console.id()).unwrap();
-    assert_eq!(console.live_marks.len(), 1);
+    assert_eq!(console.composition.marks.len(), 1);
     assert_eq!(console.set_targets().len(), 1);
-    assert_eq!(console.clips.len(), 3);
+    assert_eq!(console.composition.clips.len(), 3);
     assert_eq!(console.always.len(), 1);
-    assert_eq!(console.always[0].clip, console.clips[0].id);
-    assert!(console.inputs().all(|input| input.device == device.id));
+    assert_eq!(console.always[0].clip, console.composition.clips[0].id);
+    assert!(console.inputs().all(|input| input.device == *device_id));
     let events = console
         .events
         .iter()
-        .map(|on| (&on.event, on.actions.as_slice()))
+        .map(|on| (on.happening, on.actions.as_slice()))
         .collect::<Vec<_>>();
-    let (flash, wash) = (console.clips[1].id, console.clips[2].id);
+    let (flash, wash) = (
+        console.composition.clips[1].id,
+        console.composition.clips[2].id,
+    );
     let decay = console.set_targets()[0].clone();
     assert!(matches!(
         events.as_slice(),
         [
-            (InputEvent::Press(_), [Action::Play(play)]),
-            (InputEvent::Press(_), [Action::Start { clip: started, .. }]),
-            (InputEvent::Release(_), [Action::Stop { clip: stopped }]),
-            (InputEvent::Press(_), [Action::Mark(_)]),
-            (InputEvent::Press(_), [Action::Set { target: pressed, .. }]),
-            (InputEvent::Release(_), [Action::Set { target: released, .. }]),
+            (InputHappening::Press, [Action::Play(play)]),
+            (InputHappening::Press, [Action::Start { clip: started, .. }]),
+            (InputHappening::Release, [Action::Stop { clip: stopped }]),
+            (InputHappening::Press, [Action::Mark(_)]),
+            (InputHappening::Press, [Action::Set { target: pressed, .. }]),
+            (InputHappening::Release, [Action::Set { target: released, .. }]),
         ] if play.clip == flash
             && play.copies == 4
             && matches!(play.length, PlayLength::Fixed(_))
@@ -78,7 +80,7 @@ fn starter_keyboard_and_jam_console_save_byte_exactly() {
     let session = common::load_project(&root);
     donder_project_io::save_project(&session).unwrap();
     let after = project_source_texts(&root).unwrap();
-    for path in [KEYBOARD, JAM, SETUP, donder_project_io::PROJECT_ROOT_FILE] {
+    for path in [KEYBOARD, JAM, donder_project_io::PROJECT_ROOT_FILE] {
         let path = Utf8PathBuf::from(path);
         assert_eq!(before[&path], after[&path], "{path}");
     }
@@ -145,14 +147,14 @@ fn invalid_consoles_are_rejected_at_the_reference() {
     assert_rejected(&[
         (
             JAM,
-            "control: devices.keyboard.tap }",
-            "control: devices.keyboard }",
+            "control: devices.keyboard.tap,",
+            "control: devices.keyboard,",
             "`devices.keyboard` is an input device; an input is one of its controls",
         ),
         (
             JAM,
-            "control: devices.keyboard.tap }",
-            "control: devices.keyboard.snare }",
+            "control: devices.keyboard.tap,",
+            "control: devices.keyboard.snare,",
             "`devices.keyboard` has no control `snare`",
         ),
         (
@@ -196,13 +198,13 @@ fn invalid_consoles_are_rejected_at_the_reference() {
             JAM,
             "Mark { into: beat }",
             "Mark { into: downbeat }",
-            "no live marks named downbeat",
+            "no mark collection `downbeat`",
         ),
         (
             JAM,
-            "marks: [LiveMarks { name: beat,",
-            "marks: [LiveMarks { name: beat, description: none, color: #22c55e }, LiveMarks { name: beat,",
-            "two live mark collections are named beat",
+            "marks: [MarkCollection { name: beat,",
+            "marks: [MarkCollection { name: beat, description: none, color: #22c55e, times: [] }, MarkCollection { name: beat,",
+            "two mark collections are named beat",
         ),
         (
             JAM,
@@ -210,30 +212,27 @@ fn invalid_consoles_are_rejected_at_the_reference() {
             "always: [Always { clip: flash, length: 4s }],",
             "clip flash is played by Play and held",
         ),
-        (
-            SETUP,
-            "input_devices: [devices.keyboard],",
-            "input_devices: [],",
-            "the input device isn't in the setup",
-        ),
     ]);
 }
 
 #[test]
 fn console_edits_are_validated_like_loading() {
     let mut session = common::load_project(&common::starter_root());
-    let console = session
+    let (console_id, console) = session
         .project()
-        .reusable::<donder_model::Console>()
-        .values()
+        .objects::<donder_model::Console>()
         .next()
-        .unwrap()
-        .clone();
+        .unwrap();
+    let console = console.clone();
     let rejected = |edit: &dyn Fn(&mut donder_model::Console),
                     expected: &dyn Fn(&ConsoleValidationError) -> bool| {
         let mut value = console.clone();
         edit(&mut value);
-        let error = session.project().clone().put(value).unwrap_err();
+        let error = session
+            .project()
+            .clone()
+            .put((console_id, value))
+            .unwrap_err();
         assert!(
             matches!(&error, EditError::Invalid(ProjectValidationError { problem: ValidationProblem::Console(problem), .. }) if expected(problem)),
             "{error:?}"
@@ -319,31 +318,28 @@ fn console_edits_are_validated_like_loading() {
             )
         },
     );
-    rejected(
-        &|console| console.clips[2].name = console.clips[0].name.clone(),
-        &|problem| {
-            matches!(
-                problem,
-                ConsoleValidationError::Name(NameProblem::Duplicate(Member::ConsoleClip(_), _))
-            )
-        },
-    );
-    // A console of the project reads only the input devices of the project's
-    // setup: removing them removes the events that read them.
-    let setup_id = *session.project().root().setup.id();
-    let mut setup = session
+    // Removing an input device removes the events that read it.
+    let devices = session
         .project()
-        .get::<donder_model::Setup>(setup_id)
-        .unwrap()
-        .clone();
-    setup.input_devices.clear();
-    session.put(setup).unwrap();
+        .reusable::<donder_model::InputDevice>()
+        .keys()
+        .map(|&id| id.into())
+        .collect::<Vec<donder_model::ObjectId>>();
+    session
+        .edit(|edit| {
+            for id in devices {
+                edit.remove_object(id)?;
+            }
+            Ok::<_, donder_project_io::SessionEditError>(())
+        })
+        .unwrap();
     let repairs = session.take_repairs();
     assert!(
         !repairs.is_empty()
             && repairs
                 .iter()
-                .all(|repair| matches!(repair, donder_model::Repair::RemoveEvent { .. })),
+                .all(|repair| repair.action == donder_model::GiveWay::Remove
+                    && matches!(repair.site.member, Some(donder_model::Member::Event(_)))),
         "{repairs:?}"
     );
 }

@@ -1,4 +1,4 @@
-//! Perform mode: one console played live from the setup's input devices. A
+//! Perform mode: one console played live from the project's input devices. A
 //! performance is not an edit; it never touches project documents or history.
 //! Each input is stamped on the session clock and fans out in order to every
 //! evaluator, which routes it: live output, the Preview and Donder controllers.
@@ -12,48 +12,26 @@ mod inputs;
 use super::{DesktopState, lock_unpoisoned};
 use crate::midi::{ChannelMessage, MidiInputs, MidiMessage};
 use crate::osc::{OscInputs, OscMessage};
-use crate::rendering::{ConsoleOutput, SessionClock};
+use crate::playing::{PlayClock, Playing, SessionClock};
 use donder_editor::dto::{
     AudioTransportState, PerformButton, PerformConsole, PerformMidi, PerformOsc, PerformSession,
     PerformSnapshot,
 };
 use donder_elaboration::{PreparationCache, Retain};
 use donder_model::{
-    AxisInput, ButtonInput, ConsoleId, Controller, InputControlKind, InputDevice, InputDriver,
+    AxisInput, ButtonInput, ConsoleId, InputControlKind, InputDevice, InputDeviceId, InputDriver,
     KeyCode, MidiChannel, NoteRange, OscAddress,
 };
 use donder_project_io::ProjectSession;
-use donder_runtime::PreparedShow;
 use donder_runtime_types::{ConsoleEvent, SampleTime, sample_time_seconds_f32};
 use inputs::ConsoleInputs;
 
 #[derive(Default)]
 pub(crate) struct PerformService {
     performance: Option<Performance>,
-    /// Numbers performances, so the Preview tells one from the next.
-    generation: u32,
     revision: u32,
     /// Keeps clips lowered between performances.
     preparation: PreparationCache,
-}
-
-/// The performance in progress, as Donder controllers join it.
-pub(super) struct DevicePerformance {
-    pub(super) generation: u32,
-    pub(super) console: ConsoleId,
-    /// Ticks.
-    pub(super) duration: u32,
-    /// The session clock's position at `observed_at`, in ticks.
-    pub(super) position: u32,
-    pub(super) observed_at: std::time::Instant,
-}
-
-/// What the Preview needs to play a performance.
-pub(crate) struct PreviewPerformance {
-    pub(crate) generation: u32,
-    pub(crate) show: Vec<u8>,
-    /// Each fixture's id and pixel count, in prepared order.
-    pub(crate) fixtures: Vec<(u32, usize)>,
 }
 
 /// A MIDI input of a device the performance plays from.
@@ -182,7 +160,9 @@ impl MidiTouch {
 }
 
 struct Performance {
-    generation: u32,
+    /// The console as it plays, on the session clock, with every input so
+    /// far for a follower that joins mid-performance.
+    playing: Playing,
     /// What the input callbacks compare with their performance's number; it
     /// follows a performance armed again, whose inputs stay open.
     listening: Arc<AtomicU32>,
@@ -190,13 +170,8 @@ struct Performance {
     /// as armed: an edit to any of them arms the performance again.
     console_id: ConsoleId,
     source: donder_model::Console,
-    devices: Vec<InputDevice>,
+    devices: Vec<(InputDeviceId, InputDevice)>,
     console: PerformConsole,
-    clock: SessionClock,
-    prepared: PreparedShow,
-    /// The prepared console, encoded once for the Preview.
-    show: Vec<u8>,
-    fixtures: Vec<(u32, usize)>,
     inputs: ConsoleInputs,
     /// Each control's device and control names.
     buttons: Box<[PerformButton]>,
@@ -221,12 +196,21 @@ struct Performance {
     /// which ports it wants, sorted.
     osc_inputs: Option<OscInputs>,
     osc_wanted: Vec<u16>,
-    controllers: Vec<Controller>,
-    /// Every input so far, for an evaluator that joins mid-performance.
-    events: Vec<ConsoleEvent>,
 }
 
 impl Performance {
+    fn generation(&self) -> u32 {
+        self.playing.generation
+    }
+
+    /// The session clock's time now.
+    fn now(&self) -> SampleTime {
+        let PlayClock::Session(clock) = self.playing.clock else {
+            unreachable!("a performance plays on its session clock");
+        };
+        clock.now()
+    }
+
     fn session(&self) -> PerformSession {
         let mut keys = self
             .keys
@@ -236,7 +220,7 @@ impl Performance {
         keys.sort();
         PerformSession {
             console: self.console.clone(),
-            elapsed_seconds: f64::from(sample_time_seconds_f32(self.clock.now())),
+            elapsed_seconds: f64::from(sample_time_seconds_f32(self.now())),
             held: self
                 .buttons
                 .iter()
@@ -260,15 +244,6 @@ impl Performance {
                 }
             }),
         }
-    }
-
-    fn output(&self) -> ConsoleOutput {
-        ConsoleOutput::new(
-            self.prepared.clone(),
-            &self.events,
-            self.controllers.clone(),
-            self.clock,
-        )
     }
 }
 
@@ -315,7 +290,7 @@ impl DesktopState {
         lock_unpoisoned(&self.perform).performance.is_some()
     }
 
-    /// Arm the project's `console`th console on the active setup and start its session.
+    /// Arm the project's `console`th console and start its session.
     /// Sequence playback stops; live output that was on follows the performance.
     pub(crate) fn start_performing(
         &self,
@@ -329,12 +304,10 @@ impl DesktopState {
             return Err("The project changed. Choose the console to perform again.".into());
         }
         let project = session.project();
-        let source = project
-            .root()
-            .consoles
-            .get(console as usize)
+        let (&console_id, _) = project
+            .reusable::<donder_model::Console>()
+            .get_index(console as usize)
             .ok_or("The console is no longer in the project.")?;
-        let console_id = *source.id();
         let described = perform_console(&session, console, console_id);
         if matches!(
             self.audio_snapshot().state,
@@ -373,7 +346,7 @@ impl DesktopState {
             donder_elaboration::arm(project, &console_id, Retain::All, &mut perform.preparation)
                 .ok_or_else(|| {
                     format!(
-                        "Console {} cannot be prepared on the active setup.",
+                        "Console {} cannot be prepared on the project's controllers.",
                         described.name
                     )
                 })?;
@@ -381,7 +354,6 @@ impl DesktopState {
             unreachable!("arming found the console");
         };
         let mut inputs = ConsoleInputs::new(armed.controls.clone());
-        let setup = project.active_setup();
         let mut keys: HashMap<KeyCode, Vec<usize>> = HashMap::new();
         let mut midi = Vec::new();
         let mut osc = Vec::new();
@@ -395,10 +367,10 @@ impl DesktopState {
                 unreachable!("validation proved every control of the console");
             };
             buttons.push(PerformButton {
-                device: session.address_of(device.id).declared_name().to_string(),
+                device: session.address_of(button.device).object().to_string(),
                 control: control.name.as_str().to_string(),
             });
-            // Every control of the setup with this key, note or pedal plays.
+            // Every control of the project with this key, note or pedal plays.
             let reads = match &control.kind {
                 InputControlKind::Button(ButtonInput::Key(code)) => {
                     keys.entry(*code).or_default().push(index);
@@ -441,13 +413,13 @@ impl DesktopState {
                 input: index,
             });
         }
-        let mut devices: Vec<InputDevice> = Vec::new();
+        let mut devices: Vec<(InputDeviceId, InputDevice)> = Vec::new();
         for control in inputs.controls() {
-            if !devices.iter().any(|device| device.id == control.device) {
+            if !devices.iter().any(|(id, _)| *id == control.device) {
                 let Some(device) = project.get::<InputDevice>(control.device) else {
                     unreachable!("validation proved every input device of the console");
                 };
-                devices.push(device.clone());
+                devices.push((control.device, device.clone()));
             }
         }
         // Nothing can fail from here on, so the performance in progress can go.
@@ -456,7 +428,7 @@ impl DesktopState {
         } else {
             None
         };
-        let generation = perform.generation.wrapping_add(1);
+        let generation = self.next_playing_generation();
         let mut midi_wanted = midi
             .iter()
             .map(|binding| binding.port.clone())
@@ -526,7 +498,7 @@ impl DesktopState {
         let prepared = armed.prepared;
         let (clock, midi_held, midi_ports, events) = match carried {
             Some(previous) => {
-                let events = inputs.resume(previous.inputs.controls(), &previous.events);
+                let events = inputs.resume(previous.inputs.controls(), &previous.playing.events);
                 // A press a port holds stays held, under the control's new place.
                 let midi_held = previous
                     .midi_held
@@ -537,33 +509,36 @@ impl DesktopState {
                         Some(((input, number), holders))
                     })
                     .collect();
-                (previous.clock, midi_held, previous.midi_ports, events)
+                (
+                    previous.playing.clock,
+                    midi_held,
+                    previous.midi_ports,
+                    events,
+                )
             }
             None => (
-                SessionClock::start(prepared.duration()),
+                PlayClock::Session(SessionClock::start(prepared.duration())),
                 HashMap::new(),
                 Vec::new(),
                 Vec::new(),
             ),
         };
         self.console_feed.perform(generation, events.clone());
-        perform.generation = generation;
         perform.revision = perform.revision.wrapping_add(1);
         perform.performance = Some(Performance {
-            generation,
+            playing: Playing {
+                id: donder_model::ShowId::Console(console_id),
+                show: prepared,
+                clock,
+                events,
+                controllers: crate::playing::project_controllers(project),
+                generation,
+            },
             listening,
             console_id,
             source: console.object().clone(),
             devices,
             console: described,
-            clock,
-            show: prepared.encode(),
-            fixtures: prepared
-                .fixtures()
-                .iter()
-                .map(|fixture| (fixture.id, fixture.pixel_count as usize))
-                .collect(),
-            prepared,
             inputs,
             buttons: buttons.into(),
             keys,
@@ -575,8 +550,6 @@ impl DesktopState {
             osc,
             osc_inputs,
             osc_wanted,
-            controllers: crate::rendering::setup_controllers(setup),
-            events,
         });
         Ok(())
     }
@@ -596,10 +569,10 @@ impl DesktopState {
             let Some(console) = session.project().get::<donder_model::Console>(id) else {
                 return;
             };
-            let devices_changed = current.devices.iter().any(|device| {
+            let devices_changed = current.devices.iter().any(|(id, device)| {
                 session
                     .project()
-                    .get::<InputDevice>(device.id)
+                    .get::<InputDevice>(*id)
                     .is_none_or(|read| read != device)
             });
             if *console == current.source && !devices_changed {
@@ -607,10 +580,8 @@ impl DesktopState {
             }
             let Some(index) = session
                 .project()
-                .root()
-                .consoles
-                .iter()
-                .position(|source| *source.id() == id)
+                .reusable::<donder_model::Console>()
+                .get_index_of(&id)
             else {
                 return;
             };
@@ -689,7 +660,7 @@ impl DesktopState {
         self.offer_midi(port, message);
         let ChannelMessage { channel, message } = message;
         self.route(|performance, time| {
-            if performance.generation != generation {
+            if performance.generation() != generation {
                 return None;
             }
             let port = match performance
@@ -765,7 +736,7 @@ impl DesktopState {
     /// and pedals only it held are released, while axes keep their place.
     fn perform_midi_lost(&self, generation: u32, port: &str) {
         self.route(|performance, time| {
-            if performance.generation != generation {
+            if performance.generation() != generation {
                 return None;
             }
             let port = performance
@@ -803,7 +774,7 @@ impl DesktopState {
     fn perform_osc(&self, generation: u32, port: u16, message: &OscMessage) {
         self.offer_osc(port, message);
         self.route(|performance, time| {
-            if performance.generation != generation {
+            if performance.generation() != generation {
                 return None;
             }
             let mut events = Vec::new();
@@ -848,41 +819,29 @@ impl DesktopState {
         let Some(performance) = perform.performance.as_mut() else {
             return;
         };
-        let time = performance.clock.now();
+        let time = performance.now();
         let Some(events) = input(performance, time) else {
             return;
         };
-        performance.events.extend_from_slice(&events);
+        performance.playing.events.extend_from_slice(&events);
         if !events.is_empty() {
-            lock_unpoisoned(&self.live_output).console_events(&events);
-            self.console_feed.events(performance.generation, &events);
+            lock_unpoisoned(&self.live_output).events(&events);
+            self.console_feed.events(performance.generation(), &events);
         }
         perform.revision = perform.revision.wrapping_add(1);
         drop(perform);
         self.preview_wake.notify();
     }
 
-    /// Live output for the performance in progress, if any. It holds the
-    /// performance while the output starts, so no command is missed.
-    pub(super) fn perform_live_output<R>(
-        &self,
-        start: impl FnOnce(Option<ConsoleOutput>) -> R,
-    ) -> R {
+    /// Run `with` on what plays now: the performance, or else the prepared
+    /// sequence. It holds the performance while `with` runs, so live output
+    /// that starts misses none of its inputs.
+    pub(super) fn with_playing<R>(&self, with: impl FnOnce(Option<&Playing>) -> R) -> R {
         let perform = lock_unpoisoned(&self.perform);
-        start(perform.performance.as_ref().map(Performance::output))
-    }
-
-    /// The performance in progress as Donder controllers play it.
-    pub(super) fn device_performance(&self) -> Option<DevicePerformance> {
-        let perform = lock_unpoisoned(&self.perform);
-        let performance = perform.performance.as_ref()?;
-        Some(DevicePerformance {
-            generation: performance.generation,
-            console: performance.console_id,
-            duration: performance.prepared.duration().as_ticks(),
-            position: performance.clock.now().as_ticks(),
-            observed_at: std::time::Instant::now(),
-        })
+        match perform.performance.as_ref() {
+            Some(performance) => with(Some(&performance.playing)),
+            None => with(lock_unpoisoned(&self.sequence).as_ref()),
+        }
     }
 
     /// Keeps clips lowered between preparations of the performance.
@@ -892,25 +851,6 @@ impl DesktopState {
 
     pub(super) fn keep_preparation(&self, cache: PreparationCache) {
         lock_unpoisoned(&self.perform).preparation = cache;
-    }
-
-    pub(crate) fn performance_generation(&self) -> Option<u32> {
-        lock_unpoisoned(&self.perform)
-            .performance
-            .as_ref()
-            .map(|performance| performance.generation)
-    }
-
-    /// The performance's show and fixtures, for the Preview.
-    pub(crate) fn preview_performance(&self) -> Option<PreviewPerformance> {
-        lock_unpoisoned(&self.perform)
-            .performance
-            .as_ref()
-            .map(|performance| PreviewPerformance {
-                generation: performance.generation,
-                show: performance.show.clone(),
-                fixtures: performance.fixtures.clone(),
-            })
     }
 
     /// The performance's inputs from the `from`th on, while `generation` is
@@ -923,21 +863,8 @@ impl DesktopState {
         lock_unpoisoned(&self.perform)
             .performance
             .as_ref()
-            .filter(|performance| performance.generation == generation)
-            .map(|performance| performance.events[from..].to_vec())
-    }
-
-    /// The performance's session clock for the Preview, playing from its start.
-    pub(crate) fn performance_clock(&self) -> Option<crate::preview::PreviewClock> {
-        lock_unpoisoned(&self.perform)
-            .performance
-            .as_ref()
-            .map(|performance| crate::preview::PreviewClock {
-                generation: performance.generation,
-                state: AudioTransportState::Playing,
-                position_seconds: f64::from(sample_time_seconds_f32(performance.clock.now())),
-                playback_speed: donder_runtime::PlaybackRate::NORMAL.into(),
-            })
+            .filter(|performance| performance.generation() == generation)
+            .map(|performance| performance.playing.events[from..].to_vec())
     }
 
     /// The performance's colors now, as every evaluator renders them.
@@ -945,22 +872,21 @@ impl DesktopState {
     fn render_performance_colors(&self) -> Option<Vec<donder_runtime_types::Color>> {
         let perform = lock_unpoisoned(&self.perform);
         let performance = perform.performance.as_ref()?;
-        let mut playback = performance.prepared.clone().into_playback();
-        for event in &performance.events {
+        let mut playback = performance.playing.show.clone().into_playback();
+        for event in &performance.playing.events {
             playback.apply(*event);
         }
-        Some(playback.evaluate(performance.clock.now()).colors().to_vec())
+        Some(playback.evaluate(performance.now()).colors().to_vec())
     }
 }
 
 fn project_consoles(session: &ProjectSession) -> Vec<PerformConsole> {
     session
         .project()
-        .root()
-        .consoles
-        .iter()
+        .reusable::<donder_model::Console>()
+        .keys()
         .zip(0..)
-        .map(|(source, index)| perform_console(session, index, *source.id()))
+        .map(|(&id, index)| perform_console(session, index, id))
         .collect()
 }
 
@@ -969,7 +895,7 @@ fn perform_console(session: &ProjectSession, index: u32, console: ConsoleId) -> 
     let address = session.address_of(console);
     PerformConsole {
         index,
-        name: address.declared_name().to_string(),
+        name: address.object().to_string(),
         path: address.document().to_string(),
     }
 }
@@ -989,7 +915,7 @@ mod tests {
             .unwrap();
         let (_temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
         // Stream the starter's controller to this test over Art-Net.
-        let path = root.join("setups/setup.data.donder");
+        let path = root.join("controllers/controllers.data.donder");
         let text = fs_err::read_to_string(&path).unwrap().replace("\r\n", "\n");
         let start = text.find("  protocol: E131 {").unwrap();
         let end = start + text[start..].find("\n  },\n").unwrap() + "\n  },\n".len();

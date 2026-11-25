@@ -1,4 +1,3 @@
-import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 import devices from <input_devices/mpk_mini.data.donder>;
@@ -8,65 +7,71 @@ Console mpk_mini {
   description: "Play the house from the MPK mini: pads fire hits, keys sweep wipes, knobs shape the look.",
   frame_rate: 144,
   marks: [
-    LiveMarks { name: beat1, description: none, color: #22c55e },
-    LiveMarks { name: beat2, description: none, color: #f97316 },
-    LiveMarks { name: beat3, description: none, color: #22c55e },
+    MarkCollection { name: beat1, description: none, color: #22c55e, times: [] },
+    MarkCollection { name: beat2, description: none, color: #f97316, times: [] },
+    MarkCollection { name: beat3, description: none, color: #22c55e, times: [] },
   ],
   layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
   clips: [
-    ConsoleClip {
+    Clip {
       name: mark_pulse,
       description: none,
-      layer: default,
-      target: layouts.layout.everything,
-      scope: WholeTarget,
-      effect: effects.MarkPulse,
-      params: {
-        beats: beat1,
-        accent: gradients.white_light_green_blue,
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        decay_seconds: 0.8,
-        cluster_width_pixels: 15,
-        clusters_per_mark: 30,
-        overlap_marks: true,
+      target: everything,
+      placement: Played { values: [] },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.MarkPulse,
+        params: {
+          beats: beat1,
+          accent: gradients.white_light_green_blue,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          decay_seconds: 0.8,
+          cluster_width_pixels: 15,
+          clusters_per_mark: 30,
+          overlap_marks: true,
+        },
       },
-      played: [],
     },
-    ConsoleClip {
+    Clip {
       name: mark_field_wipe,
       description: none,
-      layer: default,
-      target: layouts.layout.everything,
-      scope: WholeTarget,
-      effect: effects.MarkFieldWipe,
-      params: {
-        beats: beat2,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.033, #ffffff), (0.266, #ff7200), (0.601, #b900ff)],
-          },
-        ],
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+      target: everything,
+      placement: Played { values: [] },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.MarkFieldWipe,
+        params: {
+          beats: beat2,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.033, #ffffff), (0.266, #ff7200), (0.601, #b900ff)],
+            },
+          ],
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
-      played: [],
     },
   ],
   always: [],
   events: [
-    On { event: Press { control: devices.mpk_mini.pad_1 }, actions: [Mark { into: beat1 }] },
-    On { event: Press { control: devices.mpk_mini.pad_2 }, actions: [Mark { into: beat2 }] },
+    On { happening: Press, control: devices.mpk_mini.pad_1, actions: [Mark { into: beat1 }] },
+    On { happening: Press, control: devices.mpk_mini.pad_2, actions: [Mark { into: beat2 }] },
     On {
-      event: Press { control: devices.mpk_mini.pad_8 },
+      happening: Press,
+      control: devices.mpk_mini.pad_8,
       actions: [Toggle { clip: mark_pulse, length: 4s }],
     },
-    On { event: Press { control: devices.mpk_mini.pad_3 }, actions: [Mark { into: beat3 }] },
+    On { happening: Press, control: devices.mpk_mini.pad_3, actions: [Mark { into: beat3 }] },
     On {
-      event: Move { control: devices.mpk_mini.knob_1 },
+      happening: Move,
+      control: devices.mpk_mini.knob_1,
       actions: [
         Set {
           param: ClipParam { clip: mark_pulse, param: cluster_width_pixels },
@@ -79,27 +84,32 @@ Console mpk_mini {
       ],
     },
     On {
-      event: Move { control: devices.mpk_mini.knob_2 },
+      happening: Move,
+      control: devices.mpk_mini.knob_2,
       actions: [Set { param: NodeParam { node: hue_shift, param: shift }, window: (0.0, 1.0) }],
     },
     On {
-      event: Press { control: devices.mpk_mini.pad_7 },
+      happening: Press,
+      control: devices.mpk_mini.pad_7,
       actions: [Toggle { clip: mark_field_wipe, length: 4s }],
     },
     On {
-      event: Move { control: devices.mpk_mini.knob_3 },
+      happening: Move,
+      control: devices.mpk_mini.knob_3,
       actions: [
         Set { param: ClipParam { clip: mark_field_wipe, param: linear }, window: (0.0, 1.0) },
       ],
     },
     On {
-      event: Move { control: devices.mpk_mini.knob_4 },
+      happening: Move,
+      control: devices.mpk_mini.knob_4,
       actions: [
         Set { param: ClipParam { clip: mark_field_wipe, param: saddle }, window: (0.0, 1.0) },
       ],
     },
     On {
-      event: Move { control: devices.mpk_mini.knob_5 },
+      happening: Move,
+      control: devices.mpk_mini.knob_5,
       actions: [
         Set { param: ClipParam { clip: mark_field_wipe, param: radial }, window: (0.0, 1.0) },
       ],

@@ -4,17 +4,17 @@ use donder_model::{
     GraphNodePosition, SequenceId,
 };
 use donder_model::{DonderProject, ProjectEdit};
-use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
+use donder_model::{GraphOperatorNode, ScriptDefinition, ScriptId};
 
 pub(crate) fn append_operator(
     project: &mut DonderProject,
     id: &SequenceId,
     compiled: CompiledDefinition,
 ) {
-    let definition = OperatorDefinitionId(project.new_id());
+    let definition = ScriptId(project.new_id());
     let input = compiled.inputs()[0].name.clone();
     let mut sequence = project.get::<donder_model::Sequence>(*id).unwrap().clone();
-    let graph = &mut sequence.composition_graph;
+    let graph = &mut sequence.composition.graph;
     let output = graph
         .nodes
         .iter()
@@ -36,7 +36,7 @@ pub(crate) fn append_operator(
     ))
     .unwrap()
     .remove(0);
-    let mixer_id = OperatorDefinitionId(project.new_id());
+    let mixer_id = ScriptId(project.new_id());
     // Preserve the existing output mix as the new operator's sole input.
     let mix = CompositionGraphNodeId(next);
     let operator = CompositionGraphNodeId(next + 1);
@@ -89,13 +89,15 @@ pub(crate) fn append_operator(
     ]);
     project
         .apply_edits([
-            ProjectEdit::Put(donder_model::Object::OperatorDefinition(
-                OperatorDefinition::new(mixer_id, mixer),
+            ProjectEdit::Put(donder_model::Object::Script(
+                mixer_id,
+                ScriptDefinition::new(mixer),
             )),
-            ProjectEdit::Put(donder_model::Object::OperatorDefinition(
-                OperatorDefinition::new(definition, compiled),
+            ProjectEdit::Put(donder_model::Object::Script(
+                definition,
+                ScriptDefinition::new(compiled),
             )),
-            ProjectEdit::Put(sequence.into()),
+            ProjectEdit::Put((*id, sequence).into()),
         ])
         .unwrap();
 }

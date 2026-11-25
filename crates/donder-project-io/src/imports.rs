@@ -1,8 +1,3 @@
-pub(crate) use ownership::ensure_document_can_reference_address;
-pub use ownership::{
-    available_declarations, ensure_document_can_reference_object, link_declaration,
-};
-mod ownership;
 use crate::address::{DocumentId, SourceIdentity};
 use crate::diagnostics::LoadError;
 use crate::loader::Loader;
@@ -28,7 +23,7 @@ pub(crate) struct ParsedImport {
     pub(crate) source_ranges: Vec<Option<TextRange>>,
 }
 
-fn ensure_document_imports_target(
+pub(crate) fn ensure_document_imports_target(
     session: &mut ProjectSession,
     from_document: &DocumentId,
     kind: &ObjectKind,
@@ -78,7 +73,18 @@ fn ensure_document_imports_target(
     Ok(())
 }
 
-fn ensure_document_can_reference_source(
+/// Make `id`, a declared object, visible from `from`: its document is
+/// imported when it is another one.
+pub fn ensure_document_can_reference_object(
+    session: &mut ProjectSession,
+    from: &DocumentId,
+    id: ObjectId,
+) -> Result<(), ExportProjectError> {
+    let identity = session.address_of(id);
+    ensure_document_can_reference_source(session, from, id.kind(), &identity)
+}
+
+pub(crate) fn ensure_document_can_reference_source(
     session: &mut ProjectSession,
     from_document: &DocumentId,
     kind: ObjectKind,
@@ -99,20 +105,17 @@ fn ensure_document_can_reference_source(
 
 /// The alias an import of a document declaring objects of `kind` is given:
 /// the kind's plural, `curves` or `fixtures`.
-pub fn canonical_reference_alias(kind: ObjectKind) -> &'static str {
+pub(crate) fn canonical_reference_alias(kind: ObjectKind) -> &'static str {
     match kind {
-        ObjectKind::EffectDefinition => "effects",
-        ObjectKind::OperatorDefinition => "operators",
+        ObjectKind::Script => "scripts",
         ObjectKind::Curve => "curves",
         ObjectKind::Gradient => "gradients",
         ObjectKind::Sequence => "sequences",
         ObjectKind::Console => "consoles",
         ObjectKind::Project => "projects",
-        ObjectKind::Setup => "setups",
         ObjectKind::Controller => "controllers",
         ObjectKind::InputDevice => "devices",
         ObjectKind::Layout => "layouts",
-        ObjectKind::Patch => "patches",
         ObjectKind::FixtureDefinition => "fixtures",
     }
 }
@@ -426,17 +429,14 @@ fn validate_reference_target(
 fn kind_name(kind: &ObjectKind) -> &'static str {
     match kind {
         ObjectKind::Project => "a project",
-        ObjectKind::Setup => "a setup",
         ObjectKind::Controller => "a controller",
         ObjectKind::InputDevice => "an input device",
         ObjectKind::Layout => "a layout",
-        ObjectKind::Patch => "a patch",
         ObjectKind::FixtureDefinition => "a fixture definition",
         ObjectKind::Curve => "a curve",
         ObjectKind::Gradient => "a gradient",
         ObjectKind::Sequence => "a sequence",
         ObjectKind::Console => "a console",
-        ObjectKind::EffectDefinition => "an effect",
-        ObjectKind::OperatorDefinition => "an operator",
+        ObjectKind::Script => "a script",
     }
 }

@@ -16,5 +16,4 @@ Sequence empty {
     ],
     edges: [Edge { from: layers.default, to: root }],
   },
-  automation: [],
 }

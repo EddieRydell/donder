@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::dto::{SequenceClipArrangement, SequenceClipRef};
+use crate::dto::SequenceClipArrangement;
 use donder_language::{DonderDuration, DonderTime};
-use donder_model::{FixtureTarget, Sequence};
+use donder_model::{FixtureId, Sequence};
 use donder_project_io::ProjectSession;
 
-use super::model::{automation_clip_mut, clip_mut};
+use super::model::{clip_mut, timed};
 use super::selection::{lane_targets, nearest_lane};
 use super::{GuiMutationError, ResolvedGuiObject};
 
@@ -37,11 +37,11 @@ impl Span {
     }
 }
 
-/// Clips and automation clips in one lane are separate rows.
+/// Effect clips and envelopes in one lane are separate rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum RowKind {
     Clips,
-    Automation,
+    Envelopes,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -51,7 +51,7 @@ struct Row {
 }
 
 struct Clip {
-    clip: SequenceClipRef,
+    id: u32,
     row: Row,
     span: Span,
 }
@@ -66,48 +66,45 @@ fn sequence_clips(
     sequence: &Sequence,
 ) -> Result<Vec<Clip>, GuiMutationError> {
     let lanes = lane_targets(session);
-    let row = |target: &FixtureTarget, kind| {
+    let row = |target: &FixtureId, kind| {
         nearest_lane(&lanes, target, 0)
             .map(|lane| Row { lane, kind })
             .ok_or_else(|| invalid("Clip row target is missing."))
     };
-    let clips = sequence.clips.iter().map(|clip| {
-        Ok(Clip {
-            clip: SequenceClipRef::Clip { id: clip.id.0 },
-            row: row(&clip.target, RowKind::Clips)?,
-            span: Span::of(&clip.start, &clip.duration),
+    sequence
+        .composition
+        .clips
+        .iter()
+        .map(|clip| {
+            let kind = match clip.envelope() {
+                Some(_) => RowKind::Envelopes,
+                None => RowKind::Clips,
+            };
+            Ok(Clip {
+                id: clip.id.0,
+                row: row(&clip.target, kind)?,
+                span: {
+                    let (start, duration) = timed(clip);
+                    Span::of(start, duration)
+                },
+            })
         })
-    });
-    let automation = sequence.automation_clips.iter().map(|clip| {
-        Ok(Clip {
-            clip: SequenceClipRef::Automation { id: clip.id.0 },
-            row: row(&clip.row_target, RowKind::Automation)?,
-            span: Span::of(&clip.start, &clip.duration),
-        })
-    });
-    clips.chain(automation).collect()
+        .collect()
 }
 
 pub(super) fn arrange_clip_selection(
     session: &mut ProjectSession,
     resolved: &ResolvedGuiObject,
-    clip_ids: &[u32],
-    automation_ids: &[u32],
+    ids: &[u32],
     arrangement: &SequenceClipArrangement,
 ) -> Result<(), GuiMutationError> {
     let sequence = resolved.view::<Sequence>(session).object();
     let all = sequence_clips(session, sequence)?;
-    let selected: Vec<&Clip> = clip_ids
+    let selected: Vec<&Clip> = ids
         .iter()
-        .map(|id| SequenceClipRef::Clip { id: *id })
-        .chain(
-            automation_ids
-                .iter()
-                .map(|id| SequenceClipRef::Automation { id: *id }),
-        )
-        .map(|clip| {
+        .map(|id| {
             all.iter()
-                .find(|candidate| candidate.clip == clip)
+                .find(|candidate| candidate.id == *id)
                 .ok_or_else(|| invalid("A selected clip is missing from the sequence."))
         })
         .collect::<Result<_, _>>()?;
@@ -129,25 +126,18 @@ pub(super) fn arrange_clip_selection(
         let duration = DonderDuration::from_nanos(
             u64::try_from(span.len()).map_err(|_| invalid("A clip length is out of range."))?,
         );
-        match clip.clip {
-            SequenceClipRef::Clip { id } => {
-                let authored = clip_mut(&mut draft, id)?;
-                authored.start = start;
-                authored.duration = duration;
-            }
-            // A clip that keeps its length carries its curve; a resized one
-            // crops it, as a resize drag does.
-            SequenceClipRef::Automation { id } => {
-                let automation = automation_clip_mut(&mut draft, id)?;
-                if span.len() == clip.span.len() {
-                    automation.start = start;
-                } else {
-                    automation.crop(start, duration);
-                }
-            }
+        // A clip that keeps its length carries an envelope's curve; a
+        // resized one crops it, as a resize drag does.
+        let authored = clip_mut(&mut draft, clip.id)?;
+        if span.len() == clip.span.len() {
+            authored.placement = donder_model::Placement::Timed { start, duration };
+        } else {
+            authored.crop(start, duration);
         }
     }
-    session.put(draft).map_err(GuiMutationError::from)?;
+    session
+        .put((resolved.id(), draft))
+        .map_err(GuiMutationError::from)?;
     Ok(())
 }
 
@@ -159,19 +149,19 @@ fn arranged(
     arrangement: &SequenceClipArrangement,
 ) -> Result<Vec<Span>, GuiMutationError> {
     use SequenceClipArrangement as A;
-    let reference_span = |reference: &SequenceClipRef| {
+    let reference_span = |reference: &u32| {
         all.iter()
-            .find(|clip| clip.clip == *reference)
+            .find(|clip| clip.id == *reference)
             .map(|clip| clip.span)
             .ok_or_else(|| invalid("The reference clip is missing from the sequence."))
     };
     // The reference keeps its timing when it is selected.
-    let to_reference = |reference: &SequenceClipRef, place: &dyn Fn(Span, Span) -> Span| {
+    let to_reference = |reference: &u32, place: &dyn Fn(Span, Span) -> Span| {
         let target = reference_span(reference)?;
         Ok(selected
             .iter()
             .map(|clip| {
-                if clip.clip == *reference {
+                if clip.id == *reference {
                     clip.span
                 } else {
                     place(clip.span, target)
@@ -361,14 +351,15 @@ fn by_row(
     Ok(spans)
 }
 
-/// The sorted times of the named mark collections.
-fn mark_times(sequence: &Sequence, keys: &[String]) -> Result<Vec<i128>, GuiMutationError> {
+/// The sorted times of the mark collections `ids`.
+fn mark_times(sequence: &Sequence, ids: &[u32]) -> Result<Vec<i128>, GuiMutationError> {
     let mut times = Vec::new();
-    for key in keys {
+    for id in ids {
         let collection = sequence
-            .mark_collections
+            .composition
+            .marks
             .iter()
-            .find(|collection| collection.key.name.as_str() == key)
+            .find(|collection| collection.id.0 == *id)
             .ok_or_else(|| invalid("Mark collection was not found."))?;
         times.extend(
             collection

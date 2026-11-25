@@ -4,7 +4,7 @@
 //! constant inputs and fuse sources before lowering it to a program.
 use super::check::{self, Definition};
 use super::declarations::{check_ranges, map_curves, program_params};
-use super::instance::{Instance, ProgramConstants};
+use super::instance::{Instance, LiveWords, ProgramConstants};
 use super::ir::Op;
 use super::ir::interval::{Bounds, interval};
 use super::lower::LowerError;
@@ -300,9 +300,24 @@ impl Invocation {
     }
 
     /// This invocation at one place in a prepared sequence.
-    pub fn instance(&self, constants: ProgramConstants) -> Instance {
-        Instance::new(&self.definition, &self.params, &self.automation, constants)
-            .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance"))
+    /// Its live bindings read the live store words `live` names, in their
+    /// order; a sequence's invocations have none.
+    pub fn instance(&self, constants: ProgramConstants, live: &[LiveWords]) -> Instance {
+        Instance::new(
+            &self.definition,
+            &self.params,
+            &self.automation,
+            constants,
+            live,
+        )
+        .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance"))
+    }
+
+    /// This invocation with each parameter of `params` left to playback: a
+    /// slot that preparation knows nothing of and playback reads as bound.
+    /// Lowering places those slots first, in declaration order.
+    pub fn playback_instance(&self, params: &[usize]) -> Instance {
+        Instance::left_to_playback(&self.definition, &self.params, params)
     }
 
     /// Whether `other` prepares identically: the same definition, bitwise

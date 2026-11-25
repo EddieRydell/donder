@@ -2,14 +2,14 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use donder_editor::GuiMutationError;
-use donder_editor::dto::{GuiProblem, GuiProblemSite};
+use donder_editor::dto::{GuiProblem, GuiSite};
 use donder_project_io::ProjectSession;
 
 use super::{DesktopState, generated_source_texts, lock_unpoisoned};
 use crate::state_tasks::GuiHistoryEntry;
 use donder_editor::dto::{
-    AppSnapshot, GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate,
-    GuiObjectRef, WorkspacePathChangeRequest,
+    AppSnapshot, GuiDocumentChange, GuiDocumentRequest, GuiEdit, GuiEditUpdate,
+    WorkspacePathChangeRequest,
 };
 
 impl DesktopState {
@@ -41,7 +41,6 @@ impl DesktopState {
             None => path.to_string(),
         };
         Ok(GuiDocumentRequest {
-            owned_path: Vec::new(),
             project_revision: workspace.view.project_revision,
             path,
             object_key: object.name().as_str().to_string(),
@@ -125,28 +124,46 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_clip_raster).pixels_rgba_for_token(token)
     }
 
-    /// Apply one GUI edit. An edit that also changes objects it left alone
-    /// waits for [`Self::confirm_gui_edit`].
+    /// Apply one GUI edit. An edit that also changes objects it left alone,
+    /// or removes an object, waits for [`Self::confirm_gui_edit`]. Renaming
+    /// an object alone in its file renames the file first, which clears undo
+    /// as moving a file does.
     pub(crate) fn edit_gui_document(
         &self,
         request: GuiDocumentRequest,
-        edit: GuiEditCommand,
+        edit: GuiEdit,
     ) -> GuiEditUpdate {
+        let site = edit.site();
+        let (request, edit) = match self.move_renamed_file(request, edit) {
+            Ok(moved) => moved,
+            Err(problem) => return self.gui_edit_error(problem),
+        };
         let _authoring = lock_unpoisoned(&self.authoring);
-        let site = donder_editor::edit_site(&edit);
         let prepared = self.prepare_gui_edit(&request, site, |session| {
             donder_editor::apply_edit(session, &request, edit)
         });
-        let (prepared, outcome) = match prepared {
+        let (mut prepared, mut outcome) = match prepared {
             Ok(prepared) => prepared,
             Err(problem) => return self.gui_edit_error(problem),
         };
+        let deleted_document = outcome.deleted.take().map(|deleted| {
+            prepared.changes.insert(
+                0,
+                match &deleted.document {
+                    Some(document) => {
+                        format!("Delete {} and its file {}", deleted.name, document.path())
+                    }
+                    None => format!("Delete {}", deleted.name),
+                },
+            );
+            deleted.document
+        });
         if !prepared.changes.is_empty() {
             let changes = prepared.changes.clone();
             *lock_unpoisoned(&self.pending_gui_edit) = Some(PendingGuiEdit {
                 prepared,
                 outcome,
-                deleted_document: None,
+                deleted_document: deleted_document.flatten(),
             });
             return gui_update(
                 self.snapshot(),
@@ -157,6 +174,47 @@ impl DesktopState {
             Ok(update) => with_outcome(update, outcome),
             Err(problem) => self.gui_edit_error(problem),
         }
+    }
+
+    /// Move the file of the object `edit` renames to match its new name, and
+    /// the request and edit with it.
+    fn move_renamed_file(
+        &self,
+        request: GuiDocumentRequest,
+        edit: GuiEdit,
+    ) -> Result<(GuiDocumentRequest, GuiEdit), GuiProblem> {
+        let moved = {
+            let _authoring = self.settled_authoring();
+            let project = self
+                .project_session()
+                .ok_or_else(|| GuiProblem::without_site("No project is loaded."))?;
+            donder_editor::renamed_file(&project, &request, &edit).map_err(|error| {
+                donder_editor::refusal(&project, &project, &request, edit.site(), error)
+            })?
+        };
+        let Some((from, to)) = moved else {
+            return Ok((request, edit));
+        };
+        self.apply_workspace_path_change(WorkspacePathChangeRequest {
+            source: from.clone(),
+            destination: to.clone(),
+            project_revision: request.project_revision,
+        })
+        .map_err(GuiProblem::without_site)?;
+        let project_revision = self.snapshot().project_revision;
+        let path = if request.path == from {
+            to.clone()
+        } else {
+            request.path
+        };
+        Ok((
+            GuiDocumentRequest {
+                project_revision,
+                path,
+                ..request
+            },
+            edit.with_object_path(to),
+        ))
     }
 
     /// Apply the edit of `request` that waits for confirmation, unless the
@@ -185,102 +243,6 @@ impl DesktopState {
             Ok(update) => with_outcome(update, outcome),
             Err(problem) => self.gui_edit_error(problem),
         }
-    }
-
-    /// Name `source`, a member of the object `request` opens, `name`. A
-    /// member alone in its file has the file renamed to match first, which
-    /// clears undo as moving a file does.
-    pub(crate) fn rename_gui_member(
-        &self,
-        request: GuiDocumentRequest,
-        source: GuiObjectRef,
-        name: String,
-    ) -> GuiEditUpdate {
-        let site = Some(donder_editor::member_name_site());
-        let moved = {
-            let _authoring = self.settled_authoring();
-            let Some(project) = self.project_session() else {
-                return self.gui_edit_error(GuiProblem::without_site("No project is loaded."));
-            };
-            donder_editor::resolve_request(&project, &request)
-                .map_err(GuiMutationError::Invalid)
-                .and_then(|owner| {
-                    donder_editor::member_file_rename(&project, &owner, &source, &name)
-                })
-                .map_err(|error| {
-                    donder_editor::refusal(&project, &project, &request, site.clone(), error)
-                })
-        };
-        let (request, source) = match moved {
-            Ok(None) => (request, source),
-            Ok(Some((from, to))) => {
-                let moved = self.apply_workspace_path_change(WorkspacePathChangeRequest {
-                    source: from,
-                    destination: to.clone(),
-                    project_revision: request.project_revision,
-                });
-                if let Err(message) = moved {
-                    return self.gui_edit_error(GuiProblem::without_site(message));
-                }
-                let project_revision = self.snapshot().project_revision;
-                (
-                    GuiDocumentRequest {
-                        project_revision,
-                        ..request
-                    },
-                    GuiObjectRef { path: to, ..source },
-                )
-            }
-            Err(problem) => return self.gui_edit_error(problem),
-        };
-        let _authoring = lock_unpoisoned(&self.authoring);
-        match self.mutate_gui_project_locked(&request, site, |session| {
-            let owner = donder_editor::resolve_request(session, &request)
-                .map_err(GuiMutationError::Invalid)?;
-            donder_editor::rename_member(session, &owner, &source, &name)
-        }) {
-            Ok((update, ())) => update,
-            Err(problem) => self.gui_edit_error(problem),
-        }
-    }
-
-    /// Delete `source`, a member of the object `request` opens, once the
-    /// person confirms with [`Self::confirm_gui_edit`]. A member alone in its
-    /// file takes the file with it.
-    pub(crate) fn delete_gui_member(
-        &self,
-        request: GuiDocumentRequest,
-        source: GuiObjectRef,
-    ) -> GuiEditUpdate {
-        let _authoring = lock_unpoisoned(&self.authoring);
-        let prepared = self.prepare_gui_edit(&request, None, |session| {
-            let owner = donder_editor::resolve_request(session, &request)
-                .map_err(GuiMutationError::Invalid)?;
-            donder_editor::delete_member(session, &owner, &source)
-        });
-        let (mut prepared, deleted) = match prepared {
-            Ok(prepared) => prepared,
-            Err(problem) => return self.gui_edit_error(problem),
-        };
-        prepared.changes.insert(
-            0,
-            match &deleted.document {
-                Some(document) => {
-                    format!("Delete {} and its file {}", deleted.name, document.path())
-                }
-                None => format!("Delete {}", deleted.name),
-            },
-        );
-        let changes = prepared.changes.clone();
-        *lock_unpoisoned(&self.pending_gui_edit) = Some(PendingGuiEdit {
-            prepared,
-            outcome: donder_editor::GuiEditOutcome::default(),
-            deleted_document: deleted.document,
-        });
-        gui_update(
-            self.snapshot(),
-            GuiDocumentChange::NeedsConfirmation { changes },
-        )
     }
 
     /// Apply a prepared edit that removed `document`, and delete its file.
@@ -376,7 +338,7 @@ impl DesktopState {
     pub(crate) fn check_gui_edit(
         &self,
         request: &GuiDocumentRequest,
-        edit: GuiEditCommand,
+        edit: GuiEdit,
     ) -> Option<GuiProblem> {
         let project = self.project_session()?;
         donder_editor::check_edit(&project, request, edit)
@@ -423,7 +385,7 @@ impl DesktopState {
     pub(crate) fn apply_gui_edit(
         &self,
         request: GuiDocumentRequest,
-        edit: GuiEditCommand,
+        edit: GuiEdit,
     ) -> GuiEditResult {
         let update = self.edit_gui_document(request.clone(), edit);
         let document = match update.change {
@@ -452,7 +414,7 @@ impl DesktopState {
     pub(super) fn mutate_gui_project_locked<T>(
         &self,
         request: &GuiDocumentRequest,
-        edit_site: Option<GuiProblemSite>,
+        edit_site: Option<GuiSite>,
         mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
     ) -> Result<(GuiEditUpdate, T), GuiProblem> {
         let (prepared, value) = self.prepare_gui_edit(request, edit_site, mutate)?;
@@ -471,7 +433,7 @@ impl DesktopState {
     fn prepare_gui_edit<T>(
         &self,
         request: &GuiDocumentRequest,
-        edit_site: Option<GuiProblemSite>,
+        edit_site: Option<GuiSite>,
         mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
     ) -> Result<(PreparedGuiEdit, T), GuiProblem> {
         lock_unpoisoned(&self.pending_gui_edit).take();
@@ -681,8 +643,6 @@ pub(crate) fn gui_update(snapshot: AppSnapshot, change: GuiDocumentChange) -> Gu
         snapshot,
         change,
         selection: None,
-        copied_count: 0,
-        skipped_count: 0,
         created: Vec::new(),
     }
 }
@@ -690,8 +650,6 @@ pub(crate) fn gui_update(snapshot: AppSnapshot, change: GuiDocumentChange) -> Gu
 fn with_outcome(update: GuiEditUpdate, outcome: donder_editor::GuiEditOutcome) -> GuiEditUpdate {
     GuiEditUpdate {
         selection: outcome.selection,
-        copied_count: outcome.copied_count,
-        skipped_count: outcome.skipped_count,
         created: outcome.created,
         ..update
     }

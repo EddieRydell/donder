@@ -41,7 +41,7 @@ use serde_json::{Value, json};
 
 use crate::document::Document;
 use crate::text::LineIndex;
-pub use crate::text::{file_uri, uri_path};
+pub use crate::text::uri_path;
 use crate::workspace::{Checker, Workspace, kind};
 pub use crate::workspace::{DocumentSource, ProjectCheck};
 

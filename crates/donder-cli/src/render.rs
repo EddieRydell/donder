@@ -6,7 +6,7 @@ use std::fmt::Write;
 use std::ops::Range;
 
 use donder_language::data::canonical_duration;
-use donder_model::{FixtureInstanceId, Layout, SequenceId};
+use donder_model::{FixtureId, Layout, SequenceId};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::{Color, sample_time_from_frame};
 
@@ -46,11 +46,11 @@ pub(crate) fn render(
 ) -> Result<String, String> {
     let times = times.expand()?;
     let project = session.project();
-    let name = |id: donder_model::ObjectId| session.address_of(id).declared_name().to_string();
-    let layout = project.active_layout().object();
-    let selected = selected_fixtures(layout, &name(layout.id.into()), targets)?;
+    let name = |id: donder_model::ObjectId| session.address_of(id).object().to_string();
+    let layout = project.layout().object();
+    let selected = selected_fixtures(layout, &name(project.root().layout.into()), targets)?;
     let prepared = donder_elaboration::prepare(project, id, donder_elaboration::Retain::All)
-        .ok_or("The sequence cannot be played on the active setup.")?;
+        .ok_or("The sequence cannot be prepared.")?;
     let rate = prepared.frame_rate();
     let frame_count = prepared.frame_count();
     // Each fixture's label and selected pixels, or `None` when none are.
@@ -59,7 +59,7 @@ pub(crate) fn render(
         .iter()
         .map(|fixture| {
             let name = layout
-                .fixture(FixtureInstanceId(fixture.id))
+                .fixture(FixtureId(fixture.id))
                 .map(|fixture| fixture.name.as_str())
                 .ok_or("A prepared fixture is missing from the layout.")?;
             let pixels: Vec<usize> = match &selected {

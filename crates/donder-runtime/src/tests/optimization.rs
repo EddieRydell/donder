@@ -106,7 +106,7 @@ fn conditions_sample_only_when_they_decide() {
 fn unused_samples_are_never_taken() {
     let operator =
         compile("operator Dead { input source; sample { let unused = source; #000000 } }");
-    let instance = bind(&operator, &[]).instance(ProgramConstants::default());
+    let instance = bind(&operator, &[]).instance(ProgramConstants::default(), &[]);
     assert_eq!(instance.constant_color(), Some(Color::BLACK));
     let mut sampler = FailOnSample { calls: Vec::new() };
     assert_eq!(
@@ -125,24 +125,21 @@ fn unused_samples_are_never_taken() {
 fn reductions_sample_only_contributing_iterations_and_exit_early() {
     for (body, calls) in [
         (
-            "max for i in 0..10 { guard i < 3; source.at(i) }",
+            "max for i in 0..10 { guard i < 3; source[i] }",
             vec![0, 1, 2],
         ),
+        ("first for i in 0..10 { guard i >= 2; source[i] }", vec![2]),
+        ("last for i in 0..10 { guard i < 7; source[i] }", vec![6]),
         (
-            "first for i in 0..10 { guard i >= 2; source.at(i) }",
-            vec![2],
-        ),
-        ("last for i in 0..10 { guard i < 7; source.at(i) }", vec![6]),
-        (
-            "if any for i in 0..10 { source.at(i) == #000000 } { #ffffff } else { #000000 }",
+            "if any for i in 0..10 { source[i] == #000000 } { #ffffff } else { #000000 }",
             vec![0],
         ),
         (
-            "if all for i in 0..10 { source.at(i) != #000000 } { #ffffff } else { #000000 }",
+            "if all for i in 0..10 { source[i] != #000000 } { #ffffff } else { #000000 }",
             vec![0],
         ),
         (
-            "if all for i in 0..10 { guard i > 4; source.at(i) != #000000 } { #ffffff } else { #000000 }",
+            "if all for i in 0..10 { guard i > 4; source[i] != #000000 } { #ffffff } else { #000000 }",
             vec![5],
         ),
     ] {
@@ -187,7 +184,7 @@ fn reductions_of_index_free_bodies_fold() {
             let expected = if n == 0 {
                 crate::sampling::rgb(f32::NEG_INFINITY, 0.0, f32::INFINITY)
             } else {
-                crate::sampling::rgb(context.progress, 0.375, context.fraction)
+                crate::sampling::rgb(context.progress(), 0.375, context.fraction)
             };
             assert_eq!(
                 invocation.evaluate(&context, &SPATIAL, &mut StripWorkspace::default()),
@@ -219,7 +216,7 @@ fn fixed_definitions_fold_to_constant_colors() {
         ),
         ("effect Wave { sample { rgb(sin(1.0), 0.0, 0.0) } }", None),
     ] {
-        let instance = bind(&compile(source), &[]).instance(ProgramConstants::default());
+        let instance = bind(&compile(source), &[]).instance(ProgramConstants::default(), &[]);
         assert_eq!(instance.constant_color(), expected, "{source}");
         let lowered = playback::bind(&instance);
         let color = lowered.evaluate(&context(4, 1, 0), &SPATIAL, &mut StripWorkspace::default());

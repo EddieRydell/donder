@@ -9,7 +9,7 @@ pub(crate) struct PreviewGeometry {
 
 impl PreviewGeometry {
     pub(crate) fn from_project(project: &DonderProject) -> Self {
-        let layout = project.active_layout();
+        let layout = project.layout();
         let definitions = PreparedFixtureDefinitions::prepare(
             project.reusable::<donder_model::FixtureDefinition>(),
         );

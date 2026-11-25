@@ -2,59 +2,49 @@
 //! in document order, and names resolve to them. Identities inside another
 //! object (fixtures, ports) follow from that object's declaration alone, so a
 //! reference resolves without the referenced object being built first.
-use donder_model::ObjectKind;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use crate::address::{DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
+use crate::address::{DocumentId, SourceIdentity};
 use donder_language::compiler::{ParamDecl, TextSpan};
-use donder_language::data::{
-    Data, Decoder, Meters, Name, OwnedNamedRecord, OwnedRecord, Params, Reference,
-};
+use donder_language::data::{Data, Decoder, Meters, Name, Params, Reference};
 use donder_language::data::{DataValue, Spanned};
 use donder_language::{
     Distance, DistanceSpan, DonderDuration, DonderTime, Point3, Rotation3, Scale3,
 };
-use donder_model::GraphOperatorNode;
 use donder_model::GroupMember;
 use donder_model::ObjectId;
 use donder_model::ProjectData;
-use donder_model::{
-    Action, Always, Console, ConsoleClip, ConsoleClipId, ConsoleId, InputEvent, LengthSource,
-    LiveMarks, On, OnId, Play, PlayLength,
-};
+use donder_model::{Action, Always, Console, ConsoleId, LengthSource, On, OnId, Play, PlayLength};
 use donder_model::{
     ArtNetConfig, Controller, ControllerId, ControllerPort, ControllerPortId, ControllerProtocol,
     DonderConfig, DonderDeviceId, DonderPort, E131Config, E131Mode, RouteStart, Universes,
 };
 use donder_model::{
-    AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationTarget,
-    CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, Mark, MarkCollection,
-    MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph, SequenceId,
-    SequenceLayer, SequenceLayerId, Window,
+    AssetId, AutomationTarget, Binding, CompositionGraph, CompositionGraphNode,
+    CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge, Envelope, GraphNodePosition,
+    Layer, LayerId, Mark, MarkCollection, MarkCollectionId, Sequence, SequenceAudio, SequenceId,
+    Window,
 };
 use donder_model::{
     AxisInput, ButtonInput, ControlRef, InputControl, InputControlId, InputControlKind,
     InputDevice, InputDeviceId, InputDriver, MidiChannel, NoteRange, OscAddress, PlayedValue,
 };
-use donder_model::{Clip, ClipId, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue};
+use donder_model::{
+    Clip, ClipContent, ClipId, CurveValue, Effect, GradientValue, ParamValue, Placement, ScriptId,
+};
+use donder_model::{Composition, GraphOperatorNode};
 use donder_model::{
     FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
-    FixtureTransform, OwnedFixture,
+    FixtureTransform,
 };
-use donder_model::{
-    FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind, LayoutId,
-};
-use donder_model::{Owned, OwnedMember};
-use donder_model::{Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan};
-use donder_model::{Setup, SetupId};
+use donder_model::{FixtureId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
+use donder_model::{PixelRoute, PixelRouteId, PixelSpan};
 use donder_runtime_types::PixelEncoding;
 use donder_runtime_types::{Curve, CurvePoint, Gradient, GradientStop};
 use donder_runtime_types::{Identifier, Type};
 use indexmap::IndexMap;
 
-use super::locate::{Located, owned};
 use super::{DataDocument, Loader};
 use crate::diagnostics::LoadError;
 use crate::document::{Declaration, types};
@@ -66,7 +56,13 @@ pub(super) struct DomainResolver<'a> {
 }
 
 /// Each layer of a sequence or console by name, with its declaring name's span.
-type LayerIds = IndexMap<Identifier, (SequenceLayerId, TextSpan)>;
+type LayerIds = IndexMap<Identifier, (LayerId, TextSpan)>;
+
+/// Each clip of a sequence or console by name, with its declaring name's span
+/// and its effect.
+/// Each clip by name: its id, the name it is declared by, and an effect
+/// clip's effect.
+type ClipIds = IndexMap<Identifier, (ClipId, TextSpan, Option<ScriptId>)>;
 
 /// Each operator node and the root by name: its identity, whether it is the
 /// root, the name it is declared by, and its operator. Layer nodes are named
@@ -77,7 +73,7 @@ type NodeIds = IndexMap<
         CompositionGraphNodeId,
         bool,
         Option<TextSpan>,
-        Option<donder_model::OperatorDefinitionId>,
+        Option<donder_model::ScriptId>,
     ),
 >;
 
@@ -133,16 +129,14 @@ fn window((low, high): (f32, f32)) -> Window {
 
 /// A kind of object a declaration resolves to: its document type, where
 /// loading stores it, and how it is built from its document.
-pub(super) trait Resolve: donder_model::Reusable {
+pub(super) trait Resolve: donder_model::ProjectObject {
     type Document;
-    fn id(raw: u32) -> Self::Id;
     fn document(declaration: &Declaration) -> Option<&Self::Document>;
     fn loaded(project: &mut ProjectData) -> &mut IndexMap<Self::Id, Self>;
-    /// The object `id`, written as `value` in `document`; `span` is its
-    /// declaration's, or its member name's when owned under a name.
+    /// The object written as `value` in `document`; `span` is its
+    /// declaration's.
     fn build(
         resolver: &mut DomainResolver<'_>,
-        id: &Self::Id,
         document: &DocumentId,
         span: TextSpan,
         value: &Self::Document,
@@ -153,13 +147,10 @@ pub(super) trait Resolve: donder_model::Reusable {
 /// its name.
 macro_rules! resolve_kinds {
     ($($kind:ident($id:ident) in $store:ident =
-        |$resolver:pat_param, $object:pat_param, $document:pat_param, $span:pat_param, $value:pat_param|
+        |$resolver:pat_param, $document:pat_param, $span:pat_param, $value:pat_param|
         $build:expr;)+) => {$(
         impl Resolve for $kind {
             type Document = types::$kind;
-            fn id(raw: u32) -> $id {
-                $id(raw)
-            }
             fn document(declaration: &Declaration) -> Option<&types::$kind> {
                 match declaration {
                     Declaration::$kind(value) => Some(value),
@@ -171,7 +162,6 @@ macro_rules! resolve_kinds {
             }
             fn build(
                 $resolver: &mut DomainResolver<'_>,
-                $object: &$id,
                 $document: &DocumentId,
                 $span: TextSpan,
                 $value: &types::$kind,
@@ -183,25 +173,22 @@ macro_rules! resolve_kinds {
 }
 
 resolve_kinds! {
-    Setup(SetupId) in setups = |resolver, id, document, _, value| resolver.setup(id, document, value);
-    Layout(LayoutId) in layouts = |resolver, id, document, _, value| resolver.layout(id, document, value);
-    Patch(PatchId) in patches = |resolver, id, document, _, value| resolver.patch(id, document, value);
+    Layout(LayoutId) in layouts = |resolver, document, _, value| resolver.layout(document, value);
     Controller(ControllerId) in controllers =
-        |resolver, id, document, span, value| resolver.controller(id, document, span, value);
+        |resolver, document, span, value| resolver.controller(document, span, value);
     InputDevice(InputDeviceId) in input_devices =
-        |_, id, _, _, value| Ok(DomainResolver::input_device(id, value));
+        |_, _, _, value| Ok(DomainResolver::input_device(value));
     Sequence(SequenceId) in sequences =
-        |resolver, id, document, span, value| resolver.sequence(id, document, span, value);
-    Console(ConsoleId) in consoles = |resolver, id, document, _, value| resolver.console(id, document, value);
+        |resolver, document, span, value| resolver.sequence(document, span, value);
+    Console(ConsoleId) in consoles = |resolver, document, _, value| resolver.console(document, value);
     FixtureDefinition(FixtureDefinitionId) in fixtures =
-        |resolver, _, document, _, value| resolver.fixture_definition(document, value);
+        |resolver, document, _, value| resolver.fixture_definition(document, value);
 }
 
 impl DomainResolver<'_> {
     /// A script declaration or one of its members.
     fn script(&self, id: impl Into<ObjectId>, member: ScriptMember) -> LinkTarget {
-        let address = self.loader.address(id);
-        let identity = address.root_source();
+        let identity = self.loader.address(id);
         LinkTarget::Script {
             document: identity.document_id().clone(),
             declaration: identity.object().to_string(),
@@ -236,19 +223,16 @@ impl DomainResolver<'_> {
         )
     }
 
-    // Owned records: a declared object, resolved once, or one written in place.
-
     /// A declared object of kind `T`, resolved once.
     pub(super) fn resolve<T: Resolve>(&mut self, id: T::Id) -> Result<(), LoadError> {
         if T::loaded(self.project).contains_key(&id) {
             return Ok(());
         }
-        let address = self.loader.address(id);
-        let source = address.root_source();
-        let (data, span) = self.declared(source)?;
-        let value =
-            T::document(data.declared(source.object()).1).ok_or_else(|| self.wrong_kind(source))?;
-        let value = T::build(self, &id, source.document_id(), span, value)?;
+        let source = self.loader.address(id);
+        let (data, span) = self.declared(&source)?;
+        let value = T::document(data.declared(source.object()).1)
+            .ok_or_else(|| self.wrong_kind(&source))?;
+        let value = T::build(self, source.document_id(), span, value)?;
         T::loaded(self.project).insert(id, value);
         Ok(())
     }
@@ -266,90 +250,35 @@ impl DomainResolver<'_> {
         Ok(id)
     }
 
-    /// An owned record: a declared object, or one written in place at `slot`
-    /// of `owner`.
-    pub(super) fn owned<T: Resolve>(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        slot: OwnedObjectSlot,
-        record: &OwnedRecord<T::Document>,
-    ) -> Result<Owned<Box<T>, T::Id>, LoadError> {
-        match record {
-            OwnedRecord::Reference(reference) => Ok(Owned::Reference(
-                self.declared_reference::<T>(document, reference)?,
-            )),
-            OwnedRecord::Inline(value) => {
-                let id = T::id(self.loader.intern(owner.owned(slot)));
-                Ok(Owned::Inline(Box::new(T::build(
-                    self,
-                    &id,
-                    document,
-                    donder_language::data::NO_SPAN,
-                    value,
-                )?)))
-            }
-        }
-    }
-
-    /// An owned collection member: a declared object, or one written in place
-    /// under its name, at the slot `slot` makes of it.
-    pub(super) fn owned_member<T: Resolve>(
-        &mut self,
-        document: &DocumentId,
-        owner: &ObjectAddress,
-        slot: fn(Identifier) -> OwnedObjectSlot,
-        record: &OwnedNamedRecord<T::Document>,
-    ) -> Result<OwnedMember<T, T::Id>, LoadError> {
-        match record {
-            OwnedNamedRecord::Reference(reference) => Ok(OwnedMember::Reference(
-                self.declared_reference::<T>(document, reference)?,
-            )),
-            OwnedNamedRecord::Inline(member, value) => {
-                let id = T::id(self.loader.intern(owner.owned(slot(name(member)))));
-                Ok(OwnedMember::Inline {
-                    name: name(member),
-                    value: Box::new(T::build(self, &id, document, member.0.span, value)?),
-                })
-            }
-        }
-    }
-
     // Identities inside other objects, from their declarations.
 
-    fn with_owned<R>(
+    /// What `read` finds in the declaration of `identity`.
+    fn with_declaration<R>(
         &self,
-        identity: &ObjectAddress,
-        read: impl FnOnce(Located<'_>) -> Option<R>,
+        identity: &SourceIdentity,
+        read: impl FnOnce(&Declaration) -> Option<R>,
     ) -> Option<R> {
-        let root = identity.root_source();
-        let data = self.loader.declaration(root).ok()?;
-        let (_, declaration) = data.declaration(root.object())?;
-        read(owned(declaration, identity.owned_path())?)
+        let data = self.loader.declaration(identity).ok()?;
+        let (_, declaration) = data.declaration(identity.object())?;
+        read(declaration)
     }
 
     /// `layout.fixture`: a fixture or group of a layout, at any depth.
+    /// A fixture or group of the project's layout, by its name alone.
     fn fixture_target(
         &self,
         document: &DocumentId,
         reference: &Reference,
-    ) -> Result<FixtureTarget, LoadError> {
-        let Some((fixture, layout)) = reference.segments.split_last() else {
+    ) -> Result<FixtureId, LoadError> {
+        let [fixture] = reference.segments.as_slice() else {
             return Err(self.loader.unresolved(document, reference));
         };
-        let layout_reference = Reference {
-            segments: layout.to_vec(),
-            span: reference.span,
+        let Some(address) = self.loader.layout.clone() else {
+            unreachable!("the project's layout is found before its fixtures are named");
         };
-        let address = self.loader.resolve_object_reference(
-            document,
-            &layout_reference,
-            ObjectKind::Layout,
-        )?;
-        let layout = LayoutId(self.loader.intern(address.clone()));
         let (index, item) = self
-            .with_owned(&address, |owned| match owned {
-                Located::Layout(layout) => fixture_index(&layout.items, &fixture.value),
+            .with_declaration(&address, |declaration| match declaration {
+                Declaration::Layout(layout) => fixture_index(&layout.items, &fixture.value),
                 _ => None,
             })
             .ok_or_else(|| {
@@ -357,8 +286,7 @@ impl DomainResolver<'_> {
                     document,
                     fixture.span,
                     format!(
-                        "`{}` has no fixture or group `{}`",
-                        layout_reference.text(),
+                        "the layout has no fixture or group `{}`",
                         fixture.value.as_str()
                     ),
                 )
@@ -367,14 +295,11 @@ impl DomainResolver<'_> {
             document,
             fixture.span,
             LinkTarget::Data {
-                document: address.root_source().document_id().clone(),
+                document: address.document_id().clone(),
                 span: item,
             },
         );
-        Ok(FixtureTarget {
-            layout,
-            fixture: FixtureInstanceId(index),
-        })
+        Ok(FixtureId(index))
     }
 
     fn port(
@@ -384,8 +309,8 @@ impl DomainResolver<'_> {
         port: &types::PortName,
     ) -> Result<ControllerPortId, LoadError> {
         let address = self.loader.address(*controller);
-        self.with_owned(&address, |owned| match owned {
-            Located::Controller(types::Controller { protocol, .. }) => {
+        self.with_declaration(&address, |declaration| match declaration {
+            Declaration::Controller(types::Controller { protocol, .. }) => {
                 let names = match protocol {
                     types::Protocol::E131 { ports, .. } | types::Protocol::ArtNet { ports, .. } => {
                         ports.iter().map(|port| &port.name).collect::<Vec<_>>()
@@ -406,7 +331,7 @@ impl DomainResolver<'_> {
                 document,
                 port.0.span,
                 LinkTarget::Data {
-                    document: address.root_source().document_id().clone(),
+                    document: address.document_id().clone(),
                     span,
                 },
             );
@@ -423,40 +348,7 @@ impl DomainResolver<'_> {
 
     // Objects.
 
-    fn setup(
-        &mut self,
-        id: &SetupId,
-        document: &DocumentId,
-        setup: &types::Setup,
-    ) -> Result<Setup, LoadError> {
-        let address = self.loader.address(*id);
-        let layout = self.owned(document, &address, OwnedObjectSlot::Layout, &setup.layout)?;
-        let controllers = setup
-            .controllers
-            .iter()
-            .map(|record| {
-                self.owned_member(document, &address, OwnedObjectSlot::Controller, record)
-            })
-            .collect::<Result<_, _>>()?;
-        let input_devices = setup
-            .input_devices
-            .iter()
-            .map(|record| {
-                self.owned_member(document, &address, OwnedObjectSlot::InputDevice, record)
-            })
-            .collect::<Result<_, _>>()?;
-        let patch = self.owned(document, &address, OwnedObjectSlot::Patch, &setup.patch)?;
-        Ok(Setup {
-            id: *id,
-            description: setup.description.clone(),
-            layout,
-            patch,
-            controllers,
-            input_devices,
-        })
-    }
-
-    fn input_device(id: &InputDeviceId, device: &types::InputDevice) -> InputDevice {
+    fn input_device(device: &types::InputDevice) -> InputDevice {
         let controls = device
             .controls
             .iter()
@@ -526,7 +418,6 @@ impl DomainResolver<'_> {
             })
             .collect();
         InputDevice {
-            id: *id,
             description: device.description.clone(),
             driver: match &device.driver {
                 types::InputDriver::Keyboard => InputDriver::Keyboard,
@@ -545,7 +436,7 @@ impl DomainResolver<'_> {
     ) -> Result<ControlRef, LoadError> {
         if self
             .loader
-            .resolve_object_reference(document, reference, ObjectKind::InputDevice)
+            .resolve_reference::<InputDeviceId>(document, reference)
             .is_ok()
         {
             return Err(self.invalid(
@@ -564,15 +455,13 @@ impl DomainResolver<'_> {
             segments: device.to_vec(),
             span: reference.span,
         };
-        let address = self.loader.resolve_object_reference(
-            document,
-            &device_reference,
-            ObjectKind::InputDevice,
-        )?;
-        let device = InputDeviceId(self.loader.intern(address.clone()));
+        let device = self
+            .loader
+            .resolve_reference::<InputDeviceId>(document, &device_reference)?;
+        let address = self.loader.address(device);
         let (index, span) = self
-            .with_owned(&address, |owned| match owned {
-                Located::InputDevice(device) => {
+            .with_declaration(&address, |declaration| match declaration {
+                Declaration::InputDevice(device) => {
                     device
                         .controls
                         .iter()
@@ -599,7 +488,7 @@ impl DomainResolver<'_> {
             document,
             control.span,
             LinkTarget::Data {
-                document: address.root_source().document_id().clone(),
+                document: address.document_id().clone(),
                 span,
             },
         );
@@ -625,7 +514,6 @@ impl DomainResolver<'_> {
 
     fn controller(
         &self,
-        id: &ControllerId,
         document: &DocumentId,
         span: TextSpan,
         controller: &types::Controller,
@@ -696,7 +584,6 @@ impl DomainResolver<'_> {
             }),
         };
         Ok(Controller {
-            id: *id,
             description: controller.description.clone(),
             protocol,
         })
@@ -704,7 +591,6 @@ impl DomainResolver<'_> {
 
     fn layout(
         &mut self,
-        id: &LayoutId,
         document: &DocumentId,
         layout: &types::Layout,
     ) -> Result<Layout, LoadError> {
@@ -718,7 +604,7 @@ impl DomainResolver<'_> {
                 name: item_name, ..
             }) = item;
             let id = u32::try_from(index + 1)
-                .map(FixtureInstanceId)
+                .map(FixtureId)
                 .map_err(|_| self.invalid(document, item_name.0.span, "too many layout items"))?;
             ids.entry(name(item_name)).or_insert(id);
         }
@@ -760,10 +646,9 @@ impl DomainResolver<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         let mut fixtures = Vec::with_capacity(layout.items.len());
         for ((item, group), id) in layout.items.iter().zip(groups).zip(1..) {
-            fixtures.push(self.layout_item(document, FixtureInstanceId(id), item, group)?);
+            fixtures.push(self.layout_item(document, FixtureId(id), item, group)?);
         }
         Ok(Layout {
-            id: *id,
             description: layout.description.clone(),
             fixtures,
             root,
@@ -773,7 +658,7 @@ impl DomainResolver<'_> {
     fn layout_item(
         &mut self,
         document: &DocumentId,
-        id: FixtureInstanceId,
+        id: FixtureId,
         item: &types::LayoutItem,
         members: Vec<GroupMember>,
     ) -> Result<LayoutFixture, LoadError> {
@@ -798,14 +683,8 @@ impl DomainResolver<'_> {
                 name: name(fixture),
                 description: description.clone(),
                 kind: LayoutFixtureKind::Fixture {
-                    definition: match definition {
-                        OwnedRecord::Reference(reference) => OwnedFixture::Reference(
-                            self.declared_reference::<FixtureDefinition>(document, reference)?,
-                        ),
-                        OwnedRecord::Inline(definition) => {
-                            OwnedFixture::Inline(self.fixture_definition(document, definition)?)
-                        }
-                    },
+                    definition: self
+                        .declared_reference::<FixtureDefinition>(document, definition)?,
                     transform: self.transform(document, fixture.0.span, transform)?,
                 },
             },
@@ -928,32 +807,18 @@ impl DomainResolver<'_> {
         })
     }
 
-    fn patch(
+    pub(super) fn routes(
         &mut self,
-        id: &PatchId,
         document: &DocumentId,
-        patch: &types::Patch,
-    ) -> Result<Patch, LoadError> {
-        let routes = patch
-            .routes
+        routes: &[types::Route],
+    ) -> Result<Vec<PixelRoute>, LoadError> {
+        routes
             .iter()
             .enumerate()
             .map(|(index, route)| {
-                let address = self.loader.resolve_object_reference(
-                    document,
-                    &route.controller,
-                    ObjectKind::Controller,
-                )?;
-                // An owned address names a controller only if its owner declares one there.
-                if self
-                    .with_owned(&address, |owned| {
-                        matches!(owned, Located::Controller(_)).then_some(())
-                    })
-                    .is_none()
-                {
-                    return Err(self.loader.unresolved(document, &route.controller));
-                }
-                let controller = ControllerId(self.loader.intern(address));
+                let controller = self
+                    .loader
+                    .resolve_reference::<ControllerId>(document, &route.controller)?;
                 Ok(PixelRoute {
                     id: PixelRouteId(index as u32 + 1),
                     target: self.fixture_target(document, &route.target)?,
@@ -1002,12 +867,7 @@ impl DomainResolver<'_> {
                     dither: route.dither,
                 })
             })
-            .collect::<Result<_, LoadError>>()?;
-        Ok(Patch {
-            id: *id,
-            description: patch.description.clone(),
-            routes,
-        })
+            .collect()
     }
 
     /// Link a name at `span` to a name of the same document.
@@ -1022,19 +882,50 @@ impl DomainResolver<'_> {
         );
     }
 
+    /// The mark collections of a sequence or console, numbered from 0, and
+    /// their names with the spans that declare them.
+    fn mark_collections(
+        collections: &[types::MarkCollection],
+    ) -> (Vec<MarkCollection>, Vec<(Identifier, TextSpan)>) {
+        let names = collections
+            .iter()
+            .map(|collection| (name(&collection.name), collection.name.0.span))
+            .collect();
+        let collections = collections
+            .iter()
+            .zip(0..)
+            .map(|(collection, id)| MarkCollection {
+                id: MarkCollectionId(id),
+                name: name(&collection.name),
+                description: collection.description.clone(),
+                display_color: collection.color,
+                marks: collection
+                    .times
+                    .iter()
+                    .map(|mark| Mark {
+                        time: DonderTime(mark.time),
+                        duration: DonderDuration(mark.duration),
+                        label: mark.label.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
+        (collections, names)
+    }
+
     /// The layers of a sequence or console, numbered from 0, the default layer.
-    fn layers(layers: &[types::Layer]) -> (Vec<SequenceLayer>, LayerIds) {
+    fn layers(layers: &[types::Layer]) -> (Vec<Layer>, LayerIds) {
         let mut layer_ids = IndexMap::new();
         let layers = layers
             .iter()
             .enumerate()
             .map(|(index, layer)| {
                 // Layer 0, the first, is the default layer.
-                let id = SequenceLayerId(index as u32);
+                let id = LayerId(index as u32);
                 layer_ids
                     .entry(name(&layer.name))
                     .or_insert((id.clone(), layer.name.0.span));
-                SequenceLayer {
+                Layer {
                     id,
                     name: name(&layer.name),
                     description: layer.description.clone(),
@@ -1051,7 +942,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         layer_ids: &LayerIds,
         layer: &Name,
-    ) -> Result<SequenceLayerId, LoadError> {
+    ) -> Result<LayerId, LoadError> {
         let (id, span) = layer_ids.get(&layer.0.value).cloned().ok_or_else(|| {
             self.invalid(
                 document,
@@ -1070,14 +961,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         node_ids: &NodeIds,
         node: &Spanned<Identifier>,
-    ) -> Result<
-        (
-            CompositionGraphNodeId,
-            bool,
-            Option<donder_model::OperatorDefinitionId>,
-        ),
-        LoadError,
-    > {
+    ) -> Result<(CompositionGraphNodeId, bool, Option<donder_model::ScriptId>), LoadError> {
         let (id, root, declared, operator) =
             node_ids.get(&node.value).cloned().ok_or_else(|| {
                 self.invalid(
@@ -1100,7 +984,7 @@ impl DomainResolver<'_> {
         layer_ids: &LayerIds,
         marks: &[(Identifier, TextSpan)],
         graph: &types::Graph,
-    ) -> Result<(SequenceCompositionGraph, NodeIds), LoadError> {
+    ) -> Result<(CompositionGraph, NodeIds), LoadError> {
         let mut node_ids = NodeIds::new();
         let mut layer_nodes = IndexMap::new();
         let mut nodes = Vec::with_capacity(graph.nodes.len());
@@ -1123,12 +1007,10 @@ impl DomainResolver<'_> {
                 } => {
                     let definition = self
                         .loader
-                        .resolve_reference::<donder_model::OperatorDefinitionId>(
-                            document, operator,
-                        )?;
+                        .resolve_reference::<donder_model::ScriptId>(document, operator)?;
                     let declarations = self
                         .project
-                        .operators
+                        .scripts
                         .get(&definition)
                         .map(|definition| definition.params().to_vec())
                         .unwrap_or_else(|| {
@@ -1234,20 +1116,19 @@ impl DomainResolver<'_> {
                 Ok(EffectGraphEdge { from, to, input })
             })
             .collect::<Result<Vec<_>, LoadError>>()?;
-        Ok((SequenceCompositionGraph { nodes, edges }, node_ids))
+        Ok((CompositionGraph { nodes, edges }, node_ids))
     }
 
     fn effect_definition(
         &self,
         document: &DocumentId,
         effect: &Reference,
-    ) -> Result<EffectDefinitionId, LoadError> {
+    ) -> Result<ScriptId, LoadError> {
         self.loader.resolve_reference(document, effect)
     }
 
     fn sequence(
         &mut self,
-        id: &SequenceId,
         document: &DocumentId,
         span: TextSpan,
         sequence: &types::Sequence,
@@ -1256,123 +1137,144 @@ impl DomainResolver<'_> {
             None => SequenceAudio::None,
             Some(path) => SequenceAudio::Asset(self.asset(document, span, "audio", &path.0)?),
         };
-        let mark_collections = sequence
-            .marks
-            .iter()
-            .map(|collection| MarkCollection {
-                key: MarkCollectionKey {
-                    name: name(&collection.name),
-                },
-                description: collection.description.clone(),
-                display_color: collection.color,
-                marks: collection
-                    .times
-                    .iter()
-                    .map(|mark| Mark {
-                        time: DonderTime(mark.time),
-                        duration: DonderDuration(mark.duration),
-                        label: mark.label.clone(),
-                    })
-                    .collect(),
-            })
-            .collect::<Vec<_>>();
-        let marks = sequence
-            .marks
-            .iter()
-            .map(|collection| (name(&collection.name), collection.name.0.span))
-            .collect::<Vec<_>>();
+        let (mark_collections, marks) = Self::mark_collections(&sequence.marks);
         let (layers, layer_ids) = Self::layers(&sequence.layers);
-        let mut clip_ids = IndexMap::new();
-        let mut clips = Vec::with_capacity(sequence.clips.len());
-        for (index, clip) in sequence.clips.iter().enumerate() {
-            let id = ClipId(index as u32 + 1);
-            let definition = self.effect_definition(document, &clip.effect)?;
-            let params = self.definition_params(&definition);
-            clip_ids
-                .entry(name(&clip.name))
-                .or_insert((id.clone(), clip.name.0.span, definition));
-            clips.push(std::sync::Arc::new(Clip {
-                id,
-                name: name(&clip.name),
-                description: clip.description.clone(),
-                layer_id: self.layer(document, &layer_ids, &clip.layer)?,
-                start: DonderTime(clip.start),
-                duration: DonderDuration(clip.duration),
-                target: self.fixture_target(document, &clip.target)?,
-                scope: clip.scope.0.clone(),
-                definition,
-                param_overrides: self.params(
-                    document,
-                    definition.into(),
-                    &params,
-                    &marks,
-                    &clip.params,
-                )?,
-            }));
-        }
         let (composition_graph, node_ids) =
             self.graph(document, &layer_ids, &marks, &sequence.graph)?;
-        let binding = |binding: &types::Binding| {
-            self.automation_target(document, &clip_ids, &node_ids, binding)
-        };
-        let mut automation_clips = Vec::with_capacity(sequence.automation.len());
-        for (index, clip) in sequence.automation.iter().enumerate() {
-            let bindings = clip
-                .bindings
-                .iter()
-                .map(|bound| {
-                    binding(&bound.binding).map(|target| AutomationBinding {
-                        target,
-                        window: window(bound.window),
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let detached_bindings = clip
-                .detached
-                .iter()
-                .map(|detached| {
-                    Ok(DetachedAutomationBinding {
-                        target: binding(&detached.binding)?,
-                    })
-                })
-                .collect::<Result<Vec<_>, LoadError>>()?;
-            automation_clips.push(AutomationClip {
-                id: AutomationClipId(index as u32 + 1),
-                start: DonderTime(clip.start),
-                duration: DonderDuration(clip.duration),
-                row_target: self.fixture_target(document, &clip.row)?,
-                curve: curve(&clip.curve.points),
-                bindings,
-                detached_bindings,
-            });
-        }
+        let (clips, _) = self.clips(document, &layer_ids, &marks, &node_ids, &sequence.clips)?;
         Ok(Sequence {
-            id: *id,
             description: sequence.description.clone(),
             duration: DonderDuration(sequence.duration),
             frame_rate: sequence.frame_rate,
             audio,
-            mark_collections,
-            layers,
-            clips,
-            composition_graph,
-            automation_clips,
+            composition: Composition {
+                marks: mark_collections,
+                layers,
+                graph: composition_graph,
+                clips,
+            },
         })
+    }
+
+    /// The clips of a sequence or console, numbered from 1, and each by name
+    /// with its declaring name's span and effect. An envelope binds clips and
+    /// operator nodes by name, declared before or after it.
+    fn clips(
+        &self,
+        document: &DocumentId,
+        layer_ids: &LayerIds,
+        marks: &[(Identifier, TextSpan)],
+        node_ids: &NodeIds,
+        clips: &[types::Clip],
+    ) -> Result<(Vec<Arc<Clip>>, ClipIds), LoadError> {
+        let mut clip_ids = ClipIds::new();
+        for (clip, index) in clips.iter().zip(1..) {
+            let definition = match &clip.content {
+                types::ClipContent::Effect { effect, .. } => {
+                    Some(self.effect_definition(document, effect)?)
+                }
+                types::ClipContent::Envelope { .. } => None,
+            };
+            clip_ids.entry(name(&clip.name)).or_insert((
+                ClipId(index),
+                clip.name.0.span,
+                definition,
+            ));
+        }
+        let mut resolved = Vec::with_capacity(clips.len());
+        for (clip, index) in clips.iter().zip(1..) {
+            let id = ClipId(index);
+            let (content, definition) = match &clip.content {
+                types::ClipContent::Effect {
+                    layer,
+                    scope,
+                    effect,
+                    params,
+                } => {
+                    let definition = self.effect_definition(document, effect)?;
+                    let declarations = self.definition_params(&definition);
+                    (
+                        ClipContent::Effect(Effect {
+                            layer: self.layer(document, layer_ids, layer)?,
+                            scope: scope.0,
+                            definition,
+                            params: self.params(
+                                document,
+                                definition.into(),
+                                &declarations,
+                                marks,
+                                params,
+                            )?,
+                        }),
+                        Some(definition),
+                    )
+                }
+                types::ClipContent::Envelope { curve, bindings } => (
+                    ClipContent::Envelope(Envelope {
+                        curve: self::curve(&curve.points),
+                        bindings: bindings
+                            .iter()
+                            .map(|bound| {
+                                Ok(Binding {
+                                    target: self.automation_target(
+                                        document,
+                                        &clip_ids,
+                                        node_ids,
+                                        &bound.binding,
+                                    )?,
+                                    window: window(bound.window),
+                                })
+                            })
+                            .collect::<Result<_, LoadError>>()?,
+                    }),
+                    None,
+                ),
+            };
+            resolved.push(Arc::new(Clip {
+                id,
+                name: name(&clip.name),
+                description: clip.description.clone(),
+                target: self.fixture_target(document, &clip.target)?,
+                content,
+                placement: match &clip.placement {
+                    types::Placement::Timed { start, duration } => Placement::Timed {
+                        start: DonderTime(*start),
+                        duration: DonderDuration(*duration),
+                    },
+                    types::Placement::Played { values } => Placement::Played(
+                        values
+                            .iter()
+                            .map(|value| {
+                                if let Some(definition) = definition {
+                                    self.link_param(document, definition, &value.param);
+                                }
+                                PlayedValue {
+                                    param: name(&value.param),
+                                    from: value.from.0,
+                                    window: window(value.window),
+                                }
+                            })
+                            .collect(),
+                    ),
+                },
+            }));
+        }
+        Ok((resolved, clip_ids))
     }
 
     /// A sequence's or console's automation binding, its clip named in
     /// `clip_ids` or its node in `node_ids`.
-    fn automation_target<Clip: Clone>(
+    fn automation_target(
         &self,
         document: &DocumentId,
-        clip_ids: &IndexMap<Identifier, (Clip, TextSpan, EffectDefinitionId)>,
+        clip_ids: &ClipIds,
         node_ids: &NodeIds,
         binding: &types::Binding,
-    ) -> Result<AutomationTarget<Clip>, LoadError> {
+    ) -> Result<AutomationTarget, LoadError> {
         Ok(match binding {
             types::Binding::ClipParam { clip, param } => {
                 let (clip_id, span, effect) =
-                    clip_ids.get(&clip.0.value).cloned().ok_or_else(|| {
+                    clip_ids.get(&clip.0.value).copied().ok_or_else(|| {
                         self.invalid(
                             document,
                             clip.0.span,
@@ -1380,7 +1282,9 @@ impl DomainResolver<'_> {
                         )
                     })?;
                 self.link_local(document, clip.0.span, span);
-                self.link_param(document, effect, param);
+                if let Some(effect) = effect {
+                    self.link_param(document, effect, param);
+                }
                 AutomationTarget::ClipParam {
                     clip_id,
                     param: name(param),
@@ -1408,57 +1312,15 @@ impl DomainResolver<'_> {
 
     fn console(
         &self,
-        id: &ConsoleId,
         document: &DocumentId,
         console: &types::Console,
     ) -> Result<Console, LoadError> {
-        let mut mark_names = IndexMap::new();
-        for collection in &console.marks {
-            mark_names
-                .entry(name(&collection.name))
-                .or_insert(collection.name.0.span);
-        }
-        let marks = mark_names.clone().into_iter().collect::<Vec<_>>();
+        let (mark_collections, marks) = Self::mark_collections(&console.marks);
         let (layers, layer_ids) = Self::layers(&console.layers);
-        let mut clip_ids = IndexMap::new();
-        let mut clips = Vec::with_capacity(console.clips.len());
-        for (clip, index) in console.clips.iter().zip(1..) {
-            let definition = self.effect_definition(document, &clip.effect)?;
-            let declarations = self.definition_params(&definition);
-            clip_ids.entry(name(&clip.name)).or_insert((
-                ConsoleClipId(index),
-                clip.name.0.span,
-                definition,
-            ));
-            clips.push(ConsoleClip {
-                id: ConsoleClipId(index),
-                name: name(&clip.name),
-                description: clip.description.clone(),
-                layer_id: self.layer(document, &layer_ids, &clip.layer)?,
-                target: self.fixture_target(document, &clip.target)?,
-                scope: clip.scope.0.clone(),
-                param_overrides: self.params(
-                    document,
-                    definition.into(),
-                    &declarations,
-                    &marks,
-                    &clip.params,
-                )?,
-                played: clip
-                    .played
-                    .iter()
-                    .map(|value| {
-                        self.link_param(document, definition, &value.param);
-                        PlayedValue {
-                            param: name(&value.param),
-                            from: value.from.0,
-                            window: window(value.window),
-                        }
-                    })
-                    .collect(),
-                definition,
-            });
-        }
+        let (composition_graph, node_ids) =
+            self.graph(document, &layer_ids, &marks, &console.graph)?;
+        let (clips, clip_ids) =
+            self.clips(document, &layer_ids, &marks, &node_ids, &console.clips)?;
         let clip = |clip: &Name| {
             let (id, span, _) = clip_ids.get(&clip.0.value).copied().ok_or_else(|| {
                 self.invalid(
@@ -1470,8 +1332,6 @@ impl DomainResolver<'_> {
             self.link_local(document, clip.0.span, span);
             Ok::<_, LoadError>(id)
         };
-        let (composition_graph, node_ids) =
-            self.graph(document, &layer_ids, &marks, &console.graph)?;
         let always = console
             .always
             .iter()
@@ -1484,7 +1344,7 @@ impl DomainResolver<'_> {
             .collect::<Result<_, _>>()?;
         let mut events = Vec::with_capacity(console.events.len());
         for (on, index) in console.events.iter().zip(1..) {
-            let control = self.control_ref(document, on.event.control())?;
+            let control = self.control_ref(document, &on.control)?;
             let actions = on
                 .actions
                 .iter()
@@ -1535,10 +1395,20 @@ impl DomainResolver<'_> {
                             length: DonderDuration(*length),
                         },
                         types::Action::Mark { into } => {
-                            if let Some(span) = mark_names.get(&into.0.value) {
-                                self.link_local(document, into.0.span, *span);
-                            }
-                            Action::Mark(MarkCollectionKey { name: name(into) })
+                            let Some(index) =
+                                marks.iter().position(|(mark, _)| *mark == into.0.value)
+                            else {
+                                return Err(self.invalid(
+                                    document,
+                                    into.0.span,
+                                    format!(
+                                        "the console has no mark collection `{}`",
+                                        into.0.value.as_str()
+                                    ),
+                                ));
+                            };
+                            self.link_local(document, into.0.span, marks[index].1);
+                            Action::Mark(MarkCollectionId(index as u32))
                         }
                         types::Action::Set {
                             param,
@@ -1553,39 +1423,27 @@ impl DomainResolver<'_> {
                 .collect::<Result<_, LoadError>>()?;
             events.push(On {
                 id: OnId(index),
-                event: match on.event {
-                    types::InputEvent::Press { .. } => InputEvent::Press(control),
-                    types::InputEvent::Release { .. } => InputEvent::Release(control),
-                    types::InputEvent::Move { .. } => InputEvent::Move(control),
-                },
+                happening: on.happening.0,
+                control,
                 actions,
             });
         }
         Ok(Console {
-            id: *id,
             description: console.description.clone(),
             frame_rate: console.frame_rate,
-            live_marks: console
-                .marks
-                .iter()
-                .map(|collection| LiveMarks {
-                    key: MarkCollectionKey {
-                        name: name(&collection.name),
-                    },
-                    description: collection.description.clone(),
-                    display_color: collection.color,
-                })
-                .collect(),
-            layers,
-            clips,
+            composition: Composition {
+                marks: mark_collections,
+                layers,
+                graph: composition_graph,
+                clips,
+            },
             always,
             events,
-            composition_graph,
         })
     }
 
     /// Link `param` to its declaration in `definition`, when it declares it.
-    fn link_param(&self, document: &DocumentId, definition: EffectDefinitionId, param: &Name) {
+    fn link_param(&self, document: &DocumentId, definition: ScriptId, param: &Name) {
         if self
             .definition_params(&definition)
             .iter()
@@ -1599,9 +1457,9 @@ impl DomainResolver<'_> {
         }
     }
 
-    fn definition_params(&self, definition: &EffectDefinitionId) -> Vec<ParamDecl> {
+    fn definition_params(&self, definition: &ScriptId) -> Vec<ParamDecl> {
         self.project
-            .effects
+            .scripts
             .get(definition)
             .map(|definition| definition.params().to_vec())
             .unwrap_or_else(|| unreachable!("a resolved effect definition is stored"))
@@ -1776,40 +1634,38 @@ impl DomainResolver<'_> {
             }
             (Type::Marks, DataValue::Reference(segments))
                 if let [segment] = segments.as_slice()
-                    && let Some((_, span)) =
-                        marks.iter().find(|(mark, _)| mark == &segment.value) =>
+                    && let Some(index) =
+                        marks.iter().position(|(mark, _)| mark == &segment.value) =>
             {
                 self.loader.link(
                     document,
                     segment.span,
                     LinkTarget::Data {
                         document: document.clone(),
-                        span: *span,
+                        span: marks[index].1,
                     },
                 );
-                ParamValue::Marks(Some(MarkCollectionKey {
-                    name: segment.value.clone(),
-                }))
+                ParamValue::Marks(Some(MarkCollectionId(index as u32)))
             }
             (Type::Marks, DataValue::None) => ParamValue::Marks(None),
             (Type::Curve, DataValue::Reference(segments)) => {
                 let curve = self
                     .loader
                     .resolve_reference(document, &reference(segments))?;
-                ParamValue::Curve(OwnedCurve::Reference(curve))
+                ParamValue::Curve(CurveValue::Linked(curve))
             }
-            (Type::Curve, DataValue::Record(..)) => ParamValue::Curve(OwnedCurve::Inline(curve(
+            (Type::Curve, DataValue::Record(..)) => ParamValue::Curve(CurveValue::Literal(curve(
                 &self.decode::<types::CurveValue>(document, value)?.points,
             ))),
             (Type::Gradient, DataValue::Reference(segments)) => {
                 let gradient = self
                     .loader
                     .resolve_reference(document, &reference(segments))?;
-                ParamValue::Gradient(OwnedGradient::Reference(gradient))
+                ParamValue::Gradient(GradientValue::Linked(gradient))
             }
             (Type::Gradient, DataValue::Record(..)) => {
                 let literal = self.decode::<types::GradientValue>(document, value)?;
-                ParamValue::Gradient(OwnedGradient::Inline(gradient(
+                ParamValue::Gradient(GradientValue::Literal(gradient(
                     &literal.space,
                     &literal.stops,
                 )))

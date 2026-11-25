@@ -24,9 +24,9 @@ mod midi;
 mod osc;
 mod output;
 mod persistence;
+mod playing;
 mod preview;
 mod project;
-mod rendering;
 mod sequence_clip_raster;
 mod state_tasks;
 

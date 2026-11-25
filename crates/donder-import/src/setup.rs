@@ -1,4 +1,4 @@
-//! A profile read from any source, as the layout, controllers and patch of a
+//! A profile read from any source, as the layout, controllers and routes of a
 //! Donder project.
 
 use crate::fit::{self, Ellipse, Pixel};
@@ -10,12 +10,11 @@ use camino::Utf8PathBuf;
 use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortId,
     ControllerProtocol, ControllerValidationError, CurveDefinition, CurveId, E131Config, E131Mode,
-    FixtureDefinition, FixtureInstanceId, FixtureTarget, FixtureTransform, GradientDefinition,
-    GradientId, GroupMember, Layout, LayoutFixture, LayoutFixtureKind, LayoutId, Object, ObjectId,
-    Owned, OwnedMember, OwnershipSite, Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan,
-    ProjectEdit, RouteStart, Setup, Universes,
+    FixtureDefinition, FixtureDefinitionId, FixtureId, FixtureTransform, GradientDefinition,
+    GradientId, GroupMember, Layout, LayoutFixture, LayoutFixtureKind, Object, ObjectId,
+    PixelRoute, PixelRouteId, PixelSpan, ProjectEdit, RouteStart, Universes,
 };
-use donder_project_io::{DocumentId, ProjectSession, SessionEdit, SessionEditError};
+use donder_project_io::{ProjectSession, SessionEditError};
 use donder_runtime_types::{Curve, Gradient, Identifier, PixelEncoding};
 use glam::DVec3;
 use std::collections::{HashMap, HashSet};
@@ -37,7 +36,7 @@ pub enum ImportError {
         path: Utf8PathBuf,
         message: String,
     },
-    /// The project's setup already has fixtures, routes or controllers.
+    /// The project already has fixtures, routes or controllers.
     NotEmpty,
     /// The imported objects do not make a valid project.
     Project(String),
@@ -269,7 +268,7 @@ pub(crate) fn typical_scale(
 /// The Donder controllers, and where each profile output's channels are in
 /// them.
 struct Controllers {
-    controllers: Vec<(Identifier, Controller)>,
+    controllers: Vec<(Identifier, ControllerId, Controller)>,
     /// By profile controller and output.
     outputs: HashMap<(usize, usize), OutputChannels>,
 }
@@ -437,8 +436,8 @@ fn controllers(
         let mut built = Vec::new();
         let mut refused = None;
         for (members, universes) in runs {
+            let id = ControllerId(new_id());
             let candidate = Controller {
-                id: ControllerId(new_id()),
                 description: controller.description.clone(),
                 protocol: protocol(read, universes, controller.outputs[members[0]].fseq_channel),
             };
@@ -446,13 +445,13 @@ fn controllers(
                 refused = Some(refusal(error)?);
                 break;
             }
-            built.push((candidate, members, universes));
+            built.push((id, candidate, members, universes));
         }
         if let Some(reason) = refused {
             report.skipped_controllers.push(skip(reason));
             continue;
         }
-        for (candidate, members, universes) in built {
+        for (id, candidate, members, universes) in built {
             let width = u32::from(universes.channels);
             let last = members.len() as u32 - 1;
             let end =
@@ -462,7 +461,7 @@ fn controllers(
                 result.outputs.insert(
                     (index, output),
                     OutputChannels {
-                        controller: candidate.id,
+                        controller: id,
                         first,
                         room: end - first,
                     },
@@ -473,7 +472,7 @@ fn controllers(
                 |name| taken.contains(name),
             );
             taken.insert(name.as_str().to_string());
-            result.controllers.push((name, candidate));
+            result.controllers.push((name, id, candidate));
         }
     }
     Ok(result)
@@ -557,7 +556,7 @@ struct Run {
 /// Channels from `0` up to `1` of a controller, patched to the fixture named `2`.
 type Claim = (u32, u32, String);
 
-/// Put the profile in the project's setup, whose layout, patch and controllers
+/// Put the profile in the project, whose layout, routes and controllers
 /// must be empty.
 pub(crate) fn build(
     session: &mut ProjectSession,
@@ -573,15 +572,13 @@ pub(crate) fn build(
     } = profile;
     let controllers = controllers(&profile_controllers, &mut report, || session.new_id())?;
 
-    // Patch each fixture whose channels no earlier fixture has.
-    let layout_id = LayoutId(session.new_id());
-    let patch_id = PatchId(session.new_id());
+    let mut definitions = Vec::new();
     let mut claimed: HashMap<ControllerId, Vec<Claim>> = HashMap::new();
     let mut fixtures = Vec::new();
     let mut route_list = Vec::new();
     // Where each controller's last route ends, for routes that follow on.
     let mut ends: HashMap<ControllerId, u32> = HashMap::new();
-    let mut by_name: HashMap<String, FixtureInstanceId> = HashMap::new();
+    let mut by_name: HashMap<String, FixtureId> = HashMap::new();
     let mut taken: HashSet<String> = HashSet::new();
     for fixture in profile_fixtures {
         let runs = match runs(&fixture, &profile_controllers, &controllers) {
@@ -618,7 +615,7 @@ pub(crate) fn build(
                 fixture.name.clone(),
             ));
         }
-        let id = FixtureInstanceId(fixtures.len() as u32 + 1);
+        let id = FixtureId(fixtures.len() as u32 + 1);
         let origin = fixture.pixels[0].position;
         let elements = fit::shapes(&fixture.pixels, &fixture.ellipses, origin);
         let name = donder_language::unique_name(
@@ -642,10 +639,7 @@ pub(crate) fn build(
             let follows = previous_end.unwrap_or(0) == place.channel;
             route_list.push(PixelRoute {
                 id: PixelRouteId(route_list.len() as u32 + 1),
-                target: FixtureTarget {
-                    layout: layout_id,
-                    fixture: id,
-                },
+                target: id,
                 pixels: (count != pixel_count).then_some(PixelSpan { start, count }),
                 reverse,
                 controller: place.controller,
@@ -662,15 +656,22 @@ pub(crate) fn build(
             });
         }
         report.pixels += fixture.pixels.len();
+        // Each fixture has a definition of its own, named after it.
+        let definition = FixtureDefinitionId(session.new_id());
+        definitions.push((
+            definition,
+            name.clone(),
+            FixtureDefinition {
+                description: None,
+                elements,
+            },
+        ));
         fixtures.push(LayoutFixture {
             id,
             name,
             description: fixture.description,
             kind: LayoutFixtureKind::Fixture {
-                definition: Owned::Inline(FixtureDefinition {
-                    description: None,
-                    elements,
-                }),
+                definition,
                 transform: FixtureTransform {
                     position: fit::fixture_position(origin),
                     ..FixtureTransform::default()
@@ -692,17 +693,17 @@ pub(crate) fn build(
     report.groups = groups.len();
     fixtures.extend(groups);
     let layout = Layout {
-        id: layout_id,
         description: None,
         fixtures,
         root: root_members,
     };
-    let patch = Patch {
-        id: patch_id,
-        description: None,
-        routes: route_list,
-    };
-    insert(session, layout, patch, controllers.controllers)?;
+    insert(
+        session,
+        layout,
+        definitions,
+        route_list,
+        controllers.controllers,
+    )?;
     let curves = curves
         .into_iter()
         .map(|(name, curve)| {
@@ -734,19 +735,19 @@ pub(crate) fn build(
 /// the groups no group contains, then the fixtures no group contains.
 fn groups(
     profile: &[ProfileGroup],
-    fixtures: &HashMap<String, FixtureInstanceId>,
+    fixtures: &HashMap<String, FixtureId>,
     fixture_count: usize,
     taken: &mut HashSet<String>,
     report: &mut ImportReport,
-) -> (Vec<LayoutFixture>, Vec<FixtureInstanceId>) {
+) -> (Vec<LayoutFixture>, Vec<FixtureId>) {
     let group_index: HashMap<&str, usize> = profile
         .iter()
         .enumerate()
         .map(|(index, group)| (group.name.as_str(), index))
         .collect();
     enum Member {
-        Fixture(FixtureInstanceId),
-        Slice(FixtureInstanceId, PixelSpan),
+        Fixture(FixtureId),
+        Slice(FixtureId, PixelSpan),
         Group(usize),
     }
     let mut members: Vec<Vec<Member>> = Vec::new();
@@ -841,10 +842,7 @@ fn groups(
     let mut ids = HashMap::new();
     for (group, is_empty) in empty.iter().enumerate() {
         if !is_empty {
-            ids.insert(
-                group,
-                FixtureInstanceId((fixture_count + ids.len()) as u32 + 1),
-            );
+            ids.insert(group, FixtureId((fixture_count + ids.len()) as u32 + 1));
         }
     }
     let mut grouped = HashSet::new();
@@ -883,12 +881,12 @@ fn groups(
             kind: LayoutFixtureKind::Group { members: list },
         });
     }
-    let mut root_members: Vec<FixtureInstanceId> = items
+    let mut root_members: Vec<FixtureId> = items
         .iter()
         .map(|item| item.id)
         .filter(|id| !nested.contains(id))
         .collect();
-    let mut loose: Vec<FixtureInstanceId> = fixtures
+    let mut loose: Vec<FixtureId> = fixtures
         .values()
         .copied()
         .filter(|fixture| !grouped.contains(fixture))
@@ -898,85 +896,53 @@ fn groups(
     (items, root_members)
 }
 
-/// A file of its own for `id`, named after its kind.
-fn new_document(edit: &mut SessionEdit<'_>, id: ObjectId) -> Result<DocumentId, ImportError> {
-    let name = edit.session().source().new_object_name(id.kind());
-    Ok(edit.add_object_document(id, name)?)
-}
+/// Where an import's controllers are declared.
+const CONTROLLERS: &str = "controllers/controllers.data.donder";
 
-/// Put the layout, patch and controllers in the project's setup, each in its
-/// own document.
+/// Put the layout, its fixture definitions, routes and controllers in the
+/// project: the definitions beside the layout and the controllers in
+/// [`CONTROLLERS`].
 fn insert(
     session: &mut ProjectSession,
     layout: Layout,
-    patch: Patch,
-    controllers: Vec<(Identifier, Controller)>,
+    definitions: Vec<(FixtureDefinitionId, Identifier, FixtureDefinition)>,
+    routes: Vec<PixelRoute>,
+    controllers: Vec<(Identifier, ControllerId, Controller)>,
 ) -> Result<(), ImportError> {
     let project = session.project();
-    let root = project.root().clone();
-    let setup_id = *root.setup.id();
-    let setup = project
-        .get::<Setup>(setup_id)
-        .ok_or_else(|| ImportError::Project("The project has no setup.".into()))?
-        .clone();
-    let layout_id = *setup.layout.id();
-    let patch_id = *setup.patch.id();
-    let has_fixtures = project
-        .get::<Layout>(layout_id)
-        .is_some_and(|layout| !layout.fixtures.is_empty());
-    let has_routes = project
-        .get::<Patch>(patch_id)
-        .is_some_and(|patch| !patch.routes.is_empty());
-    if has_fixtures || has_routes || !setup.controllers.is_empty() {
+    let mut root = project.root().clone();
+    if !project.layout().fixtures.is_empty()
+        || !root.routes.is_empty()
+        || project.objects::<Controller>().next().is_some()
+    {
         return Err(ImportError::NotEmpty);
     }
     let invalid = |error: donder_model::EditError| ImportError::Project(format!("{error:?}"));
     let names: Vec<(ObjectId, Identifier)> = controllers
         .iter()
-        .map(|(name, controller)| (controller.id.into(), name.clone()))
+        .map(|(name, id, _)| ((*id).into(), name.clone()))
         .collect();
-    let mut edits: Vec<ProjectEdit> = vec![
-        ProjectEdit::Put(layout.clone().into()),
-        ProjectEdit::Put(patch.clone().into()),
-    ];
+    let layout_id = root.layout;
+    let mut edits: Vec<ProjectEdit> = vec![ProjectEdit::Put((layout_id, layout).into())];
+    edits.extend(definitions.iter().map(|(id, _, definition)| {
+        ProjectEdit::Put(Object::FixtureDefinition(*id, definition.clone()))
+    }));
     edits.extend(
         controllers
             .iter()
-            .map(|(_, controller)| ProjectEdit::Put(controller.clone().into())),
+            .map(|(_, id, controller)| ProjectEdit::Put((*id, controller.clone()).into())),
     );
-    edits.push(ProjectEdit::Put(
-        Setup {
-            layout: Owned::Reference(layout.id),
-            patch: Owned::Reference(patch.id),
-            controllers: controllers
-                .iter()
-                .map(|(_, controller)| OwnedMember::Reference(controller.id))
-                .collect(),
-            ..setup
-        }
-        .into(),
-    ));
+    root.routes = routes;
+    let layout_document = session.address_of(layout_id).document_id().clone();
+    edits.push(ProjectEdit::Put(root.into()));
     session.edit(|edit| {
         edit.project_mut().apply_edits(edits).map_err(invalid)?;
-        let setup_document = match &root.setup {
-            Owned::Inline(_) => {
-                let id = donder_model::make_reusable(
-                    edit.project_mut(),
-                    &OwnershipSite::Member {
-                        owner: root.id.into(),
-                        member: setup_id.into(),
-                    },
-                )
-                .map_err(invalid)?;
-                new_document(edit, id)?
-            }
-            Owned::Reference(id) => edit.session().address_of(*id).document_id().clone(),
-        };
-        for (id, name) in names {
-            edit.add_object(&setup_document, id, name.as_str())?;
+        if !names.is_empty() {
+            edit.add_data_document(CONTROLLERS.into(), names)?;
         }
-        new_document(edit, layout.id.into())?;
-        new_document(edit, patch.id.into())?;
+        for (id, name, _) in &definitions {
+            edit.add_object(&layout_document, (*id).into(), name.as_str())?;
+        }
         Ok(())
     })
 }
@@ -1010,15 +976,11 @@ fn library(
         edits.push(ProjectEdit::Put(object));
     }
     let count = names.len();
-    let first = names[0].0;
     session.edit(|edit| {
         edit.project_mut().apply_edits(edits).map_err(invalid)?;
         edit.add_data_document(path.into(), names)?;
         Ok::<_, ImportError>(())
     })?;
-    let root = session.source().entrypoint().clone();
-    donder_project_io::ensure_document_can_reference_object(session, &root, first)
-        .map_err(|error| ImportError::Project(error.to_string()))?;
     Ok(count)
 }
 

@@ -12,14 +12,8 @@ use donder_editor::dto::{AppSettings, AppSnapshot, WorkspaceLayoutState};
 const FILE_NAME: &str = "desktop-state.json";
 const MAX_RECENT_PROJECTS: usize = 10;
 
-pub(crate) fn sequence_viewport_key(
-    path: &str,
-    object_key: &str,
-    owned_path: &[donder_editor::dto::OwnedObjectSlot],
-) -> Result<String, String> {
-    let address =
-        serde_json::to_string(&(object_key, owned_path)).map_err(|error| error.to_string())?;
-    Ok(format!("{path}::{address}"))
+pub(crate) fn sequence_viewport_key(path: &str, object_key: &str) -> String {
+    format!("{path}::{object_key}")
 }
 
 fn remap_object_views<T>(views: &mut BTreeMap<String, T>, source: &str, destination: &str) {
@@ -228,7 +222,7 @@ impl PersistenceService {
             .entry(project_root.to_string())
             .or_insert_with(PersistedProjectSession::new);
         session.sequence_viewports.insert(
-            sequence_viewport_key(&update.path, &update.object_key, &update.owned_path)?,
+            sequence_viewport_key(&update.path, &update.object_key),
             update.state,
         );
         inner.save_now()
@@ -259,7 +253,7 @@ impl PersistenceService {
             .entry(project_root.to_string())
             .or_insert_with(PersistedProjectSession::new);
         session.graph_views.insert(
-            sequence_viewport_key(&update.path, &update.object_key, &update.owned_path)?,
+            sequence_viewport_key(&update.path, &update.object_key),
             update.state,
         );
         inner.save_now()
@@ -289,7 +283,7 @@ impl PersistenceService {
             .entry(project_root.to_string())
             .or_insert_with(PersistedProjectSession::new);
         session.spatial_views.insert(
-            sequence_viewport_key(&update.path, &update.object_key, &update.owned_path)?,
+            sequence_viewport_key(&update.path, &update.object_key),
             update.state,
         );
         inner.save_now()
@@ -499,7 +493,6 @@ mod tests {
         let update = |state| PersistedSequenceViewportStateUpdate {
             path: "show.data.donder".into(),
             object_key: "show".into(),
-            owned_path: Vec::new(),
             state,
         };
         service
@@ -512,7 +505,7 @@ mod tests {
             .unwrap();
         let saved = fs_err::read_to_string(&path).unwrap();
         let reopened = decode_store(&saved).unwrap();
-        let key = sequence_viewport_key("show.data.donder", "show", &[]).unwrap();
+        let key = sequence_viewport_key("show.data.donder", "show");
         assert_eq!(
             reopened.projects["project"].sequence_viewports[&key].row_heights,
             state.row_heights
@@ -527,57 +520,7 @@ mod tests {
     }
 
     #[test]
-    fn owned_sequence_views_remain_distinct_after_document_move() {
-        use donder_editor::dto::OwnedObjectSlot;
-        let first = sequence_viewport_key(
-            "show.donder",
-            "show",
-            &[OwnedObjectSlot::Sequence {
-                name: "first".into(),
-            }],
-        )
-        .unwrap();
-        let second = sequence_viewport_key(
-            "show.donder",
-            "show",
-            &[OwnedObjectSlot::Sequence {
-                name: "second".into(),
-            }],
-        )
-        .unwrap();
-        assert_eq!(
-            first,
-            r#"show.donder::["show",[{"type":"sequence","name":"first"}]]"#
-        );
-        assert_ne!(first, second);
-        let mut views = BTreeMap::from([(first, 10), (second, 20)]);
-        remap_object_views(&mut views, "show.donder", "nested/show.donder");
-        assert_eq!(
-            views[&sequence_viewport_key(
-                "nested/show.donder",
-                "show",
-                &[OwnedObjectSlot::Sequence {
-                    name: "first".into()
-                }]
-            )
-            .unwrap()],
-            10
-        );
-        assert_eq!(
-            views[&sequence_viewport_key(
-                "nested/show.donder",
-                "show",
-                &[OwnedObjectSlot::Sequence {
-                    name: "second".into()
-                }]
-            )
-            .unwrap()],
-            20
-        );
-    }
-
-    #[test]
-    fn spatial_guides_persist_per_owned_object_and_remap_with_files() {
+    fn spatial_guides_persist_per_object_and_remap_with_files() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join(FILE_NAME);
         let service = PersistenceService::new();
@@ -586,10 +529,9 @@ mod tests {
             inner.path = Some(path.clone());
             inner.write_allowed = true;
         }
-        let update = |id, value| PersistedSpatialViewStateUpdate {
+        let update = |object: &str, value| PersistedSpatialViewStateUpdate {
             path: "show.donder".into(),
-            object_key: "show".into(),
-            owned_path: vec![donder_editor::dto::OwnedObjectSlot::Fixture { id }],
+            object_key: object.into(),
             state: PersistedSpatialViewState {
                 guides: vec![SpatialGuide {
                     axis: SpatialGuideAxis::X,
@@ -598,14 +540,14 @@ mod tests {
             },
         };
         service
-            .record_spatial_view("project", update(1, 0.0254))
+            .record_spatial_view("project", update("first", 0.0254))
             .unwrap();
         service
-            .record_spatial_view("project", update(2, -2.0))
+            .record_spatial_view("project", update("second", -2.0))
             .unwrap();
         assert!(
             service
-                .record_spatial_view("project", update(1, f64::NAN))
+                .record_spatial_view("project", update("first", f64::NAN))
                 .is_err()
         );
         service
@@ -614,13 +556,8 @@ mod tests {
         let stored = decode_store(&fs::read_to_string(path).unwrap()).unwrap();
         let views = &stored.projects["project"].spatial_views;
         assert_eq!(views.len(), 2);
-        for (id, value) in [(1, 0.0254), (2, -2.0)] {
-            let key = sequence_viewport_key(
-                "folder/show.donder",
-                "show",
-                &[donder_editor::dto::OwnedObjectSlot::Fixture { id }],
-            )
-            .unwrap();
+        for (object, value) in [("first", 0.0254), ("second", -2.0)] {
+            let key = sequence_viewport_key("folder/show.donder", object);
             assert_eq!(views[&key].guides[0].position_meters, value);
         }
     }

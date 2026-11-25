@@ -213,7 +213,7 @@ operator Grit {
     let band = (seed * 31.0 + pixel.index // tear_pixels) * 31.0 + bucket;
     let shift = if rand(band + 0.25) < tear { int(round((rand(band + 0.5) * 2.0 - 1.0) * tear_shift)) } else { 0 };
     let noise = rand((seed * 31.0 + pixel.index // grain_pixels) * 31.0 + bucket);
-    let light = input.at(pixel.index + shift) * (mix(1.0, noise, grain) * drive);
+    let light = input[pixel.index + shift] * (mix(1.0, noise, grain) * drive);
     rgb(crush(red(light), levels), crush(green(light), levels), crush(blue(light), levels))
   }
 }

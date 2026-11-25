@@ -44,7 +44,7 @@ handle gestures, reordering, conversion, and numeric edits use ordinary history.
 ## Capturing a fixture from video
 
 **Capture** in the fixture sidebar measures a fixture's shapes from a phone
-video of its pixels. It needs an E1.31 or Art-Net controller in the setup.
+video of its pixels. It needs an E1.31 or Art-Net controller in the project.
 
 1. Choose the controller, the fixture's first channel (counted across all the
    controller's universes) and its pixel count. Pixels are RGB, three channels
@@ -222,10 +222,10 @@ then along each shape, reversed where a shape says so.
 RGB/RGBW encoding, channel order, brightness, gamma, and dithering belong to
 LED routes.
 Routes and group slices select pixel ranges. Changing counts or shape order
-changes those ranges, so review the patch and the layout's slices when changing
+changes those ranges, so review the outputs and the layout's slices when changing
 fixture wiring. Routes target fixtures; effects target whole fixtures or
 groups, and a group may list slices of fixtures.
 
 Copying a layout preserves shared fixtures and instance names, creates its own
-patch, and retargets affected sequences. Shared fixtures remain linked through
+outputs, and retargets affected sequences. Shared fixtures remain linked through
 explicit local imports and can be edited at their declaration.

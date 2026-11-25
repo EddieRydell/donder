@@ -7,19 +7,10 @@ use indexmap::IndexMap;
 
 use crate::controller::{Controller, ControllerId, ControllerOutput, ControllerPortId};
 use crate::fixture::FixtureDefinitionId;
-pub(crate) use crate::identity::PatchId;
-use crate::layout::FixtureTarget;
 use crate::project::DonderProject;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct PixelRouteId(pub u32);
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Patch {
-    pub id: PatchId,
-    pub description: Option<String>,
-    pub routes: Vec<PixelRoute>,
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct PixelSpan {
@@ -30,7 +21,7 @@ pub struct PixelSpan {
 /// Where a route's channels begin.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RouteStart {
-    /// Right after the route before it on its port, in patch order. The
+    /// Right after the route before it on its port, in route order. The
     /// first route on an E1.31 or Art-Net port follows the last route on the
     /// controller's previous port; on a Donder port it starts the port's
     /// stream.
@@ -43,7 +34,7 @@ pub enum RouteStart {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PixelRoute {
     pub id: PixelRouteId,
-    pub target: FixtureTarget,
+    pub target: crate::layout::FixtureId,
     /// None routes the complete target, including future pixel-count edits.
     pub pixels: Option<PixelSpan>,
     /// Sends its pixels last first, for wiring that runs against the
@@ -77,11 +68,11 @@ pub struct RoutePlacement {
 }
 
 /// Each route's channels, resolving `next` starts through each controller's
-/// ports in order and each port's routes in patch order. `width` is a
+/// ports in order and each port's routes in route order. `width` is a
 /// route's channel count. A route on a missing controller or port, whose
 /// width is unknown, whose channels overflow, or that follows such a route,
 /// has no placement.
-pub fn place_routes<'a>(
+pub(crate) fn place_routes<'a>(
     routes: &[PixelRoute],
     controller: impl Fn(ControllerId) -> Option<&'a Controller>,
     width: impl Fn(&PixelRoute) -> Option<u32>,
@@ -128,34 +119,25 @@ pub fn place_routes<'a>(
     placements
 }
 
-/// `place_routes` for a patch of `project`, with each route's width from its
+/// `place_routes` for routes of `project`, with each route's width from its
 /// target's pixels.
-pub fn patch_placements(
+pub fn route_placements(
     project: &DonderProject,
-    patch: &Patch,
+    routes: &[PixelRoute],
     counts: &IndexMap<FixtureDefinitionId, u32>,
 ) -> HashMap<PixelRouteId, RoutePlacement> {
     place_routes(
-        &patch.routes,
+        routes,
         |id| project.get::<Controller>(id),
         |route| {
             let pixels = project
-                .get::<crate::Layout>(route.target.layout)?
-                .target_pixel_count(&route.target, counts)
+                .layout()
+                .target_pixel_count(route.target, counts)
                 .ok()?;
             route.channel_count(pixels)
         },
     )
 }
-
-impl crate::ownership::Identified for Patch {
-    type Id = PatchId;
-    fn id(&self) -> &Self::Id {
-        &self.id
-    }
-}
-
-pub type OwnedPatch = crate::ownership::Owned<Box<Patch>, PatchId>;
 
 /// A channel's output level from its color level, both from 0 to 1: the
 /// route's gamma, then its brightness.

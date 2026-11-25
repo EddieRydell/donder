@@ -1,17 +1,9 @@
-import type { DocumentDescriptor, GuiDocumentRequest, GuiObjectRef, ObjectKind, OwnedObjectSlot } from "../types";
+import type { DocumentDescriptor, GuiDocumentRequest, GuiObjectRef, ObjectKind } from "../types";
 
-type Address = Pick<GuiObjectRef, "path" | "objectKey" | "ownedPath">;
-
-function pathIdentity(path: OwnedObjectSlot[]) {
-  return path.map((slot) => {
-    if ("id" in slot) return { type: slot.type, id: slot.id };
-    if ("name" in slot) return { type: slot.type, name: slot.name };
-    return { type: slot.type };
-  });
-}
+type Address = Pick<GuiObjectRef, "path" | "objectKey">;
 
 export function guiObjectKey(reference: GuiObjectRef): string {
-  return JSON.stringify([reference.path, reference.objectKey, pathIdentity(reference.ownedPath)]);
+  return JSON.stringify([reference.path, reference.objectKey]);
 }
 
 export function sameGuiObject(a: GuiObjectRef, b: GuiObjectRef): boolean {
@@ -19,21 +11,11 @@ export function sameGuiObject(a: GuiObjectRef, b: GuiObjectRef): boolean {
 }
 
 export function objectViewKey(reference: Address): string {
-  return `${reference.path}::${JSON.stringify([reference.objectKey, pathIdentity(reference.ownedPath)])}`;
+  return `${reference.path}::${reference.objectKey}`;
 }
 
-/** The kind of object a GUI request opens: its last owned slot's, else its declared object's. */
+/** The kind of the declared object a GUI request opens. */
 export function guiRequestKind(request: GuiDocumentRequest | null, descriptor: DocumentDescriptor | null): ObjectKind | null {
   if (request === null) return null;
-  const slot = request.ownedPath[request.ownedPath.length - 1];
-  if (slot !== undefined) return slot.type;
   return descriptor?.guiObjects.find((object) => object.key === request.objectKey)?.kind ?? null;
-}
-
-/** The name an object is shown by: its owned slot's name, else its declaration's. A setup, layout, patch or
- * fixture slot names its object by kind or by the owner's record, so it has none here. */
-export function guiObjectName(reference: Address): string | null {
-  const slot = reference.ownedPath[reference.ownedPath.length - 1];
-  if (slot === undefined) return reference.objectKey;
-  return "name" in slot ? slot.name : null;
 }

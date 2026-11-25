@@ -11,7 +11,7 @@ use crate::compiler::ir::{
 use donder_runtime_types::bytecode::{
     Bank, Banks, BytecodeProgram, ColorComponent, Colors, CompareOp, ContextRead, CurveOp,
     FloatBinary, FloatUnary, GlyphOp, ImageOp, Input, Instruction, IntBinary, IntUnary, MAX_DEPTH,
-    MAX_ROW_BYTES, MarkOp, Reducer, Resource, SignalPixel, Slot, param_bank,
+    MAX_ROW_BYTES, MarkOp, Reducer, SignalPixel, Slot, param_bank,
 };
 use donder_runtime_types::{Color, Identifier, InstructionWord, Type, Value};
 use std::collections::{HashMap, HashSet};
@@ -115,7 +115,7 @@ impl<'a> Emitter<'a> {
                 continue;
             }
             match *graph.op(node) {
-                Op::Binary(Binary::ColorScale, color, scale)
+                Op::Binary(Binary::Multiply, color, scale)
                     if matches!(graph.op(color), Op::Binary(Binary::GradientSample, ..))
                         && unit_clamp(graph, scale).is_some()
                         && single(color, node)
@@ -334,6 +334,7 @@ impl<'a> Emitter<'a> {
                 None => code.push(Instruction::Context {
                     dst: self.destination(node),
                     read: context_read(context),
+                    word: Slot::NONE,
                 }),
             },
             // A reduction writes its own index.
@@ -432,6 +433,8 @@ impl<'a> Emitter<'a> {
 
     fn unary(&mut self, node: Node, op: Unary, a: Node, code: &mut Vec<Instruction>) {
         let color = self.graph.ty(a) == &Type::Color;
+        let marks = self.graph.ty(a) == &Type::Marks;
+        let int = self.graph.ty(a) == &Type::Int;
         let a = self.operand(a);
         // A channel is the color's own slot.
         let channel = match op {
@@ -447,13 +450,13 @@ impl<'a> Emitter<'a> {
         }
         let float = |op| Some(op);
         let float_op = match op {
-            Unary::Negate => float(FloatUnary::Negate),
+            Unary::Negate if !int => float(FloatUnary::Negate),
             Unary::Sin => float(FloatUnary::Sin),
             Unary::Cos => float(FloatUnary::Cos),
             Unary::Tan => float(FloatUnary::Tan),
             Unary::Exp => float(FloatUnary::Exp),
             Unary::Log => float(FloatUnary::Log),
-            Unary::Abs => float(FloatUnary::Abs),
+            Unary::Abs if !int => float(FloatUnary::Abs),
             Unary::Floor => float(FloatUnary::Floor),
             Unary::Ceil => float(FloatUnary::Ceil),
             Unary::Trunc => float(FloatUnary::Trunc),
@@ -496,12 +499,12 @@ impl<'a> Emitter<'a> {
         }
         let dst = self.destination(node);
         code.push(match op {
-            Unary::IntNegate => Instruction::IntUnary {
+            Unary::Negate => Instruction::IntUnary {
                 op: IntUnary::Negate,
                 dst,
                 a,
             },
-            Unary::IntAbs => Instruction::IntUnary {
+            Unary::Abs => Instruction::IntUnary {
                 op: IntUnary::Abs,
                 dst,
                 a,
@@ -518,12 +521,7 @@ impl<'a> Emitter<'a> {
                 color: a,
             },
             Unary::Len => Instruction::Length {
-                kind: Resource::Array,
-                dst,
-                resource: a,
-            },
-            Unary::MarkCount => Instruction::Length {
-                kind: Resource::Marks,
+                marks,
                 dst,
                 resource: a,
             },
@@ -542,6 +540,11 @@ impl<'a> Emitter<'a> {
                     y: Slot::NONE,
                 }
             }
+            Unary::Live => Instruction::Context {
+                dst,
+                read: ContextRead::Live,
+                word: a,
+            },
             Unary::FontHeight => Instruction::Glyph {
                 op: GlyphOp::Height,
                 dst,
@@ -550,11 +553,6 @@ impl<'a> Emitter<'a> {
                 x: Slot::NONE,
                 y: Slot::NONE,
             },
-            Unary::SectionCount | Unary::SectionIndex => Instruction::Section {
-                index: op == Unary::SectionIndex,
-                dst,
-                width: a,
-            },
             _ => unreachable!("other unaries are handled above"),
         });
     }
@@ -562,7 +560,7 @@ impl<'a> Emitter<'a> {
     fn binary(&mut self, node: Node, op: Binary, a: Node, b: Node, code: &mut Vec<Instruction>) {
         use Binary::*;
         let graph = self.graph;
-        if op == ColorScale && self.absorbed.contains(&a) {
+        if op == Multiply && self.absorbed.contains(&a) {
             let Op::Binary(GradientSample, gradient, position) = *graph.op(a) else {
                 unreachable!("an absorbed scale operand is a gradient sample")
             };
@@ -580,11 +578,8 @@ impl<'a> Emitter<'a> {
             });
             return;
         }
-        if op == SectionPosition {
-            self.section_position(node, a, b, code);
-            return;
-        }
         let left = Bank::for_type(graph.ty(a));
+        let right = Bank::for_type(graph.ty(b));
         let (a, b) = (self.operand(a), self.operand(b));
         if matches!(op, Equal | NotEqual) && left == Bank::Color {
             self.color_equal(node, op == NotEqual, a, b, code);
@@ -632,6 +627,25 @@ impl<'a> Emitter<'a> {
             b,
         };
         let instruction = match op {
+            Add | Subtract | Multiply | Divide | Remainder | Min | Max if left == Bank::Int => {
+                int(match op {
+                    Add => IntBinary::Add,
+                    Subtract => IntBinary::Subtract,
+                    Multiply => IntBinary::Multiply,
+                    Divide => IntBinary::FloorDivide,
+                    Remainder => IntBinary::Remainder,
+                    Min => IntBinary::Min,
+                    _ => IntBinary::Max,
+                })
+            }
+            Add | Multiply | Max if left == Bank::Color => color(
+                match op {
+                    Add => FloatBinary::Add,
+                    Multiply => FloatBinary::Multiply,
+                    _ => FloatBinary::Max,
+                },
+                right == Bank::Color,
+            ),
             Add => float(FloatBinary::Add),
             Subtract => float(FloatBinary::Subtract),
             Multiply => float(FloatBinary::Multiply),
@@ -641,31 +655,14 @@ impl<'a> Emitter<'a> {
             Max => float(FloatBinary::Max),
             ValueOr => float(FloatBinary::ValueOr),
             Atan2 => float(FloatBinary::Atan2),
-            PowerFloat => float(FloatBinary::Power),
-            IntAdd => int(IntBinary::Add),
-            IntSubtract => int(IntBinary::Subtract),
-            IntMultiply => int(IntBinary::Multiply),
-            IntRemainder => int(IntBinary::Remainder),
-            IntFloorDivide => int(IntBinary::FloorDivide),
-            IntMin => int(IntBinary::Min),
-            IntMax => int(IntBinary::Max),
-            Less => compare(CompareOp::Less, Bank::Float),
-            LessEqual => compare(CompareOp::LessEqual, Bank::Float),
-            Greater => compare(CompareOp::Greater, Bank::Float),
-            GreaterEqual => compare(CompareOp::GreaterEqual, Bank::Float),
-            IntLess => compare(CompareOp::Less, Bank::Int),
-            IntLessEqual => compare(CompareOp::LessEqual, Bank::Int),
-            IntGreater => compare(CompareOp::Greater, Bank::Int),
-            IntGreaterEqual => compare(CompareOp::GreaterEqual, Bank::Int),
+            Less => compare(CompareOp::Less, left),
+            LessEqual => compare(CompareOp::LessEqual, left),
+            Greater => compare(CompareOp::Greater, left),
+            GreaterEqual => compare(CompareOp::GreaterEqual, left),
             Equal => compare(CompareOp::Equal, left),
             NotEqual => compare(CompareOp::NotEqual, left),
-            ColorAdd => color(FloatBinary::Add, true),
-            ColorMultiply => color(FloatBinary::Multiply, true),
-            ColorMax => color(FloatBinary::Max, true),
-            ColorScale => color(FloatBinary::Multiply, false),
             CurveSample => curve(CurveOp::Sample),
             CurveIntegral => curve(CurveOp::Integral),
-            CurveFirstCrossing => curve(CurveOp::Crossing),
             GradientSample => Instruction::Gradient {
                 dst,
                 gradient: a,
@@ -710,8 +707,8 @@ impl<'a> Emitter<'a> {
             },
             MarkAt => mark(MarkOp::At),
             MarkDuration => mark(MarkOp::Duration),
-            MarkLast => mark(MarkOp::Last),
             MarkLastIndex => mark(MarkOp::LastIndex),
+            Power if right == Bank::Float => float(FloatBinary::Power),
             // A float multiplied by itself an int number of times.
             Power => {
                 let exponent = self.fresh(Bank::Float, !b.is_scalar());
@@ -727,7 +724,6 @@ impl<'a> Emitter<'a> {
                     b: exponent,
                 }
             }
-            SectionPosition => unreachable!("lowered above"),
         };
         code.push(instruction);
     }
@@ -789,41 +785,6 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    /// The position within the pixel's section, from a float width and its
-    /// reciprocal: `(i - floor(i * inverse) * width) * inverse`.
-    fn section_position(
-        &mut self,
-        node: Node,
-        width: Node,
-        inverse: Node,
-        code: &mut Vec<Instruction>,
-    ) {
-        let (width, inverse) = (self.operand(width), self.operand(inverse));
-        let mut row = || self.fresh(Bank::Float, true);
-        let (index, scaled, floored, start, within) = (row(), row(), row(), row(), row());
-        let binary = |op, dst, a, b| Instruction::FloatBinary {
-            op,
-            colors: Colors::NONE,
-            dst,
-            a,
-            b,
-        };
-        code.push(Instruction::IntToFloat {
-            dst: index,
-            a: Slot::input(Input::PixelIndex),
-        });
-        code.push(binary(FloatBinary::Multiply, scaled, index, inverse));
-        code.push(Instruction::FloatUnary {
-            op: FloatUnary::Floor,
-            dst: floored,
-            a: scaled,
-        });
-        code.push(binary(FloatBinary::Multiply, start, floored, width));
-        code.push(binary(FloatBinary::Subtract, within, index, start));
-        let dst = self.destination(node);
-        code.push(binary(FloatBinary::Multiply, dst, within, inverse));
-    }
-
     fn ternary(
         &mut self,
         node: Node,
@@ -849,6 +810,7 @@ impl<'a> Emitter<'a> {
             });
             return;
         }
+        let color = *graph.ty(a) == Type::Color;
         let (a, b, c) = (self.operand(a), self.operand(b), self.operand(c));
         let dst = self.destination(node);
         match op {
@@ -859,14 +821,11 @@ impl<'a> Emitter<'a> {
                 max: c,
             }),
             Ternary::Mix => code.push(Instruction::Mix {
-                colors: Colors::NONE,
-                dst,
-                a,
-                b,
-                amount: c,
-            }),
-            Ternary::MixColor => code.push(Instruction::Mix {
-                colors: Colors::NONE.with(0).with(1),
+                colors: if color {
+                    Colors::NONE.with(0).with(1)
+                } else {
+                    Colors::NONE
+                },
                 dst,
                 a,
                 b,
@@ -904,6 +863,13 @@ impl<'a> Emitter<'a> {
                 track: a,
                 channel: b,
                 time: c,
+            }),
+            Ternary::CurveFirstCrossing => code.push(Instruction::Curve {
+                op: CurveOp::Crossing,
+                dst,
+                curve: a,
+                value: b,
+                before: c,
             }),
             Ternary::CurveLastCrossing => code.push(Instruction::Curve {
                 op: CurveOp::LastCrossing,
@@ -1471,7 +1437,6 @@ fn select(
 fn pixel_input(context: Context) -> Option<Input> {
     match context {
         Context::PixelIndex => Some(Input::PixelIndex),
-        Context::PixelFraction => Some(Input::PixelFraction),
         Context::PixelX => Some(Input::PixelX),
         Context::PixelY => Some(Input::PixelY),
         Context::PixelZ => Some(Input::PixelZ),
@@ -1485,10 +1450,9 @@ fn pixel_input(context: Context) -> Option<Input> {
 fn context_read(context: Context) -> ContextRead {
     match context {
         Context::Time => ContextRead::Seconds,
-        Context::Progress => ContextRead::Progress,
+        Context::Origin => ContextRead::Origin,
         Context::Duration => ContextRead::Duration,
         Context::FrameRate => ContextRead::FrameRate,
-        Context::Frame => ContextRead::Frame,
         Context::TargetCount => ContextRead::PixelCount,
         Context::TargetMinX => ContextRead::TargetMinX,
         Context::TargetMinY => ContextRead::TargetMinY,

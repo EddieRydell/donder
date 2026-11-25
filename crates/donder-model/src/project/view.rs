@@ -3,8 +3,6 @@ use super::{DonderProject, ProjectObject};
 use crate::controller::Controller;
 use crate::input_device::InputDevice;
 use crate::layout::Layout;
-use crate::patch::Patch;
-use crate::setup::Setup;
 
 /// An object of a validated project. The references it holds resolve, so
 /// following them never fails.
@@ -56,49 +54,25 @@ impl DonderProject {
     }
 
     /// The object a reference the project holds names. Validation proves
-    /// every reference resolves; ownership validation proves those of the
-    /// root and setups before any other check reads them.
+    /// every reference resolves; the root.s layout before any other check
+    /// reads it.
     pub(crate) fn referenced<T: ProjectObject>(&self, id: T::Id) -> View<'_, T> {
         self.view(id)
             .unwrap_or_else(|| unreachable!("validation proved the reference {id:?} resolves"))
     }
 
-    /// The setup the project plays.
-    pub fn active_setup(&self) -> View<'_, Setup> {
-        self.referenced(*self.root.setup.id())
+    /// The layout the project plays on.
+    pub fn layout(&self) -> View<'_, Layout> {
+        self.referenced(self.root.layout)
     }
 
-    pub fn active_layout(&self) -> View<'_, Layout> {
-        self.active_setup().layout()
+    /// The controllers the project plays through, in order.
+    pub fn controllers(&self) -> impl Iterator<Item = View<'_, Controller>> {
+        self.controllers.keys().map(|&id| self.referenced(id))
     }
 
-    pub fn active_patch(&self) -> View<'_, Patch> {
-        self.active_setup().patch()
-    }
-}
-
-impl<'p> View<'p, Setup> {
-    pub fn layout(&self) -> View<'p, Layout> {
-        self.project.referenced(*self.object.layout.id())
-    }
-
-    pub fn patch(&self) -> View<'p, Patch> {
-        self.project.referenced(*self.object.patch.id())
-    }
-
-    pub fn controllers(&self) -> impl Iterator<Item = View<'p, Controller>> + use<'p> {
-        let project = self.project;
-        self.object
-            .controllers
-            .iter()
-            .map(move |controller| project.referenced(*controller.id()))
-    }
-
-    pub fn input_devices(&self) -> impl Iterator<Item = View<'p, InputDevice>> + use<'p> {
-        let project = self.project;
-        self.object
-            .input_devices
-            .iter()
-            .map(move |device| project.referenced(*device.id()))
+    /// The input devices the project reads, in order.
+    pub fn input_devices(&self) -> impl Iterator<Item = View<'_, InputDevice>> {
+        self.input_devices.keys().map(|&id| self.referenced(id))
     }
 }

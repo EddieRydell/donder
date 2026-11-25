@@ -1,4 +1,4 @@
-use crate::effect::{FontFace, OwnedCurve, OwnedGradient, ParamValue};
+use crate::effect::{CurveValue, FontFace, GradientValue, ParamValue};
 use crate::project::DonderProject;
 use crate::sequence::Sequence;
 use crate::{AudioAnalysis, AudioFeature, Derivation, Derived, FontRaster, Number};
@@ -158,7 +158,8 @@ fn characters(
     }
     if let MarkOrigin::Authored(sequence) = origin {
         let labels = sequence
-            .mark_collections
+            .composition
+            .marks
             .iter()
             .flat_map(|collection| &collection.marks)
             .filter_map(|mark| mark.label.as_deref());
@@ -288,9 +289,10 @@ fn prepare_param_value(context: &Context<'_>, value: &ParamValue) -> Value {
         ParamValue::Marks(Some(key)) => {
             let Some(collection) = sequence.and_then(|sequence| {
                 sequence
-                    .mark_collections
+                    .composition
+                    .marks
                     .iter()
-                    .find(|collection| &collection.key == key)
+                    .find(|collection| collection.id == *key)
             }) else {
                 // A live collection, which playback rebinds.
                 return Value::Marks(Arc::new(Marks::empty()));
@@ -326,14 +328,14 @@ fn prepare_param_value(context: &Context<'_>, value: &ParamValue) -> Value {
             Value::Marks(Arc::new(Marks::window(track, start, end)))
         }
         ParamValue::Curve(source) => Value::Curve(Arc::new(match source {
-            OwnedCurve::Inline(curve) => curve.clone(),
-            OwnedCurve::Reference(id) => project.reusable::<crate::CurveDefinition>()[id]
+            CurveValue::Literal(curve) => curve.clone(),
+            CurveValue::Linked(id) => project.reusable::<crate::CurveDefinition>()[id]
                 .curve
                 .clone(),
         })),
         ParamValue::Gradient(source) => Value::Gradient(Arc::new(match source {
-            OwnedGradient::Inline(gradient) => gradient.clone(),
-            OwnedGradient::Reference(id) => project.reusable::<crate::GradientDefinition>()[id]
+            GradientValue::Literal(gradient) => gradient.clone(),
+            GradientValue::Linked(id) => project.reusable::<crate::GradientDefinition>()[id]
                 .gradient
                 .clone(),
         })),

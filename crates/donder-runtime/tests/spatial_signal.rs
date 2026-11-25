@@ -84,7 +84,7 @@ fn spatial_queries_match_explicit_source_pixels() {
     // Each query and the source pixel each output pixel shows.
     for (query, indices) in [
         (
-            "source.at(target.count - 1 - pixel.index)",
+            "source[target.count - 1 - pixel.index]",
             vec![
                 Some(3),
                 Some(2),
@@ -97,7 +97,7 @@ fn spatial_queries_match_explicit_source_pixels() {
             ],
         ),
         (
-            "source.at(pixel.index + 1)",
+            "source[pixel.index + 1]",
             vec![
                 Some(1),
                 Some(2),
@@ -109,10 +109,10 @@ fn spatial_queries_match_explicit_source_pixels() {
                 None,
             ],
         ),
-        ("source.at(-1)", vec![None; 8]),
+        ("source[-1]", vec![None; 8]),
         // A reduction gathers every pixel of the current fixture.
         (
-            "max for i in 0..4 { source.at(i) }",
+            "max for i in 0..4 { source[i] }",
             vec![
                 Some(3),
                 Some(3),
@@ -150,18 +150,17 @@ fn spatial_queries_reach_pixels_of_other_strips() {
     };
     let queries: [(&str, Address); 3] = [
         (
-            "source.at(target.count - 1 - pixel.index)",
+            "source[target.count - 1 - pixel.index]",
             |first, size, index| Some(first + size - 1 - index),
         ),
-        ("source.at(pixel.index + 120)", |first, size, index| {
+        ("source[pixel.index + 120]", |first, size, index| {
             (index + 120 < size).then_some(first + index + 120)
         }),
         // The source brightens with the index, so the reduction shows its
         // last tap inside the fixture.
-        (
-            "max for i in 0..4 { source.at(i * 40) }",
-            |first, size, _| Some(first + 40 * ((size - 1) / 40).min(3)),
-        ),
+        ("max for i in 0..4 { source[i * 40] }", |first, size, _| {
+            Some(first + 40 * ((size - 1) / 40).min(3))
+        }),
     ];
     for (query, address) in queries {
         assert_query(&SIZES, query, &indices(address));

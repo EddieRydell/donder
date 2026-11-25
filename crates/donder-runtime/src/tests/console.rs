@@ -5,10 +5,10 @@ use super::playback;
 use super::std;
 use crate::playback::ConsoleCommand;
 use crate::{PreparedShow, ShowPlayback};
-use donder_language::compiler::ProgramConstants;
+use donder_language::compiler::{LiveWords, ProgramConstants};
 use donder_runtime_types::{
-    AutomatedQuantity, AutomationMapping, BoundProgram, Color, Curve, CurvePoint, FixtureGeometry,
-    Marks, OutputEncoding, PixelEncoding, PreparedAutomation, SampleDuration, SampleTime, Shared,
+    AutomationMapping, AutomationSource, BoundProgram, Color, FixtureGeometry, Marks,
+    OutputEncoding, PixelEncoding, PreparedAutomation, SampleDuration, SampleTime, Shared,
     TargetScope, Value,
 };
 use std::prelude::rust_2024::*;
@@ -163,18 +163,24 @@ fn voice_plays_until_stopped() {
 fn live_marks_reach_a_running_effect() {
     let effect = playback::compile(
         "effect Flash { param beats: marks; sample { \
-         let age = time - mark_last(beats, time); \
+         let age = time - mark_at(beats, mark_last_index(beats, time)); \
          guard age >= 0.0 && age < 0.1; #ffffff } }",
     );
     let invocation = effect
         .invoke(
-            vec![Value::Marks(Shared::new(Marks::empty()))],
+            vec![Value::Marks(Shared::new(Marks::live(0)))],
             Box::new([live_marks(0)]),
         )
         .unwrap();
-    let sample = playback::bind(&invocation.instance(ProgramConstants::default()));
-    let mut console = console(&[sample], |builder, effects| {
-        builder.live_marks([(effects[0], 0)]);
+    let sample = playback::bind(&invocation.instance(ProgramConstants::default(), &[]));
+    let mut console = console(&[sample], |builder, _| {
+        builder.console(crate::ConsoleRouting {
+            controls: 0,
+            collections: 1,
+            clips: Vec::new(),
+            ons: Vec::new(),
+            always: Vec::new(),
+        });
     });
     assert_eq!(color(&mut console, 0.5), Color::BLACK, "no marks yet");
     console.command(event(1.0, ConsoleCommand::Mark { collection: 0 }));
@@ -188,7 +194,7 @@ fn live_marks_reach_a_running_effect() {
 fn live_marks_reject_reductions_bounded_by_their_length() {
     let effect = playback::compile(
         "effect Count { param beats: marks; sample { \
-         let total = sum for i in 0..mark_count(beats) { 1.0 }; rgb(total, total, total) } }",
+         let total = sum for i in 0..len(beats) { 1.0 }; rgb(total, total, total) } }",
     );
     assert!(
         effect
@@ -200,57 +206,52 @@ fn live_marks_reject_reductions_bounded_by_their_length() {
     );
 }
 
-/// A float live automation binding over the whole session, for `param` (in 0..1).
-fn automation(param: u16) -> PreparedAutomation {
-    session(AutomationMapping::Float { min: 0.0, max: 1.0 }, param)
-}
-
-/// A binding of marks parameter `param` to a live collection.
-fn live_marks(param: u16) -> PreparedAutomation {
-    session(AutomationMapping::LiveMarks, param)
-}
-
-fn session(mapping: AutomationMapping, param: u16) -> PreparedAutomation {
+/// A binding of parameter `param` to its invocation's first live value.
+fn live(mapping: AutomationMapping, param: u16) -> PreparedAutomation {
     PreparedAutomation {
-        start: SampleTime::from_ticks(0),
-        duration: SampleDuration::from_ticks(SESSION),
-        curve: Shared::new(Curve {
-            points: vec![CurvePoint {
-                position: 0.0,
-                value: 0.0,
-            }],
-        }),
+        source: AutomationSource::Live(0),
         mapping,
-        quantity: AutomatedQuantity::Value,
         param_index: param,
     }
 }
 
-fn automated(source: &str) -> (BoundProgram, Vec<u16>) {
+/// A binding of marks parameter `param` to a live collection.
+fn live_marks(param: u16) -> PreparedAutomation {
+    live(AutomationMapping::LiveMarks, param)
+}
+
+/// `source`'s float parameter set by the console's first live automation,
+/// whose words come first in the live store, and its integral counting from
+/// the snapshot after them.
+fn automated(source: &str) -> BoundProgram {
     let effect = playback::compile(source);
-    let binding = automation(0);
+    let binding = live(AutomationMapping::Float { min: 0.0, max: 1.0 }, 0);
     let invocation = effect
-        .invoke(vec![Value::Float(0.0)], Box::new([binding.clone()]))
+        .invoke(vec![Value::Float(0.0)], Box::new([binding]))
         .unwrap();
-    let sample = playback::bind(&invocation.instance(ProgramConstants::default()));
-    // The live automation sets every binding lowered from its own, integrals included.
-    let bindings = sample
-        .automation()
-        .iter()
-        .enumerate()
-        .filter(|(_, lowered)| Shared::ptr_eq(&lowered.curve, &binding.curve))
-        .map(|(index, _)| index as u16)
-        .collect();
-    (sample, bindings)
+    let words = LiveWords {
+        value: 0,
+        snapshot: Some(3),
+    };
+    playback::bind(&invocation.instance(ProgramConstants::default(), &[words]))
+}
+
+/// The console's first live automation, resting at 0, and the snapshot its
+/// clip's integrals count from.
+fn live_automation<'id>(builder: &mut crate::ShowBuilder<'id>, clip: crate::ClipHandle<'id>) {
+    let (automation, word) = builder.live_automation(0.0);
+    assert_eq!(word, 0);
+    let snapshot = builder.snapshot_word();
+    builder.snapshot(clip, automation, snapshot);
 }
 
 #[test]
 fn set_changes_a_parameter_while_it_plays() {
-    let (sample, bindings) = automated(
+    let sample = automated(
         "effect Level { param level: float in 0.0..1.0 = 0.0; sample { rgb(level, level, level) } }",
     );
     let mut console = console(&[sample], |builder, effects| {
-        builder.live_automation(bindings.iter().map(|&binding| (effects[0], binding)));
+        live_automation(builder, effects[0]);
     });
     assert_eq!(color(&mut console, 0.5), Color::BLACK);
     console.command(event(
@@ -265,12 +266,12 @@ fn set_changes_a_parameter_while_it_plays() {
 
 #[test]
 fn set_keeps_an_integral_continuous() {
-    let (sample, bindings) = automated(
+    let sample = automated(
         "effect Travel { param speed: float in 0.0..1.0 = 0.0; sample { \
          guard integral(speed) > 0.5; #ffffff } }",
     );
     let mut console = console(&[sample], |builder, effects| {
-        builder.live_automation(bindings.iter().map(|&binding| (effects[0], binding)));
+        live_automation(builder, effects[0]);
     });
     console.command(event(
         0.0,

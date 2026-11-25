@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-import", "crates/donder-fixture-capture", "crates/donder-workspace-hack"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-runtime-iram", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-device-protocol", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-import", "crates/donder-fixture-capture", "crates/donder-workspace-hack"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -35,6 +35,7 @@ donder-model = { path = "crates/donder-model" }
 donder-output = { path = "crates/donder-output" }
 donder-project-io = { path = "crates/donder-project-io" }
 donder-runtime = { path = "crates/donder-runtime" }
+donder-runtime-iram = { path = "crates/donder-runtime-iram" }
 donder-runtime-types = { path = "crates/donder-runtime-types" }
 donder-test-support = { path = "crates/donder-test-support" }
 donder-import = { path = "crates/donder-import" }

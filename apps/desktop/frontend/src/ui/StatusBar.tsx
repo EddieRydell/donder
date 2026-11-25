@@ -8,6 +8,7 @@ import { useAppStore, type AppStaticSnapshot } from "../store";
 import { displayedProjectHealth, severityCounts } from "../workspace/helpers";
 import { countOf } from "./count";
 import { useUnplacedRefusal } from "./gui/problems";
+import { useDocumentUi } from "./gui/documentUi";
 
 export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const editsPending = useAppStore((store) => store.documentEditsPending);
@@ -75,7 +76,7 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
 function useSystemFailures(snapshot: AppStaticSnapshot): string[] {
   const failures = useAppStore((store) => store.failures);
   // The layer graph editor shows its own graph while it edits; the render follows once it closes.
-  const graphEditing = useAppStore((store) => store.compositionGraphEditing);
+  const graphEditing = useDocumentUi((ui) => ui.graphOpen);
   return [
     ...Object.values(failures),
     ...(!graphEditing && snapshot.renderError !== null && snapshot.renderError !== "" ? [snapshot.renderError] : []),

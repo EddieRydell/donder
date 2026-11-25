@@ -269,7 +269,7 @@ impl DesktopState {
     pub(super) fn invalidate_prepared_project(&self) {
         self.render_refresh.invalidate_pending();
         self.stop_live_output();
-        lock_unpoisoned(&self.sequence_render).unload();
+        *lock_unpoisoned(&self.sequence) = None;
     }
 
     pub(super) fn schedule_working_copy(&self, save: bool) {
@@ -648,7 +648,7 @@ mod tests {
     use crate::desktop_foundation_tests::tests::starter_copy;
     use donder_editor::dto::{EditorViewMode, SidebarView};
     use donder_editor::dto::{
-        GuiDocument, GuiDocumentRequest, GuiEditCommand, ProjectGuiEdit, SequenceGuiEdit,
+        GuiDocument, GuiDocumentRequest, GuiEdit, GuiField, GuiSite, GuiValue, ProjectGuiEdit,
         TransitionDecision, TransitionRequest, TransitionResult, WorkspaceTransition,
     };
     const SEQUENCE: &str = "sequences/layer_test.data.donder";
@@ -684,7 +684,6 @@ mod tests {
 
     fn gui_request(state: &DesktopState) -> GuiDocumentRequest {
         GuiDocumentRequest {
-            owned_path: Vec::new(),
             project_revision: state.snapshot().project_revision,
             path: SEQUENCE.into(),
             object_key: "layer_test".into(),
@@ -727,11 +726,10 @@ mod tests {
         assert_eq!(document.frame_rate, 90.0);
         let result = state.apply_gui_edit(
             request,
-            GuiEditCommand::Sequence {
-                edit: SequenceGuiEdit::SetDuration {
-                    duration_seconds: 300.0,
-                },
-            },
+            GuiEdit::put(
+                GuiSite::object(GuiField::Duration),
+                GuiValue::Seconds { seconds: 300.0 },
+            ),
         );
         assert!(!matches!(result.document, GuiDocument::Blocked { .. }));
         let GuiDocument::Sequence { document } = &result.document else {
@@ -781,11 +779,7 @@ mod tests {
             state.get_gui_document(previous).document,
             GuiDocument::Blocked { .. }
         ));
-        assert!(
-            lock_unpoisoned(&state.sequence_render)
-                .active_target()
-                .is_none()
-        );
+        assert!(lock_unpoisoned(&state.sequence).is_none());
         assert_eq!(
             fs_err::read_to_string(root.join(SEQUENCE)).unwrap(),
             invalid
@@ -808,7 +802,6 @@ mod tests {
             .source_identity(session.project().root().id.into())
             .unwrap();
         let project = GuiDocumentRequest {
-            owned_path: Vec::new(),
             project_revision: state.snapshot().project_revision,
             path: owner.document().to_string(),
             object_key: owner.object().to_string(),
@@ -816,7 +809,7 @@ mod tests {
         state.open_file_path(owner.document().as_str());
         let created = state.apply_gui_edit(
             project,
-            GuiEditCommand::Project {
+            GuiEdit::Project {
                 edit: ProjectGuiEdit::AddConsole {
                     initial_color: "#38bdf8".into(),
                     name: "gui_console".into(),
@@ -825,7 +818,12 @@ mod tests {
         );
         assert!(matches!(created.document, GuiDocument::Project { .. }));
         let session = state.project_session().unwrap();
-        let console = *session.project().root().consoles.last().unwrap().id();
+        let console = *session
+            .project()
+            .reusable::<donder_model::Console>()
+            .keys()
+            .last()
+            .unwrap();
         let path = session
             .source_identity(console.into())
             .unwrap()
@@ -911,11 +909,10 @@ mod tests {
             state
                 .apply_gui_edit(
                     request,
-                    GuiEditCommand::Sequence {
-                        edit: SequenceGuiEdit::SetDuration {
-                            duration_seconds: 100.0
-                        }
-                    }
+                    GuiEdit::put(
+                        GuiSite::object(GuiField::Duration),
+                        GuiValue::Seconds { seconds: 100.0 },
+                    )
                 )
                 .document,
             GuiDocument::Blocked { .. }
@@ -1058,20 +1055,18 @@ mod tests {
             sequence_id,
             project,
         };
-        let result = crate::rendering::prepare_render_session(
+        let result = crate::playing::prepare_show(
             request.project.project(),
-            &request.sequence_id,
+            donder_model::ShowId::Sequence(request.sequence_id),
+            donder_elaboration::Retain::All,
+            &mut Default::default(),
         );
-        assert!(result.is_ok());
+        assert!(result.is_some());
         edit(&state, "invalid: [".into());
         state.working_copy.finish_pending();
         state.complete_render_refresh(request, result);
         assert_eq!(state.snapshot().project_health, ProjectHealth::Invalid);
-        assert!(
-            lock_unpoisoned(&state.sequence_render)
-                .active_target()
-                .is_none()
-        );
+        assert!(lock_unpoisoned(&state.sequence).is_none());
     }
 
     #[test]

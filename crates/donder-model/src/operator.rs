@@ -1,9 +1,9 @@
-use crate::effect::ParamValue;
-pub(crate) use crate::identity::OperatorDefinitionId;
-use crate::sequence::{
-    CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge, SequenceCompositionGraph,
+use crate::composition::{
+    CompositionGraph, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
 };
-use donder_language::compiler::{CompiledDefinition, OperatorInputDecl, ParamDecl};
+use crate::effect::ParamValue;
+use crate::effect::{DefinitionProblem, ScriptDefinition, ScriptId};
+use donder_language::compiler::DeclarationKind;
 use donder_runtime_types::{Identifier, Type};
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
@@ -12,52 +12,16 @@ use std::collections::{HashMap, HashSet};
 pub struct GraphOperatorNode {
     /// Unique among the sequence's layers and graph nodes; edges use it.
     pub name: donder_runtime_types::Identifier,
-    pub operator: OperatorDefinitionId,
+    pub operator: ScriptId,
     pub params: IndexMap<Identifier, ParamValue>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct OperatorDefinition {
-    pub(crate) id: OperatorDefinitionId,
-    compiled: Box<CompiledDefinition>,
-}
-
-impl OperatorDefinition {
-    pub fn new(id: OperatorDefinitionId, compiled: CompiledDefinition) -> Self {
-        Self {
-            id,
-            compiled: Box::new(compiled),
-        }
-    }
-    pub fn id(&self) -> &OperatorDefinitionId {
-        &self.id
-    }
-    pub fn name(&self) -> &str {
-        self.compiled.name().as_str()
-    }
-    /// The operator's inputs, in declaration order.
-    pub fn inputs(&self) -> impl Iterator<Item = &Identifier> {
-        self.compiled
-            .inputs()
-            .iter()
-            .map(|OperatorInputDecl { name }| name)
-    }
-    pub fn params(&self) -> &[ParamDecl] {
-        self.compiled.params()
-    }
-    pub(crate) fn compiled(&self) -> &CompiledDefinition {
-        &self.compiled
-    }
-    pub fn description(&self) -> Option<&str> {
-        self.compiled.description()
-    }
 }
 
 /// Why a composition graph cannot be evaluated.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GraphValidationError {
     DuplicateNode(CompositionGraphNodeId),
-    MissingOperator(CompositionGraphNodeId),
+    /// An operator node names no operator.
+    Definition(CompositionGraphNodeId, DefinitionProblem),
     RootCount(usize),
     MissingEdgeNode(CompositionGraphNodeId),
     /// An edge leaves the root, which has no output.
@@ -76,7 +40,7 @@ impl GraphValidationError {
     pub(crate) fn node(&self) -> Option<CompositionGraphNodeId> {
         match self {
             Self::DuplicateNode(node)
-            | Self::MissingOperator(node)
+            | Self::Definition(node, _)
             | Self::MissingEdgeNode(node)
             | Self::DuplicateEdge(node)
             | Self::EdgeFromRoot(node)
@@ -90,7 +54,7 @@ impl std::fmt::Display for GraphValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DuplicateNode(node) => write!(f, "graph node id {} is used twice", node.0),
-            Self::MissingOperator(_) => f.write_str("the operator is missing"),
+            Self::Definition(_, problem) => problem.fmt(f),
             Self::RootCount(count) => write!(f, "the graph has {count} outputs instead of one"),
             Self::MissingEdgeNode(_) => f.write_str("a connection's node is missing"),
             Self::EdgeFromRoot(_) => f.write_str("the root has no output"),
@@ -107,8 +71,8 @@ impl std::fmt::Display for GraphValidationError {
 }
 
 pub fn validate_composition_graph(
-    graph: &SequenceCompositionGraph,
-    definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
+    graph: &CompositionGraph,
+    definitions: &IndexMap<ScriptId, ScriptDefinition>,
 ) -> Result<(), GraphValidationError> {
     let mut node_ids = HashSet::new();
     let mut root_count = 0usize;
@@ -118,9 +82,12 @@ pub fn validate_composition_graph(
         }
         match &node.kind {
             CompositionGraphNodeKind::Operator(operator) => {
-                if !definitions.contains_key(&operator.operator) {
-                    return Err(GraphValidationError::MissingOperator(node.id.clone()));
-                }
+                crate::effect::script_of_kind(
+                    definitions,
+                    operator.operator,
+                    DeclarationKind::Operator,
+                )
+                .map_err(|problem| GraphValidationError::Definition(node.id.clone(), problem))?;
             }
             CompositionGraphNodeKind::Root => root_count += 1,
             CompositionGraphNodeKind::Layer { .. } => {}
@@ -144,8 +111,8 @@ pub fn validate_composition_graph(
 
 /// Nodes that can contribute to the root; preparation skips the rest.
 pub fn composition_graph_root_dependencies(
-    graph: &SequenceCompositionGraph,
-) -> HashSet<crate::sequence::CompositionGraphNodeId> {
+    graph: &CompositionGraph,
+) -> HashSet<crate::composition::CompositionGraphNodeId> {
     let mut incoming = HashMap::<_, Vec<_>>::new();
     for edge in &graph.edges {
         incoming.entry(&edge.to).or_default().push(&edge.from);
@@ -169,10 +136,10 @@ pub fn composition_graph_root_dependencies(
 fn validate_edge<'a>(
     edge: &'a EffectGraphEdge,
     nodes: &HashMap<
-        &'a crate::sequence::CompositionGraphNodeId,
-        &'a crate::sequence::CompositionGraphNode,
+        &'a crate::composition::CompositionGraphNodeId,
+        &'a crate::composition::CompositionGraphNode,
     >,
-    definitions: &IndexMap<OperatorDefinitionId, OperatorDefinition>,
+    definitions: &IndexMap<ScriptId, ScriptDefinition>,
     edges: &mut HashSet<&'a EffectGraphEdge>,
 ) -> Result<(), GraphValidationError> {
     let from = nodes
@@ -205,7 +172,7 @@ fn validate_edge<'a>(
     Ok(())
 }
 
-fn validate_acyclic(graph: &SequenceCompositionGraph) -> Result<(), GraphValidationError> {
+fn validate_acyclic(graph: &CompositionGraph) -> Result<(), GraphValidationError> {
     let indexes = graph
         .nodes
         .iter()

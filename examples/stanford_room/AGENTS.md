@@ -12,20 +12,21 @@ with the show, tell the author.
 ## The show
 
 - `project.data.donder` is the entry point. Its `Project` declaration names the
-  setup and the sequence.
+  layout, the controller, the routes and the sequence.
 - `sequences/main.data.donder` is the show: the song's audio, its mark
   collections (beats and cues, in seconds), its layers, its clips, the graph that
-  combines layers into its root node, and automation. Most requests are edits here.
+  combines layers into its root node, and the envelopes that drive parameters. Most requests are edits here.
 - `layouts/main.data.donder` places the strips. Its fixtures and groups (`desk`,
   `desk_top`, `desk_left`, `desk_legs`, `desk_leg_left` and so on) are what clips
-  target, as `layouts.main.<name>`. A group targets every strip inside it.
+  target, by name alone. A group targets every strip inside it.
 - `effects/*.donder` and `operators/*.donder` are scripts: the effects clips play
   (`Pulse`, `Gradient`, `Chase`, `Wipe`, `Spin`, the mark-driven `MarkPulse`,
   `MarkChase`, `MarkWipe`, and the effects ported from Vixen) and the operators
   the graph uses (`HueShift`, `HueMap`, `Dim`, `Blur`, `Bloom`
   and others). Read a definition's parameters before using it.
-- `setups/main.data.donder` and `patches/main.data.donder` wire the strips to the
-  controller. Leave them alone unless the author is changing hardware.
+- The routes in `project.data.donder` and `controllers/controllers.data.donder`
+  wire the strips to the controller. Leave them alone unless the author is
+  changing hardware.
 
 ## Writing the sequence
 
@@ -35,13 +36,14 @@ A clip plays one effect on one target over a span of time:
 Clip {
   name: chorus_pulse,
   description: "Big hit on the drop.",
-  layer: hue_shift,
-  start: 67.82798s,
-  duration: 9.960629s,
-  target: layouts.main.desk_leg_left,
-  scope: WholeTarget,
-  effect: effects.MarkPulse,
-  params: { beats: marks_2, accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] } },
+  target: desk_leg_left,
+  placement: Timed { start: 67.82798s, duration: 9.960629s },
+  content: Effect {
+    layer: hue_shift,
+    scope: WholeTarget,
+    effect: effects.MarkPulse,
+    params: { beats: marks_2, accent: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] } },
+  },
 }
 ```
 
@@ -58,7 +60,10 @@ Clip {
   the order the effect declares them. Enum values are option names
   (`gradient_mode: AcrossItems`), gradients are lists of `(position, color)`
   pairs, curves lists of `(position, value)` pairs.
-- Clip names are unique in the sequence; automation refers to clips by name.
+- Clip names are unique in the sequence. An envelope is a clip whose
+  `content: Envelope { curve, bindings }` drives parameters while it plays; its
+  bindings name clips (`ClipParam { clip, param }`) and operator nodes
+  (`NodeParam { node, param }`) by name.
 
 The documents are strict so the Donder app and the text always agree. Write
 every field of a record in the order the existing ones use, with `none` for an

@@ -3,7 +3,7 @@ use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
 use donder_device_protocol::{Action, Command, clock};
 use donder_model::{ControllerId, ControllerOutput, DonderDeviceId};
-use donder_project_io::ObjectAddress;
+use donder_project_io::SourceIdentity;
 use donder_runtime::{PlaybackRate, PreparedShow};
 use std::{
     collections::{BTreeMap, hash_map::RandomState},
@@ -19,7 +19,7 @@ pub(crate) type DevicePorts = Vec<(ControllerId, ControllerOutput)>;
 /// Controllers released because they could not take part, and why.
 pub(crate) type DeviceFailures = BTreeMap<DonderDeviceId, String>;
 
-/// A controller in the open setup that should follow editor playback.
+/// A controller in the project that should follow editor playback.
 pub(crate) struct WantedDevice {
     pub id: DonderDeviceId,
     pub address: SocketAddr,
@@ -108,7 +108,7 @@ impl DeviceClient {
 struct Prepared {
     revision: u32,
     /// The prepared sequence's address, which outlives reloads.
-    sequence: ObjectAddress,
+    sequence: SourceIdentity,
     bytes: Vec<u8>,
     /// The show's identity, which the controller reports for the show it holds.
     id: u32,
@@ -173,7 +173,7 @@ impl Binding {
     fn prepare(
         &mut self,
         revision: u32,
-        sequence: &ObjectAddress,
+        sequence: &SourceIdentity,
         compile: &mut impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<(), String> {
         let prepared = match &mut self.prepared {
@@ -374,7 +374,7 @@ impl DevicePlaybackService {
             worker: Some(worker),
         }
     }
-    /// Match bindings to the controllers the open setup wants. Unchanged
+    /// Match bindings to the controllers the project wants. Unchanged
     /// bindings keep their clock state and uploaded show; new ones stop
     /// whatever the controller plays and synchronize clocks.
     pub(crate) fn sync(
@@ -442,7 +442,7 @@ impl DevicePlaybackService {
     pub(crate) fn stop_for_source(
         &self,
         epoch: u32,
-        sequence: Option<&ObjectAddress>,
+        sequence: Option<&SourceIdentity>,
     ) -> Result<(), String> {
         let mut core = lock_unpoisoned(&self.shared.core);
         let changed = core.epoch != epoch
@@ -478,7 +478,7 @@ impl DevicePlaybackService {
         &self,
         epoch: u32,
         revision: u32,
-        sequence: &ObjectAddress,
+        sequence: &SourceIdentity,
         mut compile: impl FnMut(&DevicePorts) -> Result<PreparedShow, String>,
     ) -> Result<DeviceFailures, String> {
         let mut core = lock_unpoisoned(&self.shared.core);

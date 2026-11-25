@@ -10,11 +10,11 @@ pub(super) struct WorkingDocument {
     pub observed: Option<Vec<u8>>,
 }
 
-/// The rendered sequence and the setup it renders on, by address: a text
+/// The rendered sequence and the project it renders on, by address: a text
 /// reload assigns new ids, so each session resolves them again.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct RenderTarget {
-    pub sequence: donder_project_io::ObjectAddress,
+    pub sequence: donder_project_io::SourceIdentity,
 }
 
 impl RenderTarget {
@@ -23,7 +23,7 @@ impl RenderTarget {
         sequence: donder_model::SequenceId,
     ) -> Option<Self> {
         Some(Self {
-            sequence: session.find_address(sequence.into())?,
+            sequence: session.source_identity(sequence.into())?,
         })
     }
 
@@ -31,7 +31,7 @@ impl RenderTarget {
         &self,
         session: &donder_project_io::ProjectSession,
     ) -> Option<donder_model::SequenceId> {
-        session.resolve_address(&self.sequence)?.try_into().ok()
+        session.declared_id(&self.sequence)?.try_into().ok()
     }
 }
 

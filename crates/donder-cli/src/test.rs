@@ -1,10 +1,10 @@
-//! Stream test patterns to the setup's streamed controllers, one standard
+//! Stream test patterns to the project's streamed controllers, one standard
 //! input line at a time, so wiring can be checked from a terminal.
 use std::io::BufRead;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use donder_model::{Controller, Layout, Setup};
+use donder_model::Controller;
 use donder_output::{OutputTest, OutputTransports, TestPattern, TestSelection};
 use donder_project_io::ProjectSession;
 
@@ -47,8 +47,12 @@ pub(crate) fn run(session: &ProjectSession) -> Result<(), String> {
                     [pattern, targets @ ..] => match test(session, pattern, targets) {
                         Ok(test) => {
                             stop(&mut active)?;
-                            let transports = OutputTransports::open(test.controllers().values())
-                                .map_err(|error| format!("Output could not start: {error}"))?;
+                            let transports = OutputTransports::open(
+                                test.controllers()
+                                    .iter()
+                                    .map(|(id, controller)| (*id, controller)),
+                            )
+                            .map_err(|error| format!("Output could not start: {error}"))?;
                             eprintln!(
                                 "testing {} on {} controller(s)",
                                 line.trim(),
@@ -129,11 +133,8 @@ fn parse_pattern(word: &str) -> Result<TestPattern, String> {
 
 fn selection(session: &ProjectSession, target: &str) -> Result<TestSelection, String> {
     let project = session.project();
-    let setup = project
-        .get::<Setup>(*project.root().setup.id())
-        .ok_or("The project's setup is missing.")?;
     if let Some((name, port)) = target.split_once('@') {
-        let controller = setup_controller(session, setup, name)
+        let controller = controller_named(session, name)
             .ok_or_else(|| format!("No controller is named {name}."))?;
         let port = project
             .get::<Controller>(controller)
@@ -163,7 +164,7 @@ fn selection(session: &ProjectSession, target: &str) -> Result<TestSelection, St
         }
         _ => return Err(format!("Unknown target {target}.")),
     };
-    if let Some(controller) = setup_controller(session, setup, name) {
+    if let Some(controller) = controller_named(session, name) {
         let (start_channel, channel_count) = match channels {
             Some(channels) => channels,
             None => (
@@ -180,28 +181,20 @@ fn selection(session: &ProjectSession, target: &str) -> Result<TestSelection, St
             channel_count,
         });
     }
-    let layout = project
-        .get::<Layout>(*setup.layout.id())
-        .ok_or("The setup's layout is missing.")?;
+    let layout = project.layout();
     let item = layout
         .iter_fixtures()
         .find(|fixture| fixture.name.as_str() == name)
         .ok_or_else(|| format!("No controller, fixture or group is named {name}."))?;
-    Ok(TestSelection::LayoutItem {
-        layout: layout.id,
-        item: item.id,
-    })
+    Ok(TestSelection::LayoutItem(item.id))
 }
 
-/// The setup's controller declared as `name`.
-fn setup_controller(
-    session: &ProjectSession,
-    setup: &Setup,
-    name: &str,
-) -> Option<donder_model::ControllerId> {
-    setup
-        .controllers
-        .iter()
-        .map(|source| *source.id())
-        .find(|id| session.address_of(*id).declared_name() == name)
+/// The project's controller declared as `name`.
+fn controller_named(session: &ProjectSession, name: &str) -> Option<donder_model::ControllerId> {
+    session
+        .project()
+        .reusable::<donder_model::Controller>()
+        .keys()
+        .copied()
+        .find(|id| session.address_of(*id).object() == name)
 }

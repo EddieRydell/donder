@@ -9,21 +9,19 @@ use std::cell::RefCell;
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::compiler::{DeclarationKind, TextSpan, compile_script};
+use donder_language::compiler::{TextSpan, compile_script};
 use donder_language::data::NO_SPAN;
 use donder_language::{ImportAlias, ImportDeclaration, SourceReference};
+use donder_model::LayoutId;
 use donder_model::ObjectId;
-use donder_model::Owned;
-use donder_model::SetupId;
 use donder_model::{
-    CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
+    CurveDefinition, CurveId, GradientDefinition, GradientId, ScriptDefinition, ScriptId,
 };
 use donder_model::{DonderProject, ProjectData, ProjectId, ProjectRoot};
-use donder_model::{OperatorDefinition, OperatorDefinitionId};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::ProjectCheckCache;
-use crate::address::{DeclaredObject, DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity};
+use crate::address::{DeclaredObject, DocumentId, SourceIdentity};
 use crate::check_cache::ReadDocument;
 use crate::diagnostics::LoadError;
 use crate::diagnostics::{byte_range, data_diagnostic, dsl_diagnostic};
@@ -38,9 +36,9 @@ use resolve::DomainResolver;
 /// id in either order, so references resolve before the object is built.
 #[derive(Default)]
 pub(crate) struct Interner {
-    ids: std::collections::HashMap<ObjectAddress, u32>,
+    ids: std::collections::HashMap<SourceIdentity, u32>,
     /// `None` for an id of [`Interner::of`]'s session that no object has.
-    addresses: Vec<Option<ObjectAddress>>,
+    addresses: Vec<Option<SourceIdentity>>,
 }
 
 impl Interner {
@@ -59,7 +57,7 @@ impl Interner {
         interner
     }
 
-    fn intern(&mut self, address: ObjectAddress) -> u32 {
+    fn intern(&mut self, address: SourceIdentity) -> u32 {
         if let Some(&id) = self.ids.get(&address) {
             return id;
         }
@@ -109,8 +107,7 @@ impl DataDocument {
 pub(crate) struct LoadedDefinitions {
     curves: IndexMap<CurveId, CurveDefinition>,
     gradients: IndexMap<GradientId, GradientDefinition>,
-    effects: IndexMap<EffectDefinitionId, EffectDefinition>,
-    operators: IndexMap<OperatorDefinitionId, OperatorDefinition>,
+    scripts: IndexMap<ScriptId, ScriptDefinition>,
 }
 
 pub(super) struct Loader {
@@ -129,6 +126,8 @@ pub(super) struct Loader {
     /// Where each resolved name points, for the language server.
     pub(crate) links: RefCell<IndexSet<Link>>,
     interner: RefCell<Interner>,
+    /// The project's one layout, which fixture references name members of.
+    pub(crate) layout: Option<SourceIdentity>,
 }
 
 impl Loader {
@@ -153,6 +152,7 @@ impl Loader {
             cache,
             links: RefCell::new(IndexSet::new()),
             interner: RefCell::default(),
+            layout: None,
         }
     }
 
@@ -193,6 +193,9 @@ impl Loader {
         document: &DocumentId,
     ) -> Result<donder_model::Sequence, LoadError> {
         *self.interner.borrow_mut() = Interner::of(session);
+        let layout = session.address_of(session.project().root().layout);
+        self.load_document(layout.document_id())?;
+        self.layout = Some(layout);
         self.load_document(document)?;
         self.build_document_scopes()?;
         let Some(&ObjectId::Sequence(id)) = self.visible_objects[document].values().next() else {
@@ -201,9 +204,8 @@ impl Loader {
         let mut project = self.project_data(ProjectRoot {
             id: ProjectId(u32::MAX),
             description: None,
-            setup: Owned::Reference(SetupId(u32::MAX)),
-            sequences: Vec::new(),
-            consoles: Vec::new(),
+            layout: LayoutId(u32::MAX),
+            routes: Vec::new(),
         });
         DomainResolver {
             loader: self,
@@ -215,19 +217,18 @@ impl Loader {
             .shift_remove(&id)
             .unwrap_or_else(|| unreachable!("the sequence was just resolved"));
         // The text numbers a layout's items in order; `session` may not.
-        let fixture = |target: &mut donder_model::FixtureTarget| {
+        let fixture = |target: &mut donder_model::FixtureId| {
             let item = session
                 .project
-                .get::<donder_model::Layout>(target.layout)
-                .and_then(|layout| layout.fixtures.get(target.fixture.0 as usize - 1))
+                .layout()
+                .object()
+                .fixtures
+                .get(target.0 as usize - 1)
                 .unwrap_or_else(|| unreachable!("the text printed the session's layout"));
-            target.fixture = item.id;
+            *target = item.id;
         };
-        for clip in &mut sequence.clips {
+        for clip in &mut sequence.composition.clips {
             fixture(&mut std::sync::Arc::make_mut(clip).target);
-        }
-        for clip in &mut sequence.automation_clips {
-            fixture(&mut clip.row_target);
         }
         Ok(sequence)
     }
@@ -258,22 +259,16 @@ impl Loader {
 
     /// A broken project rule, at the text of the object or member it concerns.
     fn validation_error(&self, error: &donder_model::ProjectValidationError) -> LoadError {
-        let address = self.address(error.object);
-        let root = address.root_source();
+        let root = self.address(error.object);
         let span = self.data.get(root.document_id()).and_then(|data| {
             let (_, declaration) = data.declaration(root.object())?;
-            let path = address.owned_path();
-            error
-                .problem
-                .site()
-                .and_then(|site| locate::site_span(declaration, path, &site))
-                .or_else(|| locate::member_name(declaration, path))
+            locate::site_span(declaration, &error.site())
                 .or_else(|| data.names.get(root.object()).copied())
         });
         crate::diagnostics::invalid_document(
-            address.document().to_path_buf(),
+            root.document().to_path_buf(),
             span.and_then(|span| self.range(root.document_id(), span)),
-            crate::address::object_problem(&address, &error.problem),
+            crate::address::object_problem(&root, &error.problem),
         )
     }
 
@@ -286,12 +281,12 @@ impl Loader {
     }
 
     /// The session id of the object at `address`.
-    fn intern(&self, address: ObjectAddress) -> u32 {
+    fn intern(&self, address: SourceIdentity) -> u32 {
         self.interner.borrow_mut().intern(address)
     }
 
     /// The address an id was interned under.
-    pub(crate) fn address(&self, id: impl Into<ObjectId>) -> ObjectAddress {
+    pub(crate) fn address(&self, id: impl Into<ObjectId>) -> SourceIdentity {
         self.interner.borrow().addresses[id.into().raw() as usize]
             .clone()
             .unwrap_or_else(|| unreachable!("every id the loader hands out has an address"))
@@ -299,7 +294,7 @@ impl Loader {
 
     /// The declared object `identity` names, as a `kind`.
     fn declared(&self, kind: &ObjectKind, identity: SourceIdentity) -> ObjectId {
-        kind.id(self.intern(identity.into()))
+        kind.id(self.intern(identity))
     }
 
     pub(crate) fn invalid(
@@ -333,13 +328,14 @@ impl Loader {
             loader: self,
             project,
         };
+        let order = objects.clone();
         for (document, object) in objects {
             match object {
                 ObjectId::Project(id) => {
                     if entrypoint != document || resolver.project.root.id != id {
                         let span = resolver
                             .loader
-                            .declaration_span(resolver.loader.address(id).root_source());
+                            .declaration_span(&resolver.loader.address(id));
                         return Err(resolver.loader.invalid(
                             &document,
                             span,
@@ -347,22 +343,46 @@ impl Loader {
                         ));
                     }
                 }
-                ObjectId::Setup(id) => resolver.resolve::<donder_model::Setup>(id)?,
                 ObjectId::Controller(id) => resolver.resolve::<donder_model::Controller>(id)?,
                 ObjectId::InputDevice(id) => resolver.resolve::<donder_model::InputDevice>(id)?,
-                ObjectId::Layout(id) => resolver.resolve::<donder_model::Layout>(id)?,
-                ObjectId::Patch(id) => resolver.resolve::<donder_model::Patch>(id)?,
+                ObjectId::Layout(id) => {
+                    if resolver.loader.layout.as_ref() != Some(&resolver.loader.address(id)) {
+                        let span = resolver
+                            .loader
+                            .declaration_span(&resolver.loader.address(id));
+                        return Err(resolver.loader.invalid(
+                            &document,
+                            span,
+                            "a project has one layout, the one its root names",
+                        ));
+                    }
+                    resolver.resolve::<donder_model::Layout>(id)?
+                }
                 ObjectId::FixtureDefinition(id) => {
                     resolver.resolve::<donder_model::FixtureDefinition>(id)?
                 }
                 ObjectId::Sequence(id) => resolver.resolve::<donder_model::Sequence>(id)?,
                 ObjectId::Console(id) => resolver.resolve::<donder_model::Console>(id)?,
-                ObjectId::Curve(_)
-                | ObjectId::Gradient(_)
-                | ObjectId::EffectDefinition(_)
-                | ObjectId::OperatorDefinition(_) => {}
+                ObjectId::Curve(_) | ObjectId::Gradient(_) | ObjectId::Script(_) => {}
             }
         }
+        // Objects resolve as references reach them; the project lists them in
+        // the order the documents declare them, the root first.
+        let order = order
+            .into_iter()
+            .enumerate()
+            .map(|(index, (_, object))| (object, index))
+            .collect::<std::collections::HashMap<_, _>>();
+        let project = &mut *resolver.project;
+        in_order(&mut project.layouts, &order);
+        in_order(&mut project.controllers, &order);
+        in_order(&mut project.input_devices, &order);
+        in_order(&mut project.sequences, &order);
+        in_order(&mut project.consoles, &order);
+        in_order(&mut project.fixtures, &order);
+        in_order(&mut project.curves, &order);
+        in_order(&mut project.gradients, &order);
+        in_order(&mut project.scripts, &order);
         Ok(())
     }
 
@@ -448,27 +468,15 @@ impl Loader {
         let mut objects = Vec::new();
         let declared = script.into_iter().map(|definition| {
             let name = definition.name().clone();
-            let identity = self.intern(
-                SourceIdentity::from_document(document_id.clone(), name.as_str().to_string())
-                    .into(),
-            );
-            let object = match definition.kind() {
-                DeclarationKind::Effect => {
-                    let id = EffectDefinitionId(identity);
-                    self.definitions
-                        .effects
-                        .insert(id, EffectDefinition::new(id, definition));
-                    ObjectId::from(id)
-                }
-                DeclarationKind::Operator => {
-                    let id = OperatorDefinitionId(identity);
-                    self.definitions
-                        .operators
-                        .insert(id, OperatorDefinition::new(id, definition));
-                    ObjectId::from(id)
-                }
-            };
-            (name, object)
+            let identity = self.intern(SourceIdentity::from_document(
+                document_id.clone(),
+                name.as_str().to_string(),
+            ));
+            let id = ScriptId(identity);
+            self.definitions
+                .scripts
+                .insert(id, ScriptDefinition::new(definition));
+            (name, ObjectId::from(id))
         });
         for (name, object) in declared.collect::<Vec<_>>() {
             objects.push(DeclaredObject::new(object, name.clone()));
@@ -549,7 +557,7 @@ impl Loader {
             match &declaration {
                 Declaration::Curve(curve) => {
                     self.definitions.curves.insert(
-                        CurveId(self.intern(identity.clone().into())),
+                        CurveId(self.intern(identity.clone())),
                         CurveDefinition {
                             description: curve.description.clone(),
                             curve: resolve::curve(&curve.points),
@@ -558,7 +566,7 @@ impl Loader {
                 }
                 Declaration::Gradient(gradient) => {
                     self.definitions.gradients.insert(
-                        GradientId(self.intern(identity.clone().into())),
+                        GradientId(self.intern(identity.clone())),
                         GradientDefinition {
                             description: gradient.description.clone(),
                             gradient: resolve::gradient(&gradient.space, &gradient.stops),
@@ -605,15 +613,13 @@ impl Loader {
     /// script declaration by name.
     pub(crate) fn declared_target(&self, object: ObjectId) -> Option<LinkTarget> {
         let address = self.address(object);
-        let identity = address.root_source();
+        let identity = &address;
         match object {
-            ObjectId::EffectDefinition(_) | ObjectId::OperatorDefinition(_) => {
-                Some(LinkTarget::Script {
-                    document: identity.document_id().clone(),
-                    declaration: identity.object().to_string(),
-                    member: ScriptMember::Declaration,
-                })
-            }
+            ObjectId::Script(_) => Some(LinkTarget::Script {
+                document: identity.document_id().clone(),
+                declaration: identity.object().to_string(),
+                member: ScriptMember::Declaration,
+            }),
             _ => self
                 .data
                 .get(identity.document_id())
@@ -623,17 +629,6 @@ impl Loader {
                     span: *span,
                 }),
         }
-    }
-
-    /// The name of the owned collection member `identity` addresses.
-    pub(crate) fn member_span(&self, identity: &ObjectAddress) -> Option<LinkTarget> {
-        let root = identity.root_source();
-        let data = self.data.get(root.document_id())?;
-        let (_, declaration) = data.declaration(root.object())?;
-        locate::member_name(declaration, identity.owned_path()).map(|span| LinkTarget::Data {
-            document: root.document_id().clone(),
-            span,
-        })
     }
 
     /// The declaration span of a declared object, or none for scripts.
@@ -664,9 +659,7 @@ impl Loader {
     fn project_data(&self, root: ProjectRoot) -> ProjectData {
         ProjectData {
             root,
-            setups: IndexMap::new(),
             layouts: IndexMap::new(),
-            patches: IndexMap::new(),
             controllers: IndexMap::new(),
             input_devices: IndexMap::new(),
             sequences: IndexMap::new(),
@@ -674,8 +667,7 @@ impl Loader {
             fixtures: IndexMap::new(),
             curves: self.definitions.curves.clone(),
             gradients: self.definitions.gradients.clone(),
-            effects: self.definitions.effects.clone(),
-            operators: self.definitions.operators.clone(),
+            scripts: self.definitions.scripts.clone(),
             next_id: 0,
         }
     }
@@ -705,37 +697,30 @@ impl Loader {
             return Err(self.invalid(entrypoint, span, "the root document declares one `Project`"));
         }
         let root_identity = SourceIdentity::from_document(entrypoint.clone(), name.to_string());
-        let root_id = ProjectId(self.intern(root_identity.clone().into()));
+        let root_id = ProjectId(self.intern(root_identity));
         let mut project = self.project_data(ProjectRoot {
             id: root_id,
             description: root.description.clone(),
-            setup: Owned::Reference(SetupId(u32::MAX)),
-            sequences: Vec::new(),
-            consoles: Vec::new(),
+            layout: LayoutId(u32::MAX),
+            routes: Vec::new(),
         });
-        let owner = ObjectAddress::from(root_identity);
+        let layout = self.resolve_reference::<LayoutId>(entrypoint, &root.layout)?;
+        self.layout = Some(self.address(layout));
         let mut resolver = DomainResolver {
             loader: self,
             project: &mut project,
         };
-        let setup = resolver.owned(entrypoint, &owner, OwnedObjectSlot::Setup, &root.setup)?;
-        let sequences = root
-            .sequences
-            .iter()
-            .map(|record| {
-                resolver.owned_member(entrypoint, &owner, OwnedObjectSlot::Sequence, record)
-            })
-            .collect::<Result<_, _>>()?;
-        let consoles = root
-            .consoles
-            .iter()
-            .map(|record| {
-                resolver.owned_member(entrypoint, &owner, OwnedObjectSlot::Console, record)
-            })
-            .collect::<Result<_, _>>()?;
-        project.root.setup = setup;
-        project.root.sequences = sequences;
-        project.root.consoles = consoles;
+        let routes = resolver.routes(entrypoint, &root.routes)?;
+        project.root.layout = layout;
+        project.root.routes = routes;
         Ok(project)
     }
+}
+
+/// Sort `store` by each object's place in `order`.
+fn in_order<I: Copy + Into<ObjectId>, T>(
+    store: &mut IndexMap<I, T>,
+    order: &std::collections::HashMap<ObjectId, usize>,
+) {
+    store.sort_by_cached_key(|id, _| order[&(*id).into()]);
 }

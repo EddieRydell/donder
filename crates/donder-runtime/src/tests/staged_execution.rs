@@ -56,7 +56,7 @@ fn strips_preserve_local_and_subset_target_addressing() {
     let source = effect("effect Source { sample { rgb(pixel.fraction, time * 0.2, 0.5) } }");
     let operator = operator(
         "operator Address { input source; sample {
-            max(source.at(pixel.index + 1), mix(source.at(1), source.at(4), 0.3))
+            max(source[pixel.index + 1], mix(source[1], source[4], 0.3))
         } }",
     );
     let reference_operator = unstaged(&operator);
@@ -132,7 +132,7 @@ fn literal_colors_render_as_runtime_expressions() {
         let folded = compile(&format!(
             "effect Color {{ sample {{ let amount = {literal}; {expression} }} }}"
         ));
-        let instance = bind(&folded, &[]).instance(Default::default());
+        let instance = bind(&folded, &[]).instance(Default::default(), &[]);
         let constant = playback::bind(&instance).evaluate(
             &context(8, 3, 0),
             &SPATIAL,
@@ -222,9 +222,9 @@ fn prepared_values_share_programs_and_keep_runtime_inputs() {
 fn fixed_divisors_become_prepared_reciprocals_that_share_programs() {
     let effect = compile(
         "effect Divide { param divisor: float in -10.0..10.0 = 3.0; sample {
-            let value = sum for i in 0..pixel.index % 4 { pixel.fraction / divisor };
+            let value = sum for i in 0..pixel.index % 4 { pixel.index * 0.0625 / divisor };
             if pixel.index % 2 == 0 { rgb(value_or(value, 0.7), 0.0, 0.0) }
-            else { rgb(value_or(pixel.fraction / divisor, 0.7), 0.0, 0.0) }
+            else { rgb(value_or(pixel.index * 0.0625 / divisor, 0.7), 0.0, 0.0) }
         } }",
     );
     let mut previous: Option<BoundProgram> = None;
@@ -322,7 +322,7 @@ fn prepared_operators_match_runtime_parameters_across_choices_and_reductions() {
                 let offset = max(delay, 0.0) * 0.5;
                 sum for i in 0..3 {
                     guard pixel.index >= i;
-                    source.at(pixel.index - i) * (clamp(gain, 0.0, 1.0) * (1.0 - i * offset))
+                    source[pixel.index - i] * (clamp(gain, 0.0, 1.0) * (1.0 - i * offset))
                 }
             }
         }",
@@ -427,8 +427,8 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
             param colors: gradient;
             sample {
                 let lower = pixel.fraction * 3.0 - 1.0;
-                let value = curve_clamped(shape, progress, lower, 1.0);
-                if pixel.index % 2 == 0 { gradient_color_scaled(colors, progress, value * 3.0) }
+                let value = clamp(shape[progress], lower, 1.0);
+                if pixel.index % 2 == 0 { colors[progress] * clamp(value * 3.0, 0.0, 1.0) }
                 else { rgb(value_or(value, 0.25), 0.0, 0.0) }
             }
         }",
@@ -617,39 +617,4 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             );
         }
     });
-}
-
-#[test]
-fn section_reciprocal_preserves_boundaries_and_missing_values() {
-    let effect = compile(
-        "effect Sections {
-            param width: float in 0.0..20.0 = 4.0;
-            sample { rgb(value_or(section_position(width), 0.75), 0.0, 0.0) }
-        }",
-    );
-    for width in [-1.0, 0.0, 1.0, 4.0, 7.5, 19.0] {
-        let runtime = runtime_effect(&effect, &[], &[("width", Value::Float(width))]);
-        let fixed = (0.0..=20.0)
-            .contains(&width)
-            .then(|| playback::lower(&bind(&effect, &[("width", Value::Float(width))])));
-        for pixel in [0, 1, 3, 4, 7, 8, 14, 15, 19, 20, 57] {
-            let normalized = width.max(1.0);
-            let position =
-                (pixel as f32 - libm::floorf(pixel as f32 / normalized) * normalized) / normalized;
-            let expected = position;
-            for invocation in [Some(&runtime), fixed.as_ref()].into_iter().flatten() {
-                let actual = invocation
-                    .evaluate(
-                        &context(64, pixel, 0),
-                        &SPATIAL,
-                        &mut StripWorkspace::default(),
-                    )
-                    .red;
-                assert!(
-                    (actual - expected).abs() <= 1e-6,
-                    "width={width} pixel={pixel}: {actual} != {expected}"
-                );
-            }
-        }
-    }
 }

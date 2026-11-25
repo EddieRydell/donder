@@ -1,6 +1,8 @@
 import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
-import setups from <setups/setup.data.donder>;
+import layout from <layouts/layout.data.donder>;
+import devices from <input_devices/input_device.data.donder>;
+import controllers from <controllers/controllers.data.donder>;
 import sequences from <sequences/hero.data.donder>;
 import sequences_2 from <sequences/sequence_2.data.donder>;
 import sequences_3 from <sequences/hidden_daggers.data.donder>;
@@ -9,14 +11,69 @@ import consoles from <consoles/console.data.donder>;
 import consoles_2 from <consoles/console_2.data.donder>;
 
 Project stanford_room {
-  format: 2,
+  format: 9,
   description: none,
-  setup: setups.setup,
-  sequences: [
-    sequences.hero,
-    sequences_2.sequence_2,
-    sequences_3.hidden_daggers,
-    sequences_4.take_you_down,
+  layout: layout.layout,
+  routes: [
+    Route {
+      target: desk_left,
+      pixels: none,
+      reverse: false,
+      controller: controllers.dig_quad,
+      port: "port_1",
+      start: Next,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+      dither: false,
+    },
+    Route {
+      target: desk_front,
+      pixels: none,
+      reverse: false,
+      controller: controllers.dig_quad,
+      port: "port_1",
+      start: Next,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+      dither: false,
+    },
+    Route {
+      target: desk_right,
+      pixels: none,
+      reverse: false,
+      controller: controllers.dig_quad,
+      port: "port_1",
+      start: Next,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+      dither: false,
+    },
+    Route {
+      target: desk_leg_left,
+      pixels: none,
+      reverse: false,
+      controller: controllers.dig_quad,
+      port: "port_1",
+      start: Next,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+      dither: false,
+    },
+    Route {
+      target: desk_leg_right,
+      pixels: none,
+      reverse: false,
+      controller: controllers.dig_quad,
+      port: "port_1",
+      start: Next,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+      dither: false,
+    },
   ],
-  consoles: [consoles.console, consoles_2.console_2],
 }

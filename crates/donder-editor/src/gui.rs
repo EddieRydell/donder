@@ -8,7 +8,7 @@ use donder_project_io::SourceIdentity;
 use donder_project_io::{DocumentId, ProjectSession};
 
 use crate::dto::{
-    GuiDocument, GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiObjectRef, IoDiagnostic,
+    GuiDocument, GuiDocumentChange, GuiDocumentRequest, GuiObjectRef, IoDiagnostic,
     SequenceClipDetails, SequenceSelection,
 };
 
@@ -24,7 +24,6 @@ mod edit;
 mod fixture;
 mod graph;
 mod input_device;
-mod item;
 mod layout;
 mod library;
 pub(crate) mod model;
@@ -33,9 +32,9 @@ mod patch;
 mod problem;
 mod project;
 mod projection;
+mod put;
 mod repairs;
 mod selection;
-mod setup;
 
 use arrange::arrange_clip_selection;
 pub use clip_match::matching_sequence_clips;
@@ -43,19 +42,18 @@ use edit::edit_sequence;
 use fixture::edit_fixture;
 pub use fixture::{gui_element, open_fixture_definition};
 use layout::edit_layout;
-pub use ownership::{
-    DeletedMember, delete_member, member_file_rename, member_name_site, rename_member,
-};
-pub use problem::{check_edit, edit_site, refusal};
+pub use ownership::renamed_file;
+pub use problem::{check_edit, refusal};
 use project::project_root;
+pub(crate) use projection::automation_target_to_gui;
 use projection::{project_fixture, project_layout, project_sequence};
+pub use put::DeletedMember;
 pub use repairs::repair_changes;
 use selection::copy_sequence_selection;
 use selection::{
-    delete_sequence_selection, edit_clip_selection, move_clip_selection, move_mark_selection,
-    paste_sequence_clipboard, resize_clip_selection,
+    delete_sequence_selection, move_clip_selection, move_mark_selection, paste_sequence_clipboard,
+    resize_clip_selection,
 };
-use setup::{edit_setup, project_setup};
 
 pub use dispatch::{GuiEditOutcome, apply_edit, copy_selection, cut_selection, paste};
 pub use document::{

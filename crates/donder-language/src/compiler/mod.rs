@@ -4,11 +4,9 @@
 //! The pipeline is described in `docs/effect_compiler.md`.
 mod audio;
 pub(crate) mod builtins;
-pub use builtins::{
-    ARRAY_WORD, AT, ArgType, BUILTINS, Builtin, BuiltinGroup, CONTEXT, ContextValue, ENUM_WORD,
-    Method, NAMED_TYPES, REDUCERS, Reducer, Signature, builtin_reference, type_text,
-};
+pub use builtins::{BUILTINS, Builtin, CONTEXT, ContextValue, builtin_reference};
 pub(crate) use definition::lowering_diagnostics;
+pub use ir::Reducer;
 pub(crate) mod check;
 mod declarations;
 mod definition;
@@ -22,7 +20,7 @@ pub use audio::{AudioSpec, Setting};
 pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange, program_values};
 pub use definition::{CompiledDefinition, Invocation, compile_script};
 pub use diagnostic::Diagnostic;
-pub use instance::{Instance, ProgramConstants};
+pub use instance::{Instance, LiveWords, ProgramConstants};
 pub use lower::Lowered;
 pub use syntax::ast::{DeclarationKind, DeclarationSpan};
 pub use syntax::lexer::TextSpan;

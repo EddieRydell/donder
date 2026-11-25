@@ -184,7 +184,7 @@ effect Flash {
   param decay: float in 0.05..2.0 = 0.3;
 
   sample {
-    let age = time - mark_last(beats, time);
+    let age = time - mark_at(beats, mark_last_index(beats, time));
     guard age < decay;
     color * (1.0 - age / decay)
   }
@@ -192,9 +192,9 @@ effect Flash {
 ```
 
 A marks parameter is a list of moments, such as beats tapped along the audio.
-`mark_last` gives the latest mark at or before a time. Before the first mark it
-is NaN, the missing value; any comparison with NaN is false, so the guard keeps
-those pixels black.
+`mark_last_index` finds the latest mark at or before a time and `mark_at`
+gives its time. Before the first mark that is NaN, the missing value; any
+comparison with NaN is false, so the guard keeps those pixels black.
 
 ## 11. Functions
 
@@ -230,13 +230,13 @@ operator Echo {
   input source;
   param fade: float in 0.0..1.0 = 0.5;
 
-  sample { max(source, source.at(pixel.index - 3) * fade) }
+  sample { max(source, source[pixel.index - 3] * fade) }
 }
 ```
 
 An operator transforms other signals instead of drawing from nothing. It
 declares `input`s, which you connect in the sequence's composition graph. Using
-an input as a color reads the current pixel; `source.at(index)` reads
+an input as a color reads the current pixel; `source[index]` reads
 another pixel of the same fixture, so this adds a copy of the light three
 pixels back, scaled by `fade`. `max` of two colors keeps the brighter of each
 channel.

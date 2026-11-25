@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import type { SequenceClipMatch, SequenceClipMatchRequest, SequenceClipParamMatch, SequenceClipTimeMatch, SequenceGuiDocument, SequenceClipParam, SequenceParamKind, SequenceSelection } from "../../../types";
 import { Button, ContextMenuEntries, Dialog, Field, NumberField, Section, Toggle, type MenuEntry } from "../../kit";
 import { useSequenceClipDetails } from "./sequenceClipDetails";
-import { clipIdsOfKind } from "./sequenceSelection";
 import { errorMessage } from "../../../api";
 
-export type ClipMatchSeed = Pick<SequenceClipMatchRequest, "clips">;
+export type ClipMatchSeed = Pick<SequenceClipMatchRequest, "ids">;
 export type MatchClips = (seed: ClipMatchSeed, criteria: SequenceClipMatch, params: SequenceClipParamMatch[]) => Promise<SequenceSelection>;
 
 type TimeKey = "start" | "end" | "duration";
@@ -14,13 +13,14 @@ const TIME_CRITERIA: { key: TimeKey; label: string }[] = [
   { key: "end", label: "End" },
   { key: "duration", label: "Duration" }
 ];
-type FlagKey = "effectType" | "sameLane" | "automationClips";
+type FlagKey = "effectType" | "sameLane" | "envelopes";
 const FLAG_CRITERIA: { key: FlagKey; label: string }[] = [
   { key: "effectType", label: "Effect type" },
   { key: "sameLane", label: "Same lane" },
-  { key: "automationClips", label: "Automation clips" }
+  { key: "envelopes", label: "Envelopes" }
 ];
-const NUMERIC_KINDS = new Set<SequenceParamKind>(["int", "float", "intArray", "floatArray"]);
+/** Numbers, and arrays of them, match within a tolerance. */
+const numeric = (kind: SequenceParamKind): boolean => kind.type === "int" || kind.type === "float" || (kind.type === "array" && numeric(kind.element));
 const MS_PER_SECOND = 1000;
 const TIME_TOLERANCE_STEP_MS = 1;
 const PARAM_TOLERANCE_STEP = 0.01;
@@ -54,7 +54,7 @@ export function clipMatchEntries({ criteria, onCriteria, onSelectMatching, onOpt
       onCheckedChange: (enabled) => { onCriteria({ ...criteria, [key]: { ...criteria[key], enabled } }); }
     })),
     flag("sameLane"),
-    flag("automationClips"),
+    flag("envelopes"),
     { type: "separator" },
     { type: "action", label: "Options…", onSelect: onOptions }
   ];
@@ -96,7 +96,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
   const [result, setResult] = useState<{ criteria: SequenceClipMatch; params: Map<string, number>; count: number } | null>(null);
   const count = result !== null && result.criteria === criteria && result.params === params ? result.count : null;
   const [error, setError] = useState<string | null>(null);
-  const details = useSequenceClipDetails(document, clipIdsOfKind(seed.clips, "clip"));
+  const details = useSequenceClipDetails(document, seed.ids);
   const available = details === null ? [] : seedParams(details.values());
 
   useEffect(() => {
@@ -104,7 +104,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
     match(seed, criteria, paramMatches(params))
       .then((selection) => {
         if (cancelled) return;
-        setResult({ criteria, params, count: selection.type === "clips" ? selection.clips.length : 0 });
+        setResult({ criteria, params, count: selection.type === "clips" ? selection.ids.length : 0 });
         setError(null);
       })
       .catch((matchError: unknown) => { if (!cancelled) setError(errorMessage(matchError)); });
@@ -156,7 +156,7 @@ export function ClipMatchDialog({ document, seed, criteria: savedCriteria, match
           {available.map((param) => {
             const tolerance = params.get(param.name);
             const toggle = (enabled: boolean) => { setParam(param.name, enabled ? 0 : null); };
-            return NUMERIC_KINDS.has(param.kind)
+            return numeric(param.kind)
               ? <ToleranceRow key={param.name} label={param.name} tip={param.description ?? undefined} enabled={tolerance !== undefined} tolerance={tolerance ?? 0}
                 step={PARAM_TOLERANCE_STEP} unit={undefined} onEnabled={toggle} onTolerance={(value) => { setParam(param.name, value); }} />
               : <Field key={param.name} label={param.name} tip={param.description ?? undefined}>

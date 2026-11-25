@@ -168,7 +168,7 @@ pub(crate) fn reads(graph: &Graph, node: Node, sample: Node) -> bool {
 /// added to `scales` and its guards to `conditions`.
 fn scaled(graph: &Graph, node: Node, scales: &mut Vec<Node>, conditions: &mut Vec<Node>) -> Node {
     match *graph.op(node) {
-        Op::Binary(Binary::ColorScale, color, scale) => {
+        Op::Binary(Binary::Multiply, color, scale) if *graph.ty(scale) == Type::Float => {
             let color = scaled(graph, color, scales, conditions);
             scales.push(scale);
             color

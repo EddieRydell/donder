@@ -40,9 +40,9 @@ fn tiny_project(imports: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) 
     fs_err::write(root.join(EXTRA), extra).unwrap();
     fs_err::write(
         root.join(PROJECT_ROOT_FILE),
-        common::root_document(
-            imports,
-            "  setup: Setup {\n    description: none,\n    layout: Layout { description: none, root: [], items: [] },\n    patch: Patch { description: none, routes: [] },\n    controllers: [],\n    input_devices: [],\n  },\n  sequences: [],\n",
+        format!(
+            "{}\nLayout layout {{ description: none, root: [], items: [] }}\n",
+            common::root_document(imports, "  layout: layout,\n")
         ),
     )
     .unwrap();
@@ -157,13 +157,20 @@ fn missing_group_member_points_at_its_own_path_token() {
 
 #[test]
 fn imported_names_are_not_transitive_and_wrong_kinds_do_not_resolve() {
-    for reference in ["setups.outputs_layout", "effects.Pulse", "missing.setup"] {
+    for reference in [
+        "controllers.outputs_layout",
+        "effects.Pulse",
+        "missing.layout",
+    ] {
         let mut sources = sources();
         let project = sources
             .get_mut(&Utf8PathBuf::from(PROJECT_ROOT_FILE))
             .unwrap();
-        assert!(project.contains("setup: setups.setup"));
-        *project = project.replace("setup: setups.setup", &format!("setup: {reference}"));
+        assert!(project.contains("layout: layouts.outputs_layout"));
+        *project = project.replace(
+            "layout: layouts.outputs_layout",
+            &format!("layout: {reference}"),
+        );
         let report = check_project(&root(), &sources, &mut Default::default());
         assert!(report.session.is_none(), "{reference}");
         assert!(
@@ -248,15 +255,15 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
     let own = session
         .project()
         .objects::<donder_model::Sequence>()
-        .find(|sequence| session.declaration(sequence.id.into()).unwrap().0 == &from)
+        .find(|(id, _)| session.declaration((*id).into()).unwrap().0 == &from)
         .unwrap()
-        .id;
+        .0;
     let count = session.source().documents()[&from].imports().len();
     ensure_document_can_reference_object(&mut session, &from, own.into()).unwrap();
     assert_eq!(session.source().documents()[&from].imports().len(), count);
     let definitions = session
         .project()
-        .reusable::<donder_model::OperatorDefinition>();
+        .reusable::<donder_model::ScriptDefinition>();
     let existing = definitions
         .keys()
         .copied()
@@ -281,7 +288,7 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
             .last()
             .unwrap()
             .alias(),
-        "operators_2"
+        "scripts"
     );
     ensure_document_can_reference_object(&mut session, &from, another.into()).unwrap();
     assert_eq!(

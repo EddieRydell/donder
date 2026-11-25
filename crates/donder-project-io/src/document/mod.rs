@@ -77,11 +77,9 @@ macro_rules! declarations {
 
 declarations! {
     Project,
-    Setup,
     Controller,
     InputDevice,
     Layout,
-    Patch,
     FixtureDefinition,
     Sequence,
     Console,
@@ -101,8 +99,8 @@ pub fn reference_targets(refers: Refers) -> Vec<&'static str> {
         Refers::Fixture => vec![types::Layout::TYPE],
         Refers::Control => vec![types::InputDevice::TYPE],
         Refers::Layer => vec![types::Layer::TYPE],
-        Refers::Clip => vec![types::Clip::TYPE, types::ConsoleClip::TYPE],
-        Refers::Marks => vec![types::MarkCollection::TYPE, types::LiveMarks::TYPE],
+        Refers::Clip => vec![types::Clip::TYPE],
+        Refers::Marks => vec![types::MarkCollection::TYPE],
         Refers::Node => vec![types::Node::TYPE],
     }
 }

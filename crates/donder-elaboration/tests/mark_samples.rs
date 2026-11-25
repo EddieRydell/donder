@@ -3,12 +3,13 @@ use donder_elaboration::{Retain, prepare};
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::DonderProject;
 use donder_model::SequenceId;
-use donder_model::{ClipScope, OwnedCurve, OwnedGradient, ParamValue};
+use donder_model::{CurveValue, GradientValue, ParamValue};
 use donder_project_io::{ProjectSession, check_project};
 use donder_runtime::PreparedShow;
 use donder_runtime::ShowPlayback;
 use donder_runtime_types::Identifier;
 use donder_runtime_types::SampleTime;
+use donder_runtime_types::TargetScope;
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
 use std::time::Duration;
 
@@ -45,7 +46,7 @@ fn starter() -> ProjectSession {
 }
 
 fn shape(start: f32, end: f32) -> ParamValue {
-    ParamValue::Curve(OwnedCurve::Inline(Curve {
+    ParamValue::Curve(CurveValue::Literal(Curve {
         points: vec![
             CurvePoint {
                 position: 0.0,
@@ -63,7 +64,7 @@ fn prepared(
     project: &ProjectSession,
     effect: MarkEffect,
     marks_ms: &[u64],
-    scope: ClipScope,
+    scope: TargetScope,
 ) -> PreparedShow {
     prepared_with_chase_position(project, effect, marks_ms, scope, shape(0.0, 1.0))
 }
@@ -72,7 +73,7 @@ fn prepared_with_chase_position(
     project: &ProjectSession,
     effect: MarkEffect,
     marks_ms: &[u64],
-    scope: ClipScope,
+    scope: TargetScope,
     chase_position: ParamValue,
 ) -> PreparedShow {
     let (project, id) = configured_project(project, effect, marks_ms, scope, chase_position);
@@ -83,52 +84,60 @@ fn configured_project(
     project: &ProjectSession,
     effect: MarkEffect,
     marks_ms: &[u64],
-    scope: ClipScope,
+    scope: TargetScope,
     chase_position: ParamValue,
 ) -> (DonderProject, SequenceId) {
     let session = project;
     let mut project = session.project().clone();
     let name = effect.name();
     let definition = *project
-        .reusable::<donder_model::EffectDefinition>()
+        .reusable::<donder_model::ScriptDefinition>()
         .iter()
         .find(|(_, definition)| definition.name() == name)
         .unwrap()
         .0;
-    let mut sequence = project
+    let (sequence_id, sequence) = project
         .objects::<donder_model::Sequence>()
-        .find(|sequence| {
+        .find(|(sequence_id, _)| {
             session
                 .source()
-                .declared_name(sequence.id.into())
+                .declared_name((*sequence_id).into())
                 .is_some_and(|name| name.as_str() == "layer_test")
         })
-        .unwrap()
-        .clone();
-    sequence.automation_clips.clear();
-    sequence.mark_collections[0].marks = marks_ms
+        .unwrap();
+    let mut sequence = sequence.clone();
+    sequence
+        .composition
+        .clips
+        .retain(|clip| clip.effect().is_some());
+    sequence.composition.marks[0].marks = marks_ms
         .iter()
         .map(|&ms| donder_model::Mark::at(DonderTime(Duration::from_millis(ms))))
         .collect();
-    let mut instance = (*sequence.clips[0]).clone();
-    instance.layer_id = sequence.layers[0].id.clone();
-    instance.definition = definition;
-    instance.scope = scope;
-    instance.start = DonderTime(Duration::ZERO);
-    instance.duration = DonderDuration(Duration::from_secs(4));
-    instance.param_overrides.clear();
+    let mut instance = (*sequence.composition.clips[0]).clone();
+    let authored = instance.effect_mut().unwrap();
+    authored.layer = sequence.composition.layers[0].id.clone();
+    authored.definition = definition;
+    authored.scope = scope;
+    authored.params.clear();
+    instance.placement = donder_model::Placement::Timed {
+        start: DonderTime(Duration::ZERO),
+        duration: DonderDuration(Duration::from_secs(4)),
+    };
     let mut set = |name: &str, value| {
         instance
-            .param_overrides
+            .effect_mut()
+            .unwrap()
+            .params
             .insert(Identifier::new(name.into()).unwrap(), value);
     };
     set(
         "beats",
-        ParamValue::Marks(Some(sequence.mark_collections[0].key.clone())),
+        ParamValue::Marks(Some(sequence.composition.marks[0].id)),
     );
     set("offset_seconds", ParamValue::Float(0.125));
     set(effect.duration_param(), ParamValue::Float(1.0));
-    let accent = ParamValue::Gradient(OwnedGradient::Inline(Gradient {
+    let accent = ParamValue::Gradient(GradientValue::Literal(Gradient {
         space: donder_runtime_types::GradientSpace::LinearRgb,
         stops: vec![GradientStop {
             position: 0.0,
@@ -158,9 +167,9 @@ fn configured_project(
         }
         MarkEffect::Pulse => {}
     }
-    sequence.clips = vec![std::sync::Arc::new(instance)];
-    let id = sequence.id;
-    project.put(sequence).unwrap();
+    sequence.composition.clips = vec![std::sync::Arc::new(instance)];
+    let id = sequence_id;
+    project.put((id, sequence)).unwrap();
     (project, id)
 }
 
@@ -184,7 +193,7 @@ fn single_pass_reference(
     project: &ProjectSession,
     effect: MarkEffect,
     mark_ms: u64,
-    scope: ClipScope,
+    scope: TargetScope,
     trajectory: ParamValue,
 ) -> PreparedShow {
     let (mut project, id) = configured_project(project, effect, &[mark_ms], scope, trajectory);
@@ -194,17 +203,19 @@ fn single_pass_reference(
         MarkEffect::Pulse => "Pulse",
     };
     let definition = *project
-        .reusable::<donder_model::EffectDefinition>()
+        .reusable::<donder_model::ScriptDefinition>()
         .iter()
         .find(|(_, definition)| definition.name() == name)
         .unwrap()
         .0;
     let mut sequence = project.get::<donder_model::Sequence>(id).unwrap().clone();
-    let instance = std::sync::Arc::make_mut(&mut sequence.clips[0]);
-    instance.definition = definition;
-    instance.start = DonderTime(Duration::from_millis(mark_ms + 125));
-    instance.duration = DonderDuration(Duration::from_secs(1));
-    let params = &mut instance.param_overrides;
+    let instance = std::sync::Arc::make_mut(&mut sequence.composition.clips[0]);
+    instance.effect_mut().unwrap().definition = definition;
+    instance.placement = donder_model::Placement::Timed {
+        start: DonderTime(Duration::from_millis(mark_ms + 125)),
+        duration: DonderDuration(Duration::from_secs(1)),
+    };
+    let params = &mut instance.effect_mut().unwrap().params;
     for name in ["beats", "offset_seconds", effect.duration_param()] {
         params.shift_remove(name).unwrap();
     }
@@ -235,13 +246,13 @@ fn single_pass_reference(
             ParamValue::Float(45.0),
         );
     }
-    project.put(sequence).unwrap();
+    project.put((id, sequence)).unwrap();
     prepare(&project, &id, Retain::All).unwrap()
 }
 
 // MarkPulse shifts its cluster grid by a random offset per mark and lights each
 // cluster by chance. Mask ordinary Pulse output with the same seeded rule.
-fn selected_clusters(sequence: &PreparedShow, scope: &ClipScope) -> Vec<bool> {
+fn selected_clusters(sequence: &PreparedShow, scope: TargetScope) -> Vec<bool> {
     use donder_runtime_types::sampling::deterministic_random_seed;
     const WIDTH: f32 = 7.0;
     let mark_seed = 0.75 + 1000.0;
@@ -257,8 +268,8 @@ fn selected_clusters(sequence: &PreparedShow, scope: &ClipScope) -> Vec<bool> {
         .iter()
         .flat_map(|fixture| {
             let (count, start) = match scope {
-                ClipScope::WholeTarget => (total, base),
-                ClipScope::PerFixture => (fixture.pixel_count as usize, 0),
+                TargetScope::WholeTarget => (total, base),
+                TargetScope::PerFixture => (fixture.pixel_count as usize, 0),
             };
             base += fixture.pixel_count as usize;
             let cluster_count = ((count as f32 - 1.0 + shift) / WIDTH).floor() + 1.0;
@@ -272,12 +283,11 @@ fn selected_clusters(sequence: &PreparedShow, scope: &ClipScope) -> Vec<bool> {
 
 fn check_single_mark_lifetime(effect: MarkEffect) {
     let project = starter();
-    for scope in [ClipScope::PerFixture, ClipScope::WholeTarget] {
-        let mut playback = prepared(&project, effect, &[1000], scope.clone()).into_playback();
-        let reference =
-            single_pass_reference(&project, effect, 1000, scope.clone(), shape(0.0, 1.0));
+    for scope in [TargetScope::PerFixture, TargetScope::WholeTarget] {
+        let mut playback = prepared(&project, effect, &[1000], scope).into_playback();
+        let reference = single_pass_reference(&project, effect, 1000, scope, shape(0.0, 1.0));
         let mask =
-            matches!(effect, MarkEffect::Pulse).then(|| selected_clusters(&reference, &scope));
+            matches!(effect, MarkEffect::Pulse).then(|| selected_clusters(&reference, scope));
         let mut reference = reference.into_playback();
         let mut lit = false;
         for time in [0, 1124, 1125, 1250, 1500, 1750, 2000, 2125, 2500, 1250] {
@@ -310,9 +320,9 @@ fn check_single_mark_lifetime(effect: MarkEffect) {
 
 fn compare_retrigger(effect: MarkEffect) {
     let project = starter();
-    let scope = ClipScope::WholeTarget;
-    let mut sampled = prepared(&project, effect, &[1000, 1250], scope.clone()).into_playback();
-    let mut latest_only = prepared(&project, effect, &[1250], scope.clone()).into_playback();
+    let scope = TargetScope::WholeTarget;
+    let mut sampled = prepared(&project, effect, &[1000, 1250], scope).into_playback();
+    let mut latest_only = prepared(&project, effect, &[1250], scope).into_playback();
     let mut old_only = prepared(&project, effect, &[1000], scope).into_playback();
     let mut discarded_visible_old_pulse = false;
     for time in [1375, 1500, 1625, 1750, 2000, 2375, 2500, 1500] {
@@ -344,35 +354,25 @@ fn chase_obeys_mark_offset_and_pulse_lifetime() {
 #[test]
 fn chase_retriggers_each_pixel_only_when_the_next_chase_arrives() {
     let project = starter();
-    for scope in [ClipScope::WholeTarget, ClipScope::PerFixture] {
+    for scope in [TargetScope::WholeTarget, TargetScope::PerFixture] {
         for trajectory in [shape(0.0, 1.0), shape(1.0, 0.0)] {
             let prepare_chase = |marks| {
                 prepared_with_chase_position(
                     &project,
                     MarkEffect::Chase,
                     marks,
-                    scope.clone(),
+                    scope,
                     trajectory.clone(),
                 )
                 .into_playback()
             };
             let mut sampled = prepare_chase(&[1000, 1250]);
-            let mut old = single_pass_reference(
-                &project,
-                MarkEffect::Chase,
-                1000,
-                scope.clone(),
-                trajectory.clone(),
-            )
-            .into_playback();
-            let mut new = single_pass_reference(
-                &project,
-                MarkEffect::Chase,
-                1250,
-                scope.clone(),
-                trajectory.clone(),
-            )
-            .into_playback();
+            let mut old =
+                single_pass_reference(&project, MarkEffect::Chase, 1000, scope, trajectory.clone())
+                    .into_playback();
+            let mut new =
+                single_pass_reference(&project, MarkEffect::Chase, 1250, scope, trajectory.clone())
+                    .into_playback();
             let mut preserved_old_pulse = false;
             for time in [1375, 1500, 1625, 1750, 2000, 2375, 2500, 1500] {
                 let old = colors(&mut old, time);

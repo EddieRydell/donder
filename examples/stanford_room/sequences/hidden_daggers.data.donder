@@ -1,4 +1,3 @@
-import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 
@@ -17,47 +16,50 @@ Sequence hidden_daggers {
     Clip {
       name: pulse,
       description: none,
-      layer: default,
-      start: 168.546646118s,
-      duration: 0.148064598s,
-      target: layouts.layout.desk,
-      scope: WholeTarget,
-      effect: effects.Pulse,
-      params: {
-        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: desk,
+      placement: Timed { start: 168.546646118s, duration: 0.148064598s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: spin,
       description: none,
-      layer: layer_1,
-      start: 168.565917969s,
-      duration: 1s,
-      target: layouts.layout.desk,
-      scope: PerFixture,
-      effect: effects.Spin,
-      params: {
-        gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
-        gradient_mode: ThroughEffect,
-        pulse_overlap: 70.0,
-        chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        revolutions: 8,
-        pulse_shape: Curve { points: [(0.0, 0.0), (0.176, 1.0), (1.0, 0.0)] },
+      target: desk,
+      placement: Timed { start: 168.565917969s, duration: 1s },
+      content: Effect {
+        layer: layer_1,
+        scope: PerFixture,
+        effect: effects.Spin,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          gradient_mode: ThroughEffect,
+          pulse_overlap: 70.0,
+          chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          revolutions: 8,
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.176, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: gradient,
       description: none,
-      layer: gradient,
-      start: 168.565109253s,
-      duration: 1s,
-      target: layouts.layout.desk,
-      scope: WholeTarget,
-      effect: effects.Gradient,
-      params: {
-        gradient: Gradient { space: LinearRgb, stops: [(0.379, #ff0000), (1.0, #ff9800)] },
-        angle: 60.0,
+      target: desk,
+      placement: Timed { start: 168.565109253s, duration: 1s },
+      content: Effect {
+        layer: gradient,
+        scope: WholeTarget,
+        effect: effects.Gradient,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.379, #ff0000), (1.0, #ff9800)] },
+          angle: 60.0,
+        },
       },
     },
   ],
@@ -81,5 +83,4 @@ Sequence hidden_daggers {
       Edge { from: hue_map, to: root },
     ],
   },
-  automation: [],
 }

@@ -9,10 +9,10 @@ use crate::desktop_state::DesktopState;
 use crate::persistence::{PersistedPreviewWindowState, ProjectRestoreState};
 use donder_editor::dto::{
     AppSettings, AppSnapshot, AudioTransportState, EditorViewMode, GuiDocumentChange,
-    GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, GuiObjectRef, PlaybackRange, PlaybackSpeed,
-    ProjectSearchRequest, ProjectSearchResponse, SequenceClipRasterRequest,
-    SequenceClipRasterResponse, SequenceClipRasterResultBatch, SequenceGuiEdit, SequenceSelection,
-    ViewStateUpdate, WorkspacePathChangePlan, WorkspacePathChangeRequest,
+    GuiDocumentRequest, GuiEdit, GuiEditUpdate, GuiField, GuiObjectRef, GuiSite, GuiValue,
+    PlaybackRange, PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse,
+    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
+    SequenceSelection, ViewStateUpdate, WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
 
 mod app;
@@ -81,8 +81,6 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         take_sequence_clip_raster_results,
         apply_gui_edit,
         confirm_gui_edit,
-        rename_gui_member,
-        delete_gui_member,
         check_gui_edit,
         finish_composition_graph_editing,
         copy_sequence_selection,

@@ -9,7 +9,7 @@ use donder_runtime::PreparedShow;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
-/// An output of the setup's controllers: an E1.31 or Art-Net controller's
+/// An output of the project's controllers: an E1.31 or Art-Net controller's
 /// universes, or one Donder port.
 struct ExportOutput {
     controller: ControllerId,
@@ -22,7 +22,7 @@ struct ExportOutput {
 fn outputs(session: &ProjectSession) -> Result<Vec<ExportOutput>, String> {
     let project = session.project();
     let mut outputs = Vec::new();
-    for controller in project.active_setup().controllers() {
+    for controller in project.controllers() {
         let id = controller.id();
         let address = session.address_of(id);
         for (output, width) in controller.outputs() {
@@ -30,11 +30,7 @@ fn outputs(session: &ProjectSession) -> Result<Vec<ExportOutput>, String> {
             outputs.push(ExportOutput {
                 controller: id,
                 output,
-                label: format!(
-                    "{}#{} / {label}",
-                    address.document(),
-                    address.declared_name()
-                ),
+                label: format!("{}#{} / {label}", address.document(), address.object()),
                 width,
                 fseq_channel: controller.fseq_channel(),
             });
@@ -68,7 +64,7 @@ impl DesktopState {
         request: &GuiDocumentRequest,
     ) -> Result<String, String> {
         let (session, id) = self.sequence_export_session(request)?;
-        Ok(session.address_of(id).declared_name().to_string())
+        Ok(session.address_of(id).object().to_string())
     }
 
     pub(crate) fn sequence_export_options(

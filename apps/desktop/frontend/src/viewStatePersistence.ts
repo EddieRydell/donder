@@ -1,4 +1,7 @@
-import { errorMessage } from "./api";
+import { useCallback } from "react";
+import { commands, errorMessage } from "./api";
+import type { GuiObjectRef, PersistedGraphViewState, PersistedSequenceViewportState, PersistedSpatialViewState, ProjectRestoreState, ViewStateUpdate } from "./types";
+import { objectViewKey } from "./workspace/guiIdentity";
 import { useAppStore } from "./store";
 import { THEME_METRICS } from "./theme";
 
@@ -41,4 +44,24 @@ export async function flushViewStateSaves(): Promise<void> {
   // Callers receive the failure; a later flush can retry the retained writes.
   saving = job.catch(() => undefined);
   await job;
+}
+
+type ObjectViews = { spatial: PersistedSpatialViewState; graph: PersistedGraphViewState; sequenceViewport: PersistedSequenceViewportState };
+/** Where the restore state keeps each kind of object view. */
+const RESTORED = { spatial: "spatialViews", graph: "graphViews", sequenceViewport: "sequenceViewports" } as const satisfies Record<keyof ObjectViews, keyof ProjectRestoreState>;
+
+/** A GUI object's saved view of `kind`, and how to save another: at once for this session, soon to disk. */
+export function useObjectViewState<K extends keyof ObjectViews>(kind: K, reference: GuiObjectRef): [ObjectViews[K] | undefined, (state: ObjectViews[K]) => void] {
+  const key = objectViewKey(reference);
+  const { path, objectKey } = reference;
+  const restored = useAppStore((store) => store.restoreState?.[RESTORED[kind]][key]) as ObjectViews[K] | undefined;
+  const save = useCallback((state: ObjectViews[K]) => {
+    const restore = useAppStore.getState().restoreState ?? { editorStates: {}, sequenceViewports: {}, spatialViews: {}, graphViews: {} };
+    useAppStore.getState().setRestoreState({ ...restore, [RESTORED[kind]]: { ...restore[RESTORED[kind]], [key]: state } });
+    scheduleViewStateSave(JSON.stringify([kind, key]), async () => {
+      const snapshot = await commands.saveViewState({ type: kind, state: { path, objectKey, state } } as ViewStateUpdate);
+      useAppStore.getState().setSnapshot(snapshot, "command");
+    });
+  }, [key, kind, objectKey, path]);
+  return [restored, save];
 }

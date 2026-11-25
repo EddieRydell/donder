@@ -2,7 +2,7 @@ use crate::common;
 
 use camino::Utf8Path;
 use donder_model::FixtureElementId;
-use donder_model::{FixtureInstanceId, LayoutFixtureKind};
+use donder_model::{FixtureId, LayoutFixtureKind};
 use donder_project_io::{check_project, save_project};
 
 const ASSEMBLY: &str = r#"
@@ -88,7 +88,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
         .next()
         .unwrap();
     assert!(matches!(
-        layout.fixture(FixtureInstanceId(2)).unwrap().kind,
+        layout.fixture(FixtureId(2)).unwrap().kind,
         LayoutFixtureKind::Fixture { .. }
     ));
 }

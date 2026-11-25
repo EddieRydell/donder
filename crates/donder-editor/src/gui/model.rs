@@ -3,6 +3,7 @@ pub(super) fn clip_mut(
     id: u32,
 ) -> Result<&mut Clip, GuiMutationError> {
     sequence
+        .composition
         .clips
         .iter_mut()
         .find(|clip| clip.id.0 == id)
@@ -13,7 +14,7 @@ pub(super) fn clip_mut(
 pub(super) fn graph_operator_from_gui(
     session: &ProjectSession,
     operator: &SequenceGraphOperator,
-) -> Result<OperatorDefinitionId, GuiMutationError> {
+) -> Result<ScriptId, GuiMutationError> {
     declared_from_gui(
         session,
         &operator.path,
@@ -46,31 +47,24 @@ pub fn object_id_from_gui<I: TryFrom<ObjectId>>(
     reference: &crate::dto::GuiObjectRef,
 ) -> Result<I, GuiMutationError> {
     session
-        .resolve_address(&object_identity_from_gui(reference)?)
+        .declared_id(&source_identity_from_gui(
+            &reference.path,
+            &reference.object_key,
+        ))
         .and_then(|id| I::try_from(id).ok())
         .ok_or_else(|| GuiMutationError::Invalid("The referenced object was not found.".into()))
 }
 
-pub(super) fn mark_collection_mut<'a>(
-    sequence: &'a mut donder_model::Sequence,
-    key: &str,
-) -> Result<&'a mut MarkCollection, GuiMutationError> {
-    sequence
-        .mark_collections
-        .iter_mut()
-        .find(|collection| collection.key.name.as_str() == key)
-        .ok_or_else(|| GuiMutationError::Invalid("Mark collection was not found.".to_string()))
-}
-
-pub(super) fn automation_clip_mut(
+pub(super) fn mark_collection_mut(
     sequence: &mut donder_model::Sequence,
     id: u32,
-) -> Result<&mut AutomationClip, GuiMutationError> {
+) -> Result<&mut MarkCollection, GuiMutationError> {
     sequence
-        .automation_clips
+        .composition
+        .marks
         .iter_mut()
-        .find(|clip| clip.id.0 == id)
-        .ok_or_else(|| GuiMutationError::Invalid("Automation clip was not found.".to_string()))
+        .find(|collection| collection.id.0 == id)
+        .ok_or_else(|| GuiMutationError::Invalid("Mark collection was not found.".to_string()))
 }
 
 /// A name typed in the GUI, as an object name: `Porch Left` becomes
@@ -97,27 +91,29 @@ pub(super) fn identifier(value: &str) -> Result<Identifier, GuiMutationError> {
         .map_err(|_| GuiMutationError::Invalid(format!("{value} is not a valid name.")))
 }
 
-pub(super) fn clip_scope(scope: SequenceClipScope) -> ClipScope {
+pub(super) fn clip_scope(scope: SequenceClipScope) -> TargetScope {
     match scope {
-        SequenceClipScope::PerFixture => ClipScope::PerFixture,
-        SequenceClipScope::WholeTarget => ClipScope::WholeTarget,
+        SequenceClipScope::PerFixture => TargetScope::PerFixture,
+        SequenceClipScope::WholeTarget => TargetScope::WholeTarget,
     }
 }
 
-pub(super) fn layout_target_to_clip_target(
-    layout: &LayoutId,
-    target: FixtureTarget,
-) -> DomainFixtureTarget {
-    DomainFixtureTarget {
-        layout: *layout,
-        fixture: FixtureInstanceId(target.fixture),
+pub(super) fn scope_to_gui(scope: TargetScope) -> SequenceClipScope {
+    match scope {
+        TargetScope::PerFixture => SequenceClipScope::PerFixture,
+        TargetScope::WholeTarget => SequenceClipScope::WholeTarget,
     }
+}
+
+/// A fixture or group of the project's layout.
+pub(super) fn target_from_gui(target: FixtureTarget) -> FixtureId {
+    FixtureId(target.fixture)
 }
 
 pub(super) fn effect_ref_from_gui(
     session: &ProjectSession,
     reference: SequenceEffectReference,
-) -> Result<EffectDefinitionId, GuiMutationError> {
+) -> Result<ScriptId, GuiMutationError> {
     declared_from_gui(session, &reference.path, &reference.effect_name)
 }
 
@@ -149,45 +145,15 @@ pub(super) fn chosen_effect(
     session: &ProjectSession,
     reference: SequenceEffectReference,
     initial_color: &str,
-) -> Result<(EffectDefinitionId, String, IndexMap<Identifier, ParamValue>), GuiMutationError> {
+) -> Result<(ScriptId, String, IndexMap<Identifier, ParamValue>), GuiMutationError> {
     let definition = effect_ref_from_gui(session, reference)?;
     // The session's inventory declares exactly its project's objects.
     let effect = &session
         .project()
-        .reusable::<donder_model::EffectDefinition>()[&definition];
+        .reusable::<donder_model::ScriptDefinition>()[&definition];
     let name = effect.name().to_string();
     let params = required_param_values(effect.params(), parse_color(initial_color)?)?;
     Ok((definition, name, params))
-}
-
-/// Whether a parameter value names the mark collection `key`, itself or in
-/// a marks array.
-pub(super) fn names_marks(value: &ParamValue, key: &MarkCollectionKey) -> bool {
-    match value {
-        ParamValue::Marks(reference) => reference.as_ref() == Some(key),
-        ParamValue::Array(values) => values.iter().any(|value| names_marks(value, key)),
-        _ => false,
-    }
-}
-
-/// Point a parameter value's references to the mark collection `from`,
-/// including a marks array's, at `to`.
-pub(super) fn replace_marks(
-    value: &mut ParamValue,
-    from: &MarkCollectionKey,
-    to: Option<&MarkCollectionKey>,
-) {
-    match value {
-        ParamValue::Marks(reference) if reference.as_ref() == Some(from) => {
-            *reference = to.cloned();
-        }
-        ParamValue::Array(values) => {
-            for value in values {
-                replace_marks(value, from, to);
-            }
-        }
-        _ => {}
-    }
 }
 
 pub(crate) fn param_value_from_gui(
@@ -212,10 +178,7 @@ pub(crate) fn param_value_from_gui(
                 })
                 .collect::<Result<_, GuiMutationError>>()?,
         },
-        SequenceParamValue::Marks { key } => ParamValue::Marks(
-            key.map(|key| identifier(&key).map(|name| MarkCollectionKey { name }))
-                .transpose()?,
-        ),
+        SequenceParamValue::Marks { id } => ParamValue::Marks(id.map(MarkCollectionId)),
         SequenceParamValue::Text { value } => ParamValue::Text(value),
         SequenceParamValue::Font { value: None } => ParamValue::Font(None),
         SequenceParamValue::Font { value: Some(font) } => {
@@ -242,62 +205,28 @@ pub(crate) fn param_value_from_gui(
             }))
         }
         SequenceParamValue::Curve { value } => ParamValue::Curve(
-            match library_identity(session, owner, donder_model::ObjectKind::Curve, value.link)? {
-                Some(id) => OwnedCurve::Reference(library_id(id)?),
-                None => OwnedCurve::Inline(curve_from_points(value.points)),
+            match library_identity(session, donder_model::ObjectKind::Curve, value.link)? {
+                Some(id) => CurveValue::Linked(library_id(id)?),
+                None => CurveValue::Literal(curve_from_points(value.points)),
             },
         ),
         SequenceParamValue::Gradient { value } => ParamValue::Gradient(
-            match library_identity(
-                session,
-                owner,
-                donder_model::ObjectKind::Gradient,
-                value.link,
-            )? {
-                Some(id) => OwnedGradient::Reference(library_id(id)?),
-                None => OwnedGradient::Inline(gradient_from_dto(value.gradient)?),
+            match library_identity(session, donder_model::ObjectKind::Gradient, value.link)? {
+                Some(id) => GradientValue::Linked(library_id(id)?),
+                None => GradientValue::Literal(gradient_from_dto(value.gradient)?),
             },
         ),
-        SequenceParamValue::IntArray { values } => ParamValue::Array(
+        SequenceParamValue::Array { values } => ParamValue::Array(
             values
                 .into_iter()
-                .map(|value| ParamValue::Int(value as i32))
-                .collect(),
-        ),
-        SequenceParamValue::FloatArray { values } => {
-            ParamValue::Array(values.into_iter().map(ParamValue::Float).collect())
-        }
-        SequenceParamValue::BoolArray { values } => {
-            ParamValue::Array(values.into_iter().map(ParamValue::Bool).collect())
-        }
-        SequenceParamValue::ColorArray { values } => ParamValue::Array(
-            values
-                .into_iter()
-                .map(|value| parse_color(&value).map(ParamValue::Color))
-                .collect::<Result<Vec<_>, _>>()?,
-        ),
-        SequenceParamValue::CurveArray { values } => ParamValue::Array(
-            values
-                .into_iter()
-                .map(|value| {
-                    param_value_from_gui(session, owner, SequenceParamValue::Curve { value })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        ),
-        SequenceParamValue::GradientArray { values } => ParamValue::Array(
-            values
-                .into_iter()
-                .map(|value| {
-                    param_value_from_gui(session, owner, SequenceParamValue::Gradient { value })
-                })
+                .map(|value| param_value_from_gui(session, owner, value))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     })
 }
 
 fn library_identity(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
+    session: &ProjectSession,
     kind: donder_model::ObjectKind,
     link: SequenceLibraryLink,
 ) -> Result<Option<ObjectId>, GuiMutationError> {
@@ -311,51 +240,11 @@ fn library_identity(
         .declared_id(&source_identity_from_gui(&path, &object_key))
         .filter(|id| id.kind() == kind)
         .ok_or_else(|| GuiMutationError::Invalid(format!("{object_key} was not found.")))?;
-    donder_project_io::link_declaration(session, owner, id)
-        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
     Ok(Some(id))
 }
 
 fn library_id<I: TryFrom<ObjectId>>(id: ObjectId) -> Result<I, GuiMutationError> {
     I::try_from(id).map_err(|_| GuiMutationError::Invalid("Choose a library resource.".into()))
-}
-
-pub(super) fn automation_binding_value_at(
-    clip: &AutomationClip,
-    window: Window,
-    mapping: &AutomationMapping,
-    seconds: f64,
-) -> Result<ParamValue, GuiMutationError> {
-    automation_value_at(clip, window, mapping, seconds)
-        .map(|value| match value {
-            AutomationValue::Int(value) => ParamValue::Int(value),
-            AutomationValue::Float(value) => ParamValue::Float(value),
-            AutomationValue::Bool(value) => ParamValue::Bool(value),
-            // An enum whose options carry fields is never automated.
-            AutomationValue::Enum(value) => ParamValue::Enum {
-                option: value.clone(),
-                fields: indexmap::IndexMap::new(),
-            },
-            AutomationValue::Curve(value) => ParamValue::Curve(OwnedCurve::Inline(value)),
-        })
-        .ok_or_else(|| {
-            GuiMutationError::Invalid("Enum automation mapping has no values.".to_string())
-        })
-}
-
-pub(super) fn default_automation_curve() -> Curve {
-    Curve {
-        points: vec![
-            CurvePoint {
-                position: 0.0,
-                value: 0.0,
-            },
-            CurvePoint {
-                position: 1.0,
-                value: 1.0,
-            },
-        ],
-    }
 }
 
 pub(super) fn curve_from_points(points: Vec<SequenceCurvePoint>) -> Curve {
@@ -458,17 +347,18 @@ pub(crate) fn point3_meters(point: Point3) -> Point3Meters {
 
 use camino::Utf8PathBuf;
 use donder_language::compiler::ParamDecl;
-use donder_language::{Distance, Point3, Rotation3 as DomainRotation3, Scale3 as DomainScale3};
-use donder_model::{
-    AutomationClip, MarkCollection, MarkCollectionKey, Window, automation_value_at,
+use donder_language::{
+    Distance, DonderDuration, DonderTime, Point3, Rotation3 as DomainRotation3,
+    Scale3 as DomainScale3,
 };
-use donder_model::{Clip, ClipScope, EffectDefinitionId, OwnedCurve, OwnedGradient, ParamValue};
-use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_model::{ObjectId, OperatorDefinitionId};
+use donder_model::FixtureId;
+use donder_model::ObjectId;
+use donder_model::{Clip, CurveValue, GradientValue, ParamValue, ScriptId};
+use donder_model::{MarkCollection, MarkCollectionId};
 use donder_project_io::SourceIdentity;
 use donder_project_io::{DocumentId, ProjectSession};
 use donder_runtime_types::Identifier;
-use donder_runtime_types::{AutomationMapping, AutomationValue};
+use donder_runtime_types::TargetScope;
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientSpace, GradientStop};
 use indexmap::IndexMap;
 
@@ -484,38 +374,17 @@ pub fn new_object_name(session: &ProjectSession, kind: donder_model::ObjectKind)
     session.source().new_object_name(kind).as_str().to_string()
 }
 
-fn object_identity_from_gui(
-    reference: &crate::dto::GuiObjectRef,
-) -> Result<donder_project_io::ObjectAddress, GuiMutationError> {
-    let root = source_identity_from_gui(&reference.path, &reference.object_key);
-    reference.owned_path.iter().try_fold(
-        root.into(),
-        |address: donder_project_io::ObjectAddress, step| {
-            Ok(address.owned(step.try_into().map_err(GuiMutationError::Invalid)?))
-        },
-    )
-}
-
 /// The GUI's reference to an object of the session.
 pub(crate) fn object_ref(
     session: &ProjectSession,
     id: impl Into<ObjectId>,
 ) -> crate::dto::GuiObjectRef {
     let id = id.into();
-    address_ref(&session.address_of(id), id.kind())
-}
-
-/// The GUI's reference to the object of `kind` at `address`.
-fn address_ref(
-    address: &donder_project_io::ObjectAddress,
-    kind: donder_model::ObjectKind,
-) -> crate::dto::GuiObjectRef {
-    let root = address.root_source();
+    let identity = session.address_of(id);
     crate::dto::GuiObjectRef {
-        owned_path: address.owned_path().iter().map(Into::into).collect(),
-        path: root.document().to_string(),
-        object_key: root.object().to_string(),
-        kind: crate::dto::ObjectKind::from(kind),
+        path: identity.document().to_string(),
+        object_key: identity.object().to_string(),
+        kind: crate::dto::ObjectKind::from(id.kind()),
     }
 }
 
@@ -547,4 +416,20 @@ pub(super) fn collapse_coincident_points(curve: &mut Curve) {
         }
     }
     curve.points = points;
+}
+
+/// A sequence clip's start and duration: validation keeps a sequence's clips
+/// timed.
+pub(super) fn timed(clip: &Clip) -> (&DonderTime, &DonderDuration) {
+    clip.timing()
+        .unwrap_or_else(|| unreachable!("validation keeps a sequence's clips timed"))
+}
+
+pub(super) fn timed_mut(clip: &mut Clip) -> (&mut DonderTime, &mut DonderDuration) {
+    match &mut clip.placement {
+        donder_model::Placement::Timed { start, duration } => (start, duration),
+        donder_model::Placement::Played(_) => {
+            unreachable!("validation keeps a sequence's clips timed")
+        }
+    }
 }

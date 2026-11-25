@@ -2,20 +2,22 @@ pub(in crate::gui) fn clip_params(
     session: &ProjectSession,
     sequence: &donder_model::Sequence,
     clip: &donder_model::Clip,
+    effect: &donder_model::Effect,
 ) -> Vec<SequenceClipParam> {
     invocation_params(
         session,
-        &clip.definition,
-        &clip.param_overrides,
+        &effect.definition,
+        &effect.params,
         |name, value| {
+            let (start, duration) = clip.timing()?;
             param_automation(
                 sequence,
                 &AutomationTarget::ClipParam {
-                    clip_id: clip.id.clone(),
+                    clip_id: clip.id,
                     param: name.clone(),
                 },
-                &clip.start,
-                &clip.duration,
+                start,
+                duration,
                 value,
             )
         },
@@ -26,13 +28,13 @@ pub(in crate::gui) fn clip_params(
 /// override, else its default, and the automation `automation` finds for it.
 pub(in crate::gui) fn invocation_params(
     session: &ProjectSession,
-    definition: &donder_model::EffectDefinitionId,
+    definition: &donder_model::ScriptId,
     overrides: &indexmap::IndexMap<Identifier, ParamValue>,
     mut automation: impl FnMut(&Identifier, &mut SequenceParamValue) -> Option<SequenceParamAutomation>,
 ) -> Vec<SequenceClipParam> {
     let definition = &session
         .project()
-        .reusable::<donder_model::EffectDefinition>()[definition];
+        .reusable::<donder_model::ScriptDefinition>()[definition];
     definition
         .params()
         .iter()
@@ -51,8 +53,8 @@ pub(in crate::gui) fn invocation_params(
 /// `automation` finds automating each operator parameter.
 pub(in crate::gui) fn composition_graph(
     session: &ProjectSession,
-    layers: &[donder_model::SequenceLayer],
-    graph: &donder_model::SequenceCompositionGraph,
+    layers: &[donder_model::Layer],
+    graph: &donder_model::CompositionGraph,
     automation: impl Fn(
         &CompositionGraphNodeId,
         &Identifier,
@@ -62,8 +64,9 @@ pub(in crate::gui) fn composition_graph(
     SequenceCompositionGraph {
         operator_catalog: session
             .project()
-            .reusable::<donder_model::OperatorDefinition>()
+            .reusable::<donder_model::ScriptDefinition>()
             .iter()
+            .filter(|(_, definition)| definition.kind() == DeclarationKind::Operator)
             .map(|(id, definition)| graph_operator_definition_to_gui(session, *id, definition))
             .collect(),
         nodes: graph
@@ -83,7 +86,7 @@ pub(in crate::gui) fn composition_graph(
     }
 }
 
-pub(in crate::gui) fn layers_to_gui(layers: &[donder_model::SequenceLayer]) -> Vec<SequenceLayer> {
+pub(in crate::gui) fn layers_to_gui(layers: &[donder_model::Layer]) -> Vec<SequenceLayer> {
     layers
         .iter()
         .map(|layer| SequenceLayer {
@@ -98,7 +101,7 @@ pub(in crate::gui) fn layers_to_gui(layers: &[donder_model::SequenceLayer]) -> V
 
 fn composition_graph_node(
     session: &ProjectSession,
-    layers: &[donder_model::SequenceLayer],
+    layers: &[donder_model::Layer],
     automation: &impl Fn(
         &CompositionGraphNodeId,
         &Identifier,
@@ -146,7 +149,7 @@ fn graph_operator_params(
 ) -> Vec<SequenceClipParam> {
     let definition = &session
         .project()
-        .reusable::<donder_model::OperatorDefinition>()[&operator.operator];
+        .reusable::<donder_model::ScriptDefinition>()[&operator.operator];
     definition
         .params()
         .iter()
@@ -165,12 +168,11 @@ fn graph_operator_params(
 
 fn graph_operator_definition_to_gui(
     session: &ProjectSession,
-    operator: OperatorDefinitionId,
-    definition: &OperatorDefinition,
+    operator: ScriptId,
+    definition: &ScriptDefinition,
 ) -> SequenceGraphOperatorDefinition {
     SequenceGraphOperatorDefinition {
         operator: graph_operator_to_gui(session, &operator),
-        source_name: definition.name().to_string(),
         display_name: definition.name().to_string(),
         description: definition.description().map(str::to_string),
         inputs: definition
@@ -198,10 +200,7 @@ pub(in crate::gui) fn definition_params_to_gui(
         .collect()
 }
 
-fn graph_operator_to_gui(
-    session: &ProjectSession,
-    id: &OperatorDefinitionId,
-) -> SequenceGraphOperator {
+fn graph_operator_to_gui(session: &ProjectSession, id: &ScriptId) -> SequenceGraphOperator {
     let identity = crate::gui::model::declared_identity(session, *id);
     SequenceGraphOperator {
         path: identity.document().to_string(),
@@ -236,31 +235,26 @@ fn param_automation(
     duration: &donder_language::DonderDuration,
     value: &mut SequenceParamValue,
 ) -> Option<SequenceParamAutomation> {
-    let envelope = sequence.automation_envelope(target)?;
-    let (clip, binding) = sequence.automation_clips.iter().find_map(|clip| {
-        let binding = clip
-            .bindings
-            .iter()
-            .find(|binding| &binding.target == target)?;
-        Some((clip, binding))
-    })?;
+    let composition = &sequence.composition;
+    let envelope = composition.automation_envelope(target)?;
+    let (clip, binding) = composition
+        .clips
+        .iter()
+        .find_map(|clip| Some((clip, clip.envelope()?.binding(target)?)))?;
     if let SequenceParamValue::Curve { value } = value {
         value.points = curve_points(&envelope.curve_in_range(start, duration));
     }
     Some(SequenceParamAutomation {
-        automation_clip_id: clip.id.0,
+        clip_id: clip.id.0,
         window: binding.window.into(),
     })
 }
 
 pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCurveLibraryItem> {
-    let available =
-        donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Curve]);
     session
         .project()
         .reusable::<donder_model::CurveDefinition>()
         .iter()
-        .filter(|(id, _)| available.contains(&(**id).into()))
         .map(|(id, definition)| {
             let identity = crate::gui::model::declared_identity(session, *id);
             (identity, definition)
@@ -277,13 +271,10 @@ pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCur
 pub(in crate::gui) fn gradient_library(
     session: &ProjectSession,
 ) -> Vec<SequenceGradientLibraryItem> {
-    let available =
-        donder_project_io::available_declarations(session, &[donder_model::ObjectKind::Gradient]);
     session
         .project()
         .reusable::<donder_model::GradientDefinition>()
         .iter()
-        .filter(|(id, _)| available.contains(&(**id).into()))
         .map(|(id, definition)| {
             let identity = crate::gui::model::declared_identity(session, *id);
             (identity, definition)
@@ -311,14 +302,8 @@ fn param_kind(ty: &Type) -> Option<SequenceParamKind> {
         Type::Track => return None,
         Type::Curve => SequenceParamKind::Curve,
         Type::Gradient => SequenceParamKind::Gradient,
-        Type::Array(inner) => match inner.as_ref() {
-            Type::Int => SequenceParamKind::IntArray,
-            Type::Float => SequenceParamKind::FloatArray,
-            Type::Bool => SequenceParamKind::BoolArray,
-            Type::Color => SequenceParamKind::ColorArray,
-            Type::Curve => SequenceParamKind::CurveArray,
-            Type::Gradient => SequenceParamKind::GradientArray,
-            _ => SequenceParamKind::FloatArray,
+        Type::Array(element) => SequenceParamKind::Array {
+            element: Box::new(param_kind(element)?),
         },
         Type::Void => {
             return None;
@@ -451,15 +436,13 @@ fn param_value_to_gui(
             }
         }
         ParamValue::Marks(value) => SequenceParamValue::Marks {
-            key: value
-                .as_ref()
-                .map(|collection| collection.name.as_str().to_string()),
+            id: value.map(|collection| collection.0),
         },
         ParamValue::Curve(source) => SequenceParamValue::Curve {
             value: SequenceCurveValue {
                 points: curve_points(match source {
-                    OwnedCurve::Inline(curve) => curve,
-                    OwnedCurve::Reference(id) => {
+                    CurveValue::Literal(curve) => curve,
+                    CurveValue::Linked(id) => {
                         &session
                             .project()
                             .reusable::<donder_model::CurveDefinition>()[id]
@@ -467,8 +450,8 @@ fn param_value_to_gui(
                     }
                 }),
                 link: match source {
-                    OwnedCurve::Inline(_) => SequenceLibraryLink::Inline,
-                    OwnedCurve::Reference(id) => {
+                    CurveValue::Literal(_) => SequenceLibraryLink::Inline,
+                    CurveValue::Linked(id) => {
                         library_link(&crate::gui::model::declared_identity(session, *id))
                     }
                 },
@@ -477,8 +460,8 @@ fn param_value_to_gui(
         ParamValue::Gradient(source) => SequenceParamValue::Gradient {
             value: SequenceGradientValue {
                 gradient: gradient_dto(match source {
-                    OwnedGradient::Inline(gradient) => gradient,
-                    OwnedGradient::Reference(id) => {
+                    GradientValue::Literal(gradient) => gradient,
+                    GradientValue::Linked(id) => {
                         &session
                             .project()
                             .reusable::<donder_model::GradientDefinition>()[id]
@@ -486,8 +469,8 @@ fn param_value_to_gui(
                     }
                 }),
                 link: match source {
-                    OwnedGradient::Inline(_) => SequenceLibraryLink::Inline,
-                    OwnedGradient::Reference(id) => {
+                    GradientValue::Literal(_) => SequenceLibraryLink::Inline,
+                    GradientValue::Linked(id) => {
                         library_link(&crate::gui::model::declared_identity(session, *id))
                     }
                 },
@@ -532,7 +515,7 @@ fn default_param_value(value: &EffectValue, ty: &Type) -> Option<SequenceParamVa
             value: value.as_str().to_string(),
             fields: Vec::new(),
         },
-        EffectValue::Marks(_) => SequenceParamValue::Marks { key: None },
+        EffectValue::Marks(_) => SequenceParamValue::Marks { id: None },
         EffectValue::Font(_) => SequenceParamValue::Font { value: None },
         EffectValue::Image(_) => SequenceParamValue::Image { value: None },
         EffectValue::Array(codes) if *ty == Type::Text => SequenceParamValue::Text {
@@ -565,7 +548,7 @@ fn default_param_value(value: &EffectValue, ty: &Type) -> Option<SequenceParamVa
                 .iter()
                 .map(|value| default_param_value(value, inner))
                 .collect::<Option<Vec<_>>>()?;
-            array_param_from_sequence_values(&converted, inner)
+            SequenceParamValue::Array { values: converted }
         }
         EffectValue::Void => return None,
     })
@@ -589,80 +572,20 @@ fn array_param_value(
     let Type::Array(inner) = ty else {
         unreachable!("validated array parameter type");
     };
-    let converted = values
-        .iter()
-        .map(|value| param_value_to_gui(session, value, inner, &[]))
-        .collect::<Vec<_>>();
-    array_param_from_sequence_values(&converted, inner)
-}
-
-fn array_param_from_sequence_values(
-    values: &[SequenceParamValue],
-    inner: &Type,
-) -> SequenceParamValue {
-    match inner {
-        Type::Int => SequenceParamValue::IntArray {
-            values: values
-                .iter()
-                .filter_map(|value| match value {
-                    SequenceParamValue::Int { value } => Some(*value),
-                    _ => None,
-                })
-                .collect(),
-        },
-        Type::Bool => SequenceParamValue::BoolArray {
-            values: values
-                .iter()
-                .filter_map(|value| match value {
-                    SequenceParamValue::Bool { value } => Some(*value),
-                    _ => None,
-                })
-                .collect(),
-        },
-        Type::Color => SequenceParamValue::ColorArray {
-            values: values
-                .iter()
-                .filter_map(|value| match value {
-                    SequenceParamValue::Color { value } => Some(value.clone()),
-                    _ => None,
-                })
-                .collect(),
-        },
-        Type::Gradient => SequenceParamValue::GradientArray {
-            values: values
-                .iter()
-                .filter_map(|value| match value {
-                    SequenceParamValue::Gradient { value } => Some(value.clone()),
-                    _ => None,
-                })
-                .collect(),
-        },
-        Type::Curve => SequenceParamValue::CurveArray {
-            values: values
-                .iter()
-                .filter_map(|value| match value {
-                    SequenceParamValue::Curve { value } => Some(value.clone()),
-                    _ => None,
-                })
-                .collect(),
-        },
-        _ => SequenceParamValue::FloatArray {
-            values: values
-                .iter()
-                .filter_map(|value| match value {
-                    SequenceParamValue::Float { value } => Some(*value),
-                    _ => None,
-                })
-                .collect(),
-        },
+    SequenceParamValue::Array {
+        values: values
+            .iter()
+            .map(|value| param_value_to_gui(session, value, inner, &[]))
+            .collect(),
     }
 }
-use donder_language::compiler::{ParamDecl, ParamRange};
+
+use donder_language::compiler::{DeclarationKind, ParamDecl, ParamRange};
 use donder_model::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
 };
-use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
-use donder_model::{OwnedCurve, OwnedGradient, ParamValue};
+use donder_model::{CurveValue, GradientValue, ParamValue};
+use donder_model::{GraphOperatorNode, ScriptDefinition, ScriptId};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::{Identifier, Type, Value as EffectValue};
 

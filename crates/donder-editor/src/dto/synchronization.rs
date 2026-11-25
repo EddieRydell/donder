@@ -83,7 +83,7 @@ pub enum WorkspaceTransition {
         directory_name: String,
         initial_color: String,
     },
-    /// A new project holding the layout, controllers and patch of the
+    /// A new project holding the layout, controllers and routes of the
     /// xLights or Vixen profile in `profile_path`.
     ImportProject {
         parent_path: String,

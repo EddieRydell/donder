@@ -30,7 +30,7 @@ fn respell(message: String, canonical: String) -> Invalid {
 /// The shortest decimal that reads back as `value`, always with a fraction:
 /// `0.6`, `1.0`, `-2.5`. Rust's float `Display` already prints the shortest
 /// round-tripping digits, without an exponent.
-pub fn canonical_float(value: f32) -> String {
+pub(crate) fn canonical_float(value: f32) -> String {
     let text = format!("{value}");
     if text.contains('.') {
         text
@@ -52,7 +52,7 @@ pub fn canonical_duration(value: Duration) -> String {
 
 /// Meters with at most six decimals and no trailing zeros: `0m`, `0.35m`,
 /// `-1.2m`.
-pub fn canonical_distance(micrometers: i64) -> String {
+pub(crate) fn canonical_distance(micrometers: i64) -> String {
     let sign = if micrometers < 0 { "-" } else { "" };
     let magnitude = micrometers.unsigned_abs();
     let (meters, fraction) = (magnitude / 1_000_000, magnitude % 1_000_000);

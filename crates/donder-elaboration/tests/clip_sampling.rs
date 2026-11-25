@@ -13,35 +13,47 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
             .project()
             .clone();
     let mut sample_checked = false;
-    for sequence in project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| project.get::<donder_model::Sequence>(*source.id()).unwrap())
-    {
-        let prepared = prepare(&project, &sequence.id, Retain::All).unwrap();
+    for (sequence_id, sequence) in project.objects::<donder_model::Sequence>() {
+        let prepared = prepare(&project, &sequence_id, Retain::All).unwrap();
         let decoded = donder_runtime::PreparedShow::decode(&prepared.encode()).unwrap();
-        for authored in sequence.clips.iter().take(2) {
+        for authored in sequence
+            .composition
+            .clips
+            .iter()
+            .filter(|clip| clip.effect().is_some())
+            .take(2)
+        {
+            let layer = &authored.effect().unwrap().layer;
             sample_checked = true;
             // Prepare the authored clip alone through a plain layer/output graph.
             // The reference uses full playback; the decoded sequence uses sparse sampling.
             let mut reference_project = project.clone();
             let mut reference = sequence.clone();
-            reference.clips = vec![authored.clone()];
+            // The authored clip and the envelopes that drive it.
+            reference.composition.clips = sequence
+                .composition
+                .clips
+                .iter()
+                .filter(|clip| clip.envelope().is_some() || clip.id == authored.id)
+                .cloned()
+                .collect();
             reference
+                .composition
                 .layers
-                .retain(|layer| layer.id == authored.layer_id);
-            reference.layers[0].enabled = true;
+                .retain(|candidate| candidate.id == *layer);
+            reference.composition.layers[0].enabled = true;
             reference
-                .composition_graph
+                .composition
+                .graph
                 .nodes
                 .retain(|node| match &node.kind {
-                    CompositionGraphNodeKind::Layer { layer_id } => *layer_id == authored.layer_id,
+                    CompositionGraphNodeKind::Layer { layer_id } => layer_id == layer,
                     CompositionGraphNodeKind::Root => true,
                     CompositionGraphNodeKind::Operator(_) => false,
                 });
             let layer = reference
-                .composition_graph
+                .composition
+                .graph
                 .nodes
                 .iter()
                 .find(|node| matches!(node.kind, CompositionGraphNodeKind::Layer { .. }))
@@ -49,37 +61,39 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                 .id
                 .clone();
             let output = reference
-                .composition_graph
+                .composition
+                .graph
                 .nodes
                 .iter()
                 .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
                 .unwrap()
                 .id
                 .clone();
-            reference.composition_graph.edges = vec![EffectGraphEdge {
+            reference.composition.graph.edges = vec![EffectGraphEdge {
                 from: layer,
                 to: output,
                 input: None,
             }];
-            for automation in &mut reference.automation_clips {
-                automation.bindings.retain(|binding| {
-                    matches!(&binding.target,
-                        AutomationTarget::ClipParam { clip_id, .. } if *clip_id == authored.id
-                    )
-                });
-                automation.detached_bindings.clear();
+            for clip in &mut reference.composition.clips {
+                if let Some(envelope) = std::sync::Arc::make_mut(clip).envelope_mut() {
+                    envelope.bindings.retain(|binding| {
+                        matches!(&binding.target,
+                            AutomationTarget::ClipParam { clip_id, .. } if *clip_id == authored.id
+                        )
+                    });
+                }
             }
-            reference
-                .automation_clips
-                .retain(|clip| !clip.bindings.is_empty());
-            reference_project.put(reference).unwrap();
-            let mut workspace = prepare(&reference_project, &sequence.id, Retain::All)
+            reference.composition.clips.retain(|clip| {
+                clip.envelope()
+                    .is_none_or(|envelope| !envelope.bindings.is_empty())
+            });
+            reference_project.put((sequence_id, reference)).unwrap();
+            let mut workspace = prepare(&reference_project, &sequence_id, Retain::All)
                 .unwrap()
                 .into_playback();
             let fixtures = project
-                .get::<donder_model::Layout>(authored.target.layout)
-                .unwrap()
-                .members(authored.target.fixture)
+                .layout()
+                .members(authored.target)
                 .into_iter()
                 .map(|part| part.fixture.0)
                 .collect::<Vec<_>>();

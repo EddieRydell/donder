@@ -9,7 +9,6 @@ pub struct InputControlId(pub u32);
 /// input of its driver.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InputDevice {
-    pub id: InputDeviceId,
     pub description: Option<String>,
     pub driver: InputDriver,
     pub controls: Vec<InputControl>,
@@ -552,12 +551,3 @@ impl InputDevice {
         self.controls.iter().find(|control| control.id == id)
     }
 }
-
-impl crate::ownership::Identified for InputDevice {
-    type Id = InputDeviceId;
-    fn id(&self) -> &Self::Id {
-        &self.id
-    }
-}
-
-pub type OwnedInputDevice = crate::ownership::OwnedMember<InputDevice, InputDeviceId>;

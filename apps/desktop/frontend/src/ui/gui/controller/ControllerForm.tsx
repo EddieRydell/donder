@@ -1,14 +1,14 @@
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { commands } from "../../../api";
-import { runGuiEditCommand, useAppStore } from "../../../store";
-import type { GuiEditCommand, GuiField, GuiMember, SetupGuiDocument, SetupGuiEdit } from "../../../types";
+import { useAppStore } from "../../../store";
+import { applyEdit } from "../edits";
+import type { GuiEdit, GuiField, GuiMember, ProjectGuiDocument, ProjectGuiEdit } from "../../../types";
 import { AddRow, Button, Field, IconButton, NumberField, Section, Select, TextField, Toggle } from "../../kit";
 import { DraftProblem, OBJECT, useDraftCheck, useFieldProblem } from "../problems";
 import { useDeviceWatch } from "./DonderDevicePanel";
 
-type ControllerConfig = Extract<SetupGuiEdit, { type: "addController" }>["config"];
-type ControllerPorts = SetupGuiDocument["controllers"][number]["ports"];
+type ControllerConfig = Extract<ProjectGuiEdit, { type: "addController" }>["config"];
+type ControllerPorts = ProjectGuiDocument["controllers"][number]["ports"];
 type Universes = Extract<ControllerConfig, { type: "e131" }>["universes"];
 
 const PROTOCOLS = [
@@ -55,7 +55,7 @@ function portsFor(type: ControllerConfig["type"], ports: ControllerPorts): Contr
 }
 
 /** A labelled field of the controller or one of its ports, marked when its value breaks a rule. */
-function ConfigField({ label, tip, member = OBJECT, field, children }: { label: string; tip?: string; member?: GuiMember; field: GuiField; children: (invalid: boolean) => ReactNode }) {
+function ConfigField({ label, tip, member = OBJECT, field, children }: { label: string; tip?: string; member?: GuiMember | null; field: GuiField; children: (invalid: boolean) => ReactNode }) {
   const problem = useFieldProblem(member, field);
   return <Field label={label} tip={tip} error={problem}>{children(problem !== null)}</Field>;
 }
@@ -80,20 +80,27 @@ function FseqFields({ channel, onChange }: { channel: number | null; onChange: (
   </>;
 }
 
-/** A controller's protocol, addresses and outputs: a draft checked after each change and applied together.
- * `edit` makes the edit that applies it: a new controller of the setup, or the open controller's settings. */
+/** A controller's protocol, addresses and outputs. The open controller commits each field as it changes; a new
+ * controller is a draft checked after each change and added together. `edit` makes the edit that applies them. */
 export function ControllerForm({ controller, edit, onApplied }: {
-  controller?: SetupGuiDocument["controllers"][number];
-  edit: (config: ControllerConfig, ports: ControllerPorts) => GuiEditCommand;
+  controller?: ProjectGuiDocument["controllers"][number];
+  edit: (config: ControllerConfig, ports: ControllerPorts) => GuiEdit;
   onApplied?: () => void;
 }) {
   const devices = useAppStore((state) => state.snapshot?.devices ?? []);
   const request = useAppStore((state) => state.guiRequest);
-  const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? defaultConfig("e131", ""));
-  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [newPort("e131", [])]);
+  const [draft, setDraft] = useState<{ config: ControllerConfig; ports: ControllerPorts }>(() => ({ config: defaultConfig("e131", ""), ports: [newPort("e131", [])] }));
+  const { config, ports } = controller ?? draft;
   useDeviceWatch(config.type === "donder");
-  const draft = useMemo(() => edit(config, ports), [edit, config, ports]);
-  const { checking, problem } = useDraftCheck(request, draft);
+  const added = useMemo(() => controller === undefined ? edit(draft.config, draft.ports) : null, [controller, edit, draft]);
+  const { checking, problem } = useDraftCheck(request, added);
+  const change = (next: { config?: ControllerConfig; ports?: ControllerPorts }) => {
+    const value = { config: next.config ?? config, ports: next.ports ?? ports };
+    if (controller === undefined) setDraft(value);
+    else void applyEdit(edit(value.config, value.ports));
+  };
+  const setConfig = (next: ControllerConfig) => { change({ config: next }); };
+  const setPorts = (next: ControllerPorts) => { change({ ports: next }); };
   const changePort = (index: number, change: Partial<ControllerPorts[number]>) => {
     setPorts(ports.map((candidate, i) => i === index ? { ...candidate, ...change } : candidate));
   };
@@ -114,13 +121,12 @@ export function ControllerForm({ controller, edit, onApplied }: {
   ];
   return <form className="setup-authoring-form" onSubmit={(event) => {
     event.preventDefault();
-    void runGuiEditCommand((current) => commands.applyGuiEdit(current, draft)).then((result) => { if (result !== null) onApplied?.(); });
+    if (added !== null) void applyEdit(added).then((result) => { if (result !== null) onApplied?.(); });
   }}><DraftProblem problem={problem}>
     <fieldset>
       <Field label="Protocol">
         <Select name="Protocol" value={config.type} options={PROTOCOLS} onChange={(type) => {
-          setConfig(defaultConfig(type, devices[0]?.id ?? ""));
-          setPorts(portsFor(type, ports));
+          change({ config: defaultConfig(type, devices[0]?.id ?? ""), ports: portsFor(type, ports) });
         }} />
       </Field>
       {config.type === "e131" && <>
@@ -166,7 +172,7 @@ export function ControllerForm({ controller, edit, onApplied }: {
         </div>)}
         <AddRow label="Add port" onAdd={() => { setPorts([...ports, newPort(config.type, ports)]); }} />
       </Section>
-      <Button type="submit" variant="primary" disabled={checking || problem !== null} {...(problem === null ? {} : { tip: problem.message })}>{controller === undefined ? "Add controller" : "Apply"}</Button>
+      {added !== null && <Button type="submit" variant="primary" disabled={checking || problem !== null} {...(problem === null ? {} : { tip: problem.message })}>Add controller</Button>}
     </fieldset>
   </DraftProblem></form>;
 }

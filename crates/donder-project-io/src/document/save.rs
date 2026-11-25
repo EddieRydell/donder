@@ -63,7 +63,7 @@ pub(crate) fn data_document_text(
         })
         .map(|(index, id)| {
             let sequence = declared::<donder_model::Sequence>(session, id);
-            Ok((index, cache.clips(&encoder, &imports, sequence)?))
+            Ok((index, cache.clips(&encoder, &imports, id, sequence)?))
         })
         .collect::<Result<Vec<_>, ExportProjectError>>()?;
     let items = clips
@@ -84,13 +84,13 @@ pub(crate) fn data_document_text(
     Ok(write(imports, &declarations, &splices))
 }
 
-/// The reusable object a declaration of `session` writes.
-fn declared<T: donder_model::Reusable>(session: &ProjectSession, id: T::Id) -> &T {
+/// The object a declaration of `session` writes.
+fn declared<T: donder_model::ProjectObject>(session: &ProjectSession, id: T::Id) -> &T {
     session
         .project
         .reusable::<T>()
         .get(&id)
-        .unwrap_or_else(|| unreachable!("a session declares exactly its reusable objects"))
+        .unwrap_or_else(|| unreachable!("a session declares exactly its objects"))
 }
 
 fn declaration(
@@ -100,7 +100,6 @@ fn declaration(
     let session = encoder.session;
     Ok(match object.id() {
         ObjectId::Project(_) => Declaration::Project(encoder.project()?),
-        ObjectId::Setup(id) => Declaration::Setup(encoder.setup(declared(session, id))?),
         ObjectId::Controller(id) => {
             Declaration::Controller(controller_document(declared(session, id)))
         }
@@ -108,7 +107,6 @@ fn declaration(
             Declaration::InputDevice(input_device_document(declared(session, id)))
         }
         ObjectId::Layout(id) => Declaration::Layout(encoder.layout(declared(session, id))?),
-        ObjectId::Patch(id) => Declaration::Patch(encoder.patch(declared(session, id))?),
         ObjectId::FixtureDefinition(id) => {
             Declaration::FixtureDefinition(fixture_definition_document(declared(session, id)))
         }
@@ -116,7 +114,7 @@ fn declaration(
         ObjectId::Console(id) => Declaration::Console(encoder.console(declared(session, id))?),
         ObjectId::Curve(id) => Declaration::Curve(curve_document(declared(session, id))),
         ObjectId::Gradient(id) => Declaration::Gradient(gradient_document(declared(session, id))),
-        ObjectId::EffectDefinition(_) | ObjectId::OperatorDefinition(_) => {
+        ObjectId::Script(_) => {
             unreachable!("a data document declares no scripts")
         }
     })

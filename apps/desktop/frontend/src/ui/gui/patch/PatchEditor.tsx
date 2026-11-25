@@ -1,16 +1,15 @@
 import { guiObjectKey, sameGuiObject } from "../../../workspace/guiIdentity";
-import { X } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
-import { commands } from "../../../api";
-import { runGuiEditCommand, useAppStore } from "../../../store";
-import type { GuiDocumentRequest, GuiEditCommand, GuiField, GuiPixelRoute, PatchGuiDocument } from "../../../types";
-import { AddRow, Button, ContextMenuArea, Field, IconButton, NumberField, Select, Tip, Toggle } from "../../kit";
+import { ChevronLeft, X } from "lucide-react";
+import { Fragment, useState } from "react";
+import { useAppStore } from "../../../store";
+import { put, site } from "../edits";
+import type { GuiField, GuiPixelRoute, PatchGuiDocument } from "../../../types";
+import { AddRow, ContextMenuArea, Field, IconButton, NumberField, Select, Tip, Toggle } from "../../kit";
 import { outputTestEntries, useOutputTesting } from "../outputTest";
-import { DraftProblem, useDraftCheck, useFieldProblem } from "../problems";
+import { useFieldProblem } from "../problems";
 import { ReferenceInput } from "../setup/PatchInputs";
 import { ColorPicker } from "../../ColorPicker";
 
-type Draft = { origin: GuiDocumentRequest; routes: GuiPixelRoute[] };
 type Controller = PatchGuiDocument["controllers"][number];
 type Place = PatchGuiDocument["placements"][number]["place"];
 
@@ -63,7 +62,7 @@ const firstPort = (controller: Controller | undefined) => controller?.ports[0]?.
 
 const portLabel = (port: Controller["ports"][number]) => port.donder === null ? port.name : `${port.name} (${port.donder.slotCount} ch)`;
 
-/** The routes on each controller, its ports in order and each port's routes in patch order: the order their channels follow. */
+/** The routes on each controller, its ports in order and each port's routes in route order: the order their channels follow. */
 function controllerGroups(document: PatchGuiDocument) {
   const missing = (route: GuiPixelRoute) => ({ route, port: "Missing" });
   const groups = document.controllers.flatMap((controller) => {
@@ -77,40 +76,30 @@ function controllerGroups(document: PatchGuiDocument) {
   return orphans.length === 0 ? groups : [...groups, { key: "", label: "Missing", routes: orphans.map(missing) }];
 }
 
-export function PatchEditor({ document }: { document: PatchGuiDocument }) {
-  const [draft, setDraft] = useState<Draft | null>(null);
+/** The project's outputs: how each fixture is wired to a controller port, each field committed as it changes. */
+export function PatchEditor({ document, onClose }: { document: PatchGuiDocument; onClose: () => void }) {
   /** The right-clicked route row. */
   const [menuRoute, setMenuRoute] = useState<number | null>(null);
   const testing = useOutputTesting();
   const request = useAppStore((state) => state.guiRequest);
   const revision = useAppStore((state) => state.guiDocumentRevision);
   const pending = useAppStore((state) => state.guiEditPending);
-  const stale = draft !== null && draft.origin !== request;
-  const edit = useMemo<GuiEditCommand | null>(() => draft === null ? null : { type: "patch", routes: draft.routes }, [draft]);
-  // The rule the draft's routes break, checked after each change.
-  const { checking, problem } = useDraftCheck(stale ? null : draft?.origin ?? null, stale ? null : edit);
-  const routable = document.controllers.length > 0 && document.layouts.some((layout) => layout.fixtures.some((fixture) => fixture.pixelCount > 0));
-  const changeRoute = (id: number, route: GuiPixelRoute) => {
-    if (draft !== null) setDraft({ ...draft, routes: draft.routes.map((item) => item.id === id ? route : item) });
-  };
+  const routable = document.controllers.length > 0 && document.fixtures.some((fixture) => fixture.pixelCount > 0);
+  const putRoutes = (routes: GuiPixelRoute[]) => void put(site(null), { type: "routes", routes });
   const addRoute = () => {
-    if (draft === null) return;
-    const layout = document.layouts.find((layout) => layout.fixtures.some((fixture) => fixture.pixelCount > 0));
-    const fixture = layout?.fixtures.find((fixture) => fixture.pixelCount > 0);
+    const fixture = document.fixtures.find((fixture) => fixture.pixelCount > 0);
     const controller = document.controllers[0];
-    if (layout === undefined || fixture === undefined || controller === undefined) return;
-    setDraft({ ...draft, routes: [...draft.routes, {
-      id: Math.max(0, ...draft.routes.map((route) => route.id)) + 1,
-      layout: layout.sourceRef, fixture: fixture.id, pixels: null, reverse: false,
+    if (fixture === undefined || controller === undefined) return;
+    putRoutes([...document.routes, {
+      id: Math.max(0, ...document.routes.map((route) => route.id)) + 1,
+      fixture: fixture.id, pixels: null, reverse: false,
       controller: controller.sourceRef, port: firstPort(controller), start: { type: "next" },
       encoding: { type: "rgb", order: [...RGB_ORDER] }, gamma: 1, brightness: 1, dither: false
-    }] });
+    }]);
   };
-  const disabled = pending || stale;
-  const applyBlocked = stale ? "The outputs changed elsewhere" : problem?.message;
-  return <main className="setup-editor">
-    <header className="object-overview-header"><h2>Outputs</h2></header>
-    {draft === null ? <ContextMenuArea entries={menuRoute === null ? [] : outputTestEntries({ type: "route", route: menuRoute }, pending || request === null || revision !== request.projectRevision, testing)}><section className="setup-section" onContextMenuCapture={(event) => {
+  return <main className="object-editor">
+    <header className="object-overview-header"><h2>Outputs</h2><IconButton icon={ChevronLeft} label="Back to the setup" onClick={onClose} /></header>
+    <ContextMenuArea entries={menuRoute === null ? [] : outputTestEntries({ type: "route", route: menuRoute }, pending || request === null || revision !== request.projectRevision, testing)}><section className="object-section" onContextMenuCapture={(event) => {
       const row = event.target instanceof Element ? event.target.closest("[data-route]") : null;
       setMenuRoute(row === null ? null : Number(row.getAttribute("data-route")));
     }}>
@@ -118,7 +107,7 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
         <h3>{group.label}</h3>
         {group.routes.map(({ route, port }) => {
           const place = document.placements.find((placement) => placement.route === route.id)?.place;
-          const fixture = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, route.layout))?.fixtures.find((candidate) => candidate.id === route.fixture)?.name ?? "Missing";
+          const fixture = document.fixtures.find((candidate) => candidate.id === route.fixture)?.name ?? "Missing";
           const labels = place === undefined ? null : placeLabels(place);
           const order = encodingName(route.encoding);
           return <Tip key={route.id} label={`${fixture} → ${group.label} port ${port}${labels === null ? "" : `, ${labels.full}`} · ${order}`}>
@@ -128,35 +117,24 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
           </Tip>;
         })}
       </Fragment>)}
-      <Button disabled={pending || request === null || revision !== request.projectRevision}
-        onClick={() => { if (request !== null) setDraft({ origin: request, routes: structuredClone(document.routes) }); }}>Edit outputs</Button>
-    </section></ContextMenuArea> : <form className="setup-section" onSubmit={(event) => {
-      event.preventDefault();
-      void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "patch", routes: draft.routes }), draft.origin)
-        .then((result) => { if (result !== null) setDraft(null); });
-    }}><DraftProblem problem={problem}>
-      {draft.routes.map((route) => <section className="setup-patch-node" key={route.id}>
-        <RouteFields document={document} route={route} disabled={disabled} onChange={(next) => { changeRoute(route.id, next); }} />
-        <IconButton icon={X} label="Remove output" danger disabled={disabled} onClick={() => { setDraft({ ...draft, routes: draft.routes.filter((item) => item.id !== route.id) }); }} />
+    </section></ContextMenuArea>
+    <section className="object-section">
+      {document.routes.map((route) => <section className="setup-patch-node" key={route.id}>
+        <RouteFields document={document} route={route} disabled={pending} onChange={(next) => { putRoutes(document.routes.map((item) => item.id === route.id ? next : item)); }} />
+        <IconButton icon={X} label="Remove output" danger disabled={pending} onClick={() => { putRoutes(document.routes.filter((item) => item.id !== route.id)); }} />
       </section>)}
-      <AddRow label="Add output" disabled={disabled || !routable} onAdd={addRoute} />
-      <div className="dialog-actions">
-        <Button disabled={pending} onClick={() => { setDraft(null); }}>Discard</Button>
-        <Button type="submit" variant="primary" disabled={disabled || checking || problem !== null} {...(applyBlocked === undefined ? {} : { tip: applyBlocked })}>Apply</Button>
-      </div>
-    </DraftProblem></form>}
+      <AddRow label="Add output" disabled={pending || !routable} onAdd={addRoute} />
+    </section>
   </main>;
 }
 
 function RouteFields({ document, route, disabled, onChange }: { document: PatchGuiDocument; route: GuiPixelRoute; disabled: boolean; onChange: (route: GuiPixelRoute) => void }) {
-  const layout = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, route.layout));
-  const target = layout?.fixtures.find((fixture) => fixture.id === route.fixture);
+  const target = document.fixtures.find((fixture) => fixture.id === route.fixture);
   const controller = document.controllers.find((controller) => sameGuiObject(controller.sourceRef, route.controller));
   const span = route.pixels;
   const member = { type: "route", id: route.id } as const;
   const problems = {
-    layout: useFieldProblem(member, { type: "layout" }),
-    fixture: useFieldProblem(member, { type: "fixture" }),
+    target: useFieldProblem(member, { type: "target" }),
     pixels: useFieldProblem(member, { type: "pixels" }),
     controller: useFieldProblem(member, { type: "controller" }),
     port: useFieldProblem(member, { type: "port" }),
@@ -168,13 +146,9 @@ function RouteFields({ document, route, disabled, onChange }: { document: PatchG
   /** The problem's message when it concerns `field` of this route. */
   const error = (field: keyof typeof problems) => problems[field];
   return <div className="setup-patch-fields">
-    <ReferenceInput label="Layout" value={route.layout} disabled={disabled} error={error("layout")} choices={document.layouts.map((layout, index) => ({ reference: layout.sourceRef, label: layout.sourceRef.ownedPath.length > 0 ? `Layout ${index + 1}` : layout.sourceRef.objectKey }))} onChange={(reference) => {
-      const fixture = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, reference))?.fixtures[0];
-      if (fixture !== undefined) onChange({ ...route, layout: reference, fixture: fixture.id, pixels: null });
-    }} />
-    <Field label="Fixture" error={error("fixture")}>
-      <Select name="Fixture" value={String(route.fixture)} disabled={disabled} invalid={error("fixture") !== null} onChange={(fixture) => { onChange({ ...route, fixture: Number(fixture), pixels: null }); }}
-        options={(layout?.fixtures ?? []).map((fixture) => ({ value: String(fixture.id), label: `${fixture.name} (${fixture.pixelCount} px)` }))} />
+    <Field label="Fixture" error={error("target")}>
+      <Select name="Fixture" value={String(route.fixture)} disabled={disabled} invalid={error("target") !== null} onChange={(fixture) => { onChange({ ...route, fixture: Number(fixture), pixels: null }); }}
+        options={document.fixtures.map((fixture) => ({ value: String(fixture.id), label: `${fixture.name} (${fixture.pixelCount} px)` }))} />
     </Field>
     <Field label="Partial" tip="Route only part of the pixel wiring">
       <Toggle name="Partial" checked={span !== null} disabled={disabled} onChange={(checked) => { onChange({ ...route, pixels: checked ? { start: 0, count: target?.pixelCount ?? 0 } : null }); }} />

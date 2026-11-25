@@ -1,42 +1,39 @@
 use crate::console::{Console, ConsoleId};
 use crate::controller::{Controller, ControllerId};
 use crate::effect::{
-    CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
+    CurveDefinition, CurveId, GradientDefinition, GradientId, ScriptDefinition, ScriptId,
 };
 use crate::fixture::{FixtureDefinition, FixtureDefinitionId};
 pub(crate) use crate::identity::ProjectId;
 use crate::identity::{ObjectId, ObjectKind};
 use crate::input_device::{InputDevice, InputDeviceId};
 use crate::layout::{Layout, LayoutId};
-use crate::operator::{OperatorDefinition, OperatorDefinitionId};
-use crate::patch::{Patch, PatchId};
 use crate::sequence::{Sequence, SequenceId};
-use crate::setup::{Setup, SetupId};
 use indexmap::IndexMap;
 use std::sync::Arc;
 
 mod editing;
 pub use editing::{Object, ProjectEdit};
+mod members;
+pub(crate) use members::MemberMut;
+pub use members::{MemberRef, MemberValue};
 mod objects;
-pub use objects::{ProjectObject, Reusable};
+pub use objects::ProjectObject;
 mod accepted;
 mod view;
 pub use view::View;
 pub(crate) mod references;
 pub use accepted::{
-    AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
-    AcceptedSequence, CONSOLE_SESSION, ConsoleBinding, PlaybackRoute,
+    AcceptedClip, AcceptedOperatorInputs, AcceptedShow, LiveBinding, PlaybackRoute, ShowId,
 };
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;
 /// accepted projects never expose a mutable assembly view. Each store holds
-/// the reusable objects of one kind by id; owned objects live in their owner.
+/// the objects of one kind by id.
 #[derive(Clone, Debug)]
 pub struct ProjectData {
     pub root: ProjectRoot,
-    pub setups: IndexMap<SetupId, Setup>,
     pub layouts: IndexMap<LayoutId, Layout>,
-    pub patches: IndexMap<PatchId, Patch>,
     pub controllers: IndexMap<ControllerId, Controller>,
     pub input_devices: IndexMap<InputDeviceId, InputDevice>,
     pub sequences: IndexMap<SequenceId, Sequence>,
@@ -44,8 +41,7 @@ pub struct ProjectData {
     pub fixtures: IndexMap<FixtureDefinitionId, FixtureDefinition>,
     pub curves: IndexMap<CurveId, CurveDefinition>,
     pub gradients: IndexMap<GradientId, GradientDefinition>,
-    pub effects: IndexMap<EffectDefinitionId, EffectDefinition>,
-    pub operators: IndexMap<OperatorDefinitionId, OperatorDefinition>,
+    pub scripts: IndexMap<ScriptId, ScriptDefinition>,
     /// The next unassigned object id; every id in the data is below it.
     pub next_id: u32,
 }
@@ -82,9 +78,7 @@ impl<T: Clone> std::ops::DerefMut for Shared<T> {
 #[derive(Clone, Debug)]
 pub struct DonderProject {
     pub(crate) root: Shared<ProjectRoot>,
-    pub(crate) setups: Shared<IndexMap<SetupId, Setup>>,
     pub(crate) layouts: Shared<IndexMap<LayoutId, Layout>>,
-    pub(crate) patches: Shared<IndexMap<PatchId, Patch>>,
     pub(crate) controllers: Shared<IndexMap<ControllerId, Controller>>,
     pub(crate) input_devices: Shared<IndexMap<InputDeviceId, InputDevice>>,
     pub(crate) sequences: Shared<IndexMap<SequenceId, Sequence>>,
@@ -92,8 +86,7 @@ pub struct DonderProject {
     pub(crate) fixtures: Shared<IndexMap<FixtureDefinitionId, FixtureDefinition>>,
     curves: Shared<IndexMap<CurveId, CurveDefinition>>,
     gradients: Shared<IndexMap<GradientId, GradientDefinition>>,
-    effects: Shared<IndexMap<EffectDefinitionId, EffectDefinition>>,
-    operators: Shared<IndexMap<OperatorDefinitionId, OperatorDefinition>>,
+    scripts: Shared<IndexMap<ScriptId, ScriptDefinition>>,
     next_id: u32,
     accepted_inputs: Arc<accepted::ProjectInputs>,
     /// Data derived from asset files: not part of the project's documents
@@ -107,9 +100,7 @@ pub struct DonderProject {
 impl PartialEq for DonderProject {
     fn eq(&self, other: &Self) -> bool {
         self.root == other.root
-            && self.setups == other.setups
             && self.layouts == other.layouts
-            && self.patches == other.patches
             && self.controllers == other.controllers
             && self.input_devices == other.input_devices
             && self.sequences == other.sequences
@@ -117,8 +108,7 @@ impl PartialEq for DonderProject {
             && self.fixtures == other.fixtures
             && self.curves == other.curves
             && self.gradients == other.gradients
-            && self.effects == other.effects
-            && self.operators == other.operators
+            && self.scripts == other.scripts
     }
 }
 
@@ -126,9 +116,10 @@ impl PartialEq for DonderProject {
 pub struct ProjectRoot {
     pub id: ProjectId,
     pub description: Option<String>,
-    pub setup: crate::setup::OwnedSetup,
-    pub sequences: Vec<crate::sequence::OwnedSequence>,
-    pub consoles: Vec<crate::console::OwnedConsole>,
+    /// The project's one layout.
+    pub layout: LayoutId,
+    /// How the layout's fixtures are wired to the controllers.
+    pub routes: Vec<crate::patch::PixelRoute>,
 }
 
 /// Why an edit of a project failed: the edit itself was refused, or the edited
@@ -153,20 +144,12 @@ impl std::fmt::Display for EditError {
 pub enum EditRejection {
     ProjectIdentity,
     ProjectRemoval,
-    NotReusable,
     Missing(ObjectKind),
     MissingItem,
-    MemberNotInOwner,
-    NoMembers,
-    AlreadyReusable,
-    NonPositiveTiming,
-    AlreadyInSetup(ObjectKind),
-    NotAGroup,
+    MissingMember,
     NotInSourceGroup,
     NotInGroup,
     InsertionTargetOutside,
-    AlreadyInGroup,
-    GroupInsideItself,
     NoFreeIds,
 }
 
@@ -175,25 +158,13 @@ impl std::fmt::Display for EditRejection {
         match self {
             Self::ProjectIdentity => f.write_str("A project keeps its identity."),
             Self::ProjectRemoval => f.write_str("A project cannot be removed."),
-            Self::NotReusable => f.write_str("Only a reusable object can be removed."),
             Self::Missing(kind) => write!(f, "The {kind} was not found."),
             Self::MissingItem => f.write_str("The fixture or group was not found."),
-            Self::MemberNotInOwner => f.write_str("The member was not found in its owner."),
-            Self::NoMembers => f.write_str("This object owns no members."),
-            Self::AlreadyReusable => f.write_str("This value is already reusable."),
-            Self::NonPositiveTiming => {
-                f.write_str("Sequence duration and frame rate must be positive.")
-            }
-            Self::AlreadyInSetup(kind) => write!(f, "This {kind} is already in the setup."),
-            Self::NotAGroup => f.write_str("Items can only be placed in groups."),
+            Self::MissingMember => f.write_str("That part of the object was not found."),
             Self::NotInSourceGroup => f.write_str("The item is not in the source group."),
             Self::NotInGroup => f.write_str("The item is not in that group."),
             Self::InsertionTargetOutside => {
                 f.write_str("The insertion target is not in the destination group.")
-            }
-            Self::AlreadyInGroup => f.write_str("The item is already in that group."),
-            Self::GroupInsideItself => {
-                f.write_str("A group cannot contain itself or one of its groups.")
             }
             Self::NoFreeIds => f.write_str("No fixture instance IDs remain."),
         }
@@ -204,9 +175,7 @@ impl DonderProject {
     pub fn try_new(data: ProjectData) -> Result<Self, crate::validation::ProjectValidationError> {
         let mut project = Self {
             root: data.root.into(),
-            setups: data.setups.into(),
             layouts: data.layouts.into(),
-            patches: data.patches.into(),
             controllers: data.controllers.into(),
             input_devices: data.input_devices.into(),
             sequences: data.sequences.into(),
@@ -214,8 +183,7 @@ impl DonderProject {
             fixtures: data.fixtures.into(),
             curves: data.curves.into(),
             gradients: data.gradients.into(),
-            effects: data.effects.into(),
-            operators: data.operators.into(),
+            scripts: data.scripts.into(),
             next_id: data.next_id,
             accepted_inputs: Arc::default(),
             derived: Arc::default(),
@@ -242,15 +210,14 @@ impl DonderProject {
         &self.root
     }
 
-    /// The object of kind `T` with `id`, reusable or owned in place.
+    /// The object of kind `T` with `id`.
     pub fn get<T: ProjectObject>(&self, id: T::Id) -> Option<&T> {
-        T::find(self, id)
+        T::store(self).get(&id)
     }
 
-    /// Every object of kind `T` once: the reusable ones, then those owned in
-    /// place.
-    pub fn objects<T: ProjectObject>(&self) -> impl Iterator<Item = &T> {
-        T::all(self)
+    /// Every object of kind `T`, in the order the project lists them.
+    pub fn objects<T: ProjectObject>(&self) -> impl Iterator<Item = (T::Id, &T)> {
+        T::store(self).iter().map(|(id, object)| (*id, object))
     }
 
     /// Each fixture definition's pixel count.
@@ -259,22 +226,20 @@ impl DonderProject {
             .unwrap_or_else(|_| unreachable!("validation proved every fixture definition"))
     }
 
-    /// The reusable objects of kind `T`, by id.
-    pub fn reusable<T: Reusable>(&self) -> &IndexMap<T::Id, T> {
+    /// The objects of kind `T`, by id.
+    pub fn reusable<T: ProjectObject>(&self) -> &IndexMap<T::Id, T> {
         T::store(self)
     }
 
     pub(crate) fn find_mut<T: objects::Stored>(&mut self, id: T::Id) -> Option<&mut T> {
-        T::find_mut(self, id)
+        T::store_mut(self).get_mut(&id)
     }
 
     /// Whether `other` shares every store with this project except sequences:
     /// nothing besides sequences was edited between the two.
     pub fn only_sequences_differ_from(&self, other: &Self) -> bool {
         self.root.same_allocation(&other.root)
-            && self.setups.same_allocation(&other.setups)
             && self.layouts.same_allocation(&other.layouts)
-            && self.patches.same_allocation(&other.patches)
             && self.controllers.same_allocation(&other.controllers)
             && self.input_devices.same_allocation(&other.input_devices)
             && self.consoles.same_allocation(&other.consoles)
@@ -282,11 +247,10 @@ impl DonderProject {
             && self.fixtures.same_allocation(&other.fixtures)
     }
 
-    /// Whether the definitions clips are admitted against, the effects,
-    /// operators, curves and gradients, are unchanged from `other`.
+    /// Whether the definitions clips are admitted against, the scripts,
+    /// curves and gradients, are unchanged from `other`.
     fn definitions_same_allocation(&self, other: &Self) -> bool {
-        self.effects.same_allocation(&other.effects)
-            && self.operators.same_allocation(&other.operators)
+        self.scripts.same_allocation(&other.scripts)
             && self.curves.same_allocation(&other.curves)
             && self.gradients.same_allocation(&other.gradients)
     }
@@ -301,16 +265,18 @@ impl DonderProject {
     pub fn pending_derivations(&self) -> Vec<crate::Derivation> {
         let sequences = self
             .objects::<crate::Sequence>()
-            .map(|sequence| self.sequence_derivations(sequence));
-        let consoles = self.objects::<crate::Console>().map(|console| {
+            .map(|(_, sequence)| self.sequence_derivations(sequence));
+        let consoles = self.objects::<crate::Console>().map(|(_, console)| {
             let clips = console
+                .composition
                 .clips
                 .iter()
-                .map(|clip| (&clip.definition, &clip.param_overrides));
+                .filter_map(|clip| clip.effect())
+                .map(|effect| (&effect.definition, &effect.params));
             self.derivations(
                 accepted::MarkOrigin::Live,
                 clips,
-                &console.composition_graph,
+                &console.composition.graph,
             )
         });
         let mut pending = Vec::new();
@@ -325,11 +291,13 @@ impl DonderProject {
     /// What `sequence`'s clips and operators read, once.
     pub fn sequence_derivations(&self, sequence: &crate::Sequence) -> Vec<crate::Derivation> {
         let clips = sequence
+            .composition
             .clips
             .iter()
-            .map(|clip| (&clip.definition, &clip.param_overrides));
+            .filter_map(|clip| clip.effect())
+            .map(|effect| (&effect.definition, &effect.params));
         let origin = accepted::MarkOrigin::Authored(sequence);
-        self.derivations(origin, clips, &sequence.composition_graph)
+        self.derivations(origin, clips, &sequence.composition.graph)
     }
 
     /// What the clips and operators of a sequence or console read, once.
@@ -338,21 +306,21 @@ impl DonderProject {
         origin: accepted::MarkOrigin<'a>,
         clips: impl Iterator<
             Item = (
-                &'a crate::EffectDefinitionId,
+                &'a crate::ScriptId,
                 &'a IndexMap<donder_runtime_types::Identifier, crate::ParamValue>,
             ),
         >,
-        graph: &'a crate::SequenceCompositionGraph,
+        graph: &'a crate::CompositionGraph,
     ) -> Vec<crate::Derivation> {
         let clips = clips.map(|(definition, overrides)| {
             (
-                self.reusable::<crate::EffectDefinition>()[definition].compiled(),
+                self.reusable::<crate::ScriptDefinition>()[definition].compiled(),
                 overrides,
             )
         });
         let operators = graph.nodes.iter().filter_map(|node| match &node.kind {
             crate::CompositionGraphNodeKind::Operator(operator) => Some((
-                self.reusable::<crate::OperatorDefinition>()[&operator.operator].compiled(),
+                self.reusable::<crate::ScriptDefinition>()[&operator.operator].compiled(),
                 &operator.params,
             )),
             _ => None,

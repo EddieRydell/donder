@@ -1,15 +1,15 @@
-use super::{FixtureInstanceId, GroupMember, Layout, LayoutFixtureKind};
+use super::{FixtureId, GroupMember, Layout, LayoutFixtureKind};
 use crate::project::EditRejection;
 
 /// The root's items, or a group's members, for editing the items it lists.
 enum MembersMut<'a> {
-    Root(&'a mut Vec<FixtureInstanceId>),
+    Root(&'a mut Vec<FixtureId>),
     Group(&'a mut Vec<GroupMember>),
 }
 
 impl MembersMut<'_> {
     /// Where the list names `id` whole.
-    fn position(&self, id: FixtureInstanceId) -> Option<usize> {
+    fn position(&self, id: FixtureId) -> Option<usize> {
         match self {
             Self::Root(items) => items.iter().position(|item| *item == id),
             Self::Group(members) => members
@@ -25,7 +25,7 @@ impl MembersMut<'_> {
         }
     }
 
-    fn insert(&mut self, index: usize, id: FixtureInstanceId) {
+    fn insert(&mut self, index: usize, id: FixtureId) {
         match self {
             Self::Root(items) => items.insert(index, id),
             Self::Group(members) => members.insert(index, GroupMember::Item(id)),
@@ -46,7 +46,7 @@ impl MembersMut<'_> {
 
 impl Layout {
     /// The groups listing an item whole, with `None` for the root.
-    pub fn parents(&self, id: FixtureInstanceId) -> Vec<Option<FixtureInstanceId>> {
+    pub fn parents(&self, id: FixtureId) -> Vec<Option<FixtureId>> {
         let mut parents = Vec::new();
         if self.root.contains(&id) {
             parents.push(None);
@@ -61,7 +61,7 @@ impl Layout {
     }
 
     /// Whether any group, or the root, names the item, whole or by a slice.
-    fn listed_anywhere(&self, id: FixtureInstanceId) -> bool {
+    fn listed_anywhere(&self, id: FixtureId) -> bool {
         self.root.contains(&id)
             || self
                 .fixtures
@@ -69,10 +69,7 @@ impl Layout {
                 .any(|fixture| fixture.members().iter().any(|member| member.item() == id))
     }
 
-    fn members_mut(
-        &mut self,
-        parent: Option<FixtureInstanceId>,
-    ) -> Result<MembersMut<'_>, EditRejection> {
+    fn members_mut(&mut self, parent: Option<FixtureId>) -> Result<MembersMut<'_>, EditRejection> {
         match parent {
             None => Ok(MembersMut::Root(&mut self.root)),
             Some(parent) => match &mut self
@@ -81,7 +78,7 @@ impl Layout {
                 .kind
             {
                 LayoutFixtureKind::Group { members } => Ok(MembersMut::Group(members)),
-                LayoutFixtureKind::Fixture { .. } => Err(EditRejection::NotAGroup),
+                LayoutFixtureKind::Fixture { .. } => Err(EditRejection::MissingItem),
             },
         }
     }
@@ -91,10 +88,10 @@ impl Layout {
     /// `None` appends. Moving within one group reorders it.
     pub fn move_member(
         &mut self,
-        id: FixtureInstanceId,
-        from: Option<FixtureInstanceId>,
-        to: Option<FixtureInstanceId>,
-        before: Option<FixtureInstanceId>,
+        id: FixtureId,
+        from: Option<FixtureId>,
+        to: Option<FixtureId>,
+        before: Option<FixtureId>,
     ) -> Result<(), EditRejection> {
         if !self
             .children(from)
@@ -121,16 +118,16 @@ impl Layout {
     /// List an existing item in another group as well.
     pub fn add_member(
         &mut self,
-        id: FixtureInstanceId,
-        to: Option<FixtureInstanceId>,
-        before: Option<FixtureInstanceId>,
+        id: FixtureId,
+        to: Option<FixtureId>,
+        before: Option<FixtureId>,
     ) -> Result<(), EditRejection> {
         self.check_insert(id, to, before)?;
         self.insert(id, to, before)
     }
 
     /// List a new item right after `original` in every group listing it.
-    pub(crate) fn add_beside(&mut self, id: FixtureInstanceId, original: FixtureInstanceId) {
+    pub(crate) fn add_beside(&mut self, id: FixtureId, original: FixtureId) {
         if let Some(index) = self.root.iter().position(|member| *member == original) {
             self.root.insert(index + 1, id);
         }
@@ -149,8 +146,8 @@ impl Layout {
     /// the root so it stays reachable.
     pub fn remove_member(
         &mut self,
-        id: FixtureInstanceId,
-        from: Option<FixtureInstanceId>,
+        id: FixtureId,
+        from: Option<FixtureId>,
     ) -> Result<(), EditRejection> {
         let mut members = self.members_mut(from)?;
         let Some(index) = members.position(id) else {
@@ -165,7 +162,7 @@ impl Layout {
 
     /// Delete items everywhere, with every slice of them. Members of a
     /// deleted group that no remaining group lists move to the root.
-    pub fn remove_items(&mut self, ids: &[FixtureInstanceId]) -> Result<(), EditRejection> {
+    pub fn remove_items(&mut self, ids: &[FixtureId]) -> Result<(), EditRejection> {
         let mut orphans = Vec::new();
         for &id in ids {
             let fixture = self.fixture(id).ok_or(EditRejection::MissingItem)?;
@@ -188,20 +185,14 @@ impl Layout {
 
     fn check_insert(
         &self,
-        id: FixtureInstanceId,
-        to: Option<FixtureInstanceId>,
-        before: Option<FixtureInstanceId>,
+        id: FixtureId,
+        to: Option<FixtureId>,
+        before: Option<FixtureId>,
     ) -> Result<(), EditRejection> {
         if self.fixture(id).is_none() {
             return Err(EditRejection::MissingItem);
         }
-        let destination = self.children(to).ok_or(EditRejection::NotAGroup)?;
-        if destination.contains(&id) {
-            return Err(EditRejection::AlreadyInGroup);
-        }
-        if to.is_some_and(|to| self.contains(id, to)) {
-            return Err(EditRejection::GroupInsideItself);
-        }
+        let destination = self.children(to).ok_or(EditRejection::MissingItem)?;
         if before.is_some_and(|before| !destination.contains(&before)) {
             return Err(EditRejection::InsertionTargetOutside);
         }
@@ -210,9 +201,9 @@ impl Layout {
 
     fn insert(
         &mut self,
-        id: FixtureInstanceId,
-        to: Option<FixtureInstanceId>,
-        before: Option<FixtureInstanceId>,
+        id: FixtureId,
+        to: Option<FixtureId>,
+        before: Option<FixtureId>,
     ) -> Result<(), EditRejection> {
         let mut destination = self.members_mut(to)?;
         let index = match before {
@@ -224,4 +215,105 @@ impl Layout {
         destination.insert(index, id);
         Ok(())
     }
+}
+
+/// The copies a duplication made: each copied fixture and the definition
+/// copied for it.
+pub type FixtureCopies = Vec<(FixtureId, crate::fixture::FixtureDefinitionId)>;
+
+struct Copier<'a> {
+    layout: &'a Layout,
+    next: u32,
+    taken: std::collections::HashSet<donder_runtime_types::Identifier>,
+    copies: indexmap::IndexMap<FixtureId, super::LayoutFixture>,
+}
+
+impl Copier<'_> {
+    // Every copied placement and group gets its own unique name.
+    fn copy(&mut self, id: FixtureId) -> Result<FixtureId, EditRejection> {
+        if let Some(copy) = self.copies.get(&id) {
+            return Ok(copy.id);
+        }
+        let mut copy = self
+            .layout
+            .fixture(id)
+            .ok_or(EditRejection::MissingItem)?
+            .clone();
+        self.next = self.next.checked_add(1).ok_or(EditRejection::NoFreeIds)?;
+        copy.id = FixtureId(self.next);
+        copy.name = donder_language::unique_name(&format!("{}_copy", copy.name.as_str()), |name| {
+            self.taken.iter().any(|taken| taken.as_str() == name)
+        });
+        self.taken.insert(copy.name.clone());
+        if let LayoutFixtureKind::Group { members } = &mut copy.kind {
+            *members = members
+                .iter()
+                .map(|&member| match member {
+                    GroupMember::Item(item) => self.copy(item).map(GroupMember::Item),
+                    GroupMember::Slice { fixture, pixels } => self
+                        .copy(fixture)
+                        .map(|fixture| GroupMember::Slice { fixture, pixels }),
+                })
+                .collect::<Result<_, _>>()?;
+        }
+        let copied = copy.id;
+        self.copies.insert(id, copy);
+        Ok(copied)
+    }
+}
+
+/// Duplicate a placement or group of the project's layout with independent
+/// geometry: each copied placement gets a copy of its definition. A group
+/// copies its members once each, so members shared inside it stay shared. The
+/// copy is listed after the original in every group listing the original.
+/// Existing routes and effects keep targeting the originals. Returns the copy
+/// and the definitions copied, which the caller declares.
+pub fn duplicate_layout_fixture(
+    project: &mut crate::DonderProject,
+    fixture_id: FixtureId,
+) -> Result<(FixtureId, FixtureCopies), crate::EditError> {
+    project.checked_edit(|project| {
+        let layout = project.layout().object();
+        let mut copier = Copier {
+            layout,
+            next: layout
+                .iter_fixtures()
+                .map(|fixture| fixture.id.0)
+                .max()
+                .unwrap_or(0),
+            taken: layout
+                .iter_fixtures()
+                .map(|fixture| fixture.name.clone())
+                .collect(),
+            copies: indexmap::IndexMap::new(),
+        };
+        let id = copier.copy(fixture_id)?;
+        let mut copies = copier.copies;
+        let mut declared = Vec::new();
+        for copy in copies.values_mut() {
+            if let LayoutFixtureKind::Fixture { definition, .. } = &mut copy.kind {
+                let value = project
+                    .get::<crate::FixtureDefinition>(*definition)
+                    .ok_or(EditRejection::MissingItem)?
+                    .clone();
+                *definition = crate::fixture::FixtureDefinitionId(project.new_id());
+                project.fixtures.insert(*definition, value);
+                declared.push((copy.id, *definition));
+            }
+        }
+        let layout_id = project.root.layout;
+        let layout = project
+            .find_mut::<Layout>(layout_id)
+            .ok_or(EditRejection::Missing(crate::ObjectKind::Layout))?;
+        for (original, copy) in copies {
+            let index = layout
+                .fixtures
+                .iter()
+                .position(|fixture| fixture.id == original)
+                .ok_or(EditRejection::MissingItem)?;
+            layout.fixtures.insert(index + 1, copy);
+        }
+        layout.add_beside(id, fixture_id);
+        Ok((id, declared))
+    })
 }

@@ -5,39 +5,25 @@ use fs_err as fs;
 /// consoles. `fields` are written after `description`; imports come first.
 pub(crate) fn root_document(imports: &str, fields: &str) -> String {
     format!(
-        "{imports}\nProject main {{\n  format: {},\n  description: none,\n{fields}  consoles: [],\n}}\n",
+        "{imports}\nProject main {{\n  format: {},\n  description: none,\n{fields}  routes: [],\n}}\n",
         donder_project_io::PROJECT_FORMAT_VERSION
     )
 }
 
-/// A project whose root imports a setup, its display and patch, and
+/// A project whose root imports its display and
 /// `sequence` as `sequence.data.donder`.
 pub(crate) fn write_imported_sequence_project(root: &Utf8Path, sequence: &str) {
     fs::write(
         root.join(donder_project_io::PROJECT_ROOT_FILE),
         root_document(
-            "import setups from <setup.data.donder>;\nimport sequences from <sequence.data.donder>;\n",
-            "  setup: setups.main,\n  sequences: [sequences.main],\n",
+            "import display from <display.data.donder>;\nimport sequences from <sequence.data.donder>;\n",
+            "  layout: display.main,\n",
         ),
     )
     .unwrap();
-    fs::write(root.join("setup.data.donder"), SETUP).unwrap();
     fs::write(root.join("display.data.donder"), DISPLAY).unwrap();
-    fs::write(root.join("patch.data.donder"), PATCH).unwrap();
     fs::write(root.join("sequence.data.donder"), sequence).unwrap();
 }
-
-pub(crate) const SETUP: &str = r#"import display from <display.data.donder>;
-import patches from <patch.data.donder>;
-
-Setup main {
-  description: none,
-  layout: display.main,
-  patch: patches.main,
-  controllers: [],
-  input_devices: [],
-}
-"#;
 
 pub(crate) const DISPLAY: &str = r#"FixtureDefinition pixel {
   description: none,
@@ -66,8 +52,6 @@ Layout main {
 }
 "#;
 
-pub(crate) const PATCH: &str = "Patch main { description: none, routes: [] }\n";
-
 /// A valid sequence named `main` with nothing in it. Tests derive invalid
 /// variants by replacing its text.
 pub(crate) const MINIMAL_SEQUENCE: &str = r#"Sequence main {
@@ -79,7 +63,6 @@ pub(crate) const MINIMAL_SEQUENCE: &str = r#"Sequence main {
   layers: [Layer { name: default, description: none, color: #50a0ff, enabled: true }],
   clips: [],
   graph: Graph { nodes: [RootNode { position: (0.0, 0.0) }], edges: [] },
-  automation: [],
 }
 "#;
 
@@ -120,18 +103,6 @@ fn copy_tree(source: &Utf8Path, destination: &Utf8Path) {
             )
             .unwrap();
         }
-    }
-}
-
-/// The site of the project's sequence at `index`.
-pub(crate) fn sequence_site(
-    project: &donder_model::DonderProject,
-    index: usize,
-) -> donder_model::OwnershipSite {
-    let root = project.root();
-    donder_model::OwnershipSite::Member {
-        owner: root.id.into(),
-        member: (*root.sequences[index].id()).into(),
     }
 }
 

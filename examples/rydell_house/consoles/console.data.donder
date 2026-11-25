@@ -1,8 +1,6 @@
-import setups from <setups/setup.data.donder>;
 import effects from <effects/standard.donder>;
-import layouts from <layouts/layout.data.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
-import devices from <input_devices/mpk_mini.data.donder>;
+import devices from <input_devices/mpk_mini.data.donder>, <input_devices/input_device_2.data.donder>;
 
 Console console {
   description: none,
@@ -10,33 +8,37 @@ Console console {
   marks: [],
   layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
   clips: [
-    ConsoleClip {
+    Clip {
       name: radial_wipe_2,
       description: none,
-      layer: default,
-      target: layouts.layout.house_and_trees,
-      scope: WholeTarget,
-      effect: effects.RadialWipe,
-      params: {
-        gradient: gradients.white_blue_blue,
-        shape: Circle,
-        pulse_length: 0.5,
-        center_x: 0.9995,
-        center_y: 1.0,
-        passes: 1,
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: house_and_trees,
+      placement: Played { values: [] },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.RadialWipe,
+        params: {
+          gradient: gradients.white_blue_blue,
+          shape: Circle,
+          pulse_length: 0.5,
+          center_x: 0.9995,
+          center_y: 1.0,
+          passes: 1,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
-      played: [],
     },
   ],
   always: [],
   events: [
     On {
-      event: Press { control: setups.setup.input_devices.input_device_2.control_1 },
+      happening: Press,
+      control: devices.input_device_2.control_1,
       actions: [Play { clip: radial_wipe_2, copies: 10, length: Fixed { duration: 1s } }],
     },
     On {
-      event: Move { control: devices.mpk_mini.knob_1 },
+      happening: Move,
+      control: devices.mpk_mini.knob_1,
       actions: [
         Set { param: ClipParam { clip: radial_wipe_2, param: center_x }, window: (0.0, 1.0) },
       ],

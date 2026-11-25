@@ -5,11 +5,11 @@ use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
 use donder_runtime_types::{Color, MICROS_PER_SECOND, SampleDuration, SampleTime, mul_div};
 
 use crate::arena::{Carve, Size};
-use crate::dsl::{NoSignals, ParamsRef, StripSlots, params_at, scratch_shape};
+use crate::dsl::{NoSignals, StripSlots};
 use crate::evaluation::{PixelSet, RunPixel, clip_evaluator};
-use crate::resources::LiveView;
+use crate::resources::{LiveView, ParamsView};
 use crate::view::Show;
-use crate::workspace::{Timing, carve_scratch, scratch_size};
+use crate::workspace::Timing;
 
 #[derive(Clone, Copy)]
 pub struct ShowClip<'a> {
@@ -81,7 +81,6 @@ impl<'a> ShowClip<'a> {
         let program = show.program(clip.program);
         let target = crate::targets::TargetView::of(show, &show.s.targets[clip.target as usize]);
         let spatial = program.flag(format::PROGRAM_USES_SPATIAL);
-        let sections = program.flag(format::PROGRAM_USES_SECTIONS);
         let structure = program.flag(format::PROGRAM_USES_STRUCTURE);
         let indices = evenly_sample_indices(target.len(), rows);
         let row_count = indices.len();
@@ -99,9 +98,7 @@ impl<'a> ShowClip<'a> {
                 let place = target.structure(local);
                 (place.member, place.strand, place.along)
             });
-            let section = target.sections.pixel(local);
             let key = (
-                sections.then_some(section),
                 place,
                 pixel.pixel_index,
                 pixel.pixel_count,
@@ -126,15 +123,12 @@ impl<'a> ShowClip<'a> {
         slots.include(program);
         let mut size = Size::default();
         slots.size(&mut size);
-        let scratch = scratch_shape(show, clip.automation, clip.params);
-        scratch_size(&mut size, scratch);
         ClipRaster {
             clip: *self,
             output: vec![Color::BLACK; row_count],
             groups,
             pixels,
             slots,
-            scratch,
             buffer: vec![0; size.bytes.div_ceil(4)].into_boxed_slice(),
             fresh: true,
         }
@@ -149,8 +143,7 @@ pub struct ClipRaster<'a> {
     /// A pixel of each group.
     pixels: Vec<RunPixel>,
     slots: StripSlots,
-    scratch: [usize; 4],
-    /// The strip workspace and the automation scratch.
+    /// The strip workspace.
     buffer: Box<[u32]>,
     /// Whether the buffer has not been carved yet.
     fresh: bool,
@@ -181,19 +174,7 @@ impl ClipRaster<'_> {
         };
         self.fresh = false;
         let mut workspace = self.slots.carve(&mut arena);
-        let mut scratch = carve_scratch(&mut arena, self.scratch);
-        let params = params_at(
-            show,
-            &mut scratch,
-            ParamsRef {
-                params: clip.params,
-                plan: clip.automation,
-                origin: clip.start,
-            },
-            time,
-            &[],
-            LiveView::default(),
-        );
+        let params = ParamsView::show(show, clip.params, LiveView::default());
         let sampler = clip_evaluator(show, clip, timing, time, params);
         let (groups, output) = (&self.groups, &mut self.output);
         sampler.evaluate_pixels(

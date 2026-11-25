@@ -1,93 +1,61 @@
 use crate::dto::{
-    GuiChannelPlace, GuiDocument, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,
-    GuiRouteStart, ObjectKind, PatchFixtureTarget, PatchGuiDocument, PatchLayout,
+    GuiChannelPlace, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, GuiRoutePlacement,
+    GuiRouteStart, ObjectKind, PatchFixtureTarget, PatchGuiDocument,
 };
+use crate::gui::GuiMutationError;
 use crate::gui::model::{object_id_from_gui, object_ref};
-use crate::gui::{GuiMutationError, ResolvedGuiObject, blocked};
+use donder_model::FixtureId;
 use donder_model::{ChannelPlace, ControllerId, ControllerPortId, RouteStart};
-use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_model::{PatchId, PixelRoute, PixelRouteId, PixelSpan};
+use donder_model::{PixelRoute, PixelRouteId, PixelSpan};
 use donder_project_io::ProjectSession;
 use donder_runtime_types::PixelEncoding;
 
-pub(super) fn project_document(
-    session: &ProjectSession,
-    resolved: &ResolvedGuiObject,
-) -> GuiDocument {
-    let patch = resolved.view::<donder_model::Patch>(session).object();
+/// The outputs editor, or why the project's fixtures can't be found.
+pub(super) fn project_outputs(session: &ProjectSession) -> Result<PatchGuiDocument, String> {
+    let routes = &session.project().root().routes;
     let counts = session.project().fixture_pixel_counts();
-    let layouts = session
-        .project()
-        .objects::<donder_model::Layout>()
-        .map(|layout| {
-            let id = &layout.id;
-            // Routes target fixtures; groups are clip targets only.
-            let fixtures = layout
-                .iter_fixtures()
-                .filter(|fixture| {
-                    matches!(
-                        fixture.kind,
-                        donder_model::LayoutFixtureKind::Fixture { .. }
-                    )
-                })
-                .map(|fixture| {
-                    Ok(PatchFixtureTarget {
-                        id: fixture.id.0,
-                        name: fixture.name.as_str().to_string(),
-                        pixel_count: layout.target_pixel_count(
-                            &DomainFixtureTarget {
-                                layout: *id,
-                                fixture: fixture.id,
-                            },
-                            &counts,
-                        )?,
-                    })
-                })
-                .collect::<Result<_, donder_model::LayoutError>>()?;
-            Ok(PatchLayout {
-                source_ref: object_ref(session, *id),
-                fixtures,
+    let layout = session.project().layout();
+    // Routes target fixtures; groups are clip targets only.
+    let fixtures = layout
+        .iter_fixtures()
+        .filter(|fixture| {
+            matches!(
+                fixture.kind,
+                donder_model::LayoutFixtureKind::Fixture { .. }
+            )
+        })
+        .map(|fixture| {
+            Ok(PatchFixtureTarget {
+                id: fixture.id.0,
+                name: fixture.name.as_str().to_string(),
+                pixel_count: layout.target_pixel_count(fixture.id, &counts)?,
             })
         })
         .collect::<Result<_, donder_model::LayoutError>>();
-    let layouts = match layouts {
-        Ok(layouts) => layouts,
-        Err(error) => {
-            return blocked(
-                format!("The patch's fixtures can't be found: {error}."),
-                Vec::new(),
-            );
-        }
-    };
-    GuiDocument::Patch {
-        document: PatchGuiDocument {
-            description: patch.description.clone(),
-            path: resolved.identity.document().to_string(),
-            object_key: resolved.identity.object().to_string(),
-            routes: patch
-                .routes
+    let fixtures =
+        fixtures.map_err(|error| format!("The project's fixtures can't be found: {error}."))?;
+    Ok(PatchGuiDocument {
+        routes: routes
+            .iter()
+            .map(|route| project_route(session, route))
+            .collect(),
+        placements: {
+            let placed = donder_model::route_placements(session.project(), routes, &counts);
+            routes
                 .iter()
-                .map(|route| project_route(session, route))
-                .collect(),
-            placements: {
-                let placed = donder_model::patch_placements(session.project(), patch, &counts);
-                patch
-                    .routes
-                    .iter()
-                    .filter_map(|route| placement(session, route, placed.get(&route.id)?))
-                    .collect()
-            },
-            layouts,
-            controllers: session
-                .project()
-                .objects::<donder_model::Controller>()
-                .map(|controller| {
-                    let id = &controller.id;
-                    super::controller::project_controller(session, id, controller)
-                })
-                .collect(),
+                .filter_map(|route| placement(session, route, placed.get(&route.id)?))
+                .collect()
         },
-    }
+        fixtures,
+        controllers: session
+            .project()
+            .objects::<donder_model::Controller>()
+            .map(|(controller_id, controller)| {
+                let id = &controller_id;
+                super::controller::project_controller(session, id, controller)
+            })
+            .collect(),
+    })
 }
 
 /// Where a route's `placed` channels land on its controller, as people count.
@@ -117,8 +85,7 @@ fn placement(
 fn project_route(session: &ProjectSession, route: &PixelRoute) -> GuiPixelRoute {
     GuiPixelRoute {
         id: route.id.0,
-        layout: object_ref(session, route.target.layout),
-        fixture: route.target.fixture.0,
+        fixture: route.target.0,
         pixels: route.pixels.map(|pixels| GuiPixelSpan {
             start: pixels.start,
             count: pixels.count,
@@ -152,27 +119,20 @@ fn project_route(session: &ProjectSession, route: &PixelRoute) -> GuiPixelRoute 
 
 pub(super) fn replace(
     session: &mut ProjectSession,
-    id: &PatchId,
     routes: Vec<GuiPixelRoute>,
 ) -> Result<(), GuiMutationError> {
     let routes = routes
         .into_iter()
         .map(|route| {
-            if !matches!(route.layout.kind, ObjectKind::Layout)
-                || !matches!(route.controller.kind, ObjectKind::Controller)
-            {
+            if !matches!(route.controller.kind, ObjectKind::Controller) {
                 return Err(GuiMutationError::Invalid(
-                    "A pixel route needs a layout and a controller.".into(),
+                    "A pixel route needs a controller.".into(),
                 ));
             }
-            let layout: LayoutId = object_id_from_gui(session, &route.layout)?;
             let controller: ControllerId = object_id_from_gui(session, &route.controller)?;
             Ok(PixelRoute {
                 id: PixelRouteId(route.id),
-                target: DomainFixtureTarget {
-                    layout,
-                    fixture: FixtureInstanceId(route.fixture),
-                },
+                target: FixtureId(route.fixture),
                 pixels: route.pixels.map(|pixels| PixelSpan {
                     start: pixels.start,
                     count: pixels.count,
@@ -215,14 +175,7 @@ pub(super) fn replace(
             })
         })
         .collect::<Result<_, _>>()?;
-    session
-        .put(donder_model::Patch {
-            id: *id,
-            description: session
-                .project()
-                .get::<donder_model::Patch>(*id)
-                .and_then(|patch| patch.description.clone()),
-            routes,
-        })
-        .map_err(GuiMutationError::from)
+    let mut root = session.project().root().clone();
+    root.routes = routes;
+    session.put(root).map_err(GuiMutationError::from)
 }

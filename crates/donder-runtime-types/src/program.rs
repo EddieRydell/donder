@@ -3,9 +3,8 @@
 //! inputs.
 use crate::Shared as Arc;
 use crate::bytecode::BytecodeProgram;
-use crate::prepared::PreparedAutomation;
 use crate::{BoundParams, Value};
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Program {
@@ -14,31 +13,21 @@ pub struct Program {
     pub inputs: usize,
 }
 
-/// A program bound to its parameter values and automation.
+/// A program bound to its parameter values.
 #[derive(Clone, Debug)]
 pub struct BoundProgram {
     program: Arc<Program>,
     params: BoundParams,
-    automation: Box<[PreparedAutomation]>,
 }
 
 impl BoundProgram {
-    /// `program` with the values and automation lowering produced for it
-    /// from an admitted invocation, which checked them against their
-    /// declarations.
-    pub fn new(
-        program: impl Into<Arc<Program>>,
-        values: Vec<Value>,
-        automation: Box<[PreparedAutomation]>,
-    ) -> Self {
+    /// `program` with the values lowering produced for it from an admitted
+    /// invocation, which checked them against their declarations.
+    pub fn new(program: impl Into<Arc<Program>>, values: Vec<Value>) -> Self {
         let program = program.into();
         debug_assert_eq!(program.bytecode.params.len(), values.len());
         let params = BoundParams::from_values(program.bytecode.params.iter().zip(values));
-        Self {
-            program,
-            params,
-            automation,
-        }
+        Self { program, params }
     }
 
     pub fn program(&self) -> &Arc<Program> {
@@ -47,9 +36,5 @@ impl BoundProgram {
 
     pub fn params(&self) -> &BoundParams {
         &self.params
-    }
-
-    pub fn automation(&self) -> &[PreparedAutomation] {
-        &self.automation
     }
 }

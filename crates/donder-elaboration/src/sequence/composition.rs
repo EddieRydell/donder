@@ -4,12 +4,11 @@
 //! folded into their consumers and an operator consumed once is fused into its
 //! consumer, so the boundary between them disappears from the prepared
 //! programs.
-use crate::stage::Parts;
-use donder_language::compiler::Instance;
+use donder_language::compiler::{Instance, LiveWords};
 use donder_model::CompositionGraphNodeId;
-use donder_model::{CompositionGraphNodeKind, SequenceLayerId};
+use donder_model::{CompositionGraphNodeKind, LayerId};
 use donder_runtime::{ShowBuilder, SignalHandle};
-use donder_runtime_types::{BoundProgram, Color};
+use donder_runtime_types::Color;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
@@ -25,29 +24,27 @@ enum Pending<'id> {
     Mix(Vec<usize>),
 }
 
-/// The signal the show displays; none is black. Each operator built with
-/// automation joins `automated` with its program, whose automation names
-/// the bindings of every node fused into it.
+/// The signal the show displays; none is black. An operator's live
+/// bindings read the words `live_words` gives for its node.
 pub(crate) fn prepare<'id>(
     builder: &mut ShowBuilder<'id>,
-    parts: &Parts<'_>,
+    show: donder_model::AcceptedShow<'_>,
     dependencies: &HashSet<CompositionGraphNodeId>,
-    layers: &IndexMap<&SequenceLayerId, SignalHandle<'id>>,
-    black: &HashSet<&SequenceLayerId>,
+    layers: &IndexMap<&LayerId, SignalHandle<'id>>,
+    black: &HashSet<&LayerId>,
     programs: &mut super::programs::Programs,
-    automated: &mut Vec<(SignalHandle<'id>, BoundProgram)>,
+    live_words: &dyn Fn(&CompositionGraphNodeId) -> Vec<LiveWords>,
 ) -> Option<SignalHandle<'id>> {
-    let graph = parts.graph;
+    let graph = &show.composition().graph;
     let indexes = graph
         .nodes
         .iter()
         .enumerate()
         .map(|(index, node)| (&node.id, index))
         .collect::<IndexMap<_, _>>();
-    let operators = parts
-        .operators
-        .iter()
-        .map(|operator| (&operator.node().id, *operator))
+    let operators = show
+        .operators()
+        .map(|operator| (&operator.node().id, operator))
         .collect::<IndexMap<_, _>>();
     let mut incoming = vec![Vec::new(); graph.nodes.len()];
     let mut outgoing = vec![Vec::new(); graph.nodes.len()];
@@ -71,7 +68,7 @@ pub(crate) fn prepare<'id>(
         .collect::<Vec<_>>();
     let mut pending: Vec<Option<Pending<'id>>> = (0..graph.nodes.len()).map(|_| None).collect();
     let mut order = Vec::new();
-    let duration = donder_runtime_types::sample_duration_seconds_f32(parts.timing.duration());
+    let duration = donder_runtime_types::sample_duration_seconds_f32(show.timing().duration());
     // Admission guarantees one output and an acyclic graph; an input with no
     // edge is black.
     // Mixes follow the graph's nodes in `pending`.
@@ -92,6 +89,7 @@ pub(crate) fn prepare<'id>(
                             duration_seconds: Some(duration),
                             ..Default::default()
                         },
+                        &live_words(&node.id),
                     );
                     let inputs = operator
                         .definition()
@@ -136,9 +134,6 @@ pub(crate) fn prepare<'id>(
                     signals[&inputs[input]]
                 });
                 signals.insert(index, signal);
-                if !program.automation().is_empty() {
-                    automated.push((signal, program));
-                }
             }
             Some(Pending::Mix(inputs)) => {
                 let signal = builder.mix(inputs.iter().map(|input| signals[input]));

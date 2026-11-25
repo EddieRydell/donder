@@ -1,6 +1,5 @@
-import setups from <setups/setup.data.donder>;
+import devices from <input_devices/input_device.data.donder>;
 import effects from <effects/standard.donder>;
-import layouts from <layouts/layout.data.donder>;
 
 Console console {
   description: none,
@@ -11,32 +10,37 @@ Console console {
     Layer { name: layer, description: none, color: #f45b69, enabled: true },
   ],
   clips: [
-    ConsoleClip {
+    Clip {
       name: chase,
       description: none,
-      layer: default,
-      target: layouts.layout.desk,
-      scope: WholeTarget,
-      effect: effects.Chase,
-      params: {
-        gradient: Gradient {
-          space: LinearRgb,
-          stops: [(0.0, #ffffff), (0.2, #ff0000), (0.871, #ff4200)],
-        },
-        gradient_mode: PerPulse,
-        pulse_overlap: 20.0,
-        chase_position: Curve {
-          points: [(0.0, 0.0), (0.153, 0.5), (0.362, 0.788), (0.6, 0.894), (1.0, 1.0)],
-        },
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: desk,
+      placement: Played {
+        values: [PlayedValue { param: pulse_overlap, from: Velocity, window: (0.0, 1.0) }],
       },
-      played: [PlayedValue { param: pulse_overlap, from: Velocity, window: (0.0, 1.0) }],
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.2, #ff0000), (0.871, #ff4200)],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 20.0,
+          chase_position: Curve {
+            points: [(0.0, 0.0), (0.153, 0.5), (0.362, 0.788), (0.6, 0.894), (1.0, 1.0)],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
     },
   ],
   always: [],
   events: [
     On {
-      event: Press { control: setups.setup.input_devices.input_device.control_1 },
+      happening: Press,
+      control: devices.input_device.control_1,
       actions: [Play { clip: chase, copies: 5, length: Fixed { duration: 1s } }],
     },
   ],

@@ -1,7 +1,7 @@
 use crate::dto::{
     FixtureGuiDocument, GeometryRenderBounds, GuiCaptureController, GuiDocument, GuiFixtureHandle,
-    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedFixture, LayoutGuiDocument,
-    Point3Meters, SpatialRenderPixel, SpatialRenderPlan,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, LayoutGuiDocument, Point3Meters,
+    SpatialRenderPixel, SpatialRenderPlan,
 };
 use crate::gui::ResolvedGuiObject;
 use donder_model::FixtureDefinitionId;
@@ -66,17 +66,16 @@ pub(in crate::gui) fn project_fixture(
     }
 }
 
-/// The setup's controllers that stream, which can play the capture pattern.
+/// The project's controllers that stream, which can play the capture pattern.
 fn capture_controllers(session: &ProjectSession) -> Vec<GuiCaptureController> {
     session
         .project()
-        .active_setup()
         .controllers()
         .filter_map(|controller| {
             let id = controller.id();
             let universes = controller.object().universes()?;
             Some(GuiCaptureController {
-                label: session.address_of(id).declared_name().to_string(),
+                label: session.address_of(id).object().to_string(),
                 source_ref: crate::gui::model::object_ref(session, id),
                 channel_count: universes.channel_count(),
             })
@@ -119,10 +118,12 @@ pub(in crate::gui) fn project_layout(
                 .map(|value| fixture(session, value))
                 .collect(),
             root: layout.root.iter().map(|member| member.0).collect(),
-            available_fixtures: crate::gui::ownership::available_declarations(
-                session,
-                &[donder_model::ObjectKind::FixtureDefinition],
-            ),
+            available_fixtures: session
+                .project()
+                .reusable::<donder_model::FixtureDefinition>()
+                .keys()
+                .map(|id| definition_ref(session, id))
+                .collect(),
             render_plan: render_plan(pixels),
         },
     }
@@ -142,18 +143,7 @@ fn fixture(session: &ProjectSession, fixture: &LayoutFixture) -> GuiLayoutFixtur
                 definition,
                 transform: value,
             } => GuiLayoutFixtureKind::Fixture {
-                definition: match definition {
-                    donder_model::OwnedFixture::Inline(value) => GuiOwnedFixture::Inline {
-                        elements: value
-                            .elements
-                            .iter()
-                            .map(crate::gui::fixture::gui_element)
-                            .collect(),
-                    },
-                    donder_model::OwnedFixture::Reference(id) => GuiOwnedFixture::Reference {
-                        object: definition_ref(session, id),
-                    },
-                },
+                definition: definition_ref(session, definition),
                 transform: crate::gui::fixture::gui_transform(value),
             },
             LayoutFixtureKind::Group { members } => GuiLayoutFixtureKind::Group {

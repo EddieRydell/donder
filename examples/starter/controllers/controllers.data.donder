@@ -1,0 +1,14 @@
+Controller output_controller {
+  description: none,
+  protocol: E131 {
+    sender_name: "Donder Thirty Output Controller",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.7.2" },
+    start_universe: 1,
+    universes: 30,
+    channels: 339,
+    fseq_channel: 1,
+    ports: [Port { name: "1", description: none }],
+  },
+}

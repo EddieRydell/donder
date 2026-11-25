@@ -116,13 +116,13 @@ pub fn try_invoke(
 /// `instance` lowered and bound.
 pub fn bind(instance: &Instance) -> BoundProgram {
     let lowered = instance.lower();
-    BoundProgram::new(lowered.program, lowered.values, lowered.automation)
+    BoundProgram::new(lowered.program, lowered.values)
 }
 
 /// `invocation` lowered with nothing known about its placement, so the
 /// clip duration and pixel count remain context reads.
 pub fn lower(invocation: &Invocation) -> BoundProgram {
-    bind(&invocation.instance(ProgramConstants::default()))
+    bind(&invocation.instance(ProgramConstants::default(), &[]))
 }
 
 /// `definition` with its declared defaults, lowered with nothing known about

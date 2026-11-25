@@ -59,8 +59,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     group.kind.type === "group" && !descendants(layout, target.id).includes(group.id) && !membersOf(group).includes(target.id));
   const fixtureDeclaration = (fixture: GuiLayoutFixture): GuiObjectRef => {
     if (fixture.kind.type !== "fixture") throw new Error("Select a fixture.");
-    if (fixture.kind.definition.type === "reference") return fixture.kind.definition.object;
-    return { ...gui.document.sourceRef, kind: "fixture", ownedPath: [...gui.document.sourceRef.ownedPath, { type: "fixture", id: fixture.id }] };
+    return fixture.kind.definition;
   };
   const changeItem = (id: number, update: (item: GuiLayoutFixture) => GuiLayoutFixture) => {
     void setLayout(updateItem(id, update), request);
@@ -100,7 +99,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
       id,
       name: definition.objectKey,
       description: null,
-      kind: { type: "fixture", definition: { type: "reference", object: definition }, transform: identityTransform(position) }
+      kind: { type: "fixture", definition, transform: identityTransform(position) }
     });
     const result = await setLayout(added.fixtures, request, added.root);
     if (result !== null) setSelected(id);
@@ -168,7 +167,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
         if (id !== null && !selection.includes(id)) setSelected(id);
       }}>
         <div className="composition-header">
-          {!inline && <h2 className="composition-title">{gui.document.sourceRef.ownedPath.length > 0 ? "Layout" : gui.document.objectKey}</h2>}
+          {!inline && <h2 className="composition-title">{gui.document.objectKey}</h2>}
           {root.length > 0 && <MenuButton entries={addEntries(null)} align="end"><IconButton icon={Plus} label="Add" disabled={!editable} /></MenuButton>}
         </div>
         <fieldset className="composition-controls" disabled={!editable}>

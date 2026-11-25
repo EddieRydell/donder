@@ -31,8 +31,8 @@ pub fn source_document_format(path: &Utf8Path) -> SourceDocumentFormat {
 }
 
 /// A typed project and the documents it is written in. The documents declare
-/// exactly the project's reusable objects, each once, so every object has an
-/// address: its declaration, or its owner's address and slot. The loader
+/// exactly the project's objects, each once, so every object has a
+/// declaration. The loader
 /// builds a session and the edits in `session_edit` are the only ways one
 /// changes, each keeping this so.
 #[derive(Clone, Debug, PartialEq)]
@@ -42,8 +42,8 @@ pub struct ProjectSession {
 }
 
 impl ProjectSession {
-    /// A session the loader read: every declaration it resolved is a reusable
-    /// object of `project`, and every reusable object came from one.
+    /// A session the loader read: every declaration it resolved is an
+    /// object of `project`, and every object came from one.
     pub(crate) fn loaded(project: DonderProject, source: SourceProject) -> Self {
         Self { project, source }
     }
@@ -117,11 +117,7 @@ impl SourceProject {
             .documents
             .get_full_mut(document)
             .ok_or_else(|| "Source document was not found.".to_string())?;
-        if source.format() != SourceDocumentFormat::Data
-            || matches!(
-                id.kind(),
-                ObjectKind::EffectDefinition | ObjectKind::OperatorDefinition
-            )
+        if source.format() != SourceDocumentFormat::Data || matches!(id.kind(), ObjectKind::Script)
         {
             return Err("This object requires a data document.".to_string());
         }
@@ -231,10 +227,7 @@ impl SourceDocument {
                     object.name.as_str()
                 ));
             }
-            let definition = matches!(
-                object.kind(),
-                ObjectKind::EffectDefinition | ObjectKind::OperatorDefinition
-            );
+            let definition = matches!(object.kind(), ObjectKind::Script);
             if definition != script.is_some() {
                 return Err(format!(
                     "source object `{}` is not valid in this document kind",

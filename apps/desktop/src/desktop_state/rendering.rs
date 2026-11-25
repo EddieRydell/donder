@@ -57,10 +57,7 @@ impl DesktopState {
     pub(super) fn complete_render_refresh(
         &self,
         request: RenderRefreshPayload,
-        result: Result<
-            crate::rendering::PreparedRenderSession,
-            crate::rendering::RenderSessionPrepareError,
-        >,
+        show: Option<donder_runtime::PreparedShow>,
     ) {
         let _authoring = lock_unpoisoned(&self.authoring);
         let snapshot = self.snapshot();
@@ -74,10 +71,16 @@ impl DesktopState {
         if target.and_then(|target| target.resolve(&request.project)) != Some(request.sequence_id) {
             return;
         }
-        let result =
-            result.map(|session| lock_unpoisoned(&self.sequence_render).apply_prepared(session));
-        match result {
-            Ok(()) => {
+        match show {
+            Some(show) => {
+                *lock_unpoisoned(&self.sequence) = Some(crate::playing::Playing {
+                    id: donder_model::ShowId::Sequence(request.sequence_id),
+                    show,
+                    clock: crate::playing::PlayClock::Audio,
+                    events: Vec::new(),
+                    controllers: crate::playing::project_controllers(request.project.project()),
+                    generation: self.next_playing_generation(),
+                });
                 self.clear_render_error_if_set();
                 // A performance owns live output while it runs.
                 if !self.is_performing() {
@@ -85,9 +88,11 @@ impl DesktopState {
                 }
                 self.schedule_device_reconcile();
             }
-            Err(error) => {
+            None => {
                 self.stop_live_output();
-                self.set_render_error_if_changed(format!("Render refresh failed: {error}"));
+                self.set_render_error_if_changed(
+                    "Render refresh failed: sequence selection is unavailable".to_string(),
+                );
             }
         }
         self.preview_wake.notify();
@@ -95,7 +100,7 @@ impl DesktopState {
 
     pub(super) fn unload_render_session(&self) {
         self.stop_live_output();
-        lock_unpoisoned(&self.sequence_render).unload();
+        *lock_unpoisoned(&self.sequence) = None;
         self.schedule_device_reconcile();
     }
 }

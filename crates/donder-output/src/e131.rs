@@ -13,7 +13,7 @@ use crate::{OutputError, codec_error, socket_error};
 
 /// Sends E1.31 data packets on one socket. The `sacn` crate's `SacnSource` is not used: its
 /// discovery thread makes every drop wait up to a second, which stalls disabling output.
-pub struct E131Sender {
+pub(crate) struct E131Sender {
     id: ControllerId,
     socket: UdpSocket,
     cid: Uuid,

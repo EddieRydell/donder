@@ -1,9 +1,10 @@
 //! Portable construction descriptions shared by authoring admission and playback.
 mod target;
 use crate::Shared as Arc;
-use crate::automation::AutomationMapping;
+use crate::types::{Identifier, Type};
 use crate::values::{Curve, SampleDuration, SampleTime};
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use core::num::NonZeroU32;
 pub use target::{PixelStructure, TargetGeometry, TargetPixel};
 
@@ -208,7 +209,7 @@ impl PixelEncoding {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TargetScope {
     PerFixture,
     WholeTarget,
@@ -242,41 +243,133 @@ pub struct SpatialContext {
 
 #[derive(Clone, Debug)]
 pub struct PreparedAutomation {
-    pub start: SampleTime,
-    pub duration: SampleDuration,
-    pub curve: Arc<Curve>,
+    pub source: AutomationSource,
     pub mapping: AutomationMapping,
-    pub quantity: AutomatedQuantity,
     pub param_index: u16,
 }
 
-/// What an automated slot holds: the parameter's value, or that float value
-/// integrated over the definition's time.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AutomatedQuantity {
-    Value,
-    Integral,
+/// What drives a binding.
+#[derive(Clone, Debug)]
+pub enum AutomationSource {
+    /// A normalized curve over the show's `start..start + duration`.
+    Envelope {
+        start: SampleTime,
+        duration: SampleDuration,
+        curve: Arc<Curve>,
+    },
+    /// A console's live value that playback sets, the invocation's `n`th; for
+    /// a live marks binding, the collection its value reads.
+    Live(u16),
 }
 
 impl PreparedAutomation {
     /// Bitwise equality: automation that drives its slot identically.
     pub fn same(&self, other: &Self) -> bool {
-        self.start == other.start
-            && self.duration == other.duration
-            && self.curve.same(&other.curve)
-            && self.mapping == other.mapping
-            && self.quantity == other.quantity
+        self.mapping == other.mapping
             && self.param_index == other.param_index
+            && match (&self.source, &other.source) {
+                (
+                    AutomationSource::Envelope {
+                        start,
+                        duration,
+                        curve,
+                    },
+                    AutomationSource::Envelope {
+                        start: other_start,
+                        duration: other_duration,
+                        curve: other_curve,
+                    },
+                ) => start == other_start && duration == other_duration && curve.same(other_curve),
+                (AutomationSource::Live(index), AutomationSource::Live(other)) => index == other,
+                _ => false,
+            }
     }
 
     /// A hash consistent with [`Self::same`].
     pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
         use core::hash::Hash;
-        self.start.as_ticks().hash(state);
-        self.duration.as_ticks().hash(state);
-        self.curve.hash_same(state);
+        match &self.source {
+            AutomationSource::Envelope {
+                start,
+                duration,
+                curve,
+            } => {
+                start.as_ticks().hash(state);
+                duration.as_ticks().hash(state);
+                curve.hash_same(state);
+            }
+            AutomationSource::Live(index) => index.hash(state),
+        }
         self.mapping.hash_same(state);
-        (self.quantity == AutomatedQuantity::Integral).hash(state);
         self.param_index.hash(state);
+    }
+}
+/// How a binding sets its parameter: a normalized curve mapped onto the
+/// parameter's range or options, or a console's live mark collection.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AutomationMapping {
+    Float {
+        min: f32,
+        max: f32,
+    },
+    Int {
+        min: i32,
+        max: i32,
+    },
+    Bool,
+    Enum {
+        values: Vec<Identifier>,
+    },
+    Curve {
+        min: f32,
+        max: f32,
+    },
+    /// A marks parameter that reads a live collection, whose marks playback
+    /// adds as they arrive; its value names the collection.
+    LiveMarks,
+}
+
+impl AutomationMapping {
+    /// A hash consistent with `==`; floats hash by their bits.
+    pub(crate) fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+        use core::hash::Hash;
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::Float { min, max } | Self::Curve { min, max } => {
+                min.to_bits().hash(state);
+                max.to_bits().hash(state);
+            }
+            Self::Int { min, max } => {
+                min.hash(state);
+                max.hash(state);
+            }
+            Self::Bool | Self::LiveMarks => {}
+            Self::Enum { values } => values.hash(state),
+        }
+    }
+
+    pub(crate) fn is_well_formed(&self) -> bool {
+        match self {
+            Self::Float { min, max } | Self::Curve { min, max } => {
+                min.is_finite() && max.is_finite()
+            }
+            Self::Int { .. } | Self::Bool | Self::LiveMarks => true,
+            Self::Enum { values } => !values.is_empty(),
+        }
+    }
+
+    pub(crate) fn accepts_type(&self, ty: &Type) -> bool {
+        self.is_well_formed()
+            && match (self, ty) {
+                (Self::Float { .. }, Type::Float)
+                | (Self::Int { .. }, Type::Int)
+                | (Self::Bool, Type::Bool)
+                | (Self::Curve { .. }, Type::Curve)
+                | (Self::LiveMarks, Type::Marks) => true,
+                (Self::Enum { values }, Type::Enum(options)) => {
+                    values.iter().all(|value| options.contains(value))
+                }
+                _ => false,
+            }
     }
 }

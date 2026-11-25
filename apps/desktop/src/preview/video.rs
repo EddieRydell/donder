@@ -81,7 +81,7 @@ pub(crate) fn export_video(
     let style = PreviewStyle::from_appearance(appearance)?;
     let geometry = PreviewGeometry::from_project(project);
     let prepared = donder_elaboration::prepare(project, sequence, donder_elaboration::Retain::All)
-        .ok_or("The sequence cannot be played on the active setup.")?;
+        .ok_or("The sequence cannot be prepared.")?;
     let scene = PreviewScene::new(
         0,
         geometry

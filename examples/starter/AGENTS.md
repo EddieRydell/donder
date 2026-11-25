@@ -8,21 +8,22 @@ plays the show, is not part of this folder and is not yours to change.
 ## The documents
 
 - `project.data.donder` is the entry point. Its `Project` declaration names the
-  setup, the sequences that make up the show and the consoles played live, and its
+  layout, controllers, input devices and routes, the sequences that make up the
+  show and the consoles played live, and its
   imports lead to every document the show uses.
-- `*.data.donder` documents hold data: setups, controllers, input devices,
-  layouts, fixture definitions, patches, sequences, consoles, curves and gradients. The Donder app edits
+- `*.data.donder` documents hold data: controllers, input devices, the
+  layout, fixture definitions, sequences, consoles, curves and gradients. The Donder app edits
   these too, so keep them in the exact form described below.
 - `*.donder` documents are scripts: effects and operators, such as
   `effects/standard.donder` and `operators/standard.donder`, the editable
   standard libraries.
 
-Fixtures define pixel geometry, layouts place fixtures and groups, and patches
-route pixels to controller channels. A layout lists every fixture and group once in
+Fixtures define pixel geometry, the project's one layout places fixtures and
+groups, and the project's routes send pixels to controller channels. The layout lists every fixture and group once in
 `items`; `root` and each group's `members` name them by display order, and a
 fixture may belong to several groups (`roofs` and `left_side` can both list
-`left_roof`). Every item must be in `root` or some group. A setup connects a layout, a patch,
-controllers and input devices (a keyboard whose keys are buttons, or MIDI and
+`left_roof`). Every item must be in `root` or some group. The project lists its controllers and
+input devices (a keyboard whose keys are buttons, or MIDI and
 OSC devices with buttons and axes). A sequence places clips of effects on
 layers over time, automates their parameters, and combines layers through
 operators into its root node. A console is played live instead: its layers and
@@ -51,8 +52,8 @@ Data documents are strict so that the app and the text always agree:
   durations end in `s` (`2.5s`), distances in `m` (`0.35m`), colors are
   lowercase (`#ff8800`).
 - References are dotted names: `effects.Pulse` (an imported declaration),
-  `layouts.outputs_layout.output_01` (a fixture of a layout). A document may only
-  refer to declarations it imports itself:
+  and a fixture or group of the layout is named alone: `target: output_01`. A
+  document may only refer to declarations it imports itself:
   `import effects from <effects/standard.donder>;`.
 
 A clip looks like this:
@@ -61,15 +62,20 @@ A clip looks like this:
 Clip {
   name: chorus_pulse,
   description: none,
-  layer: default,
-  start: 58.97s,
-  duration: 1s,
-  target: elements.outputs_layout.all_outputs,
-  scope: WholeTarget,
-  effect: effects.Pulse,
-  params: { gradient: gradients.ember_core_gradient },
+  target: all_outputs,
+  placement: Timed { start: 58.97s, duration: 1s },
+  content: Effect {
+    layer: default,
+    scope: WholeTarget,
+    effect: effects.Pulse,
+    params: { gradient: gradients.ember_core_gradient },
+  },
 }
 ```
+
+An envelope is a clip too, drawn in its target's envelope row, whose curve
+drives the parameters it binds while it plays:
+`content: Envelope { curve: Curve { points: [(0.0, 0.0), (1.0, 1.0)] }, bindings: [Bound { binding: NodeParam { node: dim, param: amount }, window: (0.0, 1.0) }] }`, where `dim` is an operator node of the graph.
 
 `params` lists only the parameters that differ from the effect's defaults, in
 the order the effect declares them. Enum values are the option names
@@ -79,8 +85,8 @@ the order the effect declares them. Enum values are the option names
 `space` is `LinearRgb`, `Hsv` or `Oklab`), and mark
 parameters name one of the sequence's mark collections.
 
-A console's `ConsoleClip` is the same without `start` and `duration`, and its
-marks parameters name the console's live mark collections. Each clip is played
+A console's effect `Clip` is the same with `placement: Played { values: [] }`, or
+`Timed` to play on the session clock from its start (an envelope is always timed), and its marks parameters name the console's live mark collections. Each clip is played
 either by `Play` actions (stacking up to `copies` at once) or by `Start`,
 `Toggle` and `always` (one copy until stopped), not both; `Stop` stops either.
 A `Move` of an axis only runs `Set`, and played `values` belong on `Press`
@@ -111,7 +117,7 @@ without them. Read the existing effects in `effects/` before writing a new one.
 An operator that blurs, glows or spreads light along a fixture reads its
 neighbors with `sum for offset in -radius..=radius around input as neighbor {
 neighbor * weight }`, as `Blur` and `Bloom` do, rather than computing pixel
-indices with `input.at(...)`. Trails and long glows that fade with distance use
+indices with `input[...]`. Trails and long glows that fade with distance use
 `scan forward input decay d`, or `scan forward input decay d as light { light * w }`
 to weight the light each pixel adds, as `Trail` and `Bloom` do; their cost
 does not grow with the distance. Effects and operators see only the current

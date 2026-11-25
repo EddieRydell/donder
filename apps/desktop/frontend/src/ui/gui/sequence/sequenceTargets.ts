@@ -5,7 +5,7 @@ export function targetsEqual(left: FixtureTarget, right: FixtureTarget) {
 }
 
 export function targetAtLane(document: SequenceGuiDocument, index: number): FixtureTarget {
-  const lane = document.lanes[index];
+  const lane = document.targets[index];
   if (lane === undefined) throw new Error("Timeline target is missing.");
   return lane.target;
 }
@@ -13,7 +13,7 @@ export function targetAtLane(document: SequenceGuiDocument, index: number): Fixt
 /** Every lane showing `target`. A member of several groups has a lane under each, and
  * every copy shows the same clips. */
 export function lanesForTarget(document: SequenceGuiDocument, target: FixtureTarget): number[] {
-  return document.lanes.flatMap((lane, index) => targetsEqual(lane.target, target) ? [index] : []);
+  return document.targets.flatMap((lane, index) => targetsEqual(lane.target, target) ? [index] : []);
 }
 
 /** The lane of `target` nearest `anchor`, the earlier on a tie; -1 when it has none.

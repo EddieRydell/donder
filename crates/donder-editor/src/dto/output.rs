@@ -99,7 +99,7 @@ pub enum DonderDeviceNetwork {
     rename_all_fields = "camelCase"
 )]
 pub enum DonderDeviceConnection {
-    /// Not connected: no controller in the open setup uses this device, or
+    /// Not connected: no controller in the project uses this device, or
     /// live output is off.
     Unused,
     /// Live output is connecting to this device.
@@ -132,7 +132,7 @@ pub enum OutputTestTarget {
     },
     /// The open layout's fixture, or a group's fixtures.
     LayoutItem { item: u32 },
-    /// One of the open patch's routes.
+    /// One of the project's routes.
     Route { route: u32 },
 }
 

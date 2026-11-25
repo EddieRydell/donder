@@ -1,4 +1,4 @@
-//! Data documents: the project, setups, layouts, patches, sequences, curves and
+//! Data documents: the project, layouts, controllers, sequences, curves and
 //! gradients, written in the Donder project language
 //! (`docs/project_language.md`).
 //!
@@ -13,14 +13,13 @@ mod printer;
 pub(crate) mod schema;
 pub(crate) mod tree;
 
-pub use literal::{canonical_distance, canonical_duration, canonical_float, parse_duration};
+pub use literal::{canonical_duration, parse_duration};
 pub use parser::parse;
 pub use printer::{ListSplice, list_item, print, print_spliced};
 pub use schema::{
     Choice, DESCRIPTION_FIELD, Data, Decoder, Definition, FieldReader, Fields, LAYERS_SCOPE,
-    Meters, NAME_FIELD, NO_SPAN, Name, OwnedNamedRecord, OwnedRecord, Params, Path, ROOT_NODE,
-    Record, Reference, Refers, Schema, Shape, declaration, decode_record, field, record, spanned,
-    variant,
+    Meters, NAME_FIELD, NO_SPAN, Name, Params, Path, ROOT_NODE, Record, Reference, Refers, Schema,
+    Shape, declaration, decode_record, field, record, spanned, variant,
 };
 pub use tree::{
     DataDeclaration, DataDocument, DataField, DataImport, DataValue, Spanned, is_pascal_case,

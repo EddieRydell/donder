@@ -1,4 +1,3 @@
-use super::perform::DevicePerformance;
 use super::{DesktopState, lock_unpoisoned};
 use crate::audio::{Timeline, WindowEnd};
 use crate::device::DeviceClient;
@@ -11,12 +10,11 @@ use donder_editor::dto::{
     LiveOutputSnapshot, LiveOutputState,
 };
 use donder_model::{ControllerId, ControllerOutput, ControllerProtocol, DonderDeviceId};
-use donder_runtime::PlaybackRate;
 use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-/// A Donder controller in the open setup.
+/// A Donder controller in the project.
 struct SetupDevice {
     controller: ControllerId,
     device: DonderDeviceId,
@@ -33,7 +31,7 @@ struct DeviceLinks {
 }
 
 impl DeviceLinks {
-    /// The link to `id`, which the open setup uses when `used`.
+    /// The link to `id`, which the project uses when `used`.
     fn connection(&self, id: &DonderDeviceId, used: bool) -> DonderDeviceConnection {
         if !used {
             return DonderDeviceConnection::Unused;
@@ -77,7 +75,7 @@ impl DesktopState {
         self.devices_live.load(Ordering::Acquire)
     }
 
-    /// Live output drives the setup's Donder controllers, or releases them.
+    /// Live output drives the project's Donder controllers, or releases them.
     pub(super) fn set_devices_live(&self, live: bool) {
         if self.devices_live.swap(live, Ordering::AcqRel) != live {
             self.update_discovery();
@@ -129,7 +127,7 @@ impl DesktopState {
             .unwrap_or_default()
     }
 
-    /// Bring the Donder controllers in the open setup in line with the
+    /// Bring the Donder controllers in the project in line with the
     /// editor: connect those on the network and have them follow the
     /// performance in progress or the sequence transport, or release them all
     /// while live output is off, then publish the device list. Performs
@@ -145,27 +143,37 @@ impl DesktopState {
             lock_unpoisoned(&self.device_failures).clear();
         } else {
             self.connect_setup_devices();
-            match self.device_performance() {
-                Some(performance) => self.perform_on_devices(performance),
-                None => {
-                    self.console_feed.stop();
-                    if let Err(error) = self.follow_transport() {
-                        self.device_transport_error(error);
-                    }
-                }
+            if let Err(error) = self.play_on_devices() {
+                self.device_transport_error(error);
             }
         }
         self.publish_devices();
     }
 
-    /// Have the controllers follow the sequence transport: take up its place
-    /// a lead time from now, then wrap or stop where it next reaches its
-    /// window end. The caller holds the transport operation lock.
-    fn follow_transport(&self) -> Result<(), String> {
-        if !self.device_playback.has_devices() {
+    /// Have the controllers play what plays now, on its clock: take up its
+    /// place a lead time from now and, on the transport, wrap or stop where it
+    /// next reaches its window end. A performance's controllers join its
+    /// inputs, and once joined play on by themselves. The caller holds the
+    /// transport operation lock.
+    fn play_on_devices(&self) -> Result<(), String> {
+        let Some(playing) = self.with_playing(|playing| {
+            playing.map(|playing| (playing.id, playing.clock, playing.generation))
+        }) else {
+            self.console_feed.stop();
+            return Ok(());
+        };
+        let (id, clock, generation) = playing;
+        let session = matches!(clock, crate::playing::PlayClock::Session(_));
+        if !session {
+            self.console_feed.stop();
+        }
+        let joined = |address| self.console_feed.has_joined(generation, address);
+        if !self.device_playback.has_devices()
+            || (session && self.device_playback.addresses().into_iter().all(joined))
+        {
             return Ok(());
         }
-        let Some(timeline) = lock_unpoisoned(&self.audio).timeline() else {
+        let Some((timeline, rate)) = clock.anchor(&mut lock_unpoisoned(&self.audio)) else {
             return Ok(());
         };
         let action = match timeline {
@@ -175,11 +183,17 @@ impl DesktopState {
             // Controllers end by themselves.
             Timeline::Ended => return Ok(()),
         };
-        let duration = self.prepare_device_sequence()?;
-        let rate = lock_unpoisoned(&self.audio).playback_rate();
+        let duration = self.prepare_device_show(id, generation)?;
         let at = self.device_playback.deadline();
         let position = seconds_to_micros(timeline.position_at(at))?.min(duration);
         let scheduled = self.device_playback.schedule(at, action, position, rate);
+        if session {
+            for address in scheduled.addresses() {
+                if !joined(address) {
+                    self.console_feed.join(generation, address);
+                }
+            }
+        }
         self.record_device_failures(scheduled.failures);
         let Some((end_at, end)) = timeline.next_end(at) else {
             return Ok(());
@@ -200,72 +214,6 @@ impl DesktopState {
         }
         *lock_unpoisoned(&self.device_window_end) = Some(end_at);
         Ok(())
-    }
-
-    /// Play the performance on each connected controller that has not joined
-    /// it: upload its part of the console when it changed, start every
-    /// controller at the session's place on a shared deadline, and join the
-    /// new ones to its inputs. The caller holds the transport operation lock.
-    fn perform_on_devices(&self, performance: DevicePerformance) {
-        let generation = performance.generation;
-        let joining = self
-            .device_playback
-            .addresses()
-            .into_iter()
-            .any(|address| !self.console_feed.has_joined(generation, address));
-        if !joining {
-            return;
-        }
-        let Some(session) = self.project_session() else {
-            return;
-        };
-        let Some(address) = session.find_address(performance.console.into()) else {
-            return;
-        };
-        let mut cache = self.take_preparation();
-        let prepared = self.device_playback.prepare(
-            self.snapshot().project_epoch,
-            generation,
-            &address,
-            |ports| {
-                donder_elaboration::arm(
-                    session.project(),
-                    &performance.console,
-                    donder_elaboration::Retain::Outputs(ports),
-                    &mut cache,
-                )
-                .map(|armed| armed.prepared)
-                .ok_or_else(|| "The console or a connected device output is unavailable.".into())
-            },
-        );
-        self.keep_preparation(cache);
-        match prepared {
-            Ok(failures) => {
-                self.record_device_failures(failures);
-                let at = self.device_playback.deadline();
-                let elapsed = u32::try_from(
-                    at.saturating_duration_since(performance.observed_at)
-                        .as_micros(),
-                )
-                .unwrap_or(u32::MAX);
-                let position = performance
-                    .position
-                    .saturating_add(PlaybackRate::NORMAL.show_elapsed(elapsed))
-                    .min(performance.duration);
-                let scheduled =
-                    self.device_playback
-                        .schedule(at, Action::Play, position, PlaybackRate::NORMAL);
-                for address in scheduled.addresses() {
-                    if !self.console_feed.has_joined(generation, address) {
-                        self.console_feed.join(generation, address);
-                    }
-                }
-                self.record_device_failures(scheduled.failures);
-            }
-            Err(error) => {
-                self.update_snapshot(|snapshot| snapshot.status = error);
-            }
-        }
     }
 
     /// The caller holds the transport operation lock.
@@ -306,7 +254,7 @@ impl DesktopState {
     }
 
     /// Live output's view: its streamed controllers, then, while live output
-    /// drives them, each Donder controller in the open setup.
+    /// drives them, each Donder controller in the project.
     pub(super) fn live_output_view(&self, mut output: LiveOutputSnapshot) -> LiveOutputSnapshot {
         output.enabled = self.live_output_enabled();
         if !self.devices_live() {
@@ -387,14 +335,13 @@ impl DesktopState {
         }
     }
 
-    /// Donder controllers in the open setup.
+    /// Donder controllers in the project.
     fn setup_devices(&self) -> Vec<SetupDevice> {
         let Some(session) = self.project_session() else {
             return Vec::new();
         };
         let project = session.project();
         project
-            .active_setup()
             .controllers()
             .filter_map(|controller| {
                 let ControllerProtocol::Donder(config) = &controller.protocol else {
@@ -407,11 +354,11 @@ impl DesktopState {
                     .collect::<Vec<_>>();
                 ports.sort();
                 Some(SetupDevice {
-                    controller: controller.id,
+                    controller: controller.id(),
                     device: config.device.clone(),
                     ports: ports
                         .into_iter()
-                        .map(|(_, port)| (controller.id, ControllerOutput::Port(port)))
+                        .map(|(_, port)| (controller.id(), ControllerOutput::Port(port)))
                         .collect(),
                 })
             })
@@ -449,38 +396,44 @@ impl DesktopState {
         }))
     }
 
-    /// Prepare the open sequence for the controllers and return its duration.
-    fn prepare_device_sequence(&self) -> Result<u32, String> {
+    /// Prepare show `id`, which plays as `generation`, for the controllers
+    /// and return its duration.
+    fn prepare_device_show(
+        &self,
+        id: donder_model::ShowId,
+        generation: u32,
+    ) -> Result<u32, String> {
         let _authoring = lock_unpoisoned(&self.authoring);
-        let snapshot = self.snapshot();
         let session = self
             .project_session()
             .ok_or("Open a valid project before starting devices")?;
-        let target = lock_unpoisoned(&self.workspace)
-            .render_target
-            .clone()
-            .ok_or("Open a sequence before starting devices")?;
-        let sequence = target.resolve(&session).ok_or("Sequence is missing")?;
+        let object = match id {
+            donder_model::ShowId::Sequence(id) => donder_model::ObjectId::from(id),
+            donder_model::ShowId::Console(id) => id.into(),
+        };
+        let source = session
+            .source_identity(object)
+            .ok_or("The show is missing")?;
         let duration = session
             .project()
-            .accepted_sequence(&sequence)
-            .ok_or("Sequence is missing")?
+            .accepted(id)
+            .ok_or("The show is missing")?
             .timing()
             .duration()
             .as_ticks();
         let mut cache = self.take_preparation();
         let prepared = self.device_playback.prepare(
-            snapshot.project_epoch,
-            snapshot.project_revision,
-            &target.sequence,
+            self.snapshot().project_epoch,
+            generation,
+            &source,
             |ports| {
-                donder_elaboration::prepare_cached(
+                crate::playing::prepare_show(
                     session.project(),
-                    &sequence,
+                    id,
                     donder_elaboration::Retain::Outputs(ports),
                     &mut cache,
                 )
-                .ok_or_else(|| "The sequence or a connected device output is unavailable.".into())
+                .ok_or_else(|| "The show or a connected device output is unavailable.".into())
             },
         );
         self.keep_preparation(cache);

@@ -4,14 +4,11 @@
 use crate::format::{self, NONE, Range, SectionsWriter};
 use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
-use donder_runtime_types::bytecode::{
-    Banks, BytecodeProgram, ParamStorage, ParameterKind, param_bank,
-};
+use donder_runtime_types::bytecode::{Banks, BytecodeProgram, ParamStorage, ParameterKind};
 use donder_runtime_types::{
-    AutomatedQuantity, AutomationMapping, BoundProgram, Curve, FixtureGeometry, Gradient,
-    Identifier, InputHappening, Marks, OutputEncoding, PixelEncoding, PreparedAutomation, Program,
-    SampleDuration, SampleTime, SequenceTiming, Shared, SpatialContext, TargetGeometry,
-    TargetScope, Track, Type, Value,
+    BoundProgram, Curve, FixtureGeometry, Gradient, Identifier, InputHappening, Marks,
+    OutputEncoding, PixelEncoding, PlayedSource, Program, SampleDuration, SampleTime,
+    SequenceTiming, Shared, SpatialContext, TargetGeometry, TargetScope, Track, Type, Value,
 };
 
 use crate::targets::PreparedPixel;
@@ -35,6 +32,8 @@ handle!(TargetHandle, ClipHandle, SignalHandle, OutputHandle);
 pub struct ConsoleRouting {
     /// How many controls it reads.
     pub controls: u16,
+    /// How many live mark collections its clips read.
+    pub collections: u16,
     pub clips: Vec<RoutedClip>,
     pub ons: Vec<RoutedOn>,
     /// The clips that play from the session's start, each with the length it
@@ -108,18 +107,10 @@ pub struct RoutedValue {
     pub automations: Vec<u16>,
 }
 
-pub enum PlayedSource {
-    Velocity,
-    PitchClass,
-}
-
 struct Target {
     pixels: Vec<PreparedPixel>,
     spatial: Vec<SpatialContext>,
     structure: Vec<donder_runtime_types::PixelStructure>,
-    source_pixels: Vec<(usize, u32)>,
-    selection: Shared<[(usize, u32)]>,
-    scope: TargetScope,
 }
 
 struct Output {
@@ -139,7 +130,6 @@ struct Node {
     program: u32,
     params: u32,
     inputs: Vec<u32>,
-    automation: u32,
     /// The colors-section index of its frame while its inputs are black.
     black_inputs: u32,
 }
@@ -172,11 +162,12 @@ pub struct ShowBuilder<'id> {
     layers: Vec<Layer>,
     nodes: Vec<Node>,
     outputs: Vec<Output>,
-    /// Live mark collections so far.
+    /// A console's live mark collections.
     collections: u32,
     /// The controls a console reads.
     controls: u32,
-    live_automations: Vec<Vec<format::LiveTarget>>,
+    /// Live store words issued so far.
+    live_words: u32,
     brand: PhantomData<fn(&'id ()) -> &'id ()>,
 }
 
@@ -239,34 +230,14 @@ impl ShowBuilder<'_> {
             return *index;
         }
         let w = &mut self.w;
-        // An empty curve is missing: one NaN point, so playback never meets
-        // an empty one.
-        let missing = [donder_runtime_types::CurvePoint {
-            position: 0.0,
-            value: f32::NAN,
-        }];
-        let source = if curve.points.is_empty() {
-            &missing[..]
-        } else {
-            &curve.points[..]
-        };
-        let points = push(&mut w.curve_points, source.iter().copied());
-        let mut areas = vec![0.0; source.len()];
-        donder_runtime_types::sampling::curve_prefix_areas(source, &mut areas);
-        let areas = push(&mut w.curve_areas, areas);
-        let mut slopes = vec![0.0; source.len()];
-        donder_runtime_types::sampling::curve_slopes(source, &mut slopes);
-        let slopes = push(&mut w.curve_slopes, slopes);
-        let mut crossings = vec![format::CrossingSegment::default(); source.len()];
-        let (kind, len) = crate::resources::curve_crossings(source, &mut crossings);
-        let crossings = push(&mut w.crossings, crossings[..len].iter().copied());
+        let tables = donder_runtime_types::sampling::CurveTables::new(&curve.points);
         let index = w.curves.len() as u32;
         w.curves.push(format::Curve {
-            points,
-            areas,
-            slopes,
-            crossings_kind: kind,
-            crossings,
+            points: push(&mut w.curve_points, tables.points),
+            areas: push(&mut w.curve_areas, tables.areas),
+            slopes: push(&mut w.curve_slopes, tables.slopes),
+            crossings_kind: tables.kind,
+            crossings: push(&mut w.crossings, tables.crossings),
         });
         self.interner.curves.push((Shared::clone(curve), index));
         index
@@ -367,6 +338,7 @@ impl ShowBuilder<'_> {
             first,
             end,
             origin,
+            live: marks.live_collection().map_or(NONE, u32::from),
         };
         if let Some(index) = self
             .interner
@@ -461,7 +433,7 @@ impl ShowBuilder<'_> {
     }
 
     fn array(&mut self, items: &[Value], enums: &[Identifier]) -> u32 {
-        let values: Vec<format::Value> = items.iter().map(|item| self.value(item, enums)).collect();
+        let values: Vec<u32> = items.iter().map(|item| self.value(item, enums)).collect();
         if let Some((_, index)) = self
             .interner
             .arrays
@@ -477,38 +449,38 @@ impl ShowBuilder<'_> {
         index
     }
 
-    fn value(&mut self, value: &Value, enums: &[Identifier]) -> format::Value {
-        let (kind, word) = match value {
-            Value::Void => (format::VALUE_VOID, 0),
-            Value::Int(value) => (format::VALUE_INT, *value as u32),
-            Value::Float(value) => (format::VALUE_FLOAT, value.to_bits()),
-            Value::Bool(value) => (format::VALUE_BOOL, u32::from(*value)),
-            Value::Color(color) => (format::VALUE_COLOR, self.color(*color)),
-            Value::Enum(name) => (format::VALUE_ENUM, enum_index(enums, name)),
-            Value::Marks(marks) => (format::VALUE_MARKS, self.marks(marks)),
-            Value::Curve(curve) => (format::VALUE_CURVE, self.curve(curve)),
-            Value::Gradient(gradient) => (format::VALUE_GRADIENT, self.gradient(gradient)),
-            Value::Track(track) => (format::VALUE_TRACK, self.audio(track)),
-            Value::Font(font) => (format::VALUE_FONT, self.font(font)),
-            Value::Image(image) => (format::VALUE_IMAGE, self.image(image)),
-            Value::Array(items) => (format::VALUE_ARRAY, self.array(items, enums)),
-        };
-        format::Value { kind, word }
+    /// An array item's word: a scalar's bits, or a color's or a resource's
+    /// index.
+    fn value(&mut self, value: &Value, enums: &[Identifier]) -> u32 {
+        match value {
+            Value::Void => 0,
+            Value::Int(value) => *value as u32,
+            Value::Float(value) => value.to_bits(),
+            Value::Bool(value) => u32::from(*value),
+            Value::Color(color) => self.color(*color),
+            Value::Enum(name) => enum_index(enums, name),
+            Value::Marks(marks) => self.marks(marks),
+            Value::Curve(curve) => self.curve(curve),
+            Value::Gradient(gradient) => self.gradient(gradient),
+            Value::Track(track) => self.audio(track),
+            Value::Font(font) => self.font(font),
+            Value::Image(image) => self.image(image),
+            Value::Array(items) => self.array(items, enums),
+        }
     }
 
     /// A resource parameter's or constant's record.
-    fn resource(&mut self, value: &Value, enums: &[Identifier]) -> format::ResourceRef {
-        let (kind, index) = match value {
-            Value::Curve(curve) => (format::RESOURCE_CURVE, self.curve(curve)),
-            Value::Gradient(gradient) => (format::RESOURCE_GRADIENT, self.gradient(gradient)),
-            Value::Marks(marks) => (format::RESOURCE_MARKS, self.marks(marks)),
-            Value::Track(track) => (format::RESOURCE_TRACK, self.audio(track)),
-            Value::Font(font) => (format::RESOURCE_FONT, self.font(font)),
-            Value::Image(image) => (format::RESOURCE_IMAGE, self.image(image)),
-            Value::Array(items) => (format::RESOURCE_ARRAY, self.array(items, enums)),
+    fn resource(&mut self, value: &Value, enums: &[Identifier]) -> u32 {
+        match value {
+            Value::Curve(curve) => self.curve(curve),
+            Value::Gradient(gradient) => self.gradient(gradient),
+            Value::Marks(marks) => self.marks(marks),
+            Value::Track(track) => self.audio(track),
+            Value::Font(font) => self.font(font),
+            Value::Image(image) => self.image(image),
+            Value::Array(items) => self.array(items, enums),
             _ => unreachable!("resource parameters hold resources"),
-        };
-        format::ResourceRef { kind, index }
+        }
     }
 
     /// `shared`'s index, written once for equal programs.
@@ -530,13 +502,12 @@ impl ShowBuilder<'_> {
         let resources: Vec<u32> = program
             .resources
             .iter()
-            .map(|value| self.resource(value, &program.enums).index)
+            .map(|value| self.resource(value, &program.enums))
             .collect();
         let resources = push(&mut self.w.program_resources, resources);
         let stencil = program.has_stencil();
         let flags = [
             (program.uses_spatial_context(), format::PROGRAM_USES_SPATIAL),
-            (program.uses_sections(), format::PROGRAM_USES_SECTIONS),
             (program.reads_target(), format::PROGRAM_READS_TARGET),
             (
                 program.uses_pixel_context(),
@@ -598,109 +569,6 @@ impl ShowBuilder<'_> {
             .push(format::ParamSet { words, resources });
         (self.w.param_sets.len() - 1) as u32
     }
-
-    /// Write automation already checked with the invocation of `program`;
-    /// [`NONE`] without bindings.
-    fn automation(&mut self, program: &BytecodeProgram, bindings: &[PreparedAutomation]) -> u32 {
-        if bindings.is_empty() {
-            return NONE;
-        }
-        let mut records = Vec::with_capacity(bindings.len());
-        let mut windows: Vec<format::Window> = Vec::new();
-        for binding in bindings {
-            let bank = u32::from(param_bank(
-                &program.params,
-                usize::from(binding.param_index),
-            ));
-            let (mut min, mut max, mut options) = (0, 0, Range::EMPTY);
-            let (kind, destination) = match (&binding.mapping, binding.quantity) {
-                (
-                    AutomationMapping::Float {
-                        min: low,
-                        max: high,
-                    },
-                    quantity,
-                ) => {
-                    (min, max) = (low.to_bits(), high.to_bits());
-                    let kind = if quantity == AutomatedQuantity::Integral {
-                        format::BINDING_FLOAT_INTEGRAL
-                    } else {
-                        format::BINDING_FLOAT
-                    };
-                    (kind, bank)
-                }
-                (_, AutomatedQuantity::Integral) => {
-                    unreachable!("the compiler accepts integrals of float automation only")
-                }
-                (
-                    AutomationMapping::Int {
-                        min: low,
-                        max: high,
-                    },
-                    _,
-                ) => {
-                    (min, max) = (*low as u32, *high as u32);
-                    (format::BINDING_INT, bank)
-                }
-                (AutomationMapping::Bool, _) => (format::BINDING_BOOL, bank),
-                (AutomationMapping::LiveMarks, _) => (format::BINDING_LIVE_MARKS, bank),
-                (AutomationMapping::Enum { values }, _) => {
-                    // Lowering names every option of a bound enum.
-                    options = push(
-                        &mut self.w.enum_options,
-                        values.iter().map(|value| enum_index(&program.enums, value)),
-                    );
-                    (format::BINDING_ENUM, bank)
-                }
-                (
-                    AutomationMapping::Curve {
-                        min: low,
-                        max: high,
-                    },
-                    _,
-                ) => {
-                    (min, max) = (low.to_bits(), high.to_bits());
-                    let points = binding.curve.points.len().max(1) as u32;
-                    let window = match windows.iter().position(|window| window.resource == bank) {
-                        Some(index) => {
-                            windows[index].points = windows[index].points.max(points);
-                            index
-                        }
-                        None => {
-                            windows.push(format::Window {
-                                resource: bank,
-                                points,
-                            });
-                            windows.len() - 1
-                        }
-                    };
-                    (format::BINDING_CURVE, window as u32)
-                }
-            };
-            records.push(format::Binding {
-                parameter: u32::from(binding.param_index),
-                start: binding.start.as_ticks(),
-                duration: binding.duration.as_ticks(),
-                // A live marks binding's collection is set when the console names it.
-                curve: if kind == format::BINDING_LIVE_MARKS {
-                    NONE
-                } else {
-                    self.curve(&binding.curve)
-                },
-                kind,
-                destination,
-                min,
-                max,
-                options,
-            });
-        }
-        let bindings = push(&mut self.w.bindings, records);
-        let windows = push(&mut self.w.windows, windows);
-        self.w
-            .automation
-            .push(format::Automation { bindings, windows });
-        (self.w.automation.len() - 1) as u32
-    }
 }
 
 impl<'id> ShowBuilder<'id> {
@@ -721,7 +589,7 @@ impl<'id> ShowBuilder<'id> {
             outputs: Vec::new(),
             collections: 0,
             controls: 0,
-            live_automations: Vec::new(),
+            live_words: 0,
             brand: PhantomData,
         }
     }
@@ -750,11 +618,10 @@ impl<'id> ShowBuilder<'id> {
         let mut pixels = Vec::with_capacity(domain.pixels().len());
         let mut spatial = Vec::with_capacity(domain.pixels().len());
         let mut structure = Vec::with_capacity(domain.pixels().len());
-        let mut source_pixels = Vec::with_capacity(domain.pixels().len());
         for pixel in domain.pixels() {
             let fixture = pixel.fixture();
             // Cells the show does not keep contribute original coordinates
-            // and sections but never storage addresses.
+            // but never storage addresses.
             let Ok(cell) = self.geometry[fixture]
                 .cells()
                 .binary_search(&pixel.source_cell())
@@ -769,15 +636,11 @@ impl<'id> ShowBuilder<'id> {
             });
             spatial.push(pixel.spatial());
             structure.push(pixel.structure());
-            source_pixels.push((fixture, pixel.source_cell()));
         }
         self.store_target(Target {
             pixels,
             spatial,
             structure,
-            source_pixels,
-            selection: domain.selection().into(),
-            scope: domain.scope(),
         })
     }
 
@@ -786,9 +649,6 @@ impl<'id> ShowBuilder<'id> {
             existing.pixels == target.pixels
                 && existing.spatial == target.spatial
                 && existing.structure == target.structure
-                && existing.source_pixels == target.source_pixels
-                && existing.selection == target.selection
-                && existing.scope == target.scope
         }) {
             return TargetHandle::new(index);
         }
@@ -817,14 +677,12 @@ impl<'id> ShowBuilder<'id> {
         let bytecode = &program.program().bytecode;
         let index = self.program(program.program());
         let params = self.param_set(bytecode, program.params());
-        let automation = self.automation(bytecode, program.automation());
         self.w.clips.push(format::Clip {
             start: start.as_ticks(),
             duration: duration.as_ticks(),
             target: target.index as u32,
             program: index,
             params,
-            automation,
         });
         let clip = self.w.clips.len() - 1;
         if let Some(id) = id {
@@ -843,62 +701,37 @@ impl<'id> ShowBuilder<'id> {
         (self.w.voices.len() - 1) as u16
     }
 
-    /// A live mark collection that the given live marks bindings of clips
-    /// (indices in each clip's bindings) read; returns its index.
-    pub fn live_marks(&mut self, targets: impl IntoIterator<Item = (ClipHandle<'id>, u16)>) -> u16 {
-        let collection = self.collections;
-        for (clip, binding) in targets {
-            let plan = self.w.clips[clip.index].automation;
-            let start = self.w.automation[plan as usize].bindings.start;
-            let record = &mut self.w.bindings[(start + u32::from(binding)) as usize];
-            assert_eq!(
-                record.kind,
-                format::BINDING_LIVE_MARKS,
-                "a collection binds live marks bindings"
-            );
-            record.curve = collection;
-        }
-        self.collections += 1;
-        collection as u16
+    /// A live automation resting at `rest`: its index, and the first of its
+    /// three live store words.
+    pub fn live_automation(&mut self, rest: f32) -> (u16, u32) {
+        let word = self.live_words;
+        self.live_words += 3;
+        self.w
+            .live_automations
+            .push(format::LiveAutomation { word, rest });
+        ((self.w.live_automations.len() - 1) as u16, word)
     }
 
-    /// A live automation that sets the given automation bindings of clips
-    /// (indices in each clip's bindings); returns its index.
-    pub fn live_automation(
-        &mut self,
-        targets: impl IntoIterator<Item = (ClipHandle<'id>, u16)>,
-    ) -> u16 {
-        let targets = targets
-            .into_iter()
-            .map(|(clip, binding)| format::LiveTarget {
-                plan: self.w.clips[clip.index].automation,
-                binding: u32::from(binding),
-                clip: clip.index as u32,
-            })
-            .collect();
-        self.live_automations.push(targets);
-        (self.live_automations.len() - 1) as u16
+    /// A live store word for a snapshot, which [`Self::snapshot`] places.
+    pub fn snapshot_word(&mut self) -> u32 {
+        self.live_words += 1;
+        self.live_words - 1
     }
 
-    /// Make live automation `automation` also set automation binding
-    /// `binding` of operator `operator`.
-    pub fn automate_operator(
-        &mut self,
-        automation: u16,
-        operator: SignalHandle<'id>,
-        binding: u16,
-    ) {
-        let plan = self.nodes[operator.index].automation;
-        self.live_automations[usize::from(automation)].push(format::LiveTarget {
-            plan,
-            binding: u32::from(binding),
-            clip: NONE,
+    /// Make `word` hold live automation `automation`'s integral at `clip`'s
+    /// start.
+    pub fn snapshot(&mut self, clip: ClipHandle<'id>, automation: u16, word: u32) {
+        self.w.snapshots.push(format::Snapshot {
+            automation: u32::from(automation),
+            clip: clip.index as u32,
+            word,
         });
     }
 
     /// Route the console's inputs as `routing` describes.
     pub fn console(&mut self, routing: ConsoleRouting) {
         self.controls = u32::from(routing.controls);
+        self.collections = u32::from(routing.collections);
         let w = &mut self.w;
         w.console_clips = routing
             .clips
@@ -951,7 +784,6 @@ impl<'id> ShowBuilder<'id> {
         let bytecode = &program.program().bytecode;
         let index = self.program(program.program());
         let params = self.param_set(bytecode, program.params());
-        let automation = self.automation(bytecode, program.automation());
         let inputs = (0..program.program().inputs)
             .map(|index| input(index).index as u32)
             .collect();
@@ -962,7 +794,6 @@ impl<'id> ShowBuilder<'id> {
             program: index,
             params,
             inputs,
-            automation,
             black_inputs,
         });
         SignalHandle::new(self.nodes.len() - 1)
@@ -982,7 +813,6 @@ impl<'id> ShowBuilder<'id> {
             program: 0,
             params: 0,
             inputs: Vec::new(),
-            automation: NONE,
             black_inputs: NONE,
         });
         SignalHandle::new(self.nodes.len() - 1)
@@ -1000,7 +830,6 @@ impl<'id> ShowBuilder<'id> {
             program: 0,
             params: 0,
             inputs: inputs.into_iter().map(|input| input.index as u32).collect(),
-            automation: NONE,
             black_inputs: NONE,
         });
         SignalHandle::new(self.nodes.len() - 1)
@@ -1127,13 +956,11 @@ impl<'id> ShowBuilder<'id> {
             TargetScope::PerFixture,
         ));
         let mut needs_spatial = vec![false; self.targets.len()];
-        let mut needs_sections = vec![false; self.targets.len()];
         let mut needs_structure = vec![false; self.targets.len()];
         for clip in &self.w.clips {
             let flags = self.w.programs[clip.program as usize].flags;
             needs_spatial[clip.target as usize] |= flags & format::PROGRAM_USES_SPATIAL != 0;
             needs_structure[clip.target as usize] |= flags & format::PROGRAM_USES_STRUCTURE != 0;
-            needs_sections[clip.target as usize] |= flags & format::PROGRAM_USES_SECTIONS != 0;
         }
         for node in &self.nodes {
             if node.kind != format::NODE_OPERATOR {
@@ -1142,7 +969,6 @@ impl<'id> ShowBuilder<'id> {
             let flags = self.w.programs[node.program as usize].flags;
             needs_spatial[full.index] |= flags & format::PROGRAM_USES_SPATIAL != 0;
             needs_structure[full.index] |= flags & format::PROGRAM_USES_STRUCTURE != 0;
-            needs_sections[full.index] |= flags & format::PROGRAM_USES_SECTIONS != 0;
         }
         let mut fixture_spatial = vec![false; self.fixtures.len()];
         for (target, &spatial) in self.targets.iter().zip(&needs_spatial) {
@@ -1185,7 +1011,6 @@ impl<'id> ShowBuilder<'id> {
                 &mut indexed,
                 target,
                 needs_spatial[index],
-                needs_sections[index],
                 needs_structure[index],
             );
             w.targets.push(record);
@@ -1265,7 +1090,6 @@ impl<'id> ShowBuilder<'id> {
                 program: node.program,
                 params: node.params,
                 inputs,
-                automation: node.automation,
                 buffer,
                 black_inputs: node.black_inputs,
             });
@@ -1281,10 +1105,6 @@ impl<'id> ShowBuilder<'id> {
             });
             offset += output.bytes as u32;
         }
-        for targets in &self.live_automations {
-            let targets = push(&mut w.live_targets, targets.iter().copied());
-            w.live_automations.push(format::LiveAutomation { targets });
-        }
         self.clip_index.sort_unstable_by_key(|entry| entry.id);
         w.clip_index = core::mem::take(&mut self.clip_index);
         w.meta.push(format::Meta {
@@ -1297,6 +1117,7 @@ impl<'id> ShowBuilder<'id> {
             buffers,
             collections: self.collections,
             controls: self.controls,
+            live_words: self.live_words,
         });
         w.finish(crate::view::FORMAT_VERSION)
     }
@@ -1378,14 +1199,13 @@ fn console_action(action: RoutedAction) -> format::ConsoleAction {
 }
 
 /// Write a target's pixels, the smaller of runs and one record per pixel,
-/// sharing equal lists, with its scope bounds and section places.
+/// sharing equal lists, with its scope bounds.
 fn write_target(
     w: &mut SectionsWriter,
     known_runs: &mut Vec<Range>,
     known_pixels: &mut Vec<Range>,
     target: &Target,
     spatial: bool,
-    sections: bool,
     structure: bool,
 ) -> format::Target {
     let pixels = &target.pixels;
@@ -1471,19 +1291,10 @@ fn write_target(
     } else {
         0
     };
-    let (section_runs, section_kind, section_pixels) = if sections {
-        write_sections(w, &target.selection, &target.source_pixels)
-    } else {
-        (Range::EMPTY, format::PIXELS_RUNS, Range::EMPTY)
-    };
     format::Target {
         kind,
         pixels: range,
         spatial,
-        section_runs,
-        section_kind,
-        section_pixels,
-        per_fixture: u32::from(target.scope == TargetScope::PerFixture),
         sample_count: sample_count as u32,
         structure: if structure {
             push(
@@ -1497,74 +1308,6 @@ fn write_target(
         } else {
             Range::EMPTY
         },
-    }
-}
-
-/// Section membership from the original selection: its runs of consecutive
-/// cells, and each target pixel's place among them, as spans or one record
-/// per pixel, whichever is smaller.
-fn write_sections(
-    w: &mut SectionsWriter,
-    selection: &[(usize, u32)],
-    pixels: &[(usize, u32)],
-) -> (Range, u32, Range) {
-    let mut runs = Vec::<format::SectionRun>::new();
-    let mut addresses = alloc::collections::BTreeMap::new();
-    for &(fixture, index) in selection {
-        match runs.last_mut() {
-            Some(run)
-                if run.fixture == fixture as u32 && run.last.checked_add(1) == Some(index) =>
-            {
-                run.last = index;
-            }
-            _ => runs.push(format::SectionRun {
-                fixture: fixture as u32,
-                first: index,
-                last: index,
-            }),
-        }
-        addresses.insert(
-            (fixture, index),
-            format::SectionPixel {
-                run: (runs.len() - 1) as u32,
-                index,
-            },
-        );
-    }
-    let mut spans = Vec::<format::SectionSpan>::new();
-    for (index, pixel) in pixels.iter().enumerate() {
-        let address = addresses[pixel];
-        let start = if spans.len() > 1 {
-            spans[spans.len() - 2].end as usize
-        } else {
-            0
-        };
-        match spans.last_mut() {
-            Some(span)
-                if span.first.run == address.run
-                    && span.first.index.checked_add((index - start) as u32)
-                        == Some(address.index) =>
-            {
-                span.end = index as u32 + 1;
-            }
-            _ => spans.push(format::SectionSpan {
-                end: index as u32 + 1,
-                first: address,
-            }),
-        }
-    }
-    let runs = push(&mut w.section_runs, runs);
-    if spans.len() * size_of::<format::SectionSpan>()
-        < pixels.len() * size_of::<format::SectionPixel>()
-    {
-        (runs, format::PIXELS_RUNS, push(&mut w.section_spans, spans))
-    } else {
-        let places = pixels.iter().map(|pixel| addresses[pixel]);
-        (
-            runs,
-            format::PIXELS_INDEXED,
-            push(&mut w.section_pixels, places),
-        )
     }
 }
 
@@ -1588,7 +1331,6 @@ fn chain_mixes(nodes: &mut Vec<Node>, root: usize) -> usize {
         program: 0,
         params: 0,
         inputs,
-        automation: NONE,
         black_inputs: NONE,
     };
     let mut chained = Vec::with_capacity(nodes.len());

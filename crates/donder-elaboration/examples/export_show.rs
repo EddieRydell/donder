@@ -17,21 +17,23 @@ fn main() {
     .unwrap();
     let project = session.project();
     let id = project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
+        .reusable::<donder_model::Sequence>()
+        .keys()
         .find(|id| {
             session
                 .source()
                 .declared_name((**id).into())
                 .is_some_and(|name| name.as_str() == "layer_test")
         })
-        .unwrap_or(project.root().sequences[0].id());
-    let setup = project
-        .get::<donder_model::Setup>(*project.root().setup.id())
-        .unwrap();
-    let controller = setup.controllers[0].id();
+        .unwrap_or(
+            project
+                .reusable::<donder_model::Sequence>()
+                .get_index(0)
+                .unwrap()
+                .0,
+        );
+    let controllers_store = project.reusable::<donder_model::Controller>();
+    let controller = controllers_store.get_index(0).unwrap().0;
     let outputs = project
         .get::<donder_model::Controller>(*controller)
         .unwrap()

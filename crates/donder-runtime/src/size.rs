@@ -7,7 +7,7 @@ use core::mem::size_of_val;
 /// A part of a prepared show's memory.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ShowPart {
-    /// Clips, layers, graph nodes, their parameters and automation.
+    /// Clips, layers, graph nodes, their and parameters.
     Timeline,
     /// The compiled effect and operator programs.
     Programs,
@@ -80,11 +80,7 @@ pub(crate) fn show_parts(s: &Sections<'_>, encoded: usize) -> Vec<(ShowPart, usi
                 + size_of_val(s.param_sets)
                 + size_of_val(s.words)
                 + size_of_val(s.colors)
-                + size_of_val(s.resources)
-                + size_of_val(s.automation)
-                + size_of_val(s.bindings)
-                + size_of_val(s.enum_options)
-                + size_of_val(s.windows),
+                + size_of_val(s.resources),
         ),
         (
             ShowPart::Programs,
@@ -131,9 +127,6 @@ pub(crate) fn show_parts(s: &Sections<'_>, encoded: usize) -> Vec<(ShowPart, usi
                 + size_of_val(s.pixel_runs)
                 + size_of_val(s.pixels)
                 + size_of_val(s.spatial_runs)
-                + size_of_val(s.section_runs)
-                + size_of_val(s.section_spans)
-                + size_of_val(s.section_pixels)
                 + size_of_val(s.routes)
                 + size_of_val(s.lookups)
                 + size_of_val(s.palettes)
@@ -143,7 +136,7 @@ pub(crate) fn show_parts(s: &Sections<'_>, encoded: usize) -> Vec<(ShowPart, usi
             ShowPart::Console,
             size_of_val(s.voices)
                 + size_of_val(s.live_automations)
-                + size_of_val(s.live_targets)
+                + size_of_val(s.snapshots)
                 + size_of_val(s.console_ons)
                 + size_of_val(s.console_actions)
                 + size_of_val(s.played_values)

@@ -7,7 +7,7 @@
 //! declares, and [`interval`] recomputes a node's with ranges and lengths an
 //! instance supplies.
 use super::{Binary, Context, Graph, Node, Op, Ternary, Unary};
-use donder_runtime_types::Value;
+use donder_runtime_types::{Type, Value};
 use std::collections::HashMap;
 
 /// An inclusive range of a numeric value, and whether it may be NaN.
@@ -254,21 +254,18 @@ fn compute(graph: &Graph, op: &Op, known: &mut impl Known) -> Interval {
 
 fn unary(graph: &Graph, op: Unary, a: Node, known: &mut impl Known) -> Interval {
     let value = known.of(a);
+    let int = *graph.ty(a) == Type::Int;
     match op {
+        Unary::Negate if int => Interval::new(-value.max, -value.min, false).wrapped(),
         Unary::Negate => Interval::new(-value.max, -value.min, value.nan),
-        Unary::IntNegate => Interval::new(-value.max, -value.min, false).wrapped(),
-        Unary::Abs | Unary::IntAbs => {
+        Unary::Abs => {
             let low = if value.min <= 0.0 && value.max >= 0.0 {
                 0.0
             } else {
                 value.min.abs().min(value.max.abs())
             };
             let abs = Interval::new(low, value.min.abs().max(value.max.abs()), value.nan);
-            if op == Unary::IntAbs {
-                abs.wrapped()
-            } else {
-                abs
-            }
+            if int { abs.wrapped() } else { abs }
         }
         Unary::Floor => value.monotonic(f64::floor),
         Unary::Ceil => value.monotonic(f64::ceil),
@@ -290,7 +287,7 @@ fn unary(graph: &Graph, op: Unary, a: Node, known: &mut impl Known) -> Interval 
                 converted
             }
         }
-        Unary::Len | Unary::MarkCount => match length(graph, a, known) {
+        Unary::Len => match length(graph, a, known) {
             Some(length) => Interval::exact(length as f64),
             None => Interval::new(0.0, f64::INFINITY, false),
         },
@@ -305,20 +302,25 @@ fn unary(graph: &Graph, op: Unary, a: Node, known: &mut impl Known) -> Interval 
 
 fn binary(graph: &Graph, op: Binary, a: Node, b: Node, known: &mut impl Known) -> Interval {
     let (left, right) = (known.of(a), known.of(b));
+    let ty = graph.ty(a);
+    if *ty == Type::Color {
+        return Interval::ANY;
+    }
+    let int = *ty == Type::Int;
     match op {
+        Binary::Add if int => left.corners(right, |a, b| a + b).wrapped(),
+        Binary::Subtract if int => left.corners(right, |a, b| a - b).wrapped(),
+        Binary::Multiply if int => left.corners(right, |a, b| a * b).wrapped(),
         Binary::Add => left.corners(right, |a, b| a + b),
         Binary::Subtract => left.corners(right, |a, b| a - b),
         Binary::Multiply => left.corners(right, |a, b| a * b),
-        Binary::IntAdd => left.corners(right, |a, b| a + b).wrapped(),
-        Binary::IntSubtract => left.corners(right, |a, b| a - b).wrapped(),
-        Binary::IntMultiply => left.corners(right, |a, b| a * b).wrapped(),
-        Binary::Divide if right.excludes_zero() => left.corners(right, |a, b| a / b),
-        Binary::Min | Binary::IntMin => Interval::new(
+        Binary::Divide if !int && right.excludes_zero() => left.corners(right, |a, b| a / b),
+        Binary::Min => Interval::new(
             left.min.min(right.min),
             left.max.min(right.max),
             left.nan || right.nan,
         ),
-        Binary::Max | Binary::IntMax => Interval::new(
+        Binary::Max => Interval::new(
             left.min.max(right.min),
             left.max.max(right.max),
             left.nan || right.nan,
@@ -326,7 +328,7 @@ fn binary(graph: &Graph, op: Binary, a: Node, b: Node, known: &mut impl Known) -
         Binary::ValueOr => {
             Interval::new(left.min.min(right.min), left.max.max(right.max), right.nan)
         }
-        Binary::IntRemainder if right.excludes_zero() => {
+        Binary::Remainder if int && right.excludes_zero() => {
             let magnitude = right.min.abs().max(right.max.abs()) - 1.0;
             Interval::new(-magnitude, magnitude, false)
         }

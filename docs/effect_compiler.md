@@ -35,7 +35,7 @@ guarded value without a redundant choice, and a `sample` block chooses black.
 Array literals exist only while they are indexed or measured.
 
 Every builtin name lives once in `builtins.rs`: functions, context values,
-the signal method `at`, reducers and type names. The same tables drive name
+reducers and type names. The same tables drive name
 resolution, type checking, editor analysis and the generated [builtin
 reference](effect_builtins.md). A builtin function lists its signatures with
 real argument and result types, each naming the IR operation it lowers to.
@@ -44,7 +44,7 @@ it fits, a signature every argument fits exactly wins, and otherwise one they
 fit with ints widened to floats; an argument is widened as soon as every
 signature left widens it. So `min` and `clamp` choose int operations when every
 argument is an int. Builtins without an instruction of their own (`round`,
-`fract`, `sign`, `step`, `is_nan`, `smoothstep`, `section_position`, ...) name
+`fract`, `sign`, `step`, `is_nan`, `smoothstep`, ...) name
 a small expansion function that builds them from other operations. A context
 value's row names the IR context it reads (or a constant such as `PI`), and
 gives the context's type.
@@ -79,15 +79,19 @@ so equal expressions share a node by construction.
 | Operation | Meaning |
 | --- | --- |
 | `Constant`, `Param`, `Context` | Leaves; constants carry their type |
-| `Unary`, `Binary`, `Ternary` | Scalar, color, resource, mark and section operations |
+| `Unary`, `Binary`, `Ternary` | Scalar, color, resource and mark operations; one per meaning, whose operand types choose the semantics (int arithmetic wraps, an int `Divide` is the floored quotient, a color `Multiply` by a float scales it) |
 | `Select` | Pure choice. `&&` and `\|\|` are selects too |
 | `Reduce` with `LoopIndex` | A reduction; its bounds, body, filter and default live in its loop |
 | `Read` | An input signal of this frame, at the current pixel, a shift of it, or a pixel of its fixture |
 | `Items`, `Pick` | An array literal, and its item at a clamped index |
-| `ParamIntegral` | A float parameter integrated over the definition's time. Only definitions hold it: whether it is a slot playback writes or `parameter * time` depends on the invocation's automation, so instantiation replaces it |
+| `ParamIntegral` | A float parameter integrated over the definition's time. Only definitions hold it: whether it is `parameter * time` or its automation's integral depends on the invocation, so instantiation replaces it |
 | `Tap` | A stencil: an `around` reduction's contribution as checking forms it, its reduction's body |
 | `Scan` | A trail along each fixture: decay, input and weight |
 | `Neighbor` | The input pixel a tap's or scan's weight reads, at the pixel the weight is computed for |
+
+Context values without a context of their own are built from others by the
+checker: `progress` is `time / duration`, `frame` the nearest frame of
+`time * frame_rate`, and `pixel.fraction` `pixel.index / max(target.count - 1, 1)`.
 
 Each node records its type, its domain and the reductions whose index it reads,
 computed when it is built:
@@ -105,8 +109,8 @@ domain of its bounds; a reduction has its parts' domains minus its own loop.
 
 Construction folds (`ir/fold.rs`):
 - constants, by the host evaluator (`ir/eval.rs`), which uses the runtime's math
-  from `crate::sampling`. Transcendental functions, context, sections and
-  signal reads are never evaluated on the host;
+  from `crate::sampling`. Transcendental functions, context and signal
+  reads are never evaluated on the host;
 - identities that cannot hide a missing value: `x + 0`, `x * 1`, black under
   color max, add or scale, and choices with equal or constant arms;
 - black from a color multiplied by black, scaled by zero, or an `hsv` with zero
@@ -133,21 +137,36 @@ preparation are all rebuilds.
 declaration order; an effect is an operator with no signal inputs, and its
 `kind` says which it was declared as. An `Invocation` binds a definition to
 validated values and automation. An
-`Instance` places it in a sequence: automated parameters become `TIME` leaves,
-fixed ones `PARAM` leaves, and the clip duration and a uniform pixel count
-become extra `PARAM` slots. A choice whose condition is fixed for the instance,
+`Instance` places it in a sequence: fixed parameters become `PARAM` leaves,
+and the clip duration and a uniform pixel count extra `PARAM` slots.
+Automation is ordinary IR. An automated parameter becomes its binding's
+value, computed from `PARAM` slots of the binding (its start and the inverse
+of its duration in seconds, its range, and its normalized curve) and from the
+query: its position is `(time + origin - start) * inverse`, where `origin` is
+the show time the invocation's `time` counts from. A float is the range mixed
+by the curve there, an int that rounded, a bool whether the curve is at least
+a half, and an enum the option the curve picks. Its integral is the range's
+least value times `time`, plus the range times the duration times the curve's
+integral since the origin. A curve parameter is a window of its curve, held
+already in its range: each query of it, pushed through the choices and array
+items that pick it, reads the curve shifted by the position (a sample at
+`x + position`, an integral as a difference, crossings at or after the
+position). A console's live value is the live store word an int slot names
+(`Unary::Live`); its integral is `base + value * (origin + time - since)`
+from three words of the store, less the snapshot of that integral taken when
+the clip started. All of these are `TIME` nodes, so scheduling puts them in
+the query block. A choice whose condition is fixed for the instance,
 but whose result still varies at playback, is decided and only its taken arm is
 kept. A choice fixed as a whole is left for preparation to evaluate, so it does
 not multiply programs. Fixed reduction bounds become constants.
 
 `Instance::lower` returns the program (a `Program`: bytecode and its signal
-input count), its parameter values and automation, unbound. A console's live
-automations are ordinary automation bindings whose value playback sets, and so is a marks
-parameter that reads a live collection (`AutomationMapping::LiveMarks`):
-playback binds it to the collection's marks as they arrive. Like every
-automated parameter it is a `TIME` leaf, so nothing reads its contents or
-length at preparation; a reduction bounded by an automated parameter's length
-is rejected when the invocation is made.
+input count) and its parameter values, unbound. A marks parameter that reads
+a live collection (`AutomationMapping::LiveMarks`) is a `TIME` leaf whose
+value names the collection: playback reads the collection's marks as they
+arrive, measured from the invocation's origin, so nothing reads its contents
+or length at preparation, and a reduction bounded by its length is rejected
+when the invocation is made.
 
 ## Global signal graph
 
@@ -183,9 +202,9 @@ instances still share one program.
 `lower::schedule` is global code motion over a region tree.
 
 - **Stages.** A node's domain decides its outermost stage: once per query, once
-  per target run, or per strip. Pixel context, section queries, signal reads and
-  reductions, and their users, run in the body; everything else that is fixed
-  for a query or a target shape runs before the strips.
+  per target run, or per strip. Pixel context, signal reads and reductions,
+  and their users, run in the body; everything else that is fixed for a query
+  or a target shape runs before the strips.
 - **Regions.** In the body, branch arms and reduction iterations are regions; a
   filtered reduction's contribution is a region inside its iteration. Each node
   is placed where its uses meet, then hoisted out of every reduction whose index
@@ -195,8 +214,7 @@ instances still share one program.
   with at most two exclusive nodes, and no reduction or signal read, become a
   branch-free choice; heavier arms branch and keep their work inside them.
 
-The plan (stages, regions, branches, uses) is independent of the bytecode;
-`Instance::explain` prints it with domains next to the emitted program.
+The plan (stages, regions, branches, uses) is independent of the bytecode.
 
 ## Bytecode
 
@@ -219,8 +237,7 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
 - A float, int or bool constant is an instruction's 32-bit immediate; a
   resource constant indexes the program's resource list. Instructions the
   word set leaves out are lowered: `power` with an int count raises to its
-  float, `!` compares with false, and a section position is float arithmetic
-  on the pixel index.
+  float, `!` compares with false.
 - A program runs over strips of up to 128 pixels. Its query block runs once per
   program and query, its target block again whenever the target's pixel count or
   bounds change, and its body once per strip.
@@ -239,7 +256,8 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   colors), and one shared resource per curve,
   gradient, marks or array parameter. Equal resources bound anywhere in a
   sequence share one allocation; a marks value is a window of its
-  collection's shared track.
+  collection's shared track. An array item is one untagged word read as the
+  program types it, so binding makes each int a float array holds a float.
 - Enum values are indices into the program's names, which list every option of
   its parameters' and values' enums; an enum parameter is bound as its index
   and read as an int. Resources are references to parameters, constants or
@@ -251,7 +269,7 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   indices, as the instance's values prove, shares one index: it runs the
   union of the pixels' ranges, each pixel taking part in its own, so work that
   depends only on the index (a kernel weight) runs once per iteration.
-- `input.at(pixel.index + offset)` is a shifted read, and an `around`
+- `input[pixel.index + offset]` is a shifted read, and an `around`
   neighbor is one with the reduction's edges.
 - An `around` reduction that reads its neighbor is a stencil. Checking proves
   its offsets span at most a strip (reaching at most half a strip each way when

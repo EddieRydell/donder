@@ -4,8 +4,7 @@
 //! and the shapes the generated reference and the language server read.
 use donder_data_derive::Data;
 use donder_language::data::{
-    Data, DataValue, Decoder, Meters, Name, OwnedNamedRecord, OwnedRecord, Params, Path, Reference,
-    Schema, Spanned, spanned,
+    Data, DataValue, Decoder, Meters, Name, Params, Path, Reference, Schema, Spanned, spanned,
 };
 use donder_runtime_types::Color;
 use std::net::{IpAddr, SocketAddr};
@@ -130,18 +129,9 @@ impl<T: Spelling> Data for Spelled<T> {
 pub(crate) struct Project {
     pub format: u8,
     pub description: Option<String>,
-    pub setup: OwnedRecord<Setup>,
-    pub sequences: Vec<OwnedNamedRecord<Sequence>>,
-    pub consoles: Vec<OwnedNamedRecord<Console>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Setup {
-    pub description: Option<String>,
-    pub layout: OwnedRecord<Layout>,
-    pub patch: OwnedRecord<Patch>,
-    pub controllers: Vec<OwnedNamedRecord<Controller>>,
-    pub input_devices: Vec<OwnedNamedRecord<InputDevice>>,
+    #[refers(Declaration("Layout"))]
+    pub layout: Reference,
+    pub routes: Vec<Route>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -333,7 +323,8 @@ pub(crate) enum LayoutItem {
     Fixture {
         name: Name,
         description: Option<String>,
-        definition: OwnedRecord<FixtureDefinition>,
+        #[refers(Declaration("FixtureDefinition"))]
+        definition: Reference,
         transform: Transform,
     },
 }
@@ -435,14 +426,8 @@ model_choice!(GridCorner(donder_model::GridCorner) {
 });
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Patch {
-    pub description: Option<String>,
-    pub routes: Vec<Route>,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Route {
-    /// A fixture or group: `layout.fixture`.
+    /// A fixture or group of the project's layout, by its name.
     #[refers(Fixture)]
     pub target: Reference,
     pub pixels: Option<PixelSpan>,
@@ -498,7 +483,6 @@ pub(crate) struct Sequence {
     pub layers: Vec<Layer>,
     pub clips: Vec<Clip>,
     pub graph: Graph,
-    pub automation: Vec<AutomationClip>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -564,21 +548,48 @@ pub(crate) struct Layer {
 pub(crate) struct Clip {
     pub name: Name,
     pub description: Option<String>,
-    #[refers(Layer)]
-    pub layer: Name,
-    pub start: Duration,
-    pub duration: Duration,
-    /// A fixture or group: `layout.fixture`.
+    /// A fixture or group of the project's layout, by its name: what an
+    /// effect plays over, or the row an envelope is drawn in.
     #[refers(Fixture)]
     pub target: Reference,
-    pub scope: Scope,
-    #[refers(Effect)]
-    pub effect: Reference,
-    /// Overrides of the effect's parameters; the rest follow its defaults.
-    pub params: Params,
+    pub placement: Placement,
+    pub content: ClipContent,
 }
 
-model_choice!(Scope(donder_model::ClipScope) { PerFixture, WholeTarget });
+/// What a clip plays: an effect on a layer, or an envelope that drives the
+/// parameters it binds.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) enum ClipContent {
+    Effect {
+        #[refers(Layer)]
+        layer: Name,
+        scope: Scope,
+        #[refers(Effect)]
+        effect: Reference,
+        /// Overrides of the effect's parameters; the rest follow its defaults.
+        params: Params,
+    },
+    /// Each binding uses the window `(low, high)` of the curve's `0..1`.
+    Envelope {
+        curve: CurveValue,
+        bindings: Vec<Bound>,
+    },
+}
+
+/// When a clip plays: at a time, or when a console's actions play it.
+#[derive(Clone, Debug, PartialEq, Data)]
+pub(crate) enum Placement {
+    Timed {
+        start: Duration,
+        duration: Duration,
+    },
+    /// Each copy takes `values` from the press that started it.
+    Played {
+        values: Vec<PlayedValue>,
+    },
+}
+
+model_choice!(Scope(donder_runtime_types::TargetScope) { PerFixture, WholeTarget });
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Graph {
@@ -620,18 +631,6 @@ pub(crate) struct Edge {
     pub to: Reference,
 }
 
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct AutomationClip {
-    /// The fixture or group whose automation row holds the clip.
-    #[refers(Fixture)]
-    pub row: Reference,
-    pub start: Duration,
-    pub duration: Duration,
-    pub curve: CurveValue,
-    pub bindings: Vec<Bound>,
-    pub detached: Vec<Detached>,
-}
-
 /// A binding with the window of the curve's `0..1` it uses, as `(low, high)`.
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Bound {
@@ -654,17 +653,13 @@ pub(crate) enum Binding {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct Detached {
-    pub binding: Binding,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct Console {
     pub description: Option<String>,
     pub frame_rate: u32,
-    pub marks: Vec<LiveMarks>,
+    /// Each starts empty every session; `Mark` actions add to it.
+    pub marks: Vec<MarkCollection>,
     pub layers: Vec<Layer>,
-    pub clips: Vec<ConsoleClip>,
+    pub clips: Vec<Clip>,
     /// Clips that play from the session's start.
     pub always: Vec<Always>,
     pub events: Vec<On>,
@@ -680,59 +675,18 @@ pub(crate) struct Always {
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct LiveMarks {
-    pub name: Name,
-    pub description: Option<String>,
-    pub color: Color,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) struct ConsoleClip {
-    pub name: Name,
-    pub description: Option<String>,
-    #[refers(Layer)]
-    pub layer: Name,
-    /// A fixture or group: `layout.fixture`.
-    #[refers(Fixture)]
-    pub target: Reference,
-    pub scope: Scope,
-    #[refers(Effect)]
-    pub effect: Reference,
-    pub params: Params,
-    /// Parameters each copy takes from the press that started it.
-    pub played: Vec<PlayedValue>,
-}
-
-#[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) struct On {
-    pub event: InputEvent,
+    pub happening: Happening,
+    /// A control of an input device: `device.control`.
+    #[refers(Control)]
+    pub control: Reference,
     pub actions: Vec<Action>,
 }
 
-/// A control of an input device: `device.control`.
-#[derive(Clone, Debug, PartialEq, Data)]
-pub(crate) enum InputEvent {
-    Press {
-        #[refers(Control)]
-        control: Reference,
-    },
-    Release {
-        #[refers(Control)]
-        control: Reference,
-    },
-    Move {
-        #[refers(Control)]
-        control: Reference,
-    },
-}
-
-impl InputEvent {
-    pub(crate) fn control(&self) -> &Reference {
-        match self {
-            Self::Press { control } | Self::Release { control } | Self::Move { control } => control,
-        }
-    }
-}
+model_choice!(
+    /// What happens to a control: a button pressed or released, or an axis moved.
+    Happening(donder_runtime_types::InputHappening) { Press, Release, Move }
+);
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub(crate) enum Action {
@@ -795,7 +749,7 @@ pub(crate) struct PlayedValue {
     pub window: (f32, f32),
 }
 
-model_choice!(PlayedQuantity(donder_model::PlayedQuantity) {
+model_choice!(PlayedQuantity(donder_runtime_types::PlayedSource) {
     Velocity,
     PitchClass,
 });

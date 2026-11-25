@@ -16,11 +16,15 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
     use Unary::*;
     let float = |op| Some(Value::Float(sampling::float_unary(op, as_float(value)?)));
     match op {
-        Negate => Some(Value::Float(-as_float(value)?)),
-        IntNegate => Some(Value::Int(as_int(value)?.wrapping_neg())),
-        IntAbs => Some(Value::Int(as_int(value)?.wrapping_abs())),
+        Negate => match value {
+            Value::Int(value) => Some(Value::Int(value.wrapping_neg())),
+            _ => Some(Value::Float(-as_float(value)?)),
+        },
         Not => Some(Value::Bool(!as_bool(value)?)),
-        Abs => float(FloatUnary::Abs),
+        Abs => match value {
+            Value::Int(value) => Some(Value::Int(value.wrapping_abs())),
+            _ => float(FloatUnary::Abs),
+        },
         Floor => float(FloatUnary::Floor),
         Ceil => float(FloatUnary::Ceil),
         Trunc => float(FloatUnary::Trunc),
@@ -41,6 +45,7 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
         Invert => folded(sampling::invert_color(as_color(value)?)),
         Len => match value {
             Value::Array(items) => Some(Value::Int(items.len() as i32)),
+            Value::Marks(marks) => Some(Value::Int(marks.len() as i32)),
             _ => None,
         },
         ImageWidth | ImageHeight | ImageRate | ImageFrames => match value {
@@ -52,15 +57,12 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
             }),
             _ => None,
         },
+        Live => None,
         FontHeight => match value {
             Value::Font(font) => Some(Value::Float(font.height)),
             _ => None,
         },
-        MarkCount => match value {
-            Value::Marks(marks) => Some(Value::Int(marks.len() as i32)),
-            _ => None,
-        },
-        Sin | Cos | Tan | Exp | Log | SectionCount | SectionIndex => None,
+        Sin | Cos | Tan | Exp | Log => None,
     }
 }
 
@@ -69,19 +71,33 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
     let floats = || Some((as_float(left)?, as_float(right)?));
     let ints = || Some((as_int(left)?, as_int(right)?));
     let colors = || Some((as_color(left)?, as_color(right)?));
+    let int_left = matches!(left, Value::Int(_));
     Some(match op {
+        Add | Subtract | Multiply | Divide | Remainder | Min | Max if int_left => {
+            let (a, b) = ints()?;
+            Value::Int(match op {
+                Add => a.wrapping_add(b),
+                Subtract => a.wrapping_sub(b),
+                Multiply => a.wrapping_mul(b),
+                Divide => sampling::int_floor_divide(a, b),
+                Remainder => sampling::int_remainder(a, b),
+                Min => a.min(b),
+                _ => a.max(b),
+            })
+        }
+        Add | Multiply | Max if matches!(left, Value::Color(_)) => match (op, right) {
+            (Add, _) => colors().and_then(|(a, b)| folded(sampling::add_colors(a, b)))?,
+            (Max, _) => colors().and_then(|(a, b)| folded(sampling::max_colors(a, b)))?,
+            (_, Value::Color(_)) => {
+                colors().and_then(|(a, b)| folded(sampling::multiply_colors(a, b)))?
+            }
+            _ => folded(sampling::scale_color(as_color(left)?, as_float(right)?))?,
+        },
         Add => floats().map(|(a, b)| Value::Float(a + b))?,
         Subtract => floats().map(|(a, b)| Value::Float(a - b))?,
         Multiply => floats().map(|(a, b)| Value::Float(a * b))?,
         Divide => floats().map(|(a, b)| Value::Float(a / b))?,
         Remainder => floats().map(|(a, b)| Value::Float(sampling::float_remainder(a, b)))?,
-        IntAdd => ints().map(|(a, b)| Value::Int(a.wrapping_add(b)))?,
-        IntSubtract => ints().map(|(a, b)| Value::Int(a.wrapping_sub(b)))?,
-        IntMultiply => ints().map(|(a, b)| Value::Int(a.wrapping_mul(b)))?,
-        IntRemainder => ints().map(|(a, b)| Value::Int(sampling::int_remainder(a, b)))?,
-        IntFloorDivide => ints().map(|(a, b)| Value::Int(sampling::int_floor_divide(a, b)))?,
-        IntMin => ints().map(|(a, b)| Value::Int(a.min(b)))?,
-        IntMax => ints().map(|(a, b)| Value::Int(a.max(b)))?,
         Min => {
             floats().map(|(a, b)| Value::Float(sampling::float_binary(FloatBinary::Min, a, b)))?
         }
@@ -90,20 +106,21 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
         }
         ValueOr => floats()
             .map(|(a, b)| Value::Float(sampling::float_binary(FloatBinary::ValueOr, a, b)))?,
+        Less | LessEqual | Greater | GreaterEqual if int_left => {
+            let (a, b) = ints()?;
+            Value::Bool(match op {
+                Less => a < b,
+                LessEqual => a <= b,
+                Greater => a > b,
+                _ => a >= b,
+            })
+        }
         Less => floats().map(|(a, b)| Value::Bool(a < b))?,
         LessEqual => floats().map(|(a, b)| Value::Bool(a <= b))?,
         Greater => floats().map(|(a, b)| Value::Bool(a > b))?,
         GreaterEqual => floats().map(|(a, b)| Value::Bool(a >= b))?,
-        IntLess => ints().map(|(a, b)| Value::Bool(a < b))?,
-        IntLessEqual => ints().map(|(a, b)| Value::Bool(a <= b))?,
-        IntGreater => ints().map(|(a, b)| Value::Bool(a > b))?,
-        IntGreaterEqual => ints().map(|(a, b)| Value::Bool(a >= b))?,
         Equal => Value::Bool(scalar_equal(left, right)?),
         NotEqual => Value::Bool(!scalar_equal(left, right)?),
-        ColorAdd => colors().and_then(|(a, b)| folded(sampling::add_colors(a, b)))?,
-        ColorMultiply => colors().and_then(|(a, b)| folded(sampling::multiply_colors(a, b)))?,
-        ColorMax => colors().and_then(|(a, b)| folded(sampling::max_colors(a, b)))?,
-        ColorScale => folded(sampling::scale_color(as_color(left)?, as_float(right)?))?,
         GradientSample => match left {
             Value::Gradient(gradient) => {
                 folded(sampling::sample_gradient(gradient, as_float(right)?))?
@@ -111,13 +128,19 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             _ => return None,
         },
         CurveSample => match left {
-            Value::Curve(curve) => Value::Float(sampling::sample_curve(curve, as_float(right)?)),
+            Value::Curve(curve) => Value::Float(
+                sampling::CurveTables::new(&curve.points)
+                    .view()
+                    .sample(as_float(right)?),
+            ),
             _ => return None,
         },
         CurveIntegral => match left {
-            Value::Curve(curve) => {
-                Value::Float(sampling::curve_integral(&curve.points, as_float(right)?))
-            }
+            Value::Curve(curve) => Value::Float(
+                sampling::CurveTables::new(&curve.points)
+                    .view()
+                    .integral(as_float(right)?),
+            ),
             _ => return None,
         },
         Index | Entry => match left {
@@ -143,13 +166,6 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             }
             _ => return None,
         },
-        MarkLast => match left {
-            Value::Marks(marks) => Value::Float(
-                sampling::previous_mark(&marks.view(), as_float(right)?, &core::cell::Cell::new(0))
-                    .map_or(f32::NAN, |(_, time)| time),
-            ),
-            _ => return None,
-        },
         MarkLastIndex => match left {
             Value::Marks(marks) => Value::Int(sampling::previous_mark_index(
                 &marks.view(),
@@ -158,14 +174,8 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             )),
             _ => return None,
         },
-        CurveFirstCrossing => match left {
-            Value::Curve(curve) if !curve.points.is_empty() => Value::Float(
-                sampling::curve_first_crossing(&curve.points, as_float(right)?),
-            ),
-            _ => return None,
-        },
         Power => Value::Float(power(as_float(left)?, as_int(right)?)),
-        Atan2 | PowerFloat | SectionPosition => return None,
+        Atan2 => return None,
     })
 }
 
@@ -176,15 +186,15 @@ pub(super) fn ternary(op: Ternary, a: &Value, b: &Value, c: &Value) -> Option<Va
             as_float(b)?,
             as_float(c)?,
         )),
-        Ternary::Mix => {
-            let (left, right, amount) = (as_float(a)?, as_float(b)?, as_float(c)?);
-            Value::Float(left + (right - left) * amount)
-        }
-        Ternary::MixColor => folded(sampling::mix_colors(
+        Ternary::Mix if matches!(a, Value::Color(_)) => folded(sampling::mix_colors(
             as_color(a)?,
             as_color(b)?,
             as_float(c)?,
         ))?,
+        Ternary::Mix => {
+            let (left, right, amount) = (as_float(a)?, as_float(b)?, as_float(c)?);
+            Value::Float(left + (right - left) * amount)
+        }
         Ternary::Rgb => folded(sampling::rgb(as_float(a)?, as_float(b)?, as_float(c)?))?,
         Ternary::Hsv => folded(sampling::hsv(as_float(a)?, as_float(b)?, as_float(c)?))?,
         Ternary::MarkText => match a {
@@ -219,9 +229,19 @@ pub(super) fn ternary(op: Ternary, a: &Value, b: &Value, c: &Value) -> Option<Va
             }
             _ => return None,
         },
+        Ternary::CurveFirstCrossing => match a {
+            Value::Curve(curve) => Value::Float(
+                sampling::CurveTables::new(&curve.points)
+                    .view()
+                    .crossing(as_float(b)?, as_float(c)?),
+            ),
+            _ => return None,
+        },
         Ternary::CurveLastCrossing => match a {
-            Value::Curve(curve) if !curve.points.is_empty() => Value::Float(
-                sampling::curve_last_crossing(&curve.points, as_float(b)?, as_float(c)?),
+            Value::Curve(curve) => Value::Float(
+                sampling::CurveTables::new(&curve.points)
+                    .view()
+                    .last_crossing(as_float(b)?, as_float(c)?),
             ),
             _ => return None,
         },
@@ -258,18 +278,9 @@ pub(crate) fn reduce_identity(reducer: Reducer, ty: &Type) -> Option<Value> {
 fn combine(reducer: Reducer, accumulator: &Value, value: &Value) -> Option<Value> {
     let ty = super::value_type(value);
     let op = match (reducer, ty) {
-        (Reducer::Max, Type::Float) => Binary::Max,
-        (Reducer::Min, Type::Float) => Binary::Min,
-        (Reducer::Sum, Type::Float) => Binary::Add,
-        (Reducer::Sum, Type::Int) => Binary::IntAdd,
-        (Reducer::Max, Type::Color) => Binary::ColorMax,
-        (Reducer::Sum, Type::Color) => Binary::ColorAdd,
-        (Reducer::Max, Type::Int) => {
-            return Some(Value::Int(as_int(accumulator)?.max(as_int(value)?)));
-        }
-        (Reducer::Min, Type::Int) => {
-            return Some(Value::Int(as_int(accumulator)?.min(as_int(value)?)));
-        }
+        (Reducer::Max, Type::Float | Type::Int | Type::Color) => Binary::Max,
+        (Reducer::Min, Type::Float | Type::Int) => Binary::Min,
+        (Reducer::Sum, Type::Float | Type::Int | Type::Color) => Binary::Add,
         (Reducer::Min, Type::Color) => {
             let (a, b) = (as_color(accumulator)?, as_color(value)?);
             return Some(Value::Color(Color {

@@ -2,14 +2,13 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use donder_model::Controller;
+use donder_model::{Controller, ControllerId};
 use donder_output::OutputTransports;
 
 use crate::audio::AudioEngine;
-use crate::rendering::{ConsoleOutput, SequenceRenderService};
+use crate::playing::{Playing, PlayingOutput};
 use donder_editor::dto::{
-    AudioTransportState, LiveOutputControllerSnapshot, LiveOutputControllerState,
-    LiveOutputSnapshot, LiveOutputState,
+    LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
 };
 use donder_runtime_types::ConsoleEvent;
 
@@ -17,12 +16,8 @@ const INITIAL_TICK_INTERVAL: Duration = Duration::from_millis(20);
 const HOLDING_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
 
 enum LiveFeed {
-    /// The prepared sequence of render session `session`, whose
-    /// controllers the transports opened; frames of a later session wait for
-    /// output to start again on its controllers.
-    Sequence { session: u64 },
-    /// A performance, rendered on its own session clock.
-    Console(Box<ConsoleOutput>),
+    /// What plays, on the controllers its show was prepared on.
+    Playing(Box<PlayingOutput>),
     /// A test pattern, until output stops.
     Test {
         test: donder_output::OutputTest,
@@ -36,11 +31,11 @@ enum Command {
     Enable {
         generation: u32,
         /// The streamed controllers the feed's frames are for.
-        controllers: Vec<Controller>,
+        controllers: Vec<(ControllerId, Controller)>,
         feed: LiveFeed,
     },
-    /// Commands for the performance a console output plays, in arrival order.
-    ConsoleEvents {
+    /// A performance's inputs, in arrival order.
+    Events {
         generation: u32,
         events: Vec<ConsoleEvent>,
     },
@@ -64,54 +59,44 @@ pub(crate) struct LiveOutputService {
     snapshot: LiveOutputSnapshot,
     /// A start that waits for the output to finish stopping.
     pending_start: bool,
-    /// Whether the active output plays a performance.
-    console: bool,
+    /// Whether the active output plays a performance, whose inputs follow it.
+    session: bool,
     worker: Option<JoinHandle<()>>,
 }
 
 impl LiveOutputService {
-    pub(crate) fn new(
-        audio: Arc<Mutex<AudioEngine>>,
-        render: Arc<Mutex<SequenceRenderService>>,
-    ) -> Self {
+    pub(crate) fn new(audio: Arc<Mutex<AudioEngine>>) -> Self {
         let (sender, command_receiver) = mpsc::channel();
         let (update_sender, receiver) = mpsc::channel();
-        let worker = thread::spawn(move || worker(command_receiver, update_sender, audio, render));
+        let worker = thread::spawn(move || worker(command_receiver, update_sender, audio));
         Self {
             sender,
             receiver,
             generation: 0,
             snapshot: disabled_snapshot(0),
             pending_start: false,
-            console: false,
+            session: false,
             worker: Some(worker),
         }
     }
 
-    /// Play render session `session`'s sequence to `controllers`, the
-    /// controllers it was prepared on.
-    pub(crate) fn enable(
-        &mut self,
-        session: u64,
-        controllers: &[Controller],
-    ) -> LiveOutputSnapshot {
-        self.start(controllers, LiveFeed::Sequence { session })
+    /// Play `playing` to the controllers its show was prepared on.
+    pub(crate) fn play(&mut self, playing: Playing) -> LiveOutputSnapshot {
+        let controllers = playing.controllers.clone();
+        self.start(
+            &controllers,
+            LiveFeed::Playing(Box::new(PlayingOutput::new(playing))),
+        )
     }
 
-    /// Play a performance to the controllers it was prepared on.
-    pub(crate) fn perform(&mut self, output: ConsoleOutput) -> LiveOutputSnapshot {
-        let controllers = output.controllers().to_vec();
-        self.start(&controllers, LiveFeed::Console(Box::new(output)))
-    }
-
-    /// Send a performance's new commands to the output that plays it.
-    pub(crate) fn console_events(&mut self, events: &[ConsoleEvent]) {
-        if !self.console {
+    /// Send a performance's new inputs to the output that plays it.
+    pub(crate) fn events(&mut self, events: &[ConsoleEvent]) {
+        if !self.session {
             return;
         }
         if self
             .sender
-            .send(Command::ConsoleEvents {
+            .send(Command::Events {
                 generation: self.generation,
                 events: events.to_vec(),
             })
@@ -126,7 +111,11 @@ impl LiveOutputService {
 
     /// Stream a test pattern in place of live output until output stops.
     pub(crate) fn test(&mut self, test: donder_output::OutputTest) -> LiveOutputSnapshot {
-        let controllers = test.controllers().values().cloned().collect::<Vec<_>>();
+        let controllers = test
+            .controllers()
+            .iter()
+            .map(|(id, controller)| (*id, controller.clone()))
+            .collect::<Vec<_>>();
         self.start(
             &controllers,
             LiveFeed::Test {
@@ -138,14 +127,18 @@ impl LiveOutputService {
 
     /// Stream `feed` to the E1.31 and Art-Net controllers among
     /// `controllers`, the controllers its frames are for.
-    fn start(&mut self, controllers: &[Controller], feed: LiveFeed) -> LiveOutputSnapshot {
+    fn start(
+        &mut self,
+        controllers: &[(ControllerId, Controller)],
+        feed: LiveFeed,
+    ) -> LiveOutputSnapshot {
         let controllers = controllers
             .iter()
-            .filter(|controller| controller.universes().is_some())
+            .filter(|(_, controller)| controller.universes().is_some())
             .cloned()
             .collect::<Vec<_>>();
         self.pending_start = false;
-        self.console = matches!(feed, LiveFeed::Console(_));
+        self.session = matches!(&feed, LiveFeed::Playing(output) if output.is_session());
         self.generation = self.generation.saturating_add(1);
         self.snapshot = preparing_snapshot(self.generation, &controllers);
         if matches!(feed, LiveFeed::Test { .. }) {
@@ -168,7 +161,7 @@ impl LiveOutputService {
 
     pub(crate) fn disable(&mut self) -> LiveOutputSnapshot {
         self.pending_start = false;
-        self.console = false;
+        self.session = false;
         self.snapshot();
         if matches!(
             self.snapshot.state,
@@ -259,7 +252,6 @@ fn worker(
     receiver: mpsc::Receiver<Command>,
     updates: mpsc::Sender<Update>,
     audio: Arc<Mutex<AudioEngine>>,
-    render: Arc<Mutex<SequenceRenderService>>,
 ) {
     let mut active: Option<ActiveOutput> = None;
     let mut stop_error: Option<LiveOutputSnapshot> = None;
@@ -288,11 +280,15 @@ fn worker(
                 }
                 tick_interval = INITIAL_TICK_INTERVAL;
                 let mut snapshot = preparing_snapshot(generation, &controllers);
-                match OutputTransports::open(&controllers) {
+                match OutputTransports::open(
+                    controllers.iter().map(|(id, controller)| (*id, controller)),
+                ) {
                     Ok(transports) => {
-                        snapshot.state = match feed {
-                            LiveFeed::Sequence { .. } => LiveOutputState::Holding,
-                            LiveFeed::Console(_) => LiveOutputState::Streaming,
+                        snapshot.state = match &feed {
+                            LiveFeed::Playing(output) if output.is_session() => {
+                                LiveOutputState::Streaming
+                            }
+                            LiveFeed::Playing(_) => LiveOutputState::Holding,
                             LiveFeed::Test { .. } => LiveOutputState::Testing,
                         };
                         for controller in &mut snapshot.controllers {
@@ -313,8 +309,8 @@ fn worker(
                     }
                 }
             }
-            Ok(Command::ConsoleEvents { generation, events }) => {
-                if let Some((active_generation, _, _, LiveFeed::Console(output))) = active.as_mut()
+            Ok(Command::Events { generation, events }) => {
+                if let Some((active_generation, _, _, LiveFeed::Playing(output))) = active.as_mut()
                     && *active_generation == generation
                 {
                     output.apply(&events);
@@ -368,95 +364,54 @@ fn worker(
             tick_interval = INITIAL_TICK_INTERVAL;
             continue;
         }
-        if let LiveFeed::Console(output) = feed {
-            tick_interval = output.frame_interval();
-            if let Err(error) = transports.send(output.render()) {
-                let generation = *generation;
-                let failed = stop_output(
-                    &mut active,
-                    &mut stop_error,
-                    generation,
-                    Some(format!("Output failed: {error}")),
-                );
-                let _ = updates.send(Update {
-                    generation,
-                    snapshot: failed,
-                });
-            }
-            continue;
-        }
-        let LiveFeed::Sequence { session } = feed else {
-            unreachable!("test and console feeds continued above")
+        let LiveFeed::Playing(output) = feed else {
+            unreachable!("the test feed continued above")
         };
         let audio = audio
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .snapshot();
-        let rendered = {
-            let mut render = render
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            // A later session's frames are for its own controllers: hold
-            // until output starts again on them.
-            if render.session_generation() != *session {
-                tick_interval = HOLDING_REFRESH_INTERVAL;
-                continue;
-            }
-            render.render_current_sequence_frame(&audio)
-        };
-        match rendered {
-            Ok(rendered) => {
-                tick_interval = if matches!(audio.state, AudioTransportState::Playing) {
-                    rendered.frame.frame_interval
+        let generation = *generation;
+        let failure = match output.render(&audio) {
+            Ok(tick) => {
+                tick_interval = if tick.moving {
+                    tick.interval
                 } else {
                     HOLDING_REFRESH_INTERVAL
                 };
-                if let Err(error) = transports.send(&rendered.frame.controller_frames) {
-                    let generation = *generation;
-                    let failed = stop_output(
-                        &mut active,
-                        &mut stop_error,
-                        generation,
-                        Some(format!("Output failed: {error}")),
-                    );
-                    let _ = updates.send(Update {
-                        generation,
-                        snapshot: failed,
-                    });
+                let state = if tick.moving {
+                    LiveOutputState::Streaming
                 } else {
-                    let state = if matches!(audio.state, AudioTransportState::Playing) {
-                        LiveOutputState::Streaming
-                    } else {
-                        LiveOutputState::Holding
-                    };
-                    if snapshot.state != state {
-                        snapshot.state = state;
-                        let _ = updates.send(Update {
-                            generation: *generation,
-                            snapshot: snapshot.clone(),
-                        });
+                    LiveOutputState::Holding
+                };
+                match transports.send(tick.frames) {
+                    Err(error) => Some(format!("Output failed: {error}")),
+                    Ok(()) => {
+                        if snapshot.state != state {
+                            snapshot.state = state;
+                            let _ = updates.send(Update {
+                                generation,
+                                snapshot: snapshot.clone(),
+                            });
+                        }
+                        None
                     }
                 }
             }
-            Err(error) => {
-                let generation = *generation;
-                let failed = stop_output(
-                    &mut active,
-                    &mut stop_error,
-                    generation,
-                    Some(format!("Output rendering failed: {error}")),
-                );
-                let _ = updates.send(Update {
-                    generation,
-                    snapshot: failed,
-                });
-            }
+            Err(error) => Some(format!("Output rendering failed: {error}")),
+        };
+        if let Some(failure) = failure {
+            let failed = stop_output(&mut active, &mut stop_error, generation, Some(failure));
+            let _ = updates.send(Update {
+                generation,
+                snapshot: failed,
+            });
         }
     }
 }
 
-fn stop_output(
-    active: &mut Option<ActiveOutput>,
+fn stop_output<Feed>(
+    active: &mut Option<(u32, OutputTransports, LiveOutputSnapshot, Feed)>,
     stop_error: &mut Option<LiveOutputSnapshot>,
     generation: u32,
     failure: Option<String>,
@@ -499,10 +454,13 @@ fn fail_snapshot(snapshot: &mut LiveOutputSnapshot, message: String) {
     }
 }
 
-fn preparing_snapshot(generation: u32, controllers: &[Controller]) -> LiveOutputSnapshot {
+fn preparing_snapshot(
+    generation: u32,
+    controllers: &[(ControllerId, Controller)],
+) -> LiveOutputSnapshot {
     let active_universe_count = controllers
         .iter()
-        .map(|controller| {
+        .map(|(_, controller)| {
             controller
                 .universes()
                 .map_or(0, |universes| u32::from(universes.count))
@@ -516,8 +474,8 @@ fn preparing_snapshot(generation: u32, controllers: &[Controller]) -> LiveOutput
         active_universe_count,
         controllers: controllers
             .iter()
-            .map(|controller| LiveOutputControllerSnapshot {
-                id: format!("{:?}", controller.id.0),
+            .map(|(id, _)| LiveOutputControllerSnapshot {
+                id: format!("{:?}", id.0),
                 state: LiveOutputControllerState::Opening,
                 last_error: None,
             })
@@ -549,7 +507,6 @@ mod tests {
         // Invalid protocol address forces a codec failure before any network send.
         let controller = Controller {
             description: None,
-            id,
             protocol: ControllerProtocol::ArtNet(ArtNetConfig {
                 bind_address: "127.0.0.1:0".parse().unwrap(),
                 destination: "127.0.0.1:6454".parse().unwrap(),
@@ -563,10 +520,12 @@ mod tests {
                 ports: Vec::new(),
             }),
         };
-        let controllers = [controller];
-        let transports = OutputTransports::open(&controllers).unwrap();
+        let controllers = [(id, controller)];
+        let transports =
+            OutputTransports::open(controllers.iter().map(|(id, controller)| (*id, controller)))
+                .unwrap();
         let snapshot = preparing_snapshot(3, &controllers);
-        let mut active = Some((3, transports, snapshot, LiveFeed::Sequence { session: 0 }));
+        let mut active = Some((3, transports, snapshot, ()));
         let mut stop_error = None;
         let stopped = stop_output(
             &mut active,

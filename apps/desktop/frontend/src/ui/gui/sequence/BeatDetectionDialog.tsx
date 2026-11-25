@@ -6,22 +6,13 @@ import type { NewMarkCollection, SequenceGuiDocument } from "../../../types";
 import { sameGuiDocument } from "../../../snapshotState";
 import { Button, Dialog, Field, TextField, Toggle } from "../../kit";
 import { defaultMarkColor } from "./marks";
+import { showMarks } from "../documentUi";
 
 /**
  * Detects beats and bars in the sequence's audio and adds them as new mark collections in one
  * undoable edit.
  */
-export function BeatDetectionDialog({
-  document,
-  setActiveMarkCollectionKey,
-  visibleMarkCollectionKeys,
-  setVisibleMarkCollectionKeys
-}: {
-  document: SequenceGuiDocument;
-  setActiveMarkCollectionKey: (key: string | null) => void;
-  visibleMarkCollectionKeys: Set<string>;
-  setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
-}) {
+export function BeatDetectionDialog({ document }: { document: SequenceGuiDocument }) {
   const request = useAppStore((state) => state.guiRequest);
   const [open, setOpen] = useState(false);
   const [beats, setBeats] = useState(true);
@@ -55,12 +46,10 @@ export function BeatDetectionDialog({
       const collections: NewMarkCollection[] = wanted.map(([name, marksSeconds], index) =>
         ({ name, color: defaultMarkColor(document.markCollections.length + index), marksSeconds }));
       const result = await runGuiEditCommand((current) =>
-        commands.applyGuiEdit(current, { type: "sequence", edit: { type: "createMarkCollections", collections } })
+        commands.applyGuiEdit(current, { type: "sequence", edit: { type: "composition", edit: { type: "addMarkCollections", collections } } })
       );
       if (result === null) return;
-      const keys = result.created;
-      setActiveMarkCollectionKey(keys[0] ?? null);
-      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...keys]));
+      showMarks(result.created, true);
       setOpen(false);
     } catch (detectError: unknown) {
       setError(errorMessage(detectError));

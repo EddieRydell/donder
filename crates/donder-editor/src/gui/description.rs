@@ -27,40 +27,30 @@ pub(super) fn edit(
             root.description = description;
             ProjectEdit::Put(donder_model::Object::Project(root))
         }
-        Kind::Setup => {
-            let mut value = donder_model::Setup::clone(&resolved.view(session));
-            value.description = description;
-            ProjectEdit::Put(value.into())
-        }
         Kind::Layout => {
             let mut value = donder_model::Layout::clone(&resolved.view(session));
             value.description = description;
-            ProjectEdit::Put(value.into())
-        }
-        Kind::Patch => {
-            let mut value = donder_model::Patch::clone(&resolved.view(session));
-            value.description = description;
-            ProjectEdit::Put(value.into())
+            ProjectEdit::Put((resolved.id(), value).into())
         }
         Kind::Controller => {
             let mut value = donder_model::Controller::clone(&resolved.view(session));
             value.description = description;
-            ProjectEdit::Put(value.into())
+            ProjectEdit::Put((resolved.id(), value).into())
         }
         Kind::InputDevice => {
             let mut value = donder_model::InputDevice::clone(&resolved.view(session));
             value.description = description;
-            ProjectEdit::Put(value.into())
+            ProjectEdit::Put((resolved.id(), value).into())
         }
         Kind::Console => {
             let mut value = donder_model::Console::clone(&resolved.view(session));
             value.description = description;
-            ProjectEdit::Put(value.into())
+            ProjectEdit::Put((resolved.id(), value).into())
         }
         Kind::Sequence => {
             let mut value = donder_model::Sequence::clone(&resolved.view(session));
             value.description = description;
-            ProjectEdit::Put(value.into())
+            ProjectEdit::Put((resolved.id(), value).into())
         }
         Kind::Curve => {
             let mut value = donder_model::CurveDefinition::clone(&resolved.view(session));
@@ -78,7 +68,7 @@ pub(super) fn edit(
                 Ok(())
             });
         }
-        Kind::EffectDefinition | Kind::OperatorDefinition => {
+        Kind::Script => {
             return Err(GuiMutationError::Invalid(
                 "Scripts describe their definitions in their text.".into(),
             ));

@@ -4,7 +4,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
     ClipProblem, CompositionProblem, EditError, ParamProblem, ProjectValidationError,
-    RegionProblem, SequenceValidationError, TimingProblem, ValidationProblem,
+    RegionProblem, TimingProblem, ValidationProblem,
 };
 use donder_project_io::{
     IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, SessionEditError, TextRange,
@@ -29,7 +29,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
         .project()
         .reusable::<donder_model::Sequence>()
         .values()
-        .find(|sequence| !sequence.clips.is_empty())
+        .find(|sequence| !sequence.composition.clips.is_empty())
         .unwrap()
         .clone();
     sequence.frame_rate = 1;
@@ -38,23 +38,25 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
     assert!(
         matches!(
             error,
-            SequenceValidationError::Timing(TimingProblem::DurationBeyondClock)
+            ValidationProblem::Timing(TimingProblem::DurationBeyondClock)
         ),
         "{error:?}"
     );
 
     sequence.duration = DonderDuration(Duration::from_micros(u32::MAX as u64));
-    let effect = std::sync::Arc::make_mut(&mut sequence.clips[0]);
-    effect.start = DonderTime(Duration::from_nanos(500));
-    effect.duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
+    let effect = std::sync::Arc::make_mut(&mut sequence.composition.clips[0]);
+    effect.placement = donder_model::Placement::Timed {
+        start: DonderTime(Duration::from_nanos(500)),
+        duration: DonderDuration(sequence.duration.0 - Duration::from_nanos(500)),
+    };
     let error = donder_model::validate_sequence(session.project(), &sequence).unwrap_err();
     assert!(
         matches!(
             error,
-            SequenceValidationError::Clip {
+            ValidationProblem::Composition(CompositionProblem::Clip {
                 problem: ClipProblem::Region(RegionProblem::EndBeyondAfterRounding),
                 ..
-            }
+            })
         ),
         "{error:?}"
     );
@@ -138,13 +140,13 @@ fn edited_operator_parameters_validate_inline_resources() {
     use donder_model::{
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, GraphNodePosition,
     };
-    use donder_model::{GraphOperatorNode, OperatorDefinition, OperatorDefinitionId};
-    use donder_model::{OwnedGradient, ParamValue};
+    use donder_model::{GradientValue, ParamValue};
+    use donder_model::{GraphOperatorNode, ScriptDefinition, ScriptId};
     use donder_runtime_types::Identifier;
     use donder_runtime_types::{Color, Gradient, GradientStop};
 
     let mut project = starter_session().project().clone();
-    let id = OperatorDefinitionId(project.new_id());
+    let id = ScriptId(project.new_id());
     let compiled = compile_script(
         "operator GradientProbe { input source; param colors: gradient; sample { source } }",
     )
@@ -152,7 +154,7 @@ fn edited_operator_parameters_validate_inline_resources() {
     .remove(0);
     project
         .apply_edits([donder_model::ProjectEdit::Put(
-            donder_model::Object::OperatorDefinition(OperatorDefinition::new(id, compiled)),
+            donder_model::Object::Script(id, ScriptDefinition::new(compiled)),
         )])
         .unwrap();
     let sequence_id = *project
@@ -171,7 +173,7 @@ fn edited_operator_parameters_validate_inline_resources() {
     };
     operator.params.insert(
         Identifier::new("colors".into()).unwrap(),
-        ParamValue::Gradient(OwnedGradient::Inline(Gradient {
+        ParamValue::Gradient(GradientValue::Literal(Gradient {
             space: donder_runtime_types::GradientSpace::LinearRgb,
             stops: vec![GradientStop {
                 position: f32::NAN,
@@ -179,23 +181,21 @@ fn edited_operator_parameters_validate_inline_resources() {
             }],
         })),
     );
-    sequence.composition_graph.nodes.push(CompositionGraphNode {
+    sequence.composition.graph.nodes.push(CompositionGraphNode {
         id: CompositionGraphNodeId(900_001),
         position: GraphNodePosition { x: 0.0, y: 0.0 },
         kind: CompositionGraphNodeKind::Operator(operator),
     });
     let accepted = project.clone();
-    let error = project.put(sequence).unwrap_err();
+    let error = project.put((sequence_id, sequence)).unwrap_err();
     assert!(
         matches!(
             error,
             EditError::Invalid(ProjectValidationError {
-                problem: ValidationProblem::Sequence(SequenceValidationError::Composition(
-                    CompositionProblem::Param {
-                        problem: ParamProblem::InvalidGradient(..),
-                        ..
-                    }
-                )),
+                problem: ValidationProblem::Composition(CompositionProblem::Param {
+                    problem: ParamProblem::InvalidGradient(..),
+                    ..
+                }),
                 ..
             })
         ),
@@ -279,7 +279,7 @@ fn invalid_data_syntax_reports_parser_range() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     fs::write(
         root.join(PROJECT_ROOT_FILE),
-        common::root_document("", "  setup: setups.main\n  sequences: [],\n"),
+        common::root_document("", "  layout: display.main\n"),
     )
     .unwrap();
 
@@ -301,8 +301,11 @@ fn invalid_data_syntax_reports_parser_range() {
 
 #[test]
 fn unclosed_bracket_inside_a_record_is_one_syntax_error() {
-    let text = "Project main {\n  format: 2,\n  setup: [\n  sequences: [],\n}\n";
-    let diagnostics = common::document_diagnostics(Utf8Path::new(PROJECT_ROOT_FILE), text);
+    let text = format!(
+        "Project main {{\n  format: {},\n  setup: [\n  sequences: [],\n}}\n",
+        donder_project_io::PROJECT_FORMAT_VERSION
+    );
+    let diagnostics = common::document_diagnostics(Utf8Path::new(PROJECT_ROOT_FILE), &text);
     assert!(
         !diagnostics.is_empty()
             && diagnostics
@@ -348,7 +351,7 @@ fn invalid_effect_dsl_reports_exact_span() {
 
 #[test]
 fn invalid_operator_dsl_reports_script_compile_diagnostic() {
-    let source = "operator Bad { input source; sample { source.at(true) } }";
+    let source = "operator Bad { input source; sample { source[true] } }";
     let diagnostics = common::document_diagnostics(Utf8Path::new("operators/bad.donder"), source);
     let diagnostic = diagnostics
         .iter()
@@ -368,7 +371,7 @@ fn invalid_reference_reports_donder_reference_diagnostic() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     fs::write(
         root.join(PROJECT_ROOT_FILE),
-        common::root_document("", "  setup: missing.setup,\n  sequences: [],\n"),
+        common::root_document("", "  layout: missing.layout,\n"),
     )
     .unwrap();
 
@@ -382,35 +385,8 @@ fn invalid_reference_reports_donder_reference_diagnostic() {
     assert!(report.session.is_none());
     assert_eq!(diagnostic.path, Utf8Path::new(PROJECT_ROOT_FILE));
     assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
-    assert_range(diagnostic.range.as_ref().unwrap(), 4, 9, 4, 22);
-    assert!(diagnostic.message.contains("missing.setup"));
-}
-
-#[test]
-fn repeated_reference_text_reports_the_failing_occurrence() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    fs::write(
-        root.join(PROJECT_ROOT_FILE),
-        common::root_document(
-            "import shared from <setup.data.donder>;\n",
-            "  setup: shared.main,\n  sequences: [shared.main],\n",
-        ),
-    )
-    .unwrap();
-    fs::write(root.join("setup.data.donder"), common::SETUP).unwrap();
-    fs::write(root.join("display.data.donder"), common::DISPLAY).unwrap();
-    fs::write(root.join("patch.data.donder"), common::PATCH).unwrap();
-
-    let report = check_project(&root, &Default::default(), &mut Default::default());
-    let diagnostic = report
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.message.contains("shared.main"))
-        .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
-    let range = diagnostic.range.as_ref().unwrap();
-    assert_eq!(range.start.line, 6);
-    assert_eq!(range.start.character, 14);
+    assert_range(diagnostic.range.as_ref().unwrap(), 4, 10, 4, 24);
+    assert!(diagnostic.message.contains("missing.layout"));
 }
 
 /// The diagnostic for `sequence`, a variant of the minimal sequence.
@@ -533,8 +509,11 @@ fn wrong_reference_kind_names_both_kinds() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
-    let setup = common::SETUP.replace("layout: display.main", "layout: display.pixel");
-    fs::write(root.join("setup.data.donder"), &setup).unwrap();
+    let path = root.join(PROJECT_ROOT_FILE);
+    let text = fs::read_to_string(&path)
+        .unwrap()
+        .replace("layout: display.main", "layout: display.pixel");
+    fs::write(&path, &text).unwrap();
     let report = check_project(&root, &Default::default(), &mut Default::default());
     let diagnostic = report
         .diagnostics
@@ -545,30 +524,22 @@ fn wrong_reference_kind_names_both_kinds() {
                 .contains("a fixture definition, not a layout")
         })
         .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
-    assert_eq!(diagnostic.path, "setup.data.donder");
-    assert_at(diagnostic, &setup, "display.pixel");
+    assert_eq!(diagnostic.path, PROJECT_ROOT_FILE);
+    assert_at(diagnostic, &text, "display.pixel");
 }
 
 #[test]
 fn missing_fixture_and_layer_names_are_reported_at_the_name() {
-    let clip = "clips: [\n    Clip {\n      name: pulse,\n      description: none,\n      layer: base,\n      start: 0s,\n      duration: 1s,\n      target: display.main.pixel,\n      scope: PerFixture,\n      effect: fx.Flat,\n      params: {},\n    },\n  ]";
+    let clip = "clips: [\n    Clip {\n      name: pulse,\n      description: none,\n      target: pixel,\n      placement: Timed { start: 0s, duration: 1s },\n      content: Effect { layer: base, scope: PerFixture, effect: fx.Flat, params: {} },\n    },\n  ]";
     let sequence = format!(
-        "import display from <display.data.donder>;\nimport fx from <flat.donder>;\n\n{}",
+        "import fx from <flat.donder>;\n\n{}",
         common::MINIMAL_SEQUENCE
             .replace("name: default", "name: base")
             .replace("clips: []", clip)
     );
     for (before, after, needle) in [
-        (
-            "target: display.main.pixel",
-            "target: display.main.gone",
-            "gone",
-        ),
-        (
-            "layer: base,\n      start",
-            "layer: lost,\n      start",
-            "lost",
-        ),
+        ("target: pixel", "target: gone", "gone"),
+        ("layer: base, scope", "layer: lost, scope", "lost"),
     ] {
         let temp = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
@@ -615,7 +586,7 @@ fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
         root.join(PROJECT_ROOT_FILE),
         common::root_document(
             "import fx from <bad.donder>;\n",
-            "  setup: missing.setup,\n  sequences: [],\n",
+            "  layout: missing.layout,\n",
         ),
     )
     .unwrap();
@@ -661,9 +632,11 @@ fn root_format_is_validated() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
     let path = root.join(PROJECT_ROOT_FILE);
-    let text = fs::read_to_string(&path)
-        .unwrap()
-        .replacen("format: 2", "format: 7", 1);
+    let text = fs::read_to_string(&path).unwrap().replacen(
+        &format!("format: {}", donder_project_io::PROJECT_FORMAT_VERSION),
+        "format: 99",
+        1,
+    );
     fs::write(&path, text).unwrap();
     let report = check_project(&root, &Default::default(), &mut Default::default());
     assert!(report.session.is_none());

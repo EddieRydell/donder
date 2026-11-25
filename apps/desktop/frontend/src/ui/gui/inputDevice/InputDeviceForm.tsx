@@ -2,7 +2,7 @@ import { CircleDot, GripVertical, X } from "lucide-react";
 import { type FocusEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { commands, errorMessage } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
-import type { GuiControlInput, GuiEditCommand, GuiField, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits, LearnedInput, SetupInputDevice } from "../../../types";
+import type { GuiControlInput, GuiEdit, GuiField, GuiInputControl, GuiInputControlKind, GuiInputDriver, GuiInputLimits, LearnedInput, SetupInputDevice } from "../../../types";
 import { AddRow, Button, Field, IconButton, NumberField, Select, TextField, Tip } from "../../kit";
 import { DescriptionText } from "../DescriptionField";
 import { DraftProblem, OBJECT, useDraftCheck, useFieldProblem } from "../problems";
@@ -183,13 +183,13 @@ function convertControls(controls: GuiInputControl[], driver: GuiInputDriver, ke
 
 /** A device's driver and controls. A new device is a draft, checked after each change and applied together; an
  * existing one saves each change as it is made, so each is its own undo step. `edit` makes the edit that applies
- * them: a new device of the setup, or the open device's driver and controls. */
+ * them: a new device of the project, or the open device's driver and controls. */
 export function InputDeviceForm({ device, keyCodes, limits, edit, onApplied }: {
   device?: SetupInputDevice;
   /** Every key a control can read, in the language's order. */
   keyCodes: string[];
   limits: GuiInputLimits;
-  edit: (driver: GuiInputDriver, controls: GuiInputControl[]) => GuiEditCommand;
+  edit: (driver: GuiInputDriver, controls: GuiInputControl[]) => GuiEdit;
   onApplied?: () => void;
 }) {
   const [driver, setDriver] = useState<GuiInputDriver>(device?.driver ?? { type: "keyboard" });
@@ -197,7 +197,7 @@ export function InputDeviceForm({ device, keyCodes, limits, edit, onApplied }: {
   const request = useAppStore((state) => state.guiRequest);
   const draft = useMemo(() => device === undefined ? edit(driver, controls) : null, [device, edit, driver, controls]);
   const { checking, problem } = useDraftCheck(request, draft);
-  const apply = (command: GuiEditCommand) => runGuiEditCommand((current) => commands.applyGuiEdit(current, command));
+  const apply = (command: GuiEdit) => runGuiEditCommand((current) => commands.applyGuiEdit(current, command));
   // Follow the saved device when it changes elsewhere, as an undo does.
   const saved = device === undefined ? null : JSON.stringify([device.driver, device.controls]);
   const [seen, setSeen] = useState(saved);

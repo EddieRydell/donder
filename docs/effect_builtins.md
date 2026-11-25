@@ -34,16 +34,6 @@ Every builtin function, context value and signal method of the [effect language]
 | `PI` | float | π, half a turn in radians. |
 | `TAU` | float | 2π, a full turn in radians. |
 
-## Signal methods
-
-Operator inputs are signals.
-
-```text
-at(pixel: int) -> color
-```
-
-The signal at another pixel of this fixture, at this frame; `pixel` is a zero-based index within the fixture.
-
 ## Math
 
 ### `sin`
@@ -367,7 +357,7 @@ value_or(x: float, replacement: float) -> float
 Both arguments are always computed; use an `if` when the replacement is expensive.
 
 ```text
-let age = value_or(time - mark_last(beats, time), 1000.0);
+let age = value_or(time - mark_at(beats, mark_last_index(beats, time)), 1000.0);
 ```
 
 ## Color
@@ -489,19 +479,6 @@ invert(input)
 
 ## Curves and gradients
 
-### `curve_clamped`
-
-```text
-curve_clamped(curve: curve, position: float, low: float, high: float) -> float
-```
-
-`clamp(curve[position], low, high)` as one operation.
-Indexing a curve, `curve[position]`, samples it at a position in 0..1; an empty curve gives NaN.
-
-```text
-let level = curve_clamped(envelope, progress, 0.0, 1.0);
-```
-
 ### `curve_integral`
 
 ```text
@@ -515,33 +492,7 @@ End values are held beyond the authored points, so the area keeps growing past t
 let spawned = curve_integral(rate, progress) * duration;
 ```
 
-### `gradient_color_scaled`
-
-```text
-gradient_color_scaled(gradient: gradient, position: float, scale: float) -> color
-```
-
-`gradient[position] * clamp(scale, 0, 1)` as one operation.
-Indexing a gradient, `gradient[position]`, samples its color at a position in 0..1; an empty gradient gives black.
-
-```text
-gradient_color_scaled(colors, pixel.fraction, level)
-```
-
 ## Marks and crossings
-
-### `mark_last`
-
-```text
-mark_last(marks: marks, time: float) -> float
-```
-
-The time in seconds of the last mark at or before `time`.
-NaN before the first mark.
-
-```text
-let age = time - mark_last(beats, time);
-```
 
 ### `mark_last_index`
 
@@ -563,7 +514,7 @@ mark_at(marks: marks, index: int) -> float
 ```
 
 The time in seconds of the mark at `index`.
-NaN outside `0..mark_count(marks)`.
+NaN outside `0..len(marks)`.
 
 ```text
 let next = mark_at(beats, beat + 1);
@@ -576,22 +527,10 @@ mark_duration(marks: marks, index: int) -> float
 ```
 
 How long the mark at `index` lasts, in seconds.
-Zero for an instantaneous mark and for every live mark; NaN outside `0..mark_count(marks)`.
+Zero for an instantaneous mark and for every live mark; NaN outside `0..len(marks)`.
 
 ```text
 let span = mark_duration(words, mark_last_index(words, time));
-```
-
-### `mark_count`
-
-```text
-mark_count(marks: marks) -> int
-```
-
-How many marks the collection holds; the same as `len(marks)`.
-
-```text
-guard mark_count(beats) > 0;
 ```
 
 ### `curve_first_crossing`
@@ -618,46 +557,6 @@ NaN when there is none.
 
 ```text
 let left = curve_last_crossing(chase, pixel.fraction, progress);
-```
-
-## Sections
-
-### `section_count`
-
-```text
-section_count(width: int) -> int
-```
-
-How many runs of `width` pixels the target is split into.
-A per-fixture effect sections each fixture; a whole-target effect sections the target's fixtures in order. Widths below one count as one.
-
-```text
-let sections = section_count(10);
-```
-
-### `section_index`
-
-```text
-section_index(width: int) -> int
-```
-
-The zero-based run of `width` pixels the current pixel is in.
-
-```text
-let lit = section_index(10) % 2 == 0;
-```
-
-### `section_position`
-
-```text
-section_position(width: float) -> float
-```
-
-The current pixel's position within its run of `width` pixels, in `[0, 1)`.
-Widths below one count as one.
-
-```text
-let ramp = section_position(10.0);
 ```
 
 ## Randomness

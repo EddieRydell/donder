@@ -5,8 +5,7 @@ use core::time::Duration;
 
 use donder_model::{
     Controller, ControllerId, ControllerOutput, ControllerPortId, DonderProject, FixtureDefinition,
-    FixtureInstanceId, FixtureTarget, Layout, LayoutId, Patch, PatchId, PixelRoute, PixelRouteId,
-    PixelSpan, PreparedFixtureDefinitions, Setup,
+    FixtureId, PixelRoute, PixelRouteId, PixelSpan, PreparedFixtureDefinitions,
 };
 use donder_runtime_types::PixelEncoding;
 use indexmap::IndexMap;
@@ -53,16 +52,11 @@ pub enum TestSelection {
         start_channel: u32,
         channel_count: u32,
     },
-    /// Every setup route to a layout fixture, or to a group's fixtures.
-    LayoutItem {
-        layout: LayoutId,
-        item: FixtureInstanceId,
-    },
-    Route {
-        patch: PatchId,
-        route: PixelRouteId,
-    },
-    /// Every setup route on one of a controller's ports.
+    /// Every route to a layout fixture, or to a group's fixtures.
+    LayoutItem(FixtureId),
+    /// One route.
+    Route(PixelRouteId),
+    /// Every route on one of a controller's ports.
     Port {
         controller: ControllerId,
         port: ControllerPortId,
@@ -71,9 +65,7 @@ pub enum TestSelection {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TestError {
-    MissingSetup,
     MissingController(ControllerId),
-    MissingPatch(PatchId),
     MissingRoute(PixelRouteId),
     NotStreamed(ControllerId),
     ChannelsOutOfRange { channels: u32 },
@@ -84,10 +76,8 @@ pub enum TestError {
 impl fmt::Display for TestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingSetup => write!(f, "The project's setup is missing."),
             Self::MissingController(_) => write!(f, "A tested controller is missing."),
-            Self::MissingPatch(_) => write!(f, "The patch is missing."),
-            Self::MissingRoute(_) => write!(f, "The output is missing from the patch."),
+            Self::MissingRoute(_) => write!(f, "The output is missing from the project."),
             Self::NotStreamed(_) => write!(f, "Only E1.31 and Art-Net controllers stream tests."),
             Self::ChannelsOutOfRange { channels } => {
                 write!(
@@ -98,7 +88,7 @@ impl fmt::Display for TestError {
             Self::PixelCount(error) => write!(f, "Pixels can't be counted: {error}."),
             Self::NoStreamedRoutes => write!(
                 f,
-                "No output routes this to an E1.31 or Art-Net controller in the setup."
+                "No output routes this to an E1.31 or Art-Net controller in the project."
             ),
         }
     }
@@ -137,12 +127,6 @@ pub struct OutputTest {
     heights: (f32, f32),
 }
 
-fn setup_patch<'a>(project: &'a DonderProject, setup: &Setup) -> Result<&'a Patch, TestError> {
-    project
-        .get::<Patch>(*setup.patch.id())
-        .ok_or(TestError::MissingPatch(*setup.patch.id()))
-}
-
 impl OutputTest {
     pub fn new(
         project: &DonderProject,
@@ -155,11 +139,9 @@ impl OutputTest {
             regions: Vec::new(),
             heights: (0.0, 0.0),
         };
-        let setup = project
-            .get::<Setup>(*project.root().setup.id())
-            .ok_or(TestError::MissingSetup)?;
+        let setup = project.root();
         // Each route to light, and the fixture pixels a slice limits it to.
-        let (patch, routes): (&Patch, Vec<(&PixelRoute, Option<PixelSpan>)>) = match selection {
+        let routes: Vec<(&PixelRoute, Option<PixelSpan>)> = match selection {
             TestSelection::Channels {
                 controller,
                 start_channel,
@@ -188,76 +170,49 @@ impl OutputTest {
                 test.measure();
                 return Ok(test);
             }
-            TestSelection::Route { patch, route } => {
-                let patch = project
-                    .get::<Patch>(patch)
-                    .ok_or(TestError::MissingPatch(patch))?;
-                let route = patch
+            TestSelection::Route(route) => {
+                let route = setup
                     .routes
                     .iter()
                     .find(|candidate| candidate.id == route)
                     .ok_or(TestError::MissingRoute(route))?;
-                (patch, vec![(route, None)])
+                vec![(route, None)]
             }
-            TestSelection::LayoutItem { layout, item } => {
-                let patch = setup_patch(project, setup)?;
-                let parts = project
-                    .get::<Layout>(layout)
-                    .map_or_else(Vec::new, |value| value.members(item));
-                let routes = parts
+            TestSelection::LayoutItem(item) => {
+                let parts = project.layout().members(item);
+                parts
                     .iter()
                     .flat_map(|part| {
-                        patch
+                        setup
                             .routes
                             .iter()
-                            .filter(move |route| {
-                                route.target.layout == layout
-                                    && route.target.fixture == part.fixture
-                            })
+                            .filter(move |route| route.target == part.fixture)
                             .map(move |route| (route, part.pixels))
                     })
-                    .collect();
-                (patch, routes)
+                    .collect()
             }
-            TestSelection::Port { controller, port } => {
-                let patch = setup_patch(project, setup)?;
-                let routes = patch
-                    .routes
-                    .iter()
-                    .filter(|route| route.controller == controller && route.port == port)
-                    .map(|route| (route, None))
-                    .collect();
-                (patch, routes)
-            }
+            TestSelection::Port { controller, port } => setup
+                .routes
+                .iter()
+                .filter(|route| route.controller == controller && route.port == port)
+                .map(|route| (route, None))
+                .collect(),
         };
         let counts = donder_model::fixture_pixel_counts(project.reusable::<FixtureDefinition>())
             .map_err(|error| TestError::PixelCount(error.to_string()))?;
         let geometry = PreparedFixtureDefinitions::prepare(project.reusable::<FixtureDefinition>());
-        let mut layouts = IndexMap::new();
-        let placements = donder_model::patch_placements(project, patch, &counts);
-        let streamed = setup
-            .controllers
-            .iter()
-            .map(|controller| *controller.id())
-            .collect::<Vec<_>>();
+        let layout = project.layout();
+        let mut prepared = None;
+        let placements = donder_model::route_placements(project, &setup.routes, &counts);
         for (route, only) in routes {
             let placement = placements
                 .get(&route.id)
                 .filter(|placement| placement.output == ControllerOutput::Universes);
-            let Some(placement) = placement.filter(|_| streamed.contains(&route.controller)) else {
+            let Some(placement) = placement else {
                 continue;
             };
-            let layout = project
-                .get::<Layout>(route.target.layout)
-                .ok_or_else(|| TestError::PixelCount("the routed layout is missing".into()))?;
             let fixture_pixels = layout
-                .target_pixel_count(
-                    &FixtureTarget {
-                        layout: route.target.layout,
-                        fixture: route.target.fixture,
-                    },
-                    &counts,
-                )
+                .target_pixel_count(route.target, &counts)
                 .map_err(|error| TestError::PixelCount(format!("{error:?}")))?;
             let routed = route.pixels.unwrap_or(PixelSpan {
                 start: 0,
@@ -286,13 +241,11 @@ impl OutputTest {
                 span.start - routed.start
             };
             let start_channel = placement.channels.start + skipped * width;
-            let prepared = layouts
-                .entry(route.target.layout)
-                .or_insert_with(|| geometry.prepare_layout(layout));
+            let prepared = prepared.get_or_insert_with(|| geometry.prepare_layout(&layout));
             let heights = prepared
                 .instances
                 .iter()
-                .find(|instance| instance.id == route.target.fixture)
+                .find(|instance| instance.id == route.target)
                 .map(|instance| {
                     let mut heights: Vec<f32> = instance
                         .pixels

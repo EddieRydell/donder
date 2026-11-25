@@ -7,7 +7,6 @@ mod fixture_composition;
 mod imports;
 mod live_input;
 mod local_project;
-mod ownership;
 mod path_refactor;
 mod roundtrip;
 mod schema_strictness;

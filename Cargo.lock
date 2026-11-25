@@ -1808,7 +1808,6 @@ dependencies = [
  "fs-err",
  "glam",
  "ignore",
- "indexmap 2.14.2",
  "kira",
  "lsp-types",
  "mdns-sd",
@@ -1990,10 +1989,15 @@ dependencies = [
  "bytemuck",
  "criterion",
  "donder-language",
+ "donder-runtime-iram",
  "donder-runtime-types",
  "donder-test-support",
  "libm",
 ]
+
+[[package]]
+name = "donder-runtime-iram"
+version = "0.2.3"
 
 [[package]]
 name = "donder-runtime-types"

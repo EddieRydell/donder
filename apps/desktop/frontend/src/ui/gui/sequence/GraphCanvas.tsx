@@ -14,16 +14,20 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, useContext } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { definitionEntries, definitionTree } from "./definitionMenu";
-import type { GuiDocumentRequest, SequenceGraphEdge, SequenceGraphNode, SequenceGraphOperator, SequenceGraphOperatorDefinition } from "../../../types";
+import type { GuiDocumentRequest, PersistedGraphViewState, SequenceGraphEdge, SequenceGraphNode, SequenceGraphOperator, SequenceGraphOperatorDefinition } from "../../../types";
 import type { CompositionEditing } from "./composition";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
 import { graphOperatorDefinition } from "./graphOperator";
-import { useGraphViewState } from "./graphViewState";
+import { useObjectViewState } from "../../../viewStatePersistence";
 import { GraphFlowEdge } from "./GraphFlowEdge";
 import { GraphNodeControls } from "./GraphNodeControls";
 import { defaultLayerColor, deletableGraphNodes, useSequenceEditable } from "./sequenceLayers";
+import { setDocumentUi } from "../documentUi";
+import { objectViewKey } from "../../../workspace/guiIdentity";
 
-export type SelectedGraphItem = { type: "node"; id: number } | { type: "edge"; id: string } | null;
+/** A graph with no saved view fits itself to the pane. */
+const NO_VIEW: PersistedGraphViewState = { viewport: null, nodeSizes: {} };
+
 /** A port's handle; `input` is the operator input it feeds, or null for the root's one input. */
 type GraphPort = { input: string | null; label: string };
 type GraphNodeData = {
@@ -46,9 +50,8 @@ const EDGE_TYPES = { donder: GraphFlowEdge };
 /** The graph's command keys; a node's controls keep them, so operating a control never moves or deletes nodes. */
 const GRAPH_COMMAND_KEYS: EditorCommandId[] = ["edit.selectAll", "edit.delete", "edit.moveLeft", "edit.moveRight", "edit.moveUp", "edit.moveDown"];
 
-export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
+export function GraphCanvas({ composition, requestDelete }: {
   composition: CompositionEditing;
-  setSelectedItem: (item: SelectedGraphItem) => void;
   requestDelete: (nodeIds: number[], edgeIds?: string[]) => void;
 }) {
   const overlayContainer = useContext(OverlayPortal);
@@ -61,7 +64,15 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
     () => definitionTree(graph.operatorCatalog, (definition) => definition.operator.path),
     [graph.operatorCatalog]
   );
-  const { initial, view, save, saveSize } = useGraphViewState(document.sourceRef);
+  const [restored, saveView] = useObjectViewState("graph", document.sourceRef);
+  const view = restored ?? NO_VIEW;
+  // The flow opens at the saved viewport, then keeps its own.
+  const [initial] = useState(view);
+  const save = (update: Partial<PersistedGraphViewState>) => { saveView({ ...view, ...update }); };
+  const saveSize = useCallback((id: string, width: number, height: number) => {
+    const current = useAppStore.getState().restoreState?.graphViews[objectViewKey(document.sourceRef)] ?? NO_VIEW;
+    saveView({ ...current, nodeSizes: { ...current.nodeSizes, [id]: { width, height } } });
+  }, [document.sourceRef, saveView]);
   const flow = useRef<ReactFlowInstance<GraphFlowNode> | null>(null);
   const pane = useRef<HTMLDivElement | null>(null);
   const connectionOrigin = useRef<GuiDocumentRequest | null>(null);
@@ -177,8 +188,8 @@ export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
   const deleteSelection = (items: Selection) => { requestDelete(items.nodes.map(Number), items.edges); };
   const selectionChanged = useCallback(({ nodes, edges }: { nodes: GraphFlowNode[]; edges: Edge[] }) => {
     setSelection({ nodes: nodes.map((node) => node.id), edges: edges.map((edge) => edge.id) });
-    setSelectedItem(nodes.length + edges.length !== 1 ? null : nodes[0] !== undefined ? { type: "node", id: Number(nodes[0].id) } : edges[0] !== undefined ? { type: "edge", id: edges[0].id } : null);
-  }, [setSelectedItem]);
+    setDocumentUi({ focus: nodes.length + edges.length !== 1 ? null : nodes[0] !== undefined ? { type: "member", member: { type: "node", id: Number(nodes[0].id) } } : edges[0] !== undefined ? { type: "graphEdge", edgeId: edges[0].id } : null });
+  }, []);
   const moveSelection = (x: number, y: number, shift: boolean) => {
     if (flow.current === null) return;
     const moving = flow.current.getNodes().filter((node) => selection.nodes.includes(node.id));

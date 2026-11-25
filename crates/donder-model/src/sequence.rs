@@ -1,27 +1,18 @@
-use crate::effect::{Clip, ClipId};
+use crate::composition::{Composition, CompositionGraphNodeId};
+use crate::effect::{Clip, ClipContent, ClipId, Placement};
 pub(crate) use crate::identity::SequenceId;
-use crate::operator::GraphOperatorNode;
 use donder_language::{DonderDuration, DonderTime};
 use donder_runtime_types::Identifier;
 use donder_runtime_types::sampling::sample_curve;
-use donder_runtime_types::{AutomationMapping, AutomationValue, automation_value_at_position};
-use donder_runtime_types::{Color, Curve, CurvePoint};
-use std::sync::Arc;
+use donder_runtime_types::{Curve, CurvePoint};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sequence {
-    pub id: SequenceId,
     pub description: Option<String>,
     pub duration: DonderDuration,
     pub frame_rate: u32,
     pub audio: SequenceAudio,
-    pub mark_collections: Vec<MarkCollection>,
-    pub layers: Vec<SequenceLayer>,
-    /// Each clip is shared between project snapshots until an edit changes it,
-    /// so an unchanged clip is the same allocation in both.
-    pub clips: Vec<Arc<Clip>>,
-    pub composition_graph: SequenceCompositionGraph,
-    pub automation_clips: Vec<AutomationClip>,
+    pub composition: Composition,
 }
 
 impl Sequence {
@@ -31,113 +22,19 @@ impl Sequence {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct SequenceLayerId(pub u32);
-
+/// A curve that drives the parameters it binds while its clip plays.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SequenceLayer {
-    pub id: SequenceLayerId,
-    /// Unique among the sequence's layers and graph nodes.
-    pub name: Identifier,
-    pub description: Option<String>,
-    pub color: Color,
-    pub enabled: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct SequenceCompositionGraph {
-    pub nodes: Vec<CompositionGraphNode>,
-    pub edges: Vec<EffectGraphEdge>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CompositionGraphNode {
-    pub id: CompositionGraphNodeId,
-    pub position: GraphNodePosition,
-    pub kind: CompositionGraphNodeKind,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum CompositionGraphNodeKind {
-    Layer { layer_id: SequenceLayerId },
-    Operator(GraphOperatorNode),
-    Root,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct CompositionGraphNodeId(pub u32);
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct GraphNodePosition {
-    pub x: f32,
-    pub y: f32,
-}
-
-/// Every node but the root has one output; an edge carries it to an input.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct EffectGraphEdge {
-    pub from: CompositionGraphNodeId,
-    pub to: CompositionGraphNodeId,
-    /// The operator input the edge feeds; `None` for the root's one input.
-    pub input: Option<Identifier>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MarkCollection {
-    pub key: MarkCollectionKey,
-    pub description: Option<String>,
-    pub display_color: Color,
-    pub marks: Vec<Mark>,
-}
-
-/// A moment or a span of time, optionally labeled: a beat, a lyric word, a
-/// section. An instantaneous mark lasts zero.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Mark {
-    pub time: DonderTime,
-    pub duration: DonderDuration,
-    pub label: Option<String>,
-}
-
-impl Mark {
-    /// An instantaneous, unlabeled mark.
-    pub fn at(time: DonderTime) -> Self {
-        Self {
-            time,
-            duration: DonderDuration(std::time::Duration::ZERO),
-            label: None,
-        }
-    }
-
-    /// When the mark ends.
-    pub fn end(&self) -> std::time::Duration {
-        self.time.0 + self.duration.0
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct MarkCollectionKey {
-    pub name: Identifier,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct AutomationClip {
-    pub id: AutomationClipId,
-    pub start: DonderTime,
-    pub duration: DonderDuration,
-    /// Visual placement, independent of parameter bindings.
-    pub row_target: crate::layout::FixtureTarget,
+pub struct Envelope {
     pub curve: Curve,
-    pub bindings: Vec<AutomationBinding>,
-    pub detached_bindings: Vec<DetachedAutomationBinding>,
+    pub bindings: Vec<Binding>,
 }
 
 /// Well under one frame at any supported frame rate.
 const CROP_TOLERANCE_SECONDS: f64 = 1e-4;
 
-/// Automation curves hold normalized values that parameters map onto their
+/// Envelope curves hold normalized values that parameters map onto their
 /// ranges.
-pub fn curve_is_normalized(curve: &Curve) -> bool {
+pub(crate) fn curve_is_normalized(curve: &Curve) -> bool {
     curve
         .points
         .iter()
@@ -181,167 +78,171 @@ impl Window {
     }
 }
 
-impl AutomationClip {
-    fn end(&self) -> core::time::Duration {
-        self.start.0.saturating_add(self.duration.0)
+impl Clip {
+    fn end(&self) -> Option<core::time::Duration> {
+        self.timing()
+            .map(|(start, duration)| start.0.saturating_add(duration.0))
     }
 
-    pub fn overlaps(&self, other: &AutomationClip) -> bool {
-        self.start.0 < other.end() && other.start.0 < self.end()
+    /// Whether both are timed and play at once.
+    pub fn overlaps(&self, other: &Clip) -> bool {
+        match (self.timing(), other.timing(), self.end(), other.end()) {
+            (Some((start, _)), Some((other_start, _)), Some(end), Some(other_end)) => {
+                start.0 < other_end && other_start.0 < end
+            }
+            _ => false,
+        }
     }
 
-    /// Active and detached binding targets.
-    pub fn targets(&self) -> impl Iterator<Item = &AutomationTarget> {
-        self.bindings
-            .iter()
-            .map(|binding| &binding.target)
-            .chain(self.detached_bindings.iter().map(|binding| &binding.target))
-    }
-
-    /// Move the clip window over fixed content. Points outside the window are
-    /// dropped, and an edge that cuts through content gains a point holding the
-    /// value it cut through.
+    /// Move a timed clip's window over fixed content: an envelope's points
+    /// outside the window are dropped, and an edge that cuts through its curve
+    /// gains a point holding the value it cut through.
     pub fn crop(&mut self, start: DonderTime, duration: DonderDuration) {
-        let old_start = self.start.0.as_secs_f64();
-        let old_duration = self.duration.0.as_secs_f64();
-        let new_start = start.0.as_secs_f64();
-        let new_duration = duration.0.as_secs_f64();
-        let new_end = new_start + new_duration;
-        // GUI timing passes through f32 seconds, so an edge that did not move can
-        // shift slightly. Points this close to an edge stay inside it.
-        let (inner_start, inner_end) = (
-            new_start - CROP_TOLERANCE_SECONDS,
-            new_end + CROP_TOLERANCE_SECONDS,
-        );
-        let time = |position: f32| old_start + f64::from(position) * old_duration;
-        let value_at =
-            |seconds: f64| sample_curve(&self.curve, ((seconds - old_start) / old_duration) as f32);
-        let cut_left = self
-            .curve
-            .points
-            .iter()
-            .any(|point| time(point.position) < inner_start);
-        let cut_right = self
-            .curve
-            .points
-            .iter()
-            .any(|point| time(point.position) > inner_end);
-        let kept = self
-            .curve
-            .points
-            .iter()
-            .map(|point| (time(point.position), point.value))
-            .filter(|(seconds, _)| (inner_start..=inner_end).contains(seconds))
-            .collect::<Vec<_>>();
-        let mut points = Vec::with_capacity(kept.len() + 2);
-        if cut_left && kept.first().is_none_or(|(seconds, _)| *seconds > new_start) {
-            points.push((new_start, value_at(new_start)));
+        let Placement::Timed {
+            start: old_start,
+            duration: old_duration,
+        } = &mut self.placement
+        else {
+            return;
+        };
+        if let ClipContent::Envelope(envelope) = &mut self.content {
+            envelope.curve = crop_curve(
+                &envelope.curve,
+                (old_start.0.as_secs_f64(), old_duration.0.as_secs_f64()),
+                (start.0.as_secs_f64(), duration.0.as_secs_f64()),
+            );
         }
-        points.extend(kept.iter().copied());
-        if cut_right && kept.last().is_none_or(|(seconds, _)| *seconds < new_end) {
-            points.push((new_end, value_at(new_end)));
-        }
-        self.curve.points = points
-            .into_iter()
-            .map(|(seconds, value)| CurvePoint {
-                position: ((seconds - new_start) / new_duration).clamp(0.0, 1.0) as f32,
-                value,
-            })
-            .collect();
-        self.start = start;
-        self.duration = duration;
+        *old_start = start;
+        *old_duration = duration;
     }
 
-    /// Keep the part before `at` and return the part after it as clip `id`.
-    pub fn split_off(&mut self, at: DonderTime, id: AutomationClipId) -> Option<AutomationClip> {
-        let end = self.end();
-        if at.0 <= self.start.0 || at.0 >= end {
+    /// Keep the part of a timed clip before `at` and return the part after it
+    /// as clip `id`.
+    pub fn split_off(&mut self, at: DonderTime, id: ClipId) -> Option<Clip> {
+        let (start, end) = (self.timing()?.0.clone(), self.end()?);
+        if at.0 <= start.0 || at.0 >= end {
             return None;
         }
         let mut right = self.clone();
         right.id = id;
         right.crop(at.clone(), DonderDuration(end - at.0));
-        self.crop(self.start.clone(), DonderDuration(at.0 - self.start.0));
+        self.crop(start.clone(), DonderDuration(at.0 - start.0));
         Some(right)
     }
+}
 
-    /// Forgets every binding, active or detached, whose target was deleted.
-    pub fn remove_bindings(&mut self, matches: impl Fn(&AutomationTarget) -> bool) {
-        self.bindings.retain(|binding| !matches(&binding.target));
-        self.detached_bindings
-            .retain(|binding| !matches(&binding.target));
+impl Envelope {
+    /// The binding of `target`, when the envelope drives it.
+    pub fn binding(&self, target: &AutomationTarget) -> Option<&Binding> {
+        self.bindings
+            .iter()
+            .find(|binding| &binding.target == target)
     }
 
-    pub fn detach_bindings(&mut self, matches: impl Fn(&AutomationTarget) -> bool) {
-        let mut retained = Vec::with_capacity(self.bindings.len());
-        for binding in self.bindings.drain(..) {
-            if matches(&binding.target) {
-                self.detached_bindings.push(DetachedAutomationBinding {
-                    target: binding.target,
-                });
-            } else {
-                retained.push(binding);
-            }
-        }
-        self.bindings = retained;
-    }
-
+    /// Drive `target` through `window`, in place of any binding it had.
     pub fn bind(&mut self, target: AutomationTarget, window: Window) {
-        self.detached_bindings
-            .retain(|binding| binding.target != target);
-        self.bindings.push(AutomationBinding { target, window });
+        self.bindings.retain(|binding| binding.target != target);
+        self.bindings.push(Binding { target, window });
     }
 
     /// The curve as `target` sees it, through the window of its binding.
     fn windowed_curve(&self, target: &AutomationTarget) -> Option<Curve> {
-        let binding = self
-            .bindings
-            .iter()
-            .find(|binding| &binding.target == target)?;
-        Some(binding.window.apply_to_curve(&self.curve))
+        Some(self.binding(target)?.window.apply_to_curve(&self.curve))
     }
 }
 
-/// Every clip actively bound to one target, merged into a single curve.
+/// `curve` over the window `(start, duration)`, in seconds, cropped to the
+/// window `to`. GUI timing passes through f32 seconds, so an edge that did not
+/// move can shift slightly: points this close to an edge stay inside it.
+fn crop_curve(curve: &Curve, (old_start, old_duration): (f64, f64), to: (f64, f64)) -> Curve {
+    let (new_start, new_duration) = to;
+    let new_end = new_start + new_duration;
+    let (inner_start, inner_end) = (
+        new_start - CROP_TOLERANCE_SECONDS,
+        new_end + CROP_TOLERANCE_SECONDS,
+    );
+    let time = |position: f32| old_start + f64::from(position) * old_duration;
+    let value_at =
+        |seconds: f64| sample_curve(curve, ((seconds - old_start) / old_duration) as f32);
+    let cut_left = curve
+        .points
+        .iter()
+        .any(|point| time(point.position) < inner_start);
+    let cut_right = curve
+        .points
+        .iter()
+        .any(|point| time(point.position) > inner_end);
+    let kept = curve
+        .points
+        .iter()
+        .map(|point| (time(point.position), point.value))
+        .filter(|(seconds, _)| (inner_start..=inner_end).contains(seconds))
+        .collect::<Vec<_>>();
+    let mut points = Vec::with_capacity(kept.len() + 2);
+    if cut_left && kept.first().is_none_or(|(seconds, _)| *seconds > new_start) {
+        points.push((new_start, value_at(new_start)));
+    }
+    points.extend(kept.iter().copied());
+    if cut_right && kept.last().is_none_or(|(seconds, _)| *seconds < new_end) {
+        points.push((new_end, value_at(new_end)));
+    }
+    Curve {
+        points: points
+            .into_iter()
+            .map(|(seconds, value)| CurvePoint {
+                position: ((seconds - new_start) / new_duration).clamp(0.0, 1.0) as f32,
+                value,
+            })
+            .collect(),
+    }
+}
+
+/// Every envelope bound to one target, merged into a single curve.
 pub struct AutomationEnvelope {
     pub(crate) start: DonderTime,
     pub(crate) duration: DonderDuration,
     pub(crate) curve: Curve,
 }
 
-impl Sequence {
-    /// Clips bound to one target never overlap. Before the first clip the
-    /// envelope holds its first value, and each gap holds the value the
-    /// previous clip ended on.
+impl Composition {
+    /// The timed envelopes bound to `target`, merged. Envelopes bound to one
+    /// target never overlap. Before the first, the merged curve holds its
+    /// first value, and each gap holds the value the previous one ended on.
     pub fn automation_envelope(&self, target: &AutomationTarget) -> Option<AutomationEnvelope> {
-        // Each clip with its curve through its own window.
+        // Each envelope's timing, with its curve through its own window.
         let mut clips = self
-            .automation_clips
+            .clips
             .iter()
-            .filter_map(|clip| Some((clip, clip.windowed_curve(target)?)))
+            .filter_map(|clip| {
+                let (start, duration) = clip.timing()?;
+                Some((start, duration, clip.envelope()?.windowed_curve(target)?))
+            })
             .collect::<Vec<_>>();
-        if let [(clip, curve)] = clips.as_slice() {
+        if let [(start, duration, curve)] = clips.as_slice() {
             return Some(AutomationEnvelope {
-                start: clip.start.clone(),
-                duration: clip.duration.clone(),
+                start: (*start).clone(),
+                duration: (*duration).clone(),
                 curve: curve.clone(),
             });
         }
-        clips.sort_by_key(|(clip, _)| clip.start.0);
-        let start = clips.first()?.0.start.0;
-        let end = clips.iter().map(|(clip, _)| clip.end()).max()?;
+        clips.sort_by_key(|(start, ..)| start.0);
+        let start = clips.first()?.0.0;
+        let end = clips
+            .iter()
+            .map(|(start, duration, _)| start.0.saturating_add(duration.0))
+            .max()?;
         let span = (end - start).as_secs_f64();
         let position =
             |seconds: f64| ((seconds - start.as_secs_f64()) / span).clamp(0.0, 1.0) as f32;
         let last = clips.len() - 1;
         let mut points = Vec::new();
         let mut held = None;
-        for (index, (clip, curve)) in clips.iter().enumerate() {
+        for (index, (clip_start, clip_duration, curve)) in clips.iter().enumerate() {
             if curve.points.is_empty() {
                 continue;
             }
-            let clip_start = clip.start.0.as_secs_f64();
-            let clip_duration = clip.duration.0.as_secs_f64();
+            let clip_start = clip_start.0.as_secs_f64();
+            let clip_duration = clip_duration.0.as_secs_f64();
             if index > 0 {
                 let start_position = position(clip_start);
                 if let Some(value) = held {
@@ -407,36 +308,19 @@ impl AutomationEnvelope {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AutomationClipId(pub u32);
-
+/// An envelope's drive of one parameter, through a window of its curve.
 #[derive(Clone, Debug, PartialEq)]
-pub struct AutomationBinding {
+pub struct Binding {
     pub target: AutomationTarget,
     pub window: Window,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct DetachedAutomationBinding {
-    pub target: AutomationTarget,
-}
-
-impl AutomationBinding {
-    pub fn clip_param(&self) -> Option<(&ClipId, &Identifier)> {
-        match &self.target {
-            AutomationTarget::ClipParam { clip_id, param } => Some((clip_id, param)),
-            AutomationTarget::CompositionNodeParam { .. } => None,
-        }
-    }
-}
-
-/// A parameter automation sets: of a clip, a sequence's or (with
-/// [`crate::ConsoleClipId`]) a console's, or of an operator node of the
-/// composition graph.
+/// A parameter an envelope drives or a console's `Set` sets: of a clip, or of
+/// an operator node of the composition graph.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum AutomationTarget<Clip = ClipId> {
+pub enum AutomationTarget {
     ClipParam {
-        clip_id: Clip,
+        clip_id: ClipId,
         param: Identifier,
     },
     CompositionNodeParam {
@@ -445,28 +329,12 @@ pub enum AutomationTarget<Clip = ClipId> {
     },
 }
 
-impl<Clip> AutomationTarget<Clip> {
+impl AutomationTarget {
     pub fn param(&self) -> &Identifier {
         match self {
             Self::ClipParam { param, .. } | Self::CompositionNodeParam { param, .. } => param,
         }
     }
-}
-
-/// `mapping` comes from the target parameter declaration.
-pub fn automation_value_at<'a>(
-    clip: &AutomationClip,
-    window: Window,
-    mapping: &'a AutomationMapping,
-    sample_seconds: f64,
-) -> Option<AutomationValue<'a>> {
-    let duration = clip.duration.as_seconds_f64();
-    let position = if duration <= 0.0 {
-        0.0
-    } else {
-        ((sample_seconds - clip.start.as_seconds_f64()) / duration).clamp(0.0, 1.0) as f32
-    };
-    automation_value_at_position(&window.apply_to_curve(&clip.curve), mapping, position)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -477,12 +345,3 @@ pub enum SequenceAudio {
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AssetId(pub u32);
-
-impl crate::ownership::Identified for Sequence {
-    type Id = SequenceId;
-    fn id(&self) -> &Self::Id {
-        &self.id
-    }
-}
-
-pub type OwnedSequence = crate::ownership::OwnedMember<Sequence, SequenceId>;

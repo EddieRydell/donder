@@ -6,8 +6,8 @@
 //! field as its instruction declares it.
 use crate::bytecode::{
     Bank, ColorComponent, Colors, CompareOp, ContextRead, CurveOp, Direction, Edges, FloatBinary,
-    FloatUnary, GlyphOp, ImageOp, Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource,
-    SignalPixel, Slot, SlotKind,
+    FloatUnary, GlyphOp, ImageOp, Instruction, IntBinary, IntUnary, MarkOp, Reducer, SignalPixel,
+    Slot, SlotKind,
 };
 
 /// One encoded instruction word.
@@ -55,15 +55,15 @@ wire! {
     CompareOp { Less, LessEqual, Greater, GreaterEqual, Equal, NotEqual }
     ColorComponent { Hue, Saturation, Intensity }
     CurveOp { Sample, Integral, Crossing, LastCrossing }
-    MarkOp { At, Duration, Last, LastIndex }
-    Resource { Curve, Gradient, Marks, Array, Track, Font, Image }
+    MarkOp { At, Duration, LastIndex }
     GlyphOp { Height, Advance, Coverage }
     ImageOp { Width, Height, Rate, Frames, Color }
     Reducer { Max, Min, Sum, Any, All, First, Last }
     Bank { Float, Int, Bool, Color, Resource }
     ContextRead {
-        Seconds, Progress, Duration, FrameRate, Frame, PixelCount, TargetMinX, TargetMinY, TargetMaxX,
-        TargetMaxY, TargetMinZ, TargetMaxZ, TargetMembers, TargetStrands, TargetStrandLength
+        Seconds, Duration, FrameRate, PixelCount, TargetMinX, TargetMinY, TargetMaxX,
+        TargetMaxY, TargetMinZ, TargetMaxZ, TargetMembers, TargetStrands, TargetStrandLength,
+        Origin, Live
     }
     Direction { Forward, Backward }
     Edges { Skip, Extend, Mirror }
@@ -93,7 +93,6 @@ mod op {
     pub(super) const INDEX: u8 = 19;
     pub(super) const SELECT: u8 = 20;
     pub(super) const MOVE: u8 = 21;
-    pub(super) const SECTION: u8 = 22;
     pub(super) const SAMPLE: u8 = 23;
     pub(super) const BRANCH: u8 = 24;
     pub(super) const REDUCE: u8 = 25;
@@ -116,7 +115,7 @@ const PIXEL_LOCAL: u8 = 1;
 const PIXEL_SHIFTED: u8 = 2;
 
 /// A slot in a byte: scalars from 0, [`Slot::NONE`] as 127, rows from 128
-/// and the pixel inputs as the last eight.
+/// and the pixel inputs from 0xf8.
 const NONE_BYTE: u8 = 0x7f;
 const ROW_BYTE: u8 = 0x80;
 const INPUT_BYTE: u8 = 0xf8;
@@ -220,8 +219,8 @@ impl InstructionWord {
                     .half(4, index)
                     .done(),
             ),
-            I::Context { dst, read } => {
-                code.push(w(op::CONTEXT, read.to_wire()).slots(&[dst]).done());
+            I::Context { dst, read, word } => {
+                code.push(w(op::CONTEXT, read.to_wire()).slots(&[dst, word]).done());
             }
             I::FloatUnary { op, dst, a } => {
                 code.push(w(op::FLOAT_UNARY, op.to_wire()).slots(&[dst, a]).done());
@@ -364,10 +363,14 @@ impl InstructionWord {
                     .done(),
             ),
             I::Length {
-                kind,
+                marks,
                 dst,
                 resource,
-            } => code.push(w(op::LENGTH, kind.to_wire()).slots(&[dst, resource]).done()),
+            } => code.push(
+                w(op::LENGTH, u8::from(marks))
+                    .slots(&[dst, resource])
+                    .done(),
+            ),
             I::Index {
                 bank,
                 dst,
@@ -392,9 +395,6 @@ impl InstructionWord {
             ),
             I::Move { bank, dst, src } => {
                 code.push(w(op::MOVE, bank.to_wire()).slots(&[dst, src]).done());
-            }
-            I::Section { index, dst, width } => {
-                code.push(w(op::SECTION, u8::from(index)).slots(&[dst, width]).done());
             }
             I::Read { dst, input, pixel } => {
                 let (kind, edges, index) = match pixel {
@@ -535,6 +535,7 @@ impl InstructionWord {
             op::CONTEXT => I::Context {
                 read: word.low(),
                 dst: s(2),
+                word: s(3),
             },
             op::FLOAT_UNARY => I::FloatUnary {
                 op: word.low(),
@@ -652,7 +653,7 @@ impl InstructionWord {
                 y: s(6),
             },
             op::LENGTH => I::Length {
-                kind: word.low(),
+                marks: word.0[1] != 0,
                 dst: s(2),
                 resource: s(3),
             },
@@ -674,11 +675,6 @@ impl InstructionWord {
                 bank: word.low(),
                 dst: s(2),
                 src: s(3),
-            },
-            op::SECTION => I::Section {
-                index: word.0[1] != 0,
-                dst: s(2),
-                width: s(3),
             },
             op::SAMPLE => {
                 let index = s(3);

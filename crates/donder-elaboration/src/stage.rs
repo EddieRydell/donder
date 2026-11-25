@@ -1,18 +1,17 @@
 //! The preparation shared by sequences and consoles: the fixtures and cells a
 //! show keeps, the prepared targets its clips use, its layers, its global
-//! signal graph and its output routes. Only how clips are placed differs.
+//! signal graph and its output routes.
 use crate::selection::Selection;
 use crate::sequence::programs::Programs;
 use crate::sequence::{PreparationCache, composition};
-use donder_language::compiler::{Invocation, ProgramConstants};
+use donder_language::compiler::{Invocation, LiveWords, ProgramConstants};
 use donder_model::{
-    AcceptedOperatorInputs, ClipScope, CompositionGraphNodeId, CompositionGraphNodeKind,
-    FixtureInstanceId, FixtureTarget, PixelRouteId, SequenceCompositionGraph, SequenceLayer,
-    SequenceLayerId, composition_graph_root_dependencies,
+    AcceptedOperatorInputs, CompositionGraph, CompositionGraphNodeId, CompositionGraphNodeKind,
+    FixtureId, LayerId, PixelRouteId, composition_graph_root_dependencies,
 };
-use donder_runtime::{ClipHandle, PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
+use donder_runtime::{ClipHandle, PreparedShow, ShowBuilder, TargetHandle};
 use donder_runtime_types::{
-    BoundProgram, FixtureGeometry, SequenceTiming, TargetGeometry, TargetScope,
+    BoundProgram, FixtureGeometry, TargetGeometry, TargetScope, sample_duration_seconds_f32,
 };
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
@@ -22,7 +21,7 @@ pub(crate) struct Stage {
     geometry: Vec<FixtureGeometry>,
     /// Every fixture and group's ordered parts: a fixture's geometry index
     /// and the run of its cells the target selects.
-    targets: IndexMap<FixtureInstanceId, Vec<(usize, Range<u32>)>>,
+    targets: IndexMap<FixtureId, Vec<(usize, Range<u32>)>>,
     /// Each selected route's pixels, in the original geometry.
     pub(crate) routes: IndexMap<PixelRouteId, TargetGeometry>,
     /// The cells of each fixture the show keeps.
@@ -32,37 +31,31 @@ pub(crate) struct Stage {
     compact: bool,
 }
 
-/// What a show plays besides its clips: its layers and its graph.
-pub(crate) struct Parts<'a> {
-    pub(crate) layers: &'a [SequenceLayer],
-    pub(crate) graph: &'a SequenceCompositionGraph,
-    pub(crate) operators: Vec<AcceptedOperatorInputs<'a>>,
-    pub(crate) timing: &'a SequenceTiming,
-}
-
-/// Build the show of `parts` on the selected setup, with the clips
-/// `clips` places. `operators` then sees, with what `clips` returned, each
-/// operator built with automation and its program. Without `compact` every
-/// cell, layer and clip is kept; with it, only what the selected outputs show.
-pub(crate) fn build<'a, S, Placed>(
-    selected: &Selection<'a, S>,
-    parts: Parts<'a>,
+/// Build the show `selected` plays on the project's layout and controllers:
+/// its timed clips each at its time, and, for a console, with `route`, its
+/// played clips' dormant voices and the routing of its inputs. Without
+/// `compact` every cell, layer and clip is kept; with it, only what the
+/// selected outputs show.
+pub(crate) fn build(
+    selected: &Selection<'_>,
     compact: bool,
     cache: &mut PreparationCache,
-    clips: impl for<'id> FnOnce(&mut Clips<'_, 'id>) -> Placed,
-    operators: impl for<'id> FnOnce(&mut ShowBuilder<'id>, &[(SignalHandle<'id>, BoundProgram)], Placed),
+    route: Option<&crate::console::RoutingPlan<'_>>,
 ) -> PreparedShow {
-    let stage = Stage::new(selected, parts.graph, &parts.operators, compact);
-    let required = stage.required_layers(parts.graph);
+    let show = selected.show;
+    let composition = show.composition();
+    let operators = show.operators().collect::<Vec<_>>();
+    let stage = Stage::new(selected, &composition.graph, &operators, compact);
+    let required = stage.required_layers(&composition.graph);
     // A compact show plays clips only in the enabled layers its output
     // depends on.
-    let playing = parts
+    let playing = composition
         .layers
         .iter()
         .filter(|layer| layer.enabled && required.contains(&layer.id))
         .map(|layer| &layer.id)
         .collect();
-    PreparedShow::build(parts.timing.clone(), |builder| {
+    PreparedShow::build(show.timing().clone(), |builder| {
         for (index, (id, geometry)) in selected.geometry.iter().enumerate() {
             let geometry = if compact {
                 geometry.select(|cell| stage.cells[index].binary_search(&cell).is_ok())
@@ -71,26 +64,68 @@ pub(crate) fn build<'a, S, Placed>(
             };
             builder.fixture(id.0, geometry);
         }
-        let mut placed = Clips {
+        let mut clips = Clips {
             builder,
             stage: &stage,
             programs: Programs::new(cache),
             playing: &playing,
             targets: HashMap::new(),
-            layers: parts
+            layers: composition
                 .layers
                 .iter()
                 .map(|layer| (&layer.id, Vec::new()))
                 .collect(),
         };
-        let made = clips(&mut placed);
+        let mut live = route.map(|route| crate::console::Live::new(route, clips.builder));
+        for clip in show.clips() {
+            let authored = clip.clip();
+            let effect = clip.effect();
+            // A dropped played clip keeps its voices, so commands still
+            // address them, but plays in no layer.
+            let dropped = clips.drops(&effect.layer, authored.target);
+            let timing = clip.timing();
+            if dropped && timing.is_some() {
+                continue;
+            }
+            let (target, pixel_count) = clips.target(authored.target, effect.scope);
+            let duration = match (timing, &route) {
+                (Some((_, duration)), _) => Some(duration),
+                (None, Some(route)) => route.fixed_length(authored.id),
+                (None, None) => unreachable!("validation keeps a sequence's clips timed"),
+            };
+            let constants = ProgramConstants {
+                pixel_count,
+                duration_seconds: duration.map(sample_duration_seconds_f32),
+            };
+            match (timing, &mut live) {
+                (Some((start, duration)), live) => {
+                    let (words, snapshots) = match live {
+                        Some(live) => live.words(clip, &[], clips.builder),
+                        None => Default::default(),
+                    };
+                    let program = clips.lower(clip.invocation(), constants, &words);
+                    let handle =
+                        clips
+                            .builder
+                            .clip(Some(authored.id.0), &program, start, duration, target);
+                    for (automation, word) in snapshots {
+                        clips.builder.snapshot(handle, automation, word);
+                    }
+                    if !dropped {
+                        clips.layer(&effect.layer, handle);
+                    }
+                }
+                (None, Some(live)) => live.voices(&mut clips, clip, constants, target, dropped),
+                (None, None) => unreachable!("validation keeps a sequence's clips timed"),
+            }
+        }
         let Clips {
             builder,
             mut programs,
             layers: layer_clips,
             ..
-        } = placed;
-        let layers = parts
+        } = clips;
+        let layers = composition
             .layers
             .iter()
             .filter(|layer| !compact || stage.has_pixels && required.contains(&layer.id))
@@ -102,27 +137,32 @@ pub(crate) fn build<'a, S, Placed>(
             })
             .collect::<IndexMap<_, _>>();
         // A disabled or empty layer is black everywhere.
-        let black = parts
+        let black = composition
             .layers
             .iter()
             .filter(|layer| !layer.enabled || layer_clips[&layer.id].is_empty())
             .map(|layer| &layer.id)
             .collect::<HashSet<_>>();
-        let mut automated = Vec::new();
+        let operator_words = |node: &donder_model::CompositionGraphNodeId| {
+            live.as_ref()
+                .map_or_else(Vec::new, |live| live.operator_words(show, node))
+        };
         let root = if compact && !stage.has_pixels {
             None
         } else {
             composition::prepare(
                 builder,
-                &parts,
+                show,
                 &stage.dependencies,
                 &layers,
                 &black,
                 &mut programs,
-                &mut automated,
+                &operator_words,
             )
         };
-        operators(builder, &automated, made);
+        if let Some(live) = live {
+            live.route(builder);
+        }
         crate::sequence::prepare_routes(builder, selected, &stage);
         root
     })
@@ -133,21 +173,21 @@ pub(crate) struct Clips<'s, 'id> {
     pub(crate) builder: &'s mut ShowBuilder<'id>,
     stage: &'s Stage,
     programs: Programs<'s>,
-    playing: &'s HashSet<&'s SequenceLayerId>,
+    playing: &'s HashSet<&'s LayerId>,
     /// Clips on one target share its prepared geometry.
-    targets: HashMap<(FixtureInstanceId, bool), TargetHandle<'id>>,
-    layers: IndexMap<&'s SequenceLayerId, Vec<ClipHandle<'id>>>,
+    targets: HashMap<(FixtureId, bool), TargetHandle<'id>>,
+    layers: IndexMap<&'s LayerId, Vec<ClipHandle<'id>>>,
 }
 
 impl<'id> Clips<'_, 'id> {
     /// Whether the show leaves out a clip on `layer` and `target`: a
     /// compact show keeps only what its outputs show.
-    pub(crate) fn drops(&self, layer: &SequenceLayerId, target: &FixtureTarget) -> bool {
+    pub(crate) fn drops(&self, layer: &LayerId, target: FixtureId) -> bool {
         let stage = self.stage;
         stage.compact
             && (!stage.has_pixels
                 || !self.playing.contains(layer)
-                || stage.targets[&target.fixture]
+                || stage.targets[&target]
                     .iter()
                     .all(|(index, _)| stage.cells[*index].is_empty()))
     }
@@ -155,19 +195,15 @@ impl<'id> Clips<'_, 'id> {
     /// `target` in `scope`, and the pixel count its programs may assume.
     pub(crate) fn target(
         &mut self,
-        target: &FixtureTarget,
-        scope: &ClipScope,
+        target: FixtureId,
+        scope: TargetScope,
     ) -> (TargetHandle<'id>, Option<i32>) {
-        let scope = match scope {
-            ClipScope::PerFixture => TargetScope::PerFixture,
-            ClipScope::WholeTarget => TargetScope::WholeTarget,
-        };
         let stage = self.stage;
-        let members = &stage.targets[&target.fixture];
+        let members = &stage.targets[&target];
         let builder = &mut *self.builder;
         let handle = *self
             .targets
-            .entry((target.fixture, scope == TargetScope::PerFixture))
+            .entry((target, scope == TargetScope::PerFixture))
             .or_insert_with(|| {
                 builder.target(&TargetGeometry::parts(
                     members
@@ -186,25 +222,27 @@ impl<'id> Clips<'_, 'id> {
         (handle, pixel_count)
     }
 
-    /// The program of `invocation` with `constants`.
+    /// The program of `invocation` with `constants`, its live bindings
+    /// reading the words `live` names.
     pub(crate) fn lower(
         &mut self,
         invocation: &Invocation,
         constants: ProgramConstants,
+        live: &[LiveWords],
     ) -> BoundProgram {
-        self.programs.clip(invocation, constants)
+        self.programs.clip(invocation, constants, live)
     }
 
     /// Play `clip` in `layer`.
-    pub(crate) fn layer(&mut self, layer: &SequenceLayerId, clip: ClipHandle<'id>) {
+    pub(crate) fn layer(&mut self, layer: &LayerId, clip: ClipHandle<'id>) {
         self.layers[layer].push(clip);
     }
 }
 
 impl Stage {
-    fn new<S>(
-        selected: &Selection<'_, S>,
-        graph: &SequenceCompositionGraph,
+    fn new(
+        selected: &Selection<'_>,
+        graph: &CompositionGraph,
         operators: &[AcceptedOperatorInputs<'_>],
         compact: bool,
     ) -> Self {
@@ -238,7 +276,7 @@ impl Stage {
                     .collect();
                 (item.id, parts)
             })
-            .collect::<IndexMap<FixtureInstanceId, Vec<(usize, Range<u32>)>>>();
+            .collect::<IndexMap<FixtureId, Vec<(usize, Range<u32>)>>>();
         let routes = crate::sequence::route_targets(selected, &geometry, &targets);
         let dependencies = composition_graph_root_dependencies(graph);
         let cells =
@@ -256,10 +294,7 @@ impl Stage {
     }
 
     /// The layers the output depends on.
-    fn required_layers<'g>(
-        &self,
-        graph: &'g SequenceCompositionGraph,
-    ) -> HashSet<&'g SequenceLayerId> {
+    fn required_layers<'g>(&self, graph: &'g CompositionGraph) -> HashSet<&'g LayerId> {
         graph
             .nodes
             .iter()

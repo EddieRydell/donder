@@ -9,13 +9,6 @@ type UiEvents = {
   openCommandPalette: undefined;
   focusSidebar: SidebarView;
   navigateToText: TextNavigation;
-  openLayerGraph: undefined;
-  /** Asks the open sequence editor to open its export dialog. */
-  openExport: undefined;
-  /** Asks the open sequence editor to drop a mark at the playhead. */
-  tapMark: undefined;
-  /** A GUI undo or redo replaced the document. */
-  guiHistoryChanged: undefined;
 };
 
 type UiEvent = keyof UiEvents;
@@ -35,16 +28,4 @@ export function listenUiEvent<E extends UiEvent>(event: E, handler: (detail: UiE
 
 export function focusSidebar(view: SidebarView) {
   dispatchUiEvent("focusSidebar", view);
-}
-
-export function requestOpenLayerGraph() {
-  dispatchUiEvent("openLayerGraph");
-}
-
-export function requestOpenExport() {
-  dispatchUiEvent("openExport");
-}
-
-export function requestTapMark() {
-  dispatchUiEvent("tapMark");
 }

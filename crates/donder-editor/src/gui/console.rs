@@ -1,31 +1,26 @@
 //! Consoles: sequences built live from input devices.
 use donder_model::{
-    Action, Always, AutomationTarget, ClipScope, Console, ConsoleClipId, ConsoleId, ControlRef,
-    FixtureInstanceId, FixtureTarget as DomainFixtureTarget, InputDevice, InputDeviceId,
-    InputEvent, LengthSource, LiveMarks, MAX_COPIES, MarkCollectionKey, On, OnId, Play, PlayLength,
-    PlayedQuantity, PlayedValue, SequenceLayerId, Window,
+    Action, Always, AutomationTarget, ClipId, Console, ConsoleId, ControlRef, InputDevice,
+    InputDeviceId, LengthSource, MAX_COPIES, MarkCollectionId, On, OnId, Placement, Play,
+    PlayLength, PlayedValue, Window,
 };
-use donder_project_io::{DocumentId, ProjectSession};
+use donder_project_io::ProjectSession;
+use donder_runtime_types::{InputHappening, PlayedSource, TargetScope};
 
 use super::edit::automation_target_from_gui;
-use super::graph::new_clip;
+use super::graph::new_effect_clip;
 use super::input_device::gui_control;
-use super::model::{
-    chosen_effect, clip_scope, fresh_name, identifier, object_id_from_gui, object_ref,
-    param_value_from_gui, parse_color, typed_name,
-};
+use super::model::{object_id_from_gui, object_ref};
 use super::projection::{
     automation_target_to_gui, composition_graph, curve_library, effect_definitions,
-    effect_ref_to_gui, gradient_library, invocation_params, layers_to_gui, layout_lanes,
-    target_label, target_to_gui,
+    gradient_library, layers_to_gui, layout_lanes,
 };
 use super::{GuiMutationError, ResolvedGuiObject, checked_gui_duration, next_id};
 use crate::dto::{
-    ConsoleAction, ConsoleClipEdit, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument,
-    ConsoleGuiEdit, ConsoleInput, ConsoleInputControl, ConsoleInputDevice, ConsoleLengthSource,
-    ConsoleLiveMarks, ConsoleOn, ConsoleParamSource, ConsolePlayLength, ConsolePlayMode,
-    ConsolePlayedQuantity, ConsolePlayedValue, FixtureTarget, GuiDocument, SequenceClipScope,
-    SequenceEffectReference,
+    ConsoleAction, ConsoleControlRef, ConsoleEventKind, ConsoleGuiDocument, ConsoleGuiEdit,
+    ConsoleInput, ConsoleInputControl, ConsoleInputDevice, ConsoleLengthSource, ConsoleOn,
+    ConsoleParamSource, ConsolePlayLength, ConsolePlayMode, ConsolePlayedQuantity,
+    ConsolePlayedValue, FixtureTarget, GuiDocument, SequenceEffectReference,
 };
 
 /// The length a clip newly started from the session's start, or by a new
@@ -38,42 +33,38 @@ pub(super) fn project_console(
 ) -> GuiDocument {
     let id = resolved.id::<ConsoleId>();
     let console = resolved.view::<Console>(session).object();
-    let mut targets = layout_lanes(&session.project().active_layout());
+    let mut targets = layout_lanes(&session.project().layout());
     let mut seen = std::collections::HashSet::new();
     targets.retain(|lane| seen.insert(lane.target.fixture));
     GuiDocument::Console {
         document: ConsoleGuiDocument {
             description: console.description.clone(),
             source_ref: resolved.source_ref(),
-            name: session.address_of(id).declared_name().to_string(),
+            name: session.address_of(id).object().to_string(),
             perform_index: session
                 .project()
-                .root()
-                .consoles
-                .iter()
-                .position(|source| source.id() == &id)
-                .map(|index| index as u32),
+                .reusable::<donder_model::Console>()
+                .get_index_of(&id)
+                .unwrap_or_else(|| unreachable!("the console is the project's"))
+                as u32,
             frame_rate: console.frame_rate,
-            live_marks: console
-                .live_marks
-                .iter()
-                .map(|marks| ConsoleLiveMarks {
-                    key: marks.key.name.as_str().to_string(),
-                    description: marks.description.clone(),
-                    color: marks.display_color.to_hex(),
-                })
-                .collect(),
-            layers: layers_to_gui(&console.layers),
+            mark_collections: super::projection::mark_collections_to_gui(
+                &console.composition.marks,
+            ),
+            layers: layers_to_gui(&console.composition.layers),
             composition_graph: composition_graph(
                 session,
-                &console.layers,
-                &console.composition_graph,
+                &console.composition.layers,
+                &console.composition.graph,
                 |_, _, _| None,
             ),
+            // The console editor shows its effects; its envelopes are edited as text.
             clips: console
+                .composition
                 .clips
                 .iter()
-                .map(|clip| project_clip(session, console, clip))
+                .filter(|clip| clip.effect().is_some())
+                .map(|clip| super::projection::project_clip(session, &console.always, clip))
                 .collect(),
             always: console.always.iter().map(|always| always.clip.0).collect(),
             events: console
@@ -92,60 +83,26 @@ pub(super) fn project_console(
     }
 }
 
-fn project_clip(
-    session: &ProjectSession,
-    console: &Console,
-    clip: &donder_model::ConsoleClip,
-) -> crate::dto::ConsoleClip {
-    crate::dto::ConsoleClip {
-        id: clip.id.0,
-        name: clip.name.as_str().to_string(),
-        description: clip.description.clone(),
-        layer_id: clip.layer_id.0,
-        target: target_to_gui(&clip.target),
-        target_label: target_label(session, &clip.target),
-        scope: match clip.scope {
-            ClipScope::PerFixture => SequenceClipScope::PerFixture,
-            ClipScope::WholeTarget => SequenceClipScope::WholeTarget,
+pub(super) fn played_value_to_gui(value: &PlayedValue) -> ConsolePlayedValue {
+    ConsolePlayedValue {
+        param: value.param.as_str().to_string(),
+        from: match value.from {
+            PlayedSource::Velocity => ConsolePlayedQuantity::Velocity,
+            PlayedSource::PitchClass => ConsolePlayedQuantity::PitchClass,
         },
-        effect: effect_ref_to_gui(session, &clip.definition),
-        effect_name: session
-            .project()
-            .reusable::<donder_model::EffectDefinition>()[&clip.definition]
-            .name()
-            .to_string(),
-        params: invocation_params(session, &clip.definition, &clip.param_overrides, |_, _| {
-            None
-        }),
-        played: clip
-            .played
-            .iter()
-            .map(|value| ConsolePlayedValue {
-                param: value.param.as_str().to_string(),
-                from: match value.from {
-                    PlayedQuantity::Velocity => ConsolePlayedQuantity::Velocity,
-                    PlayedQuantity::PitchClass => ConsolePlayedQuantity::PitchClass,
-                },
-                window: value.window.into(),
-            })
-            .collect(),
-        always_length_seconds: console
-            .always
-            .iter()
-            .find(|always| always.clip == clip.id)
-            .map(|always| always.length.as_seconds_f64()),
+        window: value.window.into(),
     }
 }
 
 fn project_event(session: &ProjectSession, on: &On) -> ConsoleOn {
     ConsoleOn {
         id: on.id.0,
-        event: match on.event {
-            InputEvent::Press(_) => ConsoleEventKind::Press,
-            InputEvent::Release(_) => ConsoleEventKind::Release,
-            InputEvent::Move(_) => ConsoleEventKind::Move,
+        event: match on.happening {
+            InputHappening::Press => ConsoleEventKind::Press,
+            InputHappening::Release => ConsoleEventKind::Release,
+            InputHappening::Move => ConsoleEventKind::Move,
         },
-        input: project_input(session, on.event.control()),
+        input: project_input(session, &on.control),
         actions: on
             .actions
             .iter()
@@ -188,9 +145,7 @@ fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
             clip_id: clip.0,
             length_seconds: length.as_seconds_f64(),
         },
-        Action::Mark(key) => ConsoleAction::Mark {
-            into: key.name.as_str().to_string(),
-        },
+        Action::Mark(id) => ConsoleAction::Mark { into: id.0 },
         Action::Set { target, window } => ConsoleAction::Set {
             target: automation_target_to_gui(target),
             window: (*window).into(),
@@ -198,7 +153,7 @@ fn action_to_gui(session: &ProjectSession, action: &Action) -> ConsoleAction {
     }
 }
 
-fn action_from_gui(
+pub(super) fn action_from_gui(
     session: &ProjectSession,
     action: ConsoleAction,
 ) -> Result<Action, GuiMutationError> {
@@ -208,7 +163,7 @@ fn action_from_gui(
             copies,
             length,
         } => Action::Play(Play {
-            clip: ConsoleClipId(clip_id),
+            clip: ClipId(clip_id),
             copies: u8::try_from(copies).map_err(|_| {
                 GuiMutationError::Invalid(format!("A clip plays 1 to {MAX_COPIES} copies."))
             })?,
@@ -236,22 +191,20 @@ fn action_from_gui(
             clip_id,
             length_seconds,
         } => Action::Start {
-            clip: ConsoleClipId(clip_id),
+            clip: ClipId(clip_id),
             length: checked_gui_duration(length_seconds)?,
         },
         ConsoleAction::Stop { clip_id } => Action::Stop {
-            clip: ConsoleClipId(clip_id),
+            clip: ClipId(clip_id),
         },
         ConsoleAction::Toggle {
             clip_id,
             length_seconds,
         } => Action::Toggle {
-            clip: ConsoleClipId(clip_id),
+            clip: ClipId(clip_id),
             length: checked_gui_duration(length_seconds)?,
         },
-        ConsoleAction::Mark { into } => Action::Mark(MarkCollectionKey {
-            name: identifier(&into)?,
-        }),
+        ConsoleAction::Mark { into } => Action::Mark(MarkCollectionId(into)),
         ConsoleAction::Set { target, window } => Action::Set {
             target: automation_target_from_gui(target)?,
             window: window.into(),
@@ -272,7 +225,6 @@ fn project_input(session: &ProjectSession, input: &ControlRef) -> ConsoleInput {
         .get::<donder_model::InputDevice>(input.device);
     ConsoleInput {
         control: control_ref_to_gui(session, input),
-        device_name: session.address_of(input.device).declared_name().to_string(),
         control_name: device
             .and_then(|device| device.control(input.control))
             .map(|control| control.name.as_str().to_string())
@@ -295,15 +247,14 @@ fn controls(device: &InputDevice, buttons: bool) -> Vec<ConsoleInputControl> {
         .collect()
 }
 
-/// The active setup's input devices and their buttons and axes.
+/// The project's input devices and their buttons and axes.
 fn input_devices(session: &ProjectSession) -> Vec<ConsoleInputDevice> {
     session
         .project()
-        .active_setup()
         .input_devices()
         .map(|device| ConsoleInputDevice {
             device: object_ref(session, device.id()),
-            name: session.address_of(device.id()).declared_name().to_string(),
+            name: session.address_of(device.id()).object().to_string(),
             buttons: controls(&device, true),
             axes: controls(&device, false),
         })
@@ -317,26 +268,9 @@ pub(super) fn edit_console(
 ) -> Result<Vec<String>, GuiMutationError> {
     let mut created = Vec::new();
     let mut draft = resolved.view::<Console>(session).object().clone();
-    let owner = resolved.document_id();
     match edit {
-        ConsoleGuiEdit::SetFrameRate { frame_rate } => draft.frame_rate = frame_rate,
         ConsoleGuiEdit::Composition { edit } => {
-            created = super::graph::edit_composition(session, owner, &mut draft, edit)?;
-        }
-        ConsoleGuiEdit::AddLiveMarks { name, color } => {
-            typed_name(&name)?;
-            let name = fresh_name(&name, |candidate| {
-                draft
-                    .live_marks
-                    .iter()
-                    .any(|marks| marks.key.name.as_str() == candidate)
-            });
-            created.push(name.as_str().to_string());
-            draft.live_marks.push(LiveMarks {
-                key: MarkCollectionKey { name },
-                description: None,
-                display_color: parse_color(&color)?,
-            });
+            created = super::graph::edit_composition(session, &mut draft.composition, edit)?;
         }
         ConsoleGuiEdit::AddAlwaysEffect {
             initial_color,
@@ -417,35 +351,6 @@ pub(super) fn edit_console(
             let action = action_from_gui(session, action)?;
             push_action(&mut draft, event, control, action)?;
         }
-        ConsoleGuiEdit::RemoveAction { on, index } => {
-            let actions = &mut event_mut(&mut draft, on)?.actions;
-            let index = index as usize;
-            if index >= actions.len() {
-                return Err(GuiMutationError::Invalid("Action was not found.".into()));
-            }
-            let removed = actions.remove(index);
-            if let Action::Set { target, .. } = &removed {
-                for on in &mut draft.events {
-                    on.actions
-                        .retain(|action| !matches!(action, Action::Set { target: set, .. } if set == target));
-                }
-            }
-            // An effect nothing plays or holds goes, with the stops that were left for it.
-            if let Some(clip) = removed.clip() {
-                let started = draft.is_always(clip)
-                    || draft
-                        .events
-                        .iter()
-                        .flat_map(|on| &on.actions)
-                        .any(|action| {
-                            action.clip() == Some(clip) && !matches!(action, Action::Stop { .. })
-                        });
-                if !started {
-                    delete_clip(&mut draft, clip);
-                }
-            }
-            draft.events.retain(|on| !on.actions.is_empty());
-        }
         ConsoleGuiEdit::ControlParam {
             target,
             source,
@@ -460,9 +365,7 @@ pub(super) fn edit_console(
                 );
             }
             if let AutomationTarget::ClipParam { clip_id, param } = &target {
-                clip_mut(&mut draft, *clip_id)?
-                    .played
-                    .retain(|value| value.param != *param);
+                played_mut(&mut draft, *clip_id)?.retain(|value| value.param != *param);
             }
             if let Some(ConsoleParamSource::Played { from }) = source {
                 let AutomationTarget::ClipParam { clip_id, param } = target else {
@@ -470,11 +373,11 @@ pub(super) fn edit_console(
                         "Only an effect's parameter is played.".into(),
                     ));
                 };
-                clip_mut(&mut draft, clip_id)?.played.push(PlayedValue {
+                played_mut(&mut draft, clip_id)?.push(PlayedValue {
                     param,
                     from: match from {
-                        ConsolePlayedQuantity::Velocity => PlayedQuantity::Velocity,
-                        ConsolePlayedQuantity::PitchClass => PlayedQuantity::PitchClass,
+                        ConsolePlayedQuantity::Velocity => PlayedSource::Velocity,
+                        ConsolePlayedQuantity::PitchClass => PlayedSource::PitchClass,
                     },
                     window,
                 });
@@ -514,72 +417,10 @@ pub(super) fn edit_console(
             }
             draft.events.retain(|on| !on.actions.is_empty());
         }
-        ConsoleGuiEdit::EditClip { id, edit } => {
-            edit_clip(session, owner, &mut draft, ConsoleClipId(id), edit)?;
-        }
-        ConsoleGuiEdit::SetAlways {
-            clip_id,
-            length_seconds,
-        } => {
-            let clip = ConsoleClipId(clip_id);
-            match length_seconds {
-                Some(seconds) => {
-                    let length = checked_gui_duration(seconds)?;
-                    match draft.always.iter_mut().find(|always| always.clip == clip) {
-                        Some(always) => always.length = length,
-                        None => draft.always.push(Always { clip, length }),
-                    }
-                }
-                None => draft.always.retain(|always| always.clip != clip),
-            }
-        }
-        ConsoleGuiEdit::AddEvent { event, input } => {
-            let input = control_from_gui(session, &input)?;
-            draft.events.push(On {
-                id: OnId(next_id(draft.events.iter().map(|on| on.id.0))?),
-                event: input_event(event, input),
-                actions: Vec::new(),
-            });
-        }
-        ConsoleGuiEdit::SetEvent { id, event, input } => {
-            let input = control_from_gui(session, &input)?;
-            let notes = session
-                .project()
-                .get::<InputDevice>(input.device)
-                .and_then(|device| device.control(input.control))
-                .and_then(|control| control.kind.notes())
-                .is_some();
-            let on = event_mut(&mut draft, id)?;
-            on.event = input_event(event, input);
-            if event == ConsoleEventKind::Move {
-                on.actions
-                    .retain(|action| matches!(action, Action::Set { .. }));
-            }
-            // The clips it starts keep only the values it can play.
-            let started = on
-                .actions
-                .iter()
-                .filter_map(Action::started)
-                .collect::<Vec<_>>();
-            for clip in draft
-                .clips
-                .iter_mut()
-                .filter(|clip| started.contains(&clip.id))
-            {
-                clip.played.retain(|value| {
-                    event == ConsoleEventKind::Press && (notes || !value.from.needs_note())
-                });
-            }
-        }
-        ConsoleGuiEdit::SetActions { id, actions } => {
-            let actions = actions
-                .into_iter()
-                .map(|action| action_from_gui(session, action))
-                .collect::<Result<_, _>>()?;
-            event_mut(&mut draft, id)?.actions = actions;
-        }
     }
-    session.put(draft).map_err(GuiMutationError::from)?;
+    session
+        .put((resolved.id(), draft))
+        .map_err(GuiMutationError::from)?;
     Ok(created)
 }
 
@@ -591,21 +432,16 @@ fn add_clip(
     initial_color: &str,
     effect: SequenceEffectReference,
     target: FixtureTarget,
-) -> Result<(ConsoleClipId, String), GuiMutationError> {
-    let clip = new_clip(session, draft, effect, initial_color)?;
-    let id = ConsoleClipId(clip.id);
-    let shown = clip.name.as_str().to_string();
-    draft.clips.push(donder_model::ConsoleClip {
-        id,
-        name: clip.name,
-        description: None,
-        layer_id: clip.layer_id,
-        target: target_from_gui(session, target),
-        scope: ClipScope::WholeTarget,
-        definition: clip.definition,
-        param_overrides: clip.param_overrides,
-        played: Vec::new(),
-    });
+) -> Result<(ClipId, String), GuiMutationError> {
+    let clip = new_effect_clip(
+        session,
+        &draft.composition,
+        super::model::target_from_gui(target),
+        Placement::Played(Vec::new()),
+        (effect, TargetScope::WholeTarget, initial_color),
+    )?;
+    let (id, shown) = (clip.id, clip.name.as_str().to_string());
+    draft.composition.clips.push(std::sync::Arc::new(clip));
     Ok((id, shown))
 }
 
@@ -616,13 +452,22 @@ fn push_action(
     control: ControlRef,
     action: Action,
 ) -> Result<(), GuiMutationError> {
-    let wanted = input_event(kind, control);
-    let index = match console.events.iter().position(|on| on.event == wanted) {
+    let happening = match kind {
+        ConsoleEventKind::Press => InputHappening::Press,
+        ConsoleEventKind::Release => InputHappening::Release,
+        ConsoleEventKind::Move => InputHappening::Move,
+    };
+    let index = match console
+        .events
+        .iter()
+        .position(|on| on.happening == happening && on.control == control)
+    {
         Some(index) => index,
         None => {
             console.events.push(On {
                 id: OnId(next_id(console.events.iter().map(|on| on.id.0))?),
-                event: wanted,
+                happening,
+                control,
                 actions: Vec::new(),
             });
             console.events.len() - 1
@@ -630,67 +475,6 @@ fn push_action(
     };
     console.events[index].actions.push(action);
     Ok(())
-}
-
-/// Remove a clip; what played or set it goes as repairs.
-pub(super) fn delete_clip(console: &mut Console, id: ConsoleClipId) {
-    console.clips.retain(|clip| clip.id != id);
-}
-
-fn input_event(kind: ConsoleEventKind, control: ControlRef) -> InputEvent {
-    match kind {
-        ConsoleEventKind::Press => InputEvent::Press(control),
-        ConsoleEventKind::Release => InputEvent::Release(control),
-        ConsoleEventKind::Move => InputEvent::Move(control),
-    }
-}
-
-fn edit_clip(
-    session: &mut ProjectSession,
-    owner: &DocumentId,
-    console: &mut Console,
-    id: ConsoleClipId,
-    edit: ConsoleClipEdit,
-) -> Result<(), GuiMutationError> {
-    match edit {
-        ConsoleClipEdit::Layer { layer_id } => {
-            if !console.layers.iter().any(|layer| layer.id.0 == layer_id) {
-                return Err(GuiMutationError::Invalid("Layer was not found.".into()));
-            }
-            clip_mut(console, id)?.layer_id = SequenceLayerId(layer_id);
-        }
-        ConsoleClipEdit::Target { target } => {
-            clip_mut(console, id)?.target = target_from_gui(session, target);
-        }
-        ConsoleClipEdit::Scope { scope } => clip_mut(console, id)?.scope = clip_scope(scope),
-        ConsoleClipEdit::Definition {
-            initial_color,
-            effect: reference,
-        } => {
-            let (definition, _, params) = chosen_effect(session, reference, &initial_color)?;
-            let authored = clip_mut(console, id)?;
-            authored.definition = definition;
-            authored.param_overrides = params;
-            // Played values and `Set`s name the old effect's parameters.
-            authored.played.clear();
-            console.forget_clip(id);
-        }
-        ConsoleClipEdit::Param { name, value } => {
-            let value = param_value_from_gui(session, owner, value)?;
-            clip_mut(console, id)?
-                .param_overrides
-                .insert(identifier(&name)?, value);
-        }
-    }
-    Ok(())
-}
-
-/// A fixture or group of the active layout.
-fn target_from_gui(session: &ProjectSession, target: FixtureTarget) -> DomainFixtureTarget {
-    DomainFixtureTarget {
-        layout: session.project().active_layout().id(),
-        fixture: FixtureInstanceId(target.fixture),
-    }
 }
 
 /// A control of an input device of the project.
@@ -705,32 +489,21 @@ fn control_from_gui(
     })
 }
 
-pub(super) fn live_marks_mut<'a>(
-    console: &'a mut Console,
-    key: &str,
-) -> Result<&'a mut LiveMarks, GuiMutationError> {
-    console
-        .live_marks
-        .iter_mut()
-        .find(|marks| marks.key.name.as_str() == key)
-        .ok_or_else(|| GuiMutationError::Invalid("Live mark collection was not found.".into()))
-}
-
-pub(super) fn clip_mut(
+/// The values each copy of a played clip takes from its press.
+fn played_mut(
     console: &mut Console,
-    id: ConsoleClipId,
-) -> Result<&mut donder_model::ConsoleClip, GuiMutationError> {
-    console
+    id: ClipId,
+) -> Result<&mut Vec<PlayedValue>, GuiMutationError> {
+    let clip = console
+        .composition
         .clips
         .iter_mut()
         .find(|clip| clip.id == id)
-        .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".into()))
-}
-
-fn event_mut(console: &mut Console, id: u32) -> Result<&mut On, GuiMutationError> {
-    console
-        .events
-        .iter_mut()
-        .find(|on| on.id.0 == id)
-        .ok_or_else(|| GuiMutationError::Invalid("Event was not found.".into()))
+        .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".into()))?;
+    match &mut std::sync::Arc::make_mut(clip).placement {
+        Placement::Played(values) => Ok(values),
+        Placement::Timed { .. } => Err(GuiMutationError::Invalid(
+            "A timed clip takes nothing from a press.".into(),
+        )),
+    }
 }

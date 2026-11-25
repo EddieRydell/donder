@@ -91,7 +91,7 @@ fn role(
         Some(DocumentRole {
             format: SourceDocumentFormat::Script,
             ..
-        }) => WorkspaceEntryRole::Object(ObjectKind::Effect),
+        }) => WorkspaceEntryRole::Object(ObjectKind::Script),
         Some(_) => plain(WorkspaceEntryPlainRole::File),
         None if path.extension().is_some_and(|extension| {
             crate::audio::AUDIO_EXTENSIONS

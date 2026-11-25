@@ -18,11 +18,10 @@ type Param<'a> = (&'a str, &'a str, Value);
 fn sample(params: &[Param], body: &str) -> Color {
     let context = PixelContext {
         run: RunContext {
-            progress: 0.75,
+            origin: donder_runtime_types::SampleTime::from_ticks(0),
             time: SampleDuration::from_ticks(750_000),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
-            frame: 0,
             pixel_count: 1,
         },
         index: 0,
@@ -147,28 +146,27 @@ fn plateau_arrival_and_exact_touches_are_events_but_endpoint_hold_is_not() {
 fn mark_queries_have_explicit_clocks_inclusive_boundaries_and_missing_values() {
     let beats = marks(&[250_000, 500_000, 500_000]);
     for predicate in [
-        "mark_count(beats) == 3",
         "len(beats) == 3",
-        "is_nan(mark_last(beats, 0.0))",
+        "is_nan(mark_at(beats, mark_last_index(beats, 0.0)))",
         "mark_last_index(beats, 0.0) == -1",
-        "mark_last(beats, 0.25) == 0.25",
+        "mark_at(beats, mark_last_index(beats, 0.25)) == 0.25",
         "mark_last_index(beats, 0.25) == 0",
-        "mark_last(beats, time) == 0.5",
+        "mark_at(beats, mark_last_index(beats, time)) == 0.5",
         "mark_last_index(beats, 0.5) == 2",
         "mark_at(beats, 2) == 0.5",
         "is_nan(mark_at(beats, -1))",
         "is_nan(mark_at(beats, 3))",
-        "is_nan(mark_last(beats, 0.0 / 0.0))",
+        "is_nan(mark_at(beats, mark_last_index(beats, 0.0 / 0.0)))",
         "mark_last_index(beats, 0.0 / 0.0) == -1",
-        "mark_last(beats, 1.0 / 0.0) == 0.5",
-        "is_nan(mark_last(beats, -1.0 / 0.0))",
+        "mark_at(beats, mark_last_index(beats, 1.0 / 0.0)) == 0.5",
+        "is_nan(mark_at(beats, mark_last_index(beats, -1.0 / 0.0)))",
         "value_or(mark_at(beats, -1), 0.125) == 0.125",
     ] {
         assert_query(&[("beats", "marks", beats.clone())], predicate);
     }
     for predicate in [
-        "mark_count(beats) == 0",
-        "is_nan(mark_last(beats, 1.0))",
+        "len(beats) == 0",
+        "is_nan(mark_at(beats, mark_last_index(beats, 1.0)))",
         "mark_last_index(beats, 1.0) == -1",
         "is_nan(mark_at(beats, 0))",
     ] {
@@ -177,9 +175,9 @@ fn mark_queries_have_explicit_clocks_inclusive_boundaries_and_missing_values() {
     // Construction sorts, so indices follow time rather than authoring order.
     let unsorted = marks(&[500_000, 250_000, 500_000, 125_000]);
     for predicate in [
-        "mark_last(beats, 0.75) == 0.5",
+        "mark_at(beats, mark_last_index(beats, 0.75)) == 0.5",
         "mark_last_index(beats, 0.75) == 3",
-        "mark_last(beats, 0.375) == 0.25",
+        "mark_at(beats, mark_last_index(beats, 0.375)) == 0.25",
         "mark_last_index(beats, 0.375) == 1",
         "mark_at(beats, 0) == 0.125",
         "mark_at(beats, 3) == 0.5",
@@ -281,11 +279,7 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
 
 #[test]
 fn gradients_with_no_stops_are_black() {
-    for expression in [
-        "gradient[0.5]",
-        "gradient[progress]",
-        "gradient_color_scaled(gradient, progress, 1.0)",
-    ] {
+    for expression in ["gradient[0.5]", "gradient[progress]"] {
         assert_eq!(
             sample(
                 &[(

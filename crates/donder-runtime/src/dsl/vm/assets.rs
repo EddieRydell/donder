@@ -83,15 +83,9 @@ pub(super) fn run(machine: &Machine<'_, '_>, instruction: &Instruction, sel: Sel
 }
 
 fn font_view<'m>(machine: &Machine<'m, '_>, handle: Handle) -> FontView<'m> {
-    match handle.kind() {
-        Ok(index) => machine.bound.show.font(index),
-        Err(_) => unreachable!("show fonts resolve when bound"),
-    }
+    machine.bound.show.font(handle.index())
 }
 
 fn image_view<'m>(machine: &Machine<'m, '_>, handle: Handle) -> ImageView<'m> {
-    match handle.kind() {
-        Ok(index) => machine.bound.show.image(index),
-        Err(_) => unreachable!("show images resolve when bound"),
-    }
+    machine.bound.show.image(handle.index())
 }

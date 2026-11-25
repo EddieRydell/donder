@@ -1,7 +1,7 @@
 use super::DesktopState;
 use donder_editor::dto::{
-    GuiDocument, GuiDocumentRequest, GuiEditCommand, SequenceClipCommonEdit, SequenceClipRef,
-    SequenceClipScope, SequenceCurveValue, SequenceGradientValue, SequenceGuiEdit,
+    GuiDocument, GuiDocumentRequest, GuiEdit, GuiField, GuiMember, GuiSite, GuiValue,
+    NewClipContent, SequenceClipScope, SequenceCurveValue, SequenceGradientValue, SequenceGuiEdit,
     SequenceLibraryLink, SequenceParamValue,
 };
 
@@ -41,7 +41,6 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     state.update_app_settings(settings);
     state.open_file_path(path);
     let request = || GuiDocumentRequest {
-        owned_path: Vec::new(),
         project_revision: state.snapshot().project_revision,
         path: path.into(),
         object_key: "empty".into(),
@@ -54,19 +53,32 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         .iter()
         .find(|item| item.effect.effect_name == "ArrayValues")
         .unwrap();
-    let edit = |edit| {
-        let result = state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
+    let apply = |edit| {
+        let result = state.apply_gui_edit(request(), edit);
         let GuiDocument::Sequence { document } = result.document else {
             panic!("{result:?}");
         };
         document
     };
+    let edit = |edit| apply(GuiEdit::Sequence { edit });
+    let put_param = |id, name: &str, value| {
+        apply(GuiEdit::put(
+            GuiSite::of(
+                Some(GuiMember::Clip { id }),
+                Some(GuiField::Param { name: name.into() }),
+            ),
+            GuiValue::Param { value },
+        ))
+    };
     let document = edit(SequenceGuiEdit::AddClip {
-        initial_color: document.gradient_library[0].gradient.stops[0].value.clone(),
-        effect: definition.effect.clone(),
-        target: document.lanes[0].target.clone(),
-        scope: SequenceClipScope::PerFixture,
+        target: document.targets[0].target.clone(),
         start_seconds: 0.0,
+        duration_seconds: 1.0,
+        content: NewClipContent::Effect {
+            initial_color: document.gradient_library[0].gradient.stops[0].value.clone(),
+            effect: definition.effect.clone(),
+            scope: SequenceClipScope::PerFixture,
+        },
     });
     let clip_id = document.clips[0].id;
     let params = |id: u32| {
@@ -77,27 +89,23 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
             .remove(0)
             .params
     };
-    edit(SequenceGuiEdit::EditClips {
-        clips: vec![SequenceClipRef::Clip { id: clip_id }],
-        edit: SequenceClipCommonEdit::Param {
-            name: "shapes".into(),
-            value: SequenceParamValue::CurveArray { values: vec![] },
-        },
-    });
-    let document = edit(SequenceGuiEdit::EditClips {
-        clips: vec![SequenceClipRef::Clip { id: clip_id }],
-        edit: SequenceClipCommonEdit::Param {
-            name: "colors".into(),
-            value: SequenceParamValue::GradientArray { values: vec![] },
-        },
-    });
+    put_param(
+        clip_id,
+        "shapes",
+        SequenceParamValue::Array { values: vec![] },
+    );
+    let document = put_param(
+        clip_id,
+        "colors",
+        SequenceParamValue::Array { values: vec![] },
+    );
     let clip = &document.clips[0];
     let clip_params = params(clip.id);
     assert!(
-        matches!(&clip_params[0].value, SequenceParamValue::CurveArray { values } if values.is_empty())
+        matches!(&clip_params[0].value, SequenceParamValue::Array { values } if values.is_empty())
     );
     assert!(
-        matches!(&clip_params[1].value, SequenceParamValue::GradientArray { values } if values.is_empty())
+        matches!(&clip_params[1].value, SequenceParamValue::Array { values } if values.is_empty())
     );
     let curve = &document.curve_library[0];
     let gradient = &document.gradient_library[0];
@@ -117,60 +125,64 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     for (name, value) in [
         (
             "shapes",
-            SequenceParamValue::CurveArray {
-                values: vec![curve.clone(), curve],
+            SequenceParamValue::Array {
+                values: vec![
+                    SequenceParamValue::Curve {
+                        value: curve.clone(),
+                    },
+                    SequenceParamValue::Curve { value: curve },
+                ],
             },
         ),
         (
             "colors",
-            SequenceParamValue::GradientArray {
-                values: vec![gradient.clone(), gradient],
+            SequenceParamValue::Array {
+                values: vec![
+                    SequenceParamValue::Gradient {
+                        value: gradient.clone(),
+                    },
+                    SequenceParamValue::Gradient { value: gradient },
+                ],
             },
         ),
     ] {
-        let document = edit(SequenceGuiEdit::EditClips {
-            clips: vec![SequenceClipRef::Clip { id: clip.id }],
-            edit: SequenceClipCommonEdit::Param {
-                name: name.into(),
-                value,
-            },
-        });
+        let document = put_param(clip.id, name, value);
         let mut value = params(document.clips[0].id)
             .iter()
             .find(|param| param.name == name)
             .unwrap()
             .value
             .clone();
-        match &mut value {
-            SequenceParamValue::CurveArray { values } => {
-                values[0].link = SequenceLibraryLink::Inline;
-                values[0].points[0].value = 0.25;
+        let SequenceParamValue::Array { values } = &mut value else {
+            panic!("wrong array editor")
+        };
+        match &mut values[0] {
+            SequenceParamValue::Curve { value } => {
+                value.link = SequenceLibraryLink::Inline;
+                value.points[0].value = 0.25;
             }
-            SequenceParamValue::GradientArray { values } => {
-                values[0].link = SequenceLibraryLink::Inline;
-                values[0].gradient.stops[0].value =
-                    values[0].gradient.stops.last().unwrap().value.clone();
+            SequenceParamValue::Gradient { value } => {
+                value.link = SequenceLibraryLink::Inline;
+                value.gradient.stops[0].value = value.gradient.stops.last().unwrap().value.clone();
             }
             _ => panic!("wrong array editor"),
         }
-        let document = edit(SequenceGuiEdit::EditClips {
-            clips: vec![SequenceClipRef::Clip { id: clip.id }],
-            edit: SequenceClipCommonEdit::Param {
-                name: name.into(),
-                value,
-            },
-        });
+        let document = put_param(clip.id, name, value);
         let edited = params(document.clips[0].id);
         let value = &edited
             .iter()
             .find(|param| param.name == name)
             .unwrap()
             .value;
-        let (inline, linked) = match value {
-            SequenceParamValue::CurveArray { values } => (&values[0].link, &values[1].link),
-            SequenceParamValue::GradientArray { values } => (&values[0].link, &values[1].link),
+        let link = |item: &SequenceParamValue| match item {
+            SequenceParamValue::Curve { value } => value.link.clone(),
+            SequenceParamValue::Gradient { value } => value.link.clone(),
             _ => panic!("wrong array editor"),
         };
+        let SequenceParamValue::Array { values } = value else {
+            panic!("wrong array editor")
+        };
+        let (inline, linked) = (link(&values[0]), link(&values[1]));
         assert!(matches!(inline, SequenceLibraryLink::Inline));
         assert!(matches!(linked, SequenceLibraryLink::Library { .. }));
     }

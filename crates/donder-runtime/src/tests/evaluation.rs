@@ -15,8 +15,7 @@ use donder_language::compiler::{
 use donder_runtime_types::{BoundProgram, Type, Value};
 use donder_runtime_types::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
 use donder_runtime_types::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, SequenceTiming, SpatialContext,
-    TargetGeometry, TargetScope,
+    FixtureGeometry, OutputEncoding, SequenceTiming, SpatialContext, TargetGeometry, TargetScope,
 };
 use std::prelude::rust_2024::*;
 
@@ -150,6 +149,14 @@ pub(super) struct PixelContext {
     pub(super) fraction: f32,
 }
 
+impl PixelContext {
+    /// `time / duration`, as programs compute it.
+    pub(super) fn progress(&self) -> f32 {
+        donder_runtime_types::sample_duration_seconds_f32(self.run.time)
+            / donder_runtime_types::sample_duration_seconds_f32(self.run.duration)
+    }
+}
+
 impl core::ops::Deref for PixelContext {
     type Target = RunContext;
 
@@ -213,8 +220,7 @@ impl Single {
         let bound = Bound {
             show,
             program,
-            params: ParamsView::show(show, self.params),
-            sections: None,
+            params: ParamsView::show(show, self.params, Default::default()),
         };
         let mut strip = Strip::new(bound, context, &mut strip_workspace);
         run(&mut strip)
@@ -231,7 +237,6 @@ impl Single {
         self.with_strip(&context.run, workspace, |strip| {
             let pixels = strip.pixels();
             pixels.index[0].set(context.index);
-            pixels.fraction[0].set(context.fraction);
             pixels.x[0].set(spatial.position[0]);
             pixels.y[0].set(spatial.position[1]);
             let mut color = [Color::BLACK];
@@ -325,11 +330,10 @@ pub(super) fn context(count: usize, pixel: usize, frame: usize) -> PixelContext 
     let time = 3_000_000 + frame as u32 * 8_333;
     PixelContext {
         run: RunContext {
-            progress: time as f32 / 8_000_000.0,
+            origin: donder_runtime_types::SampleTime::from_ticks(0),
             time: SampleDuration::from_ticks(time),
             duration: SampleDuration::from_ticks(8_000_000),
             frame_rate: 40.0,
-            frame: 0,
             pixel_count: count as i32,
         },
         index: pixel as i32,
@@ -339,15 +343,14 @@ pub(super) fn context(count: usize, pixel: usize, frame: usize) -> PixelContext 
 
 pub(super) use donder_test_support::playback::{compile, invoke as bind, try_invoke as try_bind};
 
-/// A one-pixel context of a one-second sequence at `progress`, at time zero.
+/// A one-pixel context of a one-second sequence at `progress`.
 pub(super) fn one_pixel(progress: f32) -> PixelContext {
     PixelContext {
         run: RunContext {
-            progress,
-            time: SampleDuration::from_ticks(0),
+            origin: donder_runtime_types::SampleTime::from_ticks(0),
+            time: SampleDuration::from_ticks((progress * 1_000_000.0) as u32),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
-            frame: 0,
             pixel_count: 1,
         },
         index: 0,
@@ -455,19 +458,12 @@ pub(super) fn runtime_instance(
     runtime: &[(&str, Value)],
 ) -> (Instance, Vec<Value>) {
     let mut values = Vec::new();
-    let mut automation = Vec::new();
+    let mut playback = Vec::new();
     let mut slots = Vec::new();
     for (index, param) in definition.params().iter().enumerate() {
         let name = param.name.as_str();
         if let Some((_, value)) = runtime.iter().find(|(runtime, _)| *runtime == name) {
-            automation.push(PreparedAutomation {
-                start: SampleTime::from_ticks(0),
-                duration: SampleDuration::from_ticks(1),
-                curve: Curve { points: Vec::new() }.into(),
-                mapping: param.automation_mapping().unwrap(),
-                quantity: donder_runtime_types::AutomatedQuantity::Value,
-                param_index: index as u16,
-            });
+            playback.push(index);
             values.push(placeholder(param));
             slots.push(value.clone());
         } else if let Some((_, value)) = fixed.iter().find(|(fixed, _)| *fixed == name) {
@@ -487,8 +483,8 @@ pub(super) fn runtime_instance(
         "values name parameters"
     );
     let values = program_values(definition.params(), values, &[]);
-    let invocation = definition.invoke(values, automation.into()).unwrap();
-    (invocation.instance(Default::default()), slots)
+    let invocation = definition.invoke(values, Box::default()).unwrap();
+    (invocation.playback_instance(&playback), slots)
 }
 
 /// A value of `param` inside its declared range.
@@ -503,36 +499,13 @@ fn placeholder(param: &ParamDecl) -> Value {
     }
 }
 
-/// Lowered programs place automated parameters first, in declaration order;
-/// integral slots follow them and keep their placeholder values.
-fn rebind(
-    values: &donder_runtime_types::BoundParams,
-    automation: &[PreparedAutomation],
-    slots: Vec<Value>,
-) -> Vec<Value> {
-    let parameters = automation
-        .iter()
-        .filter(|binding| binding.quantity == donder_runtime_types::AutomatedQuantity::Value)
-        .count();
-    assert_eq!(parameters, slots.len());
-    let mut values = values.values().to_vec();
-    for (slot, value) in slots.into_iter().enumerate() {
-        assert_eq!(usize::from(automation[slot].param_index), slot);
-        values[slot] = value;
-    }
-    values
-}
-
-/// A lowered runtime instance whose runtime slots hold `slots`, which may lie
-/// outside their declared ranges. The result has no automation, so playback
-/// keeps those values too.
+/// A lowered runtime instance whose runtime slots, which lowering places
+/// first, hold `slots`, which may lie outside their declared ranges.
 pub(super) fn lower_runtime(instance: &Instance, slots: Vec<Value>) -> BoundProgram {
     let lowered = playback::bind(instance);
-    BoundProgram::new(
-        lowered.program().clone(),
-        rebind(lowered.params(), lowered.automation(), slots),
-        Box::new([]),
-    )
+    let mut values = lowered.params().values().to_vec();
+    values[..slots.len()].clone_from_slice(&slots);
+    BoundProgram::new(lowered.program().clone(), values)
 }
 
 /// `effect` evaluated by the VM wherever it reads a `runtime` parameter.

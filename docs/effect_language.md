@@ -35,7 +35,7 @@ effect Wash "A gradient across the target, faded by a curve." {
 operator Mirror "The input reversed across the target." {
   input source;
 
-  sample { source.at(target.count - 1 - pixel.index) }
+  sample { source[target.count - 1 - pixel.index] }
 }
 ```
 
@@ -127,7 +127,7 @@ expression it produces.
   idiom for early exits:
 
   ```text
-  let age = time - mark_last(beats, time);
+  let age = time - mark_at(beats, mark_last_index(beats, time));
   guard age >= 0.0 && age < decay;
   gradient[age / decay]
   ```
@@ -284,7 +284,7 @@ A table is an array computed once per frame, before any pixel, and then read
 by every pixel at an index of its own:
 
 ```text
-let heights = table for i in 0..bars { curve_clamped(levels, i / bars) };
+let heights = table for i in 0..bars { levels[i / bars] };
 let starts = table sum for i in 0..count { widths[i] };
 heights[pixel.index % bars]
 ```
@@ -470,8 +470,8 @@ fixture transforms.
 An operator reads its input signals in the current frame:
 
 - `source` used as a color reads the current pixel.
-- `source.at(pixel)` reads a zero-based pixel of the current fixture
-  instance. Local coordinates never wrap across fixtures. To read neighbors,
+- `source[pixel]` (an int index) reads a zero-based pixel of the current
+  fixture instance. Local coordinates never wrap across fixtures. To read neighbors,
   use an `around` reduction.
 
 Out-of-range pixels return black. Every input's whole frame is computed before
@@ -499,18 +499,18 @@ fragment is prepared, even if they are patched elsewhere; see
 - Gradients with no stops return black.
 - Literal errors are compile errors; a bad literal is never replaced by zero.
 
-## Events and sections
+## Events
 
 Event queries take explicit coordinates and return the event's coordinate, not
 elapsed time. Curve positions are normalized; mark times are seconds.
 
 | Query | Result |
 | --- | --- |
-| `mark_last(marks, time)` | Latest mark at or before `time`, or NaN |
+| `mark_at(marks, mark_last_index(marks, time))` | Latest mark at or before `time`, or NaN |
 | `mark_last_index(marks, time)` | Its index, or `-1` |
 | `mark_at(marks, index)` | Time of that mark, or NaN for a missing index |
 | `mark_duration(marks, index)` | How long that mark lasts (zero for a beat or a live mark), or NaN |
-| `mark_count(marks)` | Number of marks |
+| `len(marks)` | Number of marks |
 | `curve_first_crossing(curve, value)` | First position where the curve reaches `value`, or NaN |
 | `curve_last_crossing(curve, value, position)` | Latest crossing at or before `position`, or NaN |
 
@@ -518,12 +518,6 @@ Marks are kept in time order; at equal times the last index wins. Crossings work
 on increasing, decreasing and nonmonotonic curves. An exact touch counts, and a
 flat stretch at the value counts once, on arrival. Before the first mark, NaN
 reaches the color and the pixel is black; each new mark restarts a pulse.
-
-`section_count(width)` and `section_index(width)` split the target into runs of
-`width` pixels that respect fixture boundaries: a short final section belongs to
-its fixture. Two 113-pixel fixtures with width 7 have 17 sections each, and the
-second fixture starts at section 17. A per-fixture clip sections its own
-fixture; a whole-target clip sections the target's fixtures in order.
 
 ## Limits
 

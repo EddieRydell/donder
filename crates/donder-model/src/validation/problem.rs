@@ -2,20 +2,22 @@
 //! one is written here, once, by `Display`.
 use std::fmt;
 
-use crate::console::{ConsoleClipId, MAX_COPIES, OnId};
+use crate::composition::{CompositionGraphNodeId, LayerId, MarkCollectionId};
+use crate::console::{MAX_COPIES, OnId};
 use crate::controller::{
     ARTNET_PORT_ADDRESS_MAX, ChannelPlace, ControllerOutput, ControllerPortId,
     ControllerValidationError, DMX_SLOT_LIMIT, E131_UNIVERSE_MAX, E131_UNIVERSE_MIN,
 };
-use crate::effect::ClipId;
-use crate::fixture::{FixtureDefinitionError, FixtureElementId, FixtureGeometryError};
+use crate::effect::{ClipId, DefinitionProblem};
+use crate::fixture::{FixtureDefinitionError, FixtureGeometryError};
 use crate::identity::{ObjectId, ObjectKind};
-use crate::input_device::{InputControlId, InputDeviceValidationError};
-use crate::layout::{FixtureInstanceId, LayoutError};
+use crate::input_device::InputDeviceValidationError;
+use crate::layout::{FixtureId, LayoutError};
 use crate::operator::GraphValidationError;
 use crate::patch::PixelRouteId;
 use crate::patch::PixelSpan;
-use crate::sequence::{AutomationClipId, CompositionGraphNodeId, SequenceLayerId};
+use crate::sequence::AutomationTarget;
+use crate::site::{Field, Member, Site};
 use crate::validation::{MAX_SEQUENCE_FRAME_COUNT, MAX_SEQUENCE_FRAME_RATE};
 use donder_runtime_types::{
     BindingError, CurveValidationError, GradientValidationError, Identifier,
@@ -37,9 +39,6 @@ impl fmt::Display for ProjectValidationError {
 /// Why an object breaks a project rule.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ValidationProblem {
-    Ownership(OwnershipProblem),
-    /// A script definition is stored under an id its declaration does not carry.
-    DefinitionMismatch,
     Curve(CurveValidationError),
     /// A stored curve's values are 0 to 1; a parameter maps them onto its
     /// range when the curve is bound.
@@ -55,22 +54,12 @@ pub enum ValidationProblem {
         fixture: Option<Identifier>,
         problem: RouteProblem,
     },
-    Setup(SetupProblem),
-    Sequence(SequenceValidationError),
+    Project(ProjectProblem),
+    /// A sequence's or console's clock.
+    Timing(TimingProblem),
+    Composition(CompositionProblem),
     Console(ConsoleValidationError),
     Admission(AdmissionProblem),
-}
-
-/// Objects owned and referred to inconsistently.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum OwnershipProblem {
-    DuplicateId(ObjectId),
-    StoredUnderOtherId(ObjectId),
-    MissingReference(ObjectId),
-    DuplicateSequence,
-    DuplicateConsole,
-    DuplicateController,
-    DuplicateInputDevice,
 }
 
 /// A patch output that cannot be played as written.
@@ -80,7 +69,6 @@ pub enum RouteProblem {
     InvalidColorOrder,
     InvalidGamma,
     InvalidBrightness,
-    MissingLayout,
     TargetNotFixture,
     Target(LayoutError),
     EmptySpan,
@@ -107,84 +95,39 @@ pub enum RouteProblem {
     },
 }
 
+/// A rule of the project's own members.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SetupProblem {
+pub enum ProjectProblem {
+    MissingLayout,
     TooManyControllers,
     SharedOscPort(u16),
-    /// A route, of the fixture when its layout has it, targets another layout.
-    RouteOnOtherLayout {
-        route: PixelRouteId,
-        fixture: Option<Identifier>,
-    },
-    /// A route, of the fixture when its layout has it, plays through a
-    /// controller the setup does not have.
-    RouteControllerInactive {
-        route: PixelRouteId,
-        fixture: Option<Identifier>,
-    },
-}
-
-/// A sequence that cannot be played as written.
-#[derive(Clone, Debug, PartialEq)]
-pub enum SequenceValidationError {
-    Timing(TimingProblem),
-    Name(NameProblem),
-    Composition(CompositionProblem),
-    DuplicateClipId(ClipId),
-    DuplicateAutomationClipId(AutomationClipId),
-    MarkOutsideDuration(Identifier),
-    InvalidMarkLabel(Identifier),
-    Clip {
-        clip: ClipId,
-        name: Identifier,
-        problem: ClipProblem,
-    },
-    Automation {
-        clip: AutomationClipId,
-        problem: AutomationProblem,
-    },
 }
 
 /// A console that cannot be played as written.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConsoleValidationError {
-    Timing(TimingProblem),
-    Name(NameProblem),
-    Composition(CompositionProblem),
-    DuplicateClipId(ConsoleClipId),
     DuplicateEventId(OnId),
-    Clip {
-        clip: ConsoleClipId,
-        name: Identifier,
-        problem: ClipProblem,
-    },
     /// `Play` actions play the clip, and `Start`, `Toggle` or `always` hold
     /// it too.
     PlayedAndHeld {
-        clip: ConsoleClipId,
+        clip: ClipId,
         name: Identifier,
     },
     MissingAlwaysClip,
     RepeatedAlwaysClip {
-        clip: ConsoleClipId,
+        clip: ClipId,
         name: Identifier,
     },
     /// The length `always` repeats a clip every is not positive or leaves
     /// the playback clock.
     AlwaysLength {
-        clip: ConsoleClipId,
+        clip: ClipId,
         name: Identifier,
         problem: EventProblem,
     },
     Event {
         event: OnId,
         problem: EventProblem,
-    },
-    Played {
-        clip: ConsoleClipId,
-        name: Identifier,
-        param: Identifier,
-        problem: PlayedProblem,
     },
 }
 
@@ -223,9 +166,18 @@ pub enum NameProblem {
 /// The layers and composition graph of a sequence or console.
 #[derive(Clone, Debug, PartialEq)]
 pub enum CompositionProblem {
+    Name(NameProblem),
+    DuplicateClipId(ClipId),
+    Clip {
+        clip: ClipId,
+        name: Identifier,
+        problem: ClipProblem,
+    },
+    MarkOutsideDuration(MarkCollectionId, Identifier),
+    InvalidMarkLabel(MarkCollectionId, Identifier),
     /// Clips play on layers, so a sequence or console keeps at least one.
     NoLayers,
-    DuplicateLayerId(SequenceLayerId),
+    DuplicateLayerId(LayerId),
     Graph(GraphValidationError),
     MissingLayer(CompositionGraphNodeId),
     RepeatedLayer(CompositionGraphNodeId),
@@ -233,6 +185,8 @@ pub enum CompositionProblem {
         node: CompositionGraphNodeId,
         problem: ParamProblem,
     },
+    /// A console's mark collection holds marks; `Mark` actions add them live.
+    LiveMarksHold(MarkCollectionId),
 }
 
 /// A sequence or console clip.
@@ -240,11 +194,15 @@ pub enum CompositionProblem {
 pub enum ClipProblem {
     MissingLayer,
     Region(RegionProblem),
-    NotInActiveLayout,
-    MixedLayouts,
-    MissingTargetLayout,
+    /// A sequence's clip is played, but only a console's actions play one.
+    NeverPlays,
+    /// A console's envelope plays on the session's clock, so it has a start.
+    EnvelopePlayed,
+    /// A value each copy takes from its press.
+    Played(Identifier, PlayedProblem),
+    Envelope(EnvelopeProblem),
     MissingTarget,
-    MissingDefinition,
+    Definition(DefinitionProblem),
     Param(ParamProblem),
 }
 
@@ -277,20 +235,26 @@ pub enum RegionProblem {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum AutomationProblem {
-    MixedLayouts,
-    NotInActiveLayout,
-    MissingRow,
-    Region(RegionProblem),
+pub enum EnvelopeProblem {
     InvalidCurve(CurveValidationError),
     CurveOutOfRange,
-    WindowOutOfRange,
     BindsTwice,
-    NotAutomatable(Identifier),
+    /// Another envelope drives one of its parameters at the same time.
+    Overlap,
+    /// A console's `Set` also sets the parameter it binds.
+    AlsoSet(AutomationTarget),
+    Binding(AutomationTarget, BindingProblem),
+}
+
+/// What an envelope binds or a `Set` sets.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BindingProblem {
+    WindowOutOfRange,
+    NotAutomatable,
+    /// It names no timed effect clip; a `Set`, no played one.
     MissingClip,
     MissingNode,
-    MissingParam(Identifier),
-    Overlap,
+    MissingParam,
 }
 
 /// The control an event plays from.
@@ -298,7 +262,6 @@ pub enum AutomationProblem {
 pub enum InputProblem {
     MissingDevice,
     NotAControl,
-    NotInSetup,
     /// `Press` or `Release` of an axis.
     NotAButton,
     /// `Move` of a button.
@@ -313,7 +276,7 @@ pub enum EventProblem {
     AxisPlays,
     MissingClip,
     MissingNode,
-    MissingLiveMarks(Identifier),
+    MissingLiveMarks,
     /// `Set` names a parameter its clip or operator does not have.
     UnknownParam(Identifier),
     NotAutomatable(Identifier),
@@ -337,194 +300,191 @@ pub enum AdmissionProblem {
     TooManyParams,
 }
 
-/// A named part of an object that a problem concerns.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Member {
-    Layer(SequenceLayerId),
-    Clip(ClipId),
-    Marks(Identifier),
-    AutomationClip(AutomationClipId),
-    Node(CompositionGraphNodeId),
-    LiveMarks(Identifier),
-    ConsoleClip(ConsoleClipId),
-    Event(OnId),
-    Control(InputControlId),
-    Port(ControllerPortId),
-    LayoutItem(FixtureInstanceId),
-    Route(PixelRouteId),
-    Shape(FixtureElementId),
-}
+/// Where in an object a problem lies: the member, and the field of it or of
+/// the object.
+type Place = (Option<Member>, Option<Field>);
 
-/// Which field of a member a problem concerns.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MemberPart {
-    /// A parameter value it sets.
-    Param(Identifier),
-    /// A value each copy of a console clip takes from its press.
-    PlayedValue(Identifier),
-    /// The control an event reads.
-    Input,
-    /// A shape of a fixture definition written in place.
-    Shape(FixtureElementId),
-}
-
-/// Where in an object a problem lies.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProblemSite {
-    pub member: Member,
-    pub part: Option<MemberPart>,
-}
-
-impl ProblemSite {
-    fn of(member: Member) -> Self {
-        Self { member, part: None }
-    }
-
-    fn with(member: Member, part: MemberPart) -> Self {
-        Self {
+impl ProjectValidationError {
+    /// The object, member and field the problem concerns.
+    pub fn site(&self) -> Site {
+        let (member, field) = self.problem.place();
+        Site {
+            object: self.object,
             member,
-            part: Some(part),
+            field,
         }
     }
 }
 
 impl ValidationProblem {
-    /// The member of the object the problem concerns, when it names one.
-    pub fn site(&self) -> Option<ProblemSite> {
+    fn place(&self) -> Place {
         match self {
+            Self::Curve(_) | Self::CurveNotNormalized | Self::Gradient(_) => {
+                (None, Some(Field::Points))
+            }
             Self::Fixture(error) => match error {
-                FixtureDefinitionError::TooManyPixels(_) => None,
+                FixtureDefinitionError::TooManyPixels(_) => (None, None),
                 FixtureDefinitionError::DuplicateElement { element, .. }
                 | FixtureDefinitionError::InvalidElement { element, .. } => {
-                    Some(ProblemSite::of(Member::Shape(*element)))
+                    (Some(Member::Shape(*element)), None)
                 }
             },
-            Self::Layout(LayoutError::InvalidFixture {
-                fixture,
-                error:
-                    FixtureGeometryError::InvalidElement(shape)
-                    | FixtureGeometryError::DuplicateElement(shape),
-            }) => Some(ProblemSite::with(
-                Member::LayoutItem(*fixture),
-                MemberPart::Shape(*shape),
-            )),
-            Self::Layout(error) => error
-                .item()
-                .map(|item| ProblemSite::of(Member::LayoutItem(item))),
-            Self::Controller(error) => error.port().map(|port| ProblemSite::of(Member::Port(port))),
-            Self::InputDevice(error) => error
-                .control()
-                .map(|control| ProblemSite::of(Member::Control(control))),
-            Self::Route { route, .. } => Some(ProblemSite::of(Member::Route(*route))),
-            Self::Sequence(error) => error.site(),
-            Self::Console(error) => error.site(),
-            Self::Admission(AdmissionProblem::Binding(member, _)) => {
-                Some(ProblemSite::of(member.clone()))
-            }
+            Self::Layout(error) => (
+                error.item().map(Member::LayoutItem),
+                match error {
+                    LayoutError::InvalidName(..) | LayoutError::DuplicateName(..) => {
+                        Some(Field::Name)
+                    }
+                    LayoutError::InvalidTransform(_) => Some(Field::Placement),
+                    LayoutError::MissingDefinition(_) => Some(Field::Definition),
+                    _ => None,
+                },
+            ),
+            Self::Controller(error) => (error.port().map(Member::Port), error.field()),
+            Self::InputDevice(error) => (
+                error.control().map(Member::Control),
+                match error {
+                    InputDeviceValidationError::DuplicateControl(_) => None,
+                    InputDeviceValidationError::InvalidControlName(..)
+                    | InputDeviceValidationError::DuplicateControlName(..) => Some(Field::Name),
+                    InputDeviceValidationError::DuplicateInput { .. }
+                    | InputDeviceValidationError::ForeignInput(..)
+                    | InputDeviceValidationError::InputOutOfRange(..)
+                    | InputDeviceValidationError::InvalidAddress(..)
+                    | InputDeviceValidationError::InvalidAxisRange(..) => Some(Field::Input),
+                    InputDeviceValidationError::InvalidOscPort => Some(Field::Port),
+                },
+            ),
+            Self::Route { route, problem, .. } => (Some(Member::Route(*route)), problem.field()),
+            Self::Timing(timing) => (None, Some(timing.field())),
+            Self::Composition(problem) => problem.place(),
+            Self::Console(error) => error.place(),
+            Self::Admission(AdmissionProblem::Binding(member, _)) => (Some(member.clone()), None),
             Self::Admission(AdmissionProblem::LiveMarksInOperator(node)) => {
-                Some(ProblemSite::of(Member::Node(node.clone())))
+                (Some(Member::Node(node.clone())), None)
             }
-            Self::Ownership(_)
-            | Self::DefinitionMismatch
-            | Self::Curve(_)
-            | Self::CurveNotNormalized
-            | Self::Gradient(_)
-            | Self::Setup(_)
-            | Self::Admission(_) => None,
+            Self::Admission(AdmissionProblem::UnplacedRoute(route)) => {
+                (Some(Member::Route(*route)), None)
+            }
+            Self::Project(_)
+            | Self::Admission(
+                AdmissionProblem::GeometryOutOfRange | AdmissionProblem::TooManyParams,
+            ) => (None, None),
         }
     }
 }
 
-impl SequenceValidationError {
-    fn site(&self) -> Option<ProblemSite> {
+impl RouteProblem {
+    fn field(&self) -> Option<Field> {
+        Some(match self {
+            Self::DuplicateId => return None,
+            Self::InvalidColorOrder => Field::ColorOrder,
+            Self::InvalidGamma => Field::Gamma,
+            Self::InvalidBrightness => Field::Brightness,
+            Self::TargetNotFixture | Self::Target(_) => Field::Target,
+            Self::EmptySpan | Self::SpanExceedsTarget { .. } => Field::Pixels,
+            Self::MissingController => Field::Controller,
+            Self::MissingPort => Field::Port,
+            Self::ChannelOverflow | Self::PastLastChannel { .. } | Self::OutputsOverlap { .. } => {
+                Field::FirstChannel
+            }
+        })
+    }
+}
+
+impl TimingProblem {
+    fn field(self) -> Field {
         match self {
-            Self::Name(problem) => Some(problem.site()),
-            Self::Composition(problem) => problem.site(),
-            Self::DuplicateClipId(clip) => Some(ProblemSite::of(Member::Clip(clip.clone()))),
-            Self::DuplicateAutomationClipId(clip) | Self::Automation { clip, .. } => {
-                Some(ProblemSite::of(Member::AutomationClip(clip.clone())))
-            }
-            Self::MarkOutsideDuration(name) | Self::InvalidMarkLabel(name) => {
-                Some(ProblemSite::of(Member::Marks(name.clone())))
-            }
-            Self::Clip { clip, problem, .. } => Some(problem.site(Member::Clip(clip.clone()))),
-            Self::Timing(_) => None,
+            Self::ZeroFrameRate | Self::FrameRateAboveLimit => Field::FrameRate,
+            Self::ZeroDuration
+            | Self::DurationBeyondClock
+            | Self::DurationRoundsToZero
+            | Self::TooManyFrames => Field::Duration,
         }
     }
 }
 
 impl ConsoleValidationError {
-    fn site(&self) -> Option<ProblemSite> {
+    fn place(&self) -> Place {
         match self {
-            Self::Name(problem) => Some(problem.site()),
-            Self::Composition(problem) => problem.site(),
-            Self::DuplicateClipId(clip)
-            | Self::PlayedAndHeld { clip, .. }
-            | Self::RepeatedAlwaysClip { clip, .. }
-            | Self::AlwaysLength { clip, .. } => Some(ProblemSite::of(Member::ConsoleClip(*clip))),
-            Self::DuplicateEventId(event) => Some(ProblemSite::of(Member::Event(*event))),
-            Self::Clip { clip, problem, .. } => Some(problem.site(Member::ConsoleClip(*clip))),
-            Self::Event { event, problem } => {
-                let member = Member::Event(*event);
-                Some(match problem {
-                    EventProblem::Input(_) => ProblemSite::with(member, MemberPart::Input),
+            Self::PlayedAndHeld { clip, .. } | Self::RepeatedAlwaysClip { clip, .. } => {
+                (Some(Member::Clip(*clip)), None)
+            }
+            Self::AlwaysLength { clip, .. } => (Some(Member::Clip(*clip)), Some(Field::Length)),
+            Self::MissingAlwaysClip => (None, Some(Field::Always)),
+            Self::DuplicateEventId(event) => (Some(Member::Event(*event)), None),
+            Self::Event { event, problem } => (
+                Some(Member::Event(*event)),
+                match problem {
+                    EventProblem::Input(_) => Some(Field::Input),
                     EventProblem::UnknownParam(param)
                     | EventProblem::NotAutomatable(param)
                     | EventProblem::SetByOtherControl(param)
-                    | EventProblem::WindowOutOfRange(param) => {
-                        ProblemSite::with(member, MemberPart::Param(param.clone()))
-                    }
-                    EventProblem::AxisPlays
-                    | EventProblem::MissingClip
-                    | EventProblem::MissingNode
-                    | EventProblem::MissingLiveMarks(_)
-                    | EventProblem::Copies(_)
-                    | EventProblem::DurationBeyondClock
+                    | EventProblem::WindowOutOfRange(param) => Some(Field::Set(param.clone())),
+                    EventProblem::Copies(_) => Some(Field::Copies),
+                    EventProblem::DurationBeyondClock
                     | EventProblem::NonPositiveDuration
-                    | EventProblem::ShortestAboveLongest => ProblemSite::of(member),
-                })
-            }
-            Self::Played { clip, param, .. } => Some(ProblemSite::with(
-                Member::ConsoleClip(*clip),
-                MemberPart::PlayedValue(param.clone()),
-            )),
-            Self::Timing(_) | Self::MissingAlwaysClip => None,
+                    | EventProblem::ShortestAboveLongest => Some(Field::Length),
+                    EventProblem::MissingClip => Some(Field::Definition),
+                    EventProblem::AxisPlays
+                    | EventProblem::MissingNode
+                    | EventProblem::MissingLiveMarks => None,
+                },
+            ),
         }
     }
 }
 
 impl NameProblem {
-    fn site(&self) -> ProblemSite {
+    /// The member whose name breaks the rule.
+    fn member(&self) -> &Member {
         let (Self::NotSnakeCase(member, _) | Self::Duplicate(member, _)) = self;
-        ProblemSite::of(member.clone())
+        member
     }
 }
 
 impl CompositionProblem {
-    fn site(&self) -> Option<ProblemSite> {
+    fn place(&self) -> Place {
         match self {
-            Self::NoLayers => None,
-            Self::DuplicateLayerId(layer) => Some(ProblemSite::of(Member::Layer(layer.clone()))),
-            Self::Graph(error) => error.node().map(|node| ProblemSite::of(Member::Node(node))),
+            Self::DuplicateClipId(clip) => (Some(Member::Clip(*clip)), None),
+            Self::Clip { clip, problem, .. } => (Some(Member::Clip(*clip)), problem.field()),
+            Self::NoLayers => (None, None),
+            Self::DuplicateLayerId(layer) => (Some(Member::Layer(layer.clone())), None),
+            Self::Graph(error) => (error.node().map(Member::Node), None),
             Self::MissingLayer(node) | Self::RepeatedLayer(node) => {
-                Some(ProblemSite::of(Member::Node(node.clone())))
+                (Some(Member::Node(node.clone())), None)
             }
-            Self::Param { node, problem } => Some(ProblemSite::with(
-                Member::Node(node.clone()),
-                MemberPart::Param(problem.param().clone()),
-            )),
+            Self::Param { node, problem } => (
+                Some(Member::Node(node.clone())),
+                Some(Field::Param(problem.param().clone())),
+            ),
+            Self::Name(problem) => (Some(problem.member().clone()), Some(Field::Name)),
+            Self::MarkOutsideDuration(marks, _)
+            | Self::InvalidMarkLabel(marks, _)
+            | Self::LiveMarksHold(marks) => (Some(Member::Marks(*marks)), Some(Field::Points)),
         }
     }
 }
 
 impl ClipProblem {
-    fn site(&self, member: Member) -> ProblemSite {
-        match self {
-            Self::Param(problem) => {
-                ProblemSite::with(member, MemberPart::Param(problem.param().clone()))
+    fn field(&self) -> Option<Field> {
+        Some(match self {
+            Self::NeverPlays | Self::EnvelopePlayed => return None,
+            Self::Played(param, _) => Field::Played(param.clone()),
+            Self::Envelope(EnvelopeProblem::InvalidCurve(_) | EnvelopeProblem::CurveOutOfRange) => {
+                Field::Points
             }
-            _ => ProblemSite::of(member),
-        }
+            Self::Envelope(
+                EnvelopeProblem::Binding(target, _) | EnvelopeProblem::AlsoSet(target),
+            ) => Field::Binding(target.clone()),
+            Self::Envelope(EnvelopeProblem::BindsTwice | EnvelopeProblem::Overlap) => return None,
+            Self::MissingLayer => Field::Layer,
+            Self::Region(RegionProblem::StartBeyondClock) => Field::Start,
+            Self::Region(_) => Field::Duration,
+            Self::Definition(_) => Field::Definition,
+            Self::MissingTarget => Field::Target,
+            Self::Param(problem) => Field::Param(problem.param().clone()),
+        })
     }
 }
 
@@ -550,8 +510,6 @@ impl ParamProblem {
 impl fmt::Display for ValidationProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Ownership(problem) => problem.fmt(f),
-            Self::DefinitionMismatch => f.write_str("the definition doesn't match its script"),
             Self::Curve(error) => write!(f, "invalid curve: {}", curve_error(error)),
             Self::CurveNotNormalized => f.write_str("a curve's values are 0 to 1"),
             Self::Gradient(error) => write!(f, "invalid gradient: {}", gradient_error(error)),
@@ -565,26 +523,11 @@ impl fmt::Display for ValidationProblem {
                 ..
             } => write!(f, "the output of {}: {problem}", fixture.as_str()),
             Self::Route { problem, .. } => write!(f, "an output: {problem}"),
-            Self::Setup(problem) => problem.fmt(f),
-            Self::Sequence(error) => error.fmt(f),
+            Self::Project(problem) => problem.fmt(f),
+            Self::Timing(problem) => problem.fmt(f),
+            Self::Composition(problem) => problem.fmt(f),
             Self::Console(error) => error.fmt(f),
             Self::Admission(problem) => problem.fmt(f),
-        }
-    }
-}
-
-impl fmt::Display for OwnershipProblem {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::DuplicateId(id) => write!(f, "the {} id {} is used twice", id.kind(), id.raw()),
-            Self::StoredUnderOtherId(id) => {
-                write!(f, "a reusable {} is stored under another id", id.kind())
-            }
-            Self::MissingReference(id) => write!(f, "a referenced {} is missing", id.kind()),
-            Self::DuplicateSequence => f.write_str("a sequence appears twice in the project"),
-            Self::DuplicateConsole => f.write_str("a console appears twice in the project"),
-            Self::DuplicateController => f.write_str("a controller appears twice in the setup"),
-            Self::DuplicateInputDevice => f.write_str("an input device appears twice in the setup"),
         }
     }
 }
@@ -596,7 +539,6 @@ impl fmt::Display for RouteProblem {
             Self::InvalidColorOrder => f.write_str("its color order repeats a color"),
             Self::InvalidGamma => f.write_str("its gamma is not above 0"),
             Self::InvalidBrightness => f.write_str("its brightness is not from 0 to 1"),
-            Self::MissingLayout => f.write_str("its layout is missing"),
             Self::TargetNotFixture => f.write_str("it targets a group, not a fixture"),
             Self::Target(error) => error.fmt(f),
             Self::EmptySpan => f.write_str("it routes no pixels"),
@@ -680,25 +622,16 @@ impl fmt::Display for ChannelPlace {
     }
 }
 
-impl fmt::Display for SetupProblem {
+impl fmt::Display for ProjectProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingLayout => f.write_str("the project's layout is missing"),
             Self::TooManyControllers => {
-                f.write_str("the setup has more controllers than outputs can address")
+                f.write_str("the project has more controllers than outputs can address")
             }
             Self::SharedOscPort(port) => {
                 write!(f, "two OSC input devices listen on port {port}")
             }
-            Self::RouteOnOtherLayout { fixture, .. } => write!(
-                f,
-                "the patch sends {} on another layout",
-                Fixture(fixture.as_ref())
-            ),
-            Self::RouteControllerInactive { fixture, .. } => write!(
-                f,
-                "the patch sends {} to a controller outside the setup",
-                Fixture(fixture.as_ref())
-            ),
         }
     }
 }
@@ -732,70 +665,16 @@ impl fmt::Display for NameProblem {
     }
 }
 
-impl Member {
-    /// What a person calls this kind of member.
-    fn noun(&self) -> &'static str {
-        match self {
-            Self::Layer(_) => "layer",
-            Self::Clip(_) => "clip",
-            Self::Marks(_) => "mark collection",
-            Self::AutomationClip(_) => "automation clip",
-            Self::Node(_) => "graph node",
-            Self::LiveMarks(_) => "live mark collection",
-            Self::ConsoleClip(_) => "clip",
-            Self::Event(_) => "event",
-            Self::Control(_) => "control",
-            Self::Port(_) => "port",
-            Self::LayoutItem(_) => "layout item",
-            Self::Route(_) => "output",
-            Self::Shape(_) => "shape",
-        }
-    }
-}
-
-impl fmt::Display for SequenceValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Timing(problem) => problem.fmt(f),
-            Self::Name(problem) => problem.fmt(f),
-            Self::Composition(problem) => problem.fmt(f),
-            Self::DuplicateClipId(clip) => write!(f, "clip id {} is used twice", clip.0),
-            Self::DuplicateAutomationClipId(clip) => {
-                write!(f, "automation clip id {} is used twice", clip.0)
-            }
-            Self::MarkOutsideDuration(name) => {
-                write!(
-                    f,
-                    "a mark of {} ends past the sequence's end",
-                    name.as_str()
-                )
-            }
-            Self::InvalidMarkLabel(name) => write!(
-                f,
-                "a mark label of {} is empty, spans lines or has outer spaces",
-                name.as_str()
-            ),
-            Self::Clip { name, problem, .. } => write!(f, "clip {}: {problem}", name.as_str()),
-            Self::Automation { problem, .. } => problem.fmt(f),
-        }
-    }
-}
-
 impl fmt::Display for ConsoleValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Timing(problem) => problem.fmt(f),
-            Self::Name(problem) => problem.fmt(f),
-            Self::Composition(problem) => problem.fmt(f),
-            Self::DuplicateClipId(clip) => write!(f, "clip id {} is used twice", clip.0),
             Self::DuplicateEventId(event) => write!(f, "event id {} is used twice", event.0),
-            Self::Clip { name, problem, .. } => write!(f, "clip {}: {problem}", name.as_str()),
             Self::PlayedAndHeld { name, .. } => write!(
                 f,
                 "clip {} is played by Play and held by Start, Toggle or Always",
                 name.as_str()
             ),
-            Self::MissingAlwaysClip => f.write_str("an Always clip is missing"),
+            Self::MissingAlwaysClip => f.write_str("an Always names no played clip"),
             Self::RepeatedAlwaysClip { name, .. } => {
                 write!(f, "clip {} is set to Always twice", name.as_str())
             }
@@ -803,35 +682,6 @@ impl fmt::Display for ConsoleValidationError {
                 write!(f, "Always clip {}: {problem}", name.as_str())
             }
             Self::Event { problem, .. } => problem.fmt(f),
-            Self::Played {
-                name,
-                param,
-                problem,
-                ..
-            } => {
-                let (clip, param) = (name.as_str(), param.as_str());
-                match problem {
-                    PlayedProblem::Twice => write!(f, "clip {clip} plays {param} twice"),
-                    PlayedProblem::UnknownParam => {
-                        write!(f, "clip {clip}'s effect has no parameter {param}")
-                    }
-                    PlayedProblem::NotAutomatable => {
-                        write!(f, "clip {clip} can't play parameter {param}")
-                    }
-                    PlayedProblem::WindowOutOfRange => {
-                        write!(f, "clip {clip}: the range of {param} leaves 0 to 1")
-                    }
-                    PlayedProblem::WithoutPress => {
-                        write!(f, "clip {clip} plays {param} but no press starts it")
-                    }
-                    PlayedProblem::WithoutNotes => {
-                        write!(f, "clip {clip} plays {param} from a note no control sends")
-                    }
-                    PlayedProblem::AlsoSet => {
-                        write!(f, "clip {clip} plays {param}, which a Set also writes")
-                    }
-                }
-            }
         }
     }
 }
@@ -839,12 +689,30 @@ impl fmt::Display for ConsoleValidationError {
 impl fmt::Display for CompositionProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::DuplicateClipId(clip) => write!(f, "clip id {} is used twice", clip.0),
+            Self::Clip { name, problem, .. } => write!(f, "clip {}: {problem}", name.as_str()),
+            Self::Name(problem) => problem.fmt(f),
+            Self::MarkOutsideDuration(_, name) => {
+                write!(
+                    f,
+                    "a mark of {} ends past the sequence's end",
+                    name.as_str()
+                )
+            }
+            Self::InvalidMarkLabel(_, name) => write!(
+                f,
+                "a mark label of {} is empty, spans lines or has outer spaces",
+                name.as_str()
+            ),
             Self::NoLayers => f.write_str("there must be at least one layer"),
             Self::DuplicateLayerId(layer) => write!(f, "layer id {} is used twice", layer.0),
             Self::Graph(error) => error.fmt(f),
             Self::MissingLayer(_) => f.write_str("a layer in the graph is missing"),
             Self::RepeatedLayer(_) => f.write_str("the layer is in the graph twice"),
             Self::Param { problem, .. } => problem.fmt(f),
+            Self::LiveMarksHold(_) => {
+                f.write_str("a console's marks start empty; Mark actions add them")
+            }
         }
     }
 }
@@ -852,13 +720,37 @@ impl fmt::Display for CompositionProblem {
 impl fmt::Display for ClipProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NeverPlays => f.write_str("only a console plays a clip without a start"),
+            Self::EnvelopePlayed => f.write_str("an envelope needs a start"),
+            Self::Envelope(problem) => problem.fmt(f),
+            Self::Played(param, problem) => {
+                let param = param.as_str();
+                match problem {
+                    PlayedProblem::Twice => write!(f, "plays {param} twice"),
+                    PlayedProblem::UnknownParam => {
+                        write!(f, "its effect has no parameter {param}")
+                    }
+                    PlayedProblem::NotAutomatable => {
+                        write!(f, "can't play parameter {param}")
+                    }
+                    PlayedProblem::WindowOutOfRange => {
+                        write!(f, "the range of {param} leaves 0 to 1")
+                    }
+                    PlayedProblem::WithoutPress => {
+                        write!(f, "plays {param} but no press starts it")
+                    }
+                    PlayedProblem::WithoutNotes => {
+                        write!(f, "plays {param} from a note no control sends")
+                    }
+                    PlayedProblem::AlsoSet => {
+                        write!(f, "plays {param}, which a Set also writes")
+                    }
+                }
+            }
             Self::MissingLayer => f.write_str("the clip's layer is missing"),
             Self::Region(problem) => problem.fmt(f),
-            Self::NotInActiveLayout => f.write_str("the clip's target isn't in the setup's layout"),
-            Self::MixedLayouts => f.write_str("clip targets are in different layouts"),
-            Self::MissingTargetLayout => f.write_str("the clip's layout is missing"),
-            Self::MissingTarget => f.write_str("the clip's target isn't in its layout"),
-            Self::MissingDefinition => f.write_str("the effect is missing"),
+            Self::MissingTarget => f.write_str("the clip's target isn't in the layout"),
+            Self::Definition(problem) => problem.fmt(f),
             Self::Param(problem) => problem.fmt(f),
         }
     }
@@ -931,30 +823,34 @@ impl fmt::Display for RegionProblem {
     }
 }
 
-impl fmt::Display for AutomationProblem {
+impl fmt::Display for EnvelopeProblem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MixedLayouts => f.write_str("the sequence's rows are in different layouts"),
-            Self::NotInActiveLayout => {
-                f.write_str("the envelope's row isn't in the setup's layout")
-            }
-            Self::MissingRow => f.write_str("the envelope's row is missing"),
-            Self::Region(problem) => problem.fmt(f),
             Self::InvalidCurve(error) => {
                 write!(f, "invalid envelope: {}", curve_error(error))
             }
             Self::CurveOutOfRange => f.write_str("envelope values leave 0 to 1"),
-            Self::WindowOutOfRange => f.write_str("a parameter's range leaves 0 to 1"),
             Self::BindsTwice => f.write_str("the envelope drives one parameter twice"),
-            Self::NotAutomatable(param) => {
-                write!(f, "parameter {} can't follow an envelope", param.as_str())
-            }
-            Self::MissingClip => f.write_str("the envelope's clip is missing"),
-            Self::MissingNode => f.write_str("the envelope's operator is missing"),
-            Self::MissingParam(param) => {
-                write!(f, "the envelope's parameter {} is missing", param.as_str())
-            }
             Self::Overlap => f.write_str("two envelopes drive one parameter at once"),
+            Self::AlsoSet(target) => write!(f, "a control also sets {}", target.param().as_str()),
+            Self::Binding(target, problem) => {
+                let param = target.param().as_str();
+                match problem {
+                    BindingProblem::WindowOutOfRange => {
+                        write!(f, "the range of {param} leaves 0 to 1")
+                    }
+                    BindingProblem::NotAutomatable => {
+                        write!(f, "parameter {param} can't follow an envelope")
+                    }
+                    BindingProblem::MissingClip => f.write_str("the envelope's clip is missing"),
+                    BindingProblem::MissingNode => {
+                        f.write_str("the envelope's operator is missing")
+                    }
+                    BindingProblem::MissingParam => {
+                        write!(f, "the envelope's parameter {param} is missing")
+                    }
+                }
+            }
         }
     }
 }
@@ -964,7 +860,6 @@ impl fmt::Display for InputProblem {
         f.write_str(match self {
             Self::MissingDevice => "the input device is missing",
             Self::NotAControl => "the control isn't on its device",
-            Self::NotInSetup => "the input device isn't in the setup",
             Self::NotAButton => "an axis can't be pressed or released",
             Self::NotAnAxis => "a button can't move",
         })
@@ -976,14 +871,14 @@ impl fmt::Display for EventProblem {
         match self {
             Self::Input(problem) => problem.fmt(f),
             Self::AxisPlays => f.write_str("moving an axis can only set parameters"),
-            Self::MissingClip => f.write_str("an action's clip is missing"),
+            Self::MissingClip => f.write_str("an action names no played clip"),
             Self::MissingNode => f.write_str("a Set's operator is missing"),
             Self::UnknownParam(param) => write!(f, "no parameter {}", param.as_str()),
             Self::NotAutomatable(param) => write!(f, "parameter {} can't be set", param.as_str()),
             Self::SetByOtherControl(param) => {
                 write!(f, "another control sets parameter {}", param.as_str())
             }
-            Self::MissingLiveMarks(name) => write!(f, "no live marks named {}", name.as_str()),
+            Self::MissingLiveMarks => f.write_str("its live marks are missing"),
             Self::Copies(count) => write!(f, "{count} copies is outside 1 to {MAX_COPIES}"),
             Self::DurationBeyondClock => f.write_str("a length is too long"),
             Self::NonPositiveDuration => f.write_str("a length must be positive"),
@@ -1028,9 +923,7 @@ impl fmt::Display for ObjectKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Project => "project",
-            Self::Setup => "setup",
             Self::Layout => "layout",
-            Self::Patch => "patch",
             Self::Controller => "controller",
             Self::InputDevice => "input device",
             Self::Sequence => "sequence",
@@ -1038,8 +931,7 @@ impl fmt::Display for ObjectKind {
             Self::FixtureDefinition => "fixture definition",
             Self::Curve => "curve",
             Self::Gradient => "gradient",
-            Self::EffectDefinition => "effect",
-            Self::OperatorDefinition => "operator",
+            Self::Script => "script",
         })
     }
 }
@@ -1078,10 +970,8 @@ impl fmt::Display for LayoutError {
                 write!(f, "two layout items are named {}", name.as_str())
             }
             Self::MissingDefinition(_) => f.write_str("a fixture definition is missing"),
-            Self::InvalidFixture { error, .. } => error.fmt(f),
             Self::InvalidTransform(_) => f.write_str("the item's placement is invalid"),
             Self::MissingFixture(item) => write!(f, "layout item {} is missing", item.0),
-            Self::WrongLayout(_) => f.write_str("the target is in another layout"),
             Self::DuplicateMember(_, name) => {
                 write!(f, "layout item {} is in one group twice", name.as_str())
             }
@@ -1099,7 +989,7 @@ impl fmt::Display for LayoutError {
 
 impl LayoutError {
     /// The item the error concerns, when it names one of the layout's items.
-    fn item(&self) -> Option<FixtureInstanceId> {
+    fn item(&self) -> Option<FixtureId> {
         match self {
             Self::TooManyPixels(item)
             | Self::DuplicateId(item)
@@ -1109,22 +999,10 @@ impl LayoutError {
             | Self::DuplicateMember(item, _)
             | Self::Cycle(item, _)
             | Self::Unreachable(item, _)
-            | Self::InvalidFixture { fixture: item, .. }
             | Self::InvalidSlice { group: item, .. }
-            | Self::SliceOutOfRange { group: item, .. } => Some(*item),
-            Self::MissingDefinition(_) | Self::MissingFixture(_) | Self::WrongLayout(_) => None,
-        }
-    }
-}
-
-/// A route's fixture by name, when its layout has it.
-struct Fixture<'a>(Option<&'a Identifier>);
-
-impl fmt::Display for Fixture<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            Some(fixture) => f.write_str(fixture.as_str()),
-            None => f.write_str("a fixture"),
+            | Self::SliceOutOfRange { group: item, .. }
+            | Self::MissingDefinition(item) => Some(*item),
+            Self::MissingFixture(_) => None,
         }
     }
 }
@@ -1184,5 +1062,32 @@ impl ControllerValidationError {
             | Self::ArtNetUniversesOutOfRange(_)
             | Self::DuplicateDonderOutput(_) => None,
         }
+    }
+
+    fn field(&self) -> Option<Field> {
+        Some(match self {
+            Self::EmptySenderName => Field::SenderName,
+            Self::InvalidPriority(_) => Field::Priority,
+            Self::NoUniverses => Field::UniverseCount,
+            Self::InvalidUniverseChannels(_) => Field::UniverseChannels,
+            Self::E131UniversesOutOfRange(_) | Self::ArtNetUniversesOutOfRange(_) => {
+                Field::UniverseStart
+            }
+            Self::EmptyPortName(_) | Self::DuplicatePortName(_) => Field::Name,
+            Self::EmptyPort(_) => Field::Channels,
+            Self::DuplicatePort(_)
+            | Self::InvalidDonderOutput { .. }
+            | Self::DuplicateDonderOutput(_) => return None,
+        })
+    }
+}
+
+impl fmt::Display for DefinitionProblem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Missing => "the definition is missing",
+            Self::NotAnEffect => "an operator is not an effect",
+            Self::NotAnOperator => "an effect is not an operator",
+        })
     }
 }

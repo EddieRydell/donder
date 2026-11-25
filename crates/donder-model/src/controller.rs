@@ -14,7 +14,6 @@ pub struct ControllerPortId(pub u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Controller {
-    pub id: ControllerId,
     pub description: Option<String>,
     pub protocol: ControllerProtocol,
 }
@@ -455,12 +454,3 @@ fn validate_donder_ports(ports: &[DonderPort]) -> Result<(), ControllerValidatio
     }
     Ok(())
 }
-
-impl crate::ownership::Identified for Controller {
-    type Id = ControllerId;
-    fn id(&self) -> &Self::Id {
-        &self.id
-    }
-}
-
-pub type OwnedController = crate::ownership::OwnedMember<Controller, ControllerId>;

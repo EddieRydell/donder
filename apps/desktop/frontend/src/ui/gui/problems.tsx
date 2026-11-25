@@ -1,23 +1,26 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { commands } from "../../api";
 import { useAppStore } from "../../store";
-import type { GuiDocumentRequest, GuiEditCommand, GuiField, GuiMember, GuiProblem, GuiProblemSite } from "../../types";
+import type { GuiDocumentRequest, GuiEdit, GuiField, GuiMember, GuiProblem, GuiSite } from "../../types";
 
-/** The open object itself, as a problem's member. */
-export const OBJECT: GuiMember = { type: "object" };
+/** The open object itself, as a site's member. */
+export const OBJECT = null;
 
-/** Whether two parts of a problem's site are the same: same kind, same id, key or name. */
-function samePart(left: GuiMember | GuiField, right: GuiMember | GuiField): boolean {
+/** A member of the open object, or the object itself. */
+export type SiteMember = GuiMember | null;
+
+/** Whether two parts of a site are the same: equal values, compared field by field. */
+function same(left: unknown, right: unknown): boolean {
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return left === right;
   const a = left as Record<string, unknown>;
   const b = right as Record<string, unknown>;
   const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+  return keys.length === Object.keys(b).length && keys.every((key) => same(a[key], b[key]));
 }
 
 /** Whether `site` is `field` of one of `members`; a null field is the member as a whole. */
-function at(site: GuiProblemSite, members: GuiMember[], field: GuiField | null): boolean {
-  return members.some((member) => samePart(site.member, member))
-    && (site.field === null || field === null ? site.field === field : samePart(site.field, field));
+function at(site: GuiSite, members: SiteMember[], field: GuiField | null): boolean {
+  return members.some((member) => same(site.member, member)) && same(site.field, field);
 }
 
 /** A draft form's checked problem; inside one, fields show it instead of a refused edit's. */
@@ -33,7 +36,7 @@ export function DraftProblem({ problem, children }: { problem: GuiProblem | null
  * several together: a draft form's checked problem, else the last refused edit's. A field that
  * shows a refused edit claims it, so the status bar shows only what no field shows.
  */
-export function useFieldProblem(member: GuiMember | GuiMember[], field: GuiField | null): string | null {
+export function useFieldProblem(member: SiteMember | SiteMember[], field: GuiField | null): string | null {
   const draft = useContext(DraftProblemContext);
   const refused = useAppStore((store) => store.refusedEdit);
   const members = Array.isArray(member) ? member : [member];
@@ -58,8 +61,8 @@ export function useUnplacedRefusal(): string | null {
  * What would refuse a draft form's `edit` of the object `origin` opens, checked after each change:
  * `checking` until the latest edit is checked. Pass a stable `edit`; a new one is checked again.
  */
-export function useDraftCheck(origin: GuiDocumentRequest | null, edit: GuiEditCommand | null): { checking: boolean; problem: GuiProblem | null } {
-  const [checked, setChecked] = useState<{ edit: GuiEditCommand; problem: GuiProblem | null } | null>(null);
+export function useDraftCheck(origin: GuiDocumentRequest | null, edit: GuiEdit | null): { checking: boolean; problem: GuiProblem | null } {
+  const [checked, setChecked] = useState<{ edit: GuiEdit; problem: GuiProblem | null } | null>(null);
   useEffect(() => {
     if (origin === null || edit === null) return;
     let current = true;

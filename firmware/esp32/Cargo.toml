@@ -52,7 +52,7 @@ esp-bootloader-esp-idf = { version = "0.6.0", features = ["esp32"] }
 # Keep the SDK on one source so every radio/runtime package uses the same HAL.
 # Remove these patches together once a compatible radio stack is published.
 # The rev is the fork branch donder-i2s-fix: upstream 0eb3e53b plus the I2sParallel::send hang fix
-# (esp-rs/esp-hal PR pending). Point back at esp-rs/esp-hal once it is merged and released.
+# (merged upstream Nov 3 2026, not yet released). Point back at esp-rs/esp-hal once a release has it.
 [patch.crates-io]
 esp-hal = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }
 esp-radio = { git = "https://github.com/EddieRydell/esp-hal", rev = "01dc1ee5066fda0750342561376bb3852aa6df78" }

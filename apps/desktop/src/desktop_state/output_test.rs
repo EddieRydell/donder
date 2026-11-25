@@ -1,6 +1,6 @@
 use super::{DesktopState, lock_unpoisoned};
 use donder_editor::dto::{AppSnapshot, GuiDocumentRequest, OutputTestPattern, OutputTestTarget};
-use donder_model::{ControllerId, FixtureInstanceId, LayoutId, PatchId, PixelRouteId};
+use donder_model::{ControllerId, FixtureId, PixelRouteId};
 use donder_output::{OutputTest, TestPattern, TestSelection};
 use donder_project_io::ProjectSession;
 
@@ -26,16 +26,8 @@ impl DesktopState {
                     start_channel,
                     channel_count,
                 },
-                OutputTestTarget::LayoutItem { item } => TestSelection::LayoutItem {
-                    layout: LayoutId::try_from(object)
-                        .map_err(|_| "Open a layout to test its fixtures.")?,
-                    item: FixtureInstanceId(item),
-                },
-                OutputTestTarget::Route { route } => TestSelection::Route {
-                    patch: PatchId::try_from(object)
-                        .map_err(|_| "Open a patch to test its outputs.")?,
-                    route: PixelRouteId(route),
-                },
+                OutputTestTarget::LayoutItem { item } => TestSelection::LayoutItem(FixtureId(item)),
+                OutputTestTarget::Route { route } => TestSelection::Route(PixelRouteId(route)),
             };
             let pattern = match pattern {
                 OutputTestPattern::Solid { red, green, blue } => {
@@ -87,8 +79,7 @@ mod tests {
     use crate::project::{new_test_project_files, write_new_project_files};
     use camino::Utf8PathBuf;
     use donder_editor::dto::{
-        GuiDocument, GuiEditCommand, GuiUniverses, LiveOutputState, SetupControllerConfig,
-        SetupGuiEdit,
+        GuiDocument, GuiEdit, GuiUniverses, LiveOutputState, ProjectGuiEdit, SetupControllerConfig,
     };
     use std::net::UdpSocket;
     use std::time::{Duration, Instant};
@@ -104,19 +95,18 @@ mod tests {
         write_new_project_files(&root, &new_test_project_files("Output test").unwrap()).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
-        let setup = *state.project_session().unwrap().project().root().setup.id();
+        let setup = state.project_session().unwrap().project().root().id;
         let setup_address = state.project_session().unwrap().address_of(setup);
         state.open_file_path(setup_address.document().as_str());
         let setup_request = || GuiDocumentRequest {
-            owned_path: setup_address.owned_path().iter().map(Into::into).collect(),
             project_revision: state.snapshot().project_revision,
             path: setup_address.document().to_string(),
-            object_key: setup_address.root_source().object().into(),
+            object_key: setup_address.object().into(),
         };
         let added = state.apply_gui_edit(
             setup_request(),
-            GuiEditCommand::Setup {
-                edit: SetupGuiEdit::AddController {
+            GuiEdit::Project {
+                edit: ProjectGuiEdit::AddController {
                     name: "output_test".into(),
                     config: SetupControllerConfig::ArtNet {
                         bind_address: "127.0.0.1:0".into(),
@@ -134,7 +124,7 @@ mod tests {
             },
         );
         assert!(
-            matches!(added.document, GuiDocument::Setup { .. }),
+            matches!(added.document, GuiDocument::Project { .. }),
             "{:?}",
             added.document
         );
@@ -142,20 +132,15 @@ mod tests {
             .project_session()
             .unwrap()
             .project()
-            .get::<donder_model::Setup>(setup)
-            .unwrap()
-            .controllers[0]
-            .id();
+            .reusable::<donder_model::Controller>()
+            .keys()
+            .next()
+            .unwrap();
         let controller_address = state.project_session().unwrap().address_of(controller);
         let request = || GuiDocumentRequest {
-            owned_path: controller_address
-                .owned_path()
-                .iter()
-                .map(Into::into)
-                .collect(),
             project_revision: state.snapshot().project_revision,
             path: controller_address.document().to_string(),
-            object_key: controller_address.root_source().object().into(),
+            object_key: controller_address.object().into(),
         };
         let original = state.project_session().unwrap();
         // Universe 9's second to fourth channels.
@@ -223,7 +208,7 @@ mod tests {
                 assert_eq!(slots, [0, 47, 47, 47, 0, 0]);
                 break;
             }
-            lock_unpoisoned(&state.sequence_render).unload();
+            *lock_unpoisoned(&state.sequence) = None;
             state.set_live_output_active(true);
             assert_eq!(state.snapshot().live_output.state, LiveOutputState::Testing);
             assert_eq!(state.live_output_snapshot().state, LiveOutputState::Testing);

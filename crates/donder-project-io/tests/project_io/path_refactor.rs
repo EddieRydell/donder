@@ -16,14 +16,17 @@ fn move_path(
 }
 
 #[test]
-fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
+fn moves_imported_controllers_sequence_effect_and_operator_and_reloads() {
     let (_temporary, root) = starter_copy();
     fs::create_dir(root.join("moved")).expect("directory");
     let mut session = check_project(&root, &Default::default(), &mut Default::default())
         .into_session()
         .expect("load");
     for (source, destination) in [
-        ("setups/setup.data.donder", "moved/setup.data.donder"),
+        (
+            "controllers/controllers.data.donder",
+            "moved/controllers.data.donder",
+        ),
         (
             "sequences/layer_test.data.donder",
             "moved/layer_test.data.donder",
@@ -89,7 +92,7 @@ fn rejects_collisions_root_escapes_and_descendant_moves() {
         plan_path_change(
             &session,
             Utf8Path::new("project.data.donder"),
-            Utf8Path::new("setups/setup.data.donder")
+            Utf8Path::new("controllers/controllers.data.donder")
         )
         .expect_err("collision")
         .contains("Destination already exists")

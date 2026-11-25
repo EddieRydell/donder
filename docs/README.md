@@ -43,4 +43,4 @@ pages with relative paths.
 - [Vixen effects](vixen_effects.md): how Vixen effects and their settings map
   onto the effect library.
 - [Profile import](profile_import.md): a new project from an xLights or Vixen
-  profile's layout, controllers and patch.
+  profile's layout, controllers and routes.

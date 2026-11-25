@@ -1,7 +1,6 @@
-//! Lowering and interning. Instances of one definition usually lower to the
-//! same program with different bound values; playback keeps one copy.
-use donder_language::compiler::{Instance, Invocation, ProgramConstants};
-use donder_runtime_types::{BoundProgram, Program, Shared};
+//! Lowering clip programs, cached between preparations.
+use donder_language::compiler::{Instance, Invocation, LiveWords, ProgramConstants};
+use donder_runtime_types::{BoundProgram, Shared};
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hasher};
 
@@ -18,6 +17,7 @@ pub struct PreparationCache {
 struct CachedClip {
     invocation: Invocation,
     constants: ProgramConstants,
+    live: Vec<LiveWords>,
     program: BoundProgram,
     used: bool,
 }
@@ -32,7 +32,6 @@ impl PreparationCache {
 }
 
 pub(crate) struct Programs<'cache> {
-    programs: Vec<Shared<Program>>,
     cache: &'cache mut PreparationCache,
 }
 
@@ -44,64 +43,43 @@ impl Drop for Programs<'_> {
 
 impl<'cache> Programs<'cache> {
     pub(crate) fn new(cache: &'cache mut PreparationCache) -> Self {
-        Self {
-            programs: Vec::new(),
-            cache,
-        }
+        Self { cache }
     }
 
-    /// One copy of each distinct program.
-    fn intern(&mut self, program: &Shared<Program>) -> Shared<Program> {
-        if let Some(existing) = self
-            .programs
-            .iter()
-            .find(|existing| Shared::ptr_eq(existing, program))
-            .or_else(|| {
-                self.programs
-                    .iter()
-                    .find(|existing| ***existing == **program)
-            })
-        {
-            return Shared::clone(existing);
-        }
-        self.programs.push(Shared::clone(program));
-        Shared::clone(program)
-    }
-
-    /// `instance` lowered and bound to its values, sharing an equal
-    /// program lowered before.
+    /// `instance` lowered and bound to its values.
     pub(crate) fn lower(&mut self, instance: &Instance) -> BoundProgram {
         let lowered = instance.lower();
-        let program = self.intern(&Shared::new(lowered.program));
-        BoundProgram::new(program, lowered.values, lowered.automation)
+        BoundProgram::new(Shared::new(lowered.program), lowered.values)
     }
 
-    /// The program of `invocation` with `constants`, lowered once per
-    /// distinct invocation.
+    /// The program of `invocation` with `constants` and `live` words,
+    /// lowered once per distinct invocation.
     pub(crate) fn clip(
         &mut self,
         invocation: &Invocation,
         constants: ProgramConstants,
+        live: &[LiveWords],
     ) -> BoundProgram {
         let mut hasher = self.cache.hasher.build_hasher();
         invocation.hash_same(&mut hasher);
         constants.hash_same(&mut hasher);
+        std::hash::Hash::hash(live, &mut hasher);
         let key = hasher.finish();
         if let Some(entry) = self.cache.clips.get_mut(&key).and_then(|entries| {
-            entries
-                .iter_mut()
-                .find(|entry| entry.constants.same(&constants) && entry.invocation.same(invocation))
+            entries.iter_mut().find(|entry| {
+                entry.constants.same(&constants)
+                    && entry.live == live
+                    && entry.invocation.same(invocation)
+            })
         }) {
             entry.used = true;
-            let program = entry.program.clone();
-            // A program cached by an earlier preparation joins this one's bank.
-            self.intern(program.program());
-            return program;
+            return entry.program.clone();
         }
-        let program = self.lower(&invocation.instance(constants));
+        let program = self.lower(&invocation.instance(constants, live));
         self.cache.clips.entry(key).or_default().push(CachedClip {
             invocation: invocation.clone(),
             constants,
+            live: live.to_vec(),
             program: program.clone(),
             used: true,
         });

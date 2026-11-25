@@ -872,7 +872,6 @@ mod tests {
                 .expect("test executable path")
                 .to_string_lossy()
                 .into_owned(),
-            file_name: "audio.wav".to_string(),
             exists: true,
         }
     }

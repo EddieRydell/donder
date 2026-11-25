@@ -6,7 +6,7 @@ use donder_model::{ArtNetConfig, ArtNetMode, ControllerId};
 
 use crate::{OutputError, codec_error, socket_error};
 
-pub struct ArtNetSender {
+pub(crate) struct ArtNetSender {
     id: ControllerId,
     socket: UdpSocket,
     config: ArtNetConfig,

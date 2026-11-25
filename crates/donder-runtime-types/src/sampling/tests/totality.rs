@@ -1,4 +1,4 @@
-use crate::automation::{AutomationMapping, AutomationValue, automation_value_at_position};
+use crate::AutomationMapping;
 use crate::sampling::{curve_last_crossing, sample_curve, sample_gradient};
 use crate::types::Type;
 use crate::values::{Color, Curve, CurvePoint, Gradient};
@@ -101,31 +101,11 @@ fn latest_crossing_does_not_invent_values_inside_a_discontinuous_step() {
 }
 
 #[test]
-fn descending_automation_endpoints_remain_well_typed_and_total() {
-    let curve = Curve {
-        points: vec![
-            CurvePoint {
-                position: 0.0,
-                value: 0.0,
-            },
-            CurvePoint {
-                position: 1.0,
-                value: 1.0,
-            },
-        ],
-    };
+fn descending_automation_ranges_remain_well_typed() {
     let float = AutomationMapping::Float { min: 1.0, max: 0.0 };
     let int = AutomationMapping::Int { min: 10, max: 0 };
     let window = AutomationMapping::Curve { min: 1.0, max: 0.0 };
     assert!(float.accepts_type(&Type::Float));
     assert!(int.accepts_type(&Type::Int));
     assert!(window.accepts_type(&Type::Curve));
-    assert!(matches!(
-        automation_value_at_position(&curve, &float, 0.25),
-        Some(AutomationValue::Float(value)) if value == 0.75
-    ));
-    assert!(matches!(
-        automation_value_at_position(&curve, &int, 0.25),
-        Some(AutomationValue::Int(8))
-    ));
 }

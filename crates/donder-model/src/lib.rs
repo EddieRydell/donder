@@ -13,6 +13,7 @@
 )]
 
 mod clock;
+mod composition;
 mod console;
 mod controller;
 mod derived;
@@ -23,32 +24,35 @@ mod identity;
 mod input_device;
 mod layout;
 mod operator;
-mod ownership;
 mod patch;
 mod project;
 mod sequence;
-mod setup;
+mod site;
 mod validation;
 
 pub use clock::{sample_duration, sample_time};
+pub use composition::{
+    Composition, CompositionGraph, CompositionGraphNode, CompositionGraphNodeId,
+    CompositionGraphNodeKind, EffectGraphEdge, GraphNodePosition, Layer, LayerId, Mark,
+    MarkCollection, MarkCollectionId,
+};
 pub use console::{
-    Action, Always, ClipUse, Console, ConsoleAutomationTarget, ConsoleClip, ConsoleClipId,
-    InputEvent, LengthSource, LiveMarks, MAX_COPIES, On, OnId, OwnedConsole, Play, PlayLength,
-    PlayedQuantity, PlayedValue,
+    Action, Always, ClipUse, Console, LengthSource, MAX_COPIES, On, OnId, Play, PlayLength,
+    PlayedValue, needs_note,
 };
 pub use controller::{
     ArtNetConfig, ArtNetMode, ChannelPlace, Controller, ControllerOutput, ControllerPort,
     ControllerPortId, ControllerProtocol, ControllerValidationError, DonderConfig, DonderDeviceId,
-    DonderPort, E131Config, E131Mode, OwnedController, UniverseChannel, Universes,
+    DonderPort, E131Config, E131Mode, UniverseChannel, Universes,
 };
 pub use derived::{AudioAnalysis, AudioFeature, Derivation, Derived, FontRaster, Number};
 pub use effect::{
-    Clip, ClipId, ClipScope, CurveDefinition, EffectDefinition, FontFace, GradientDefinition,
-    ImageSource, OwnedCurve, OwnedGradient, ParamValue,
+    Clip, ClipContent, ClipId, CurveDefinition, CurveValue, DefinitionProblem, Effect, FontFace,
+    GradientDefinition, GradientValue, ImageSource, ParamValue, Placement, ScriptDefinition,
 };
 pub use fixture::{
     FixtureDefinition, FixtureDefinitionError, FixtureElement, FixtureElementId,
-    FixtureGeometryError, FixtureShape, FixtureTransform, GridAxis, GridCorner, OwnedFixture,
+    FixtureGeometryError, FixtureShape, FixtureTransform, GridAxis, GridCorner,
     fixture_pixel_counts,
 };
 pub use geometry::{
@@ -57,50 +61,39 @@ pub use geometry::{
     prepare_geometry,
 };
 pub use identity::{
-    ConsoleId, ControllerId, CurveId, EffectDefinitionId, FixtureDefinitionId, GradientId,
-    InputDeviceId, LayoutId, ObjectId, ObjectKind, OperatorDefinitionId, PatchId, ProjectId,
-    SequenceId, SetupId, TypedId,
+    ConsoleId, ControllerId, CurveId, FixtureDefinitionId, GradientId, InputDeviceId, LayoutId,
+    ObjectId, ObjectKind, ProjectId, ScriptId, SequenceId, TypedId,
 };
 pub use input_device::{
     AxisInput, ButtonInput, ControlInput, ControlRef, InputControl, InputControlId,
     InputControlKind, InputDevice, InputDeviceValidationError, InputDriver, KeyCode,
     MAX_MIDI_CHANNEL, MAX_MIDI_CONTROL_CHANGE, MAX_MIDI_NOTE, MidiChannel, NoteRange, OscAddress,
-    OwnedInputDevice,
 };
 pub use layout::{
-    FixtureInstanceId, FixtureTarget, GroupMember, Layout, LayoutError, LayoutFixture,
-    LayoutFixtureKind, OwnedLayout, TargetPart,
+    FixtureCopies, FixtureId, GroupMember, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
+    TargetPart, duplicate_layout_fixture,
 };
 pub use operator::{
-    GraphOperatorNode, GraphValidationError, OperatorDefinition,
-    composition_graph_root_dependencies, param_matches, validate_composition_graph,
+    GraphOperatorNode, GraphValidationError, composition_graph_root_dependencies, param_matches,
+    validate_composition_graph,
 };
-pub use ownership::edit::{
-    OwnershipSite, add_console, add_sequence, duplicate_layout_fixture, make_reusable,
-};
-pub use ownership::{Identified, Owned, OwnedMember};
 pub use patch::{
-    OwnedPatch, Patch, PixelRoute, PixelRouteId, PixelSpan, RoutePlacement, RouteStart,
-    patch_placements, patched_level, place_routes,
+    PixelRoute, PixelRouteId, PixelSpan, RoutePlacement, RouteStart, patched_level,
+    route_placements,
 };
 pub use project::{
-    AcceptedClipInputs, AcceptedConsole, AcceptedConsoleClip, AcceptedOperatorInputs,
-    AcceptedSequence, CONSOLE_SESSION, ConsoleBinding, DonderProject, EditError, EditRejection,
-    Object, PlaybackRoute, ProjectData, ProjectEdit, ProjectObject, ProjectRoot, Reusable, View,
+    AcceptedClip, AcceptedOperatorInputs, AcceptedShow, DonderProject, EditError, EditRejection,
+    LiveBinding, MemberRef, MemberValue, Object, PlaybackRoute, ProjectData, ProjectEdit,
+    ProjectObject, ProjectRoot, ShowId, View,
 };
 pub use sequence::{
-    AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationEnvelope,
-    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, Mark, MarkCollection,
-    MarkCollectionKey, OwnedSequence, Sequence, SequenceAudio, SequenceCompositionGraph,
-    SequenceLayer, SequenceLayerId, Window, automation_value_at, curve_is_normalized,
+    AssetId, AutomationEnvelope, AutomationTarget, Binding, Envelope, Sequence, SequenceAudio,
+    Window,
 };
-pub use setup::authoring::{attach_controller, attach_input_device};
-pub use setup::{OwnedSetup, Setup};
+pub use site::{Field, Member, Site};
 pub use validation::{
-    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
-    EventProblem, GraphOwner, InputProblem, Member, MemberPart, NameProblem, OwnershipProblem,
-    ParamOwner, ParamProblem, PlayedProblem, ProblemSite, ProjectValidationError, RegionProblem,
-    Repair, RouteProblem, SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
-    automation_target_param, validate_console, validate_project, validate_sequence,
+    AdmissionProblem, BindingProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
+    EnvelopeProblem, EventProblem, GiveWay, InputProblem, NameProblem, ParamProblem, PlayedProblem,
+    ProjectProblem, ProjectValidationError, RegionProblem, Repair, RouteProblem, TimingProblem,
+    ValidationProblem, automation_target_param, validate_project, validate_sequence,
 };

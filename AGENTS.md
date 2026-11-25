@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-Rust workspace; the crate map is in `docs/development.md`. Layering: language semantics in `donder-language`, domain rules in `donder-model`, project IO in `donder-project-io`, preparation in `donder-elaboration`, portable frame evaluation in `donder-runtime`, and the values, bytecode and prepared inputs playback accepts in the `no_std` `donder-runtime-types` (an item belongs there only if the runtime consumes it and an upstream crate produces it). Desktop projection code must not reimplement any of them. Firmware lives in `firmware/esp32`, a separate Cargo workspace; keep embedded-only dependencies out of the root workspace.
+Rust workspace; the crate map is in `docs/architecture.md`. Layering: language semantics in `donder-language`, domain rules in `donder-model`, project IO in `donder-project-io`, preparation in `donder-elaboration`, portable frame evaluation in `donder-runtime`, and the values, bytecode and prepared inputs playback accepts in the `no_std` `donder-runtime-types` (an item belongs there only if the runtime consumes it and an upstream crate produces it). Desktop projection code must not reimplement any of them. Firmware lives in `firmware/esp32`, a separate Cargo workspace; keep embedded-only dependencies out of the root workspace.
 
 `examples/starter` is the maintained example; `examples/stanford_room` is the representative performance workload; `examples/rydell_house` is a house display converted from Vixen. The examples' `AGENTS.md` files guide an assistant authoring a show in the Donder language, not work on this codebase; the starter's ships with every new project, so keep them about authoring. Do not add scratch projects under `examples/`.
 
@@ -24,7 +24,7 @@ Donder is pre-release with no users or compatibility obligations; the current pr
 
 ### Rules
 
-- Never reinvent a solved problem. Use dependencies (after asking the user) rather than the wheel. Before adding one, use its latest compatible release and record any reason for an older one beside it. Dependency inspection procedure: `docs/development.md`.
+- Never reinvent a solved problem. Use dependencies (after asking the user) rather than the wheel. Before adding one, use its latest compatible release and record any reason for an older one beside it. Change only that dependency's lockfile entries (`cargo update -p <crate>`), never a bare `cargo update`; freshness updates are one deliberate pass, because each lockfile change to a widely used crate rebuilds nearly everything. Dependency inspection procedure: `docs/development.md`.
 - Avoid strings in internal logic; prefer enums or structured data.
 - Single way of doing things; SSOT; minimize clutter.
 - Desktop GUI look, wording and behavior follow `BRAND_GUIDE.md`; compose controls from `ui/kit` instead of raw HTML controls.

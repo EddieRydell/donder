@@ -31,10 +31,10 @@ type PreviewWriter = Arc<Mutex<BufWriter<ChildStdin>>>;
 pub(crate) struct PreviewContentIdentity {
     pub(crate) project_epoch: u32,
     pub(crate) project_revision: u64,
-    pub(crate) sequence_generation: u64,
     pub(crate) project_loaded: bool,
-    /// The performance in progress, which the Preview plays instead of a sequence.
-    pub(crate) performance: Option<u32>,
+    /// The generation of what plays: the performance in progress, or the
+    /// prepared sequence.
+    pub(crate) playing: Option<u32>,
 }
 
 pub(crate) struct PreviewContent {

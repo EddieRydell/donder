@@ -3,7 +3,7 @@
 //! Carving runs once, so it stays out of instruction RAM.
 use super::strip::{Handle, Levels, Pixels, Range, STRIP, Store, StructureRows};
 use crate::arena::{Carve, Size};
-use crate::format::{self, SectionPixel};
+use crate::format;
 use crate::view::ProgramView;
 use core::cell::{Cell, RefCell};
 use donder_runtime_types::Color;
@@ -87,8 +87,6 @@ impl StripSlots {
         size.row::<i32>();
         size.row::<f32>();
         size.row::<f32>();
-        size.row::<f32>();
-        size.row::<SectionPixel>();
         if self.structure {
             size.row::<f32>();
             size.row::<i32>();
@@ -116,10 +114,8 @@ impl StripSlots {
     pub(crate) fn carve<'w>(&self, arena: &mut Carve<'w>) -> StripWorkspace<'w> {
         let pixels = Pixels {
             index: arena.row(0),
-            fraction: arena.row(0.0),
             x: arena.row(0.0),
             y: arena.row(0.0),
-            sections: arena.row(SectionPixel::default()),
             structure: if self.structure {
                 Some(StructureRows {
                     z: arena.row(0.0),

@@ -1,144 +1,49 @@
 //! What gives way when an edit leaves other members of the project breaking a
 //! rule. A member the edit added or changed never gives way: when it breaks a
-//! rule, the edit is refused. A member the edit left alone is removed, trimmed
-//! or cut loose from what it lost, by one repair for each rule it can break.
-use std::sync::Arc;
+//! rule, the edit is refused. A member the edit left alone is removed, shrunk,
+//! reset or cut loose from what it lost: each rule names how its member gives
+//! way, and the repair happens at the rule's site.
 use std::time::Duration;
 
 use donder_language::{DonderDuration, DonderTime};
 use donder_runtime_types::Identifier;
 
 use super::{
-    AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError, EventProblem,
-    InputProblem, ParamProblem, PlayedProblem, ProjectValidationError, RegionProblem, RouteProblem,
-    SequenceValidationError, SetupProblem, ValidationProblem, automation_target_param,
-    project_problems, route_fixture, target_param,
+    BindingProblem, ClipProblem, CompositionProblem, ConsoleValidationError, EnvelopeProblem,
+    EventProblem, InputProblem, ParamProblem, PlayedProblem, ProjectValidationError, RegionProblem,
+    RouteProblem, ValidationProblem, project_problems, target_param,
 };
-use crate::console::{Action, Console, ConsoleClipId, OnId};
-use crate::effect::ClipId;
-use crate::identity::{ConsoleId, ObjectId, PatchId, SequenceId};
-use crate::layout::{FixtureInstanceId, Layout, LayoutError, LayoutFixtureKind, LayoutId};
-use crate::patch::{Patch, PixelRouteId, PixelSpan};
-use crate::project::DonderProject;
-use crate::sequence::{
-    AutomationClipId, AutomationTarget, CompositionGraphNodeId, CompositionGraphNodeKind, Sequence,
-    SequenceCompositionGraph,
-};
+use crate::composition::CompositionGraphNodeKind;
+use crate::console::{Action, Console};
+use crate::effect::Clip;
+use crate::effect::Placement;
+use crate::identity::ObjectId;
+use crate::layout::LayoutError;
+use crate::patch::PixelSpan;
+use crate::project::{DonderProject, MemberMut, MemberRef};
+use crate::sequence::Sequence;
+use crate::site::{Field, Member, Site};
 
 /// A change to a member an edit left alone, so the edited project keeps every
 /// rule.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Repair {
-    /// The fixtures of a layout whose definition is gone.
-    RemoveLayoutItems {
-        layout: LayoutId,
-        items: Vec<FixtureInstanceId>,
-    },
-    /// A route whose target, controller or output is gone.
-    RemoveRoute { patch: PatchId, route: PixelRouteId },
-    /// A route cut to the pixels its target and output still have.
-    ShortenRoute {
-        patch: PatchId,
-        route: PixelRouteId,
-        pixels: PixelSpan,
-    },
-    /// A clip whose layer, target or effect is gone, or that starts after the
-    /// sequence ends.
-    RemoveClip { sequence: SequenceId, clip: ClipId },
-    /// A clip cut at the sequence's end.
-    TrimClip {
-        sequence: SequenceId,
-        clip: ClipId,
-        duration: DonderDuration,
-    },
-    /// The marks of a collection past the sequence's end.
-    TrimMarks {
-        sequence: SequenceId,
-        collection: Identifier,
-    },
-    /// An envelope whose row is gone, or that starts after the sequence ends.
-    RemoveAutomationClip {
-        sequence: SequenceId,
-        clip: AutomationClipId,
-    },
-    /// An envelope cut at the sequence's end.
-    TrimAutomationClip {
-        sequence: SequenceId,
-        clip: AutomationClipId,
-        duration: DonderDuration,
-    },
-    /// An envelope's bindings to parameters that are gone: kept detached when
-    /// their clip or node is still there to bind again, removed with it
-    /// otherwise.
-    DetachBindings {
-        sequence: SequenceId,
-        clip: AutomationClipId,
-    },
-    /// An envelope's binding to a parameter another envelope drives at once.
-    Unbind {
-        sequence: SequenceId,
-        clip: AutomationClipId,
-        target: AutomationTarget,
-    },
-    /// A parameter value that names something gone or no longer fits its
-    /// parameter, back to the parameter's default.
-    ResetParam {
-        owner: ParamOwner,
-        param: Identifier,
-    },
-    /// A console clip whose layer, target or effect is gone.
-    RemoveConsoleClip {
-        console: ConsoleId,
-        clip: ConsoleClipId,
-    },
-    /// The `always` entries of clips that are gone.
-    ForgetAlways { console: ConsoleId },
-    /// An event whose control is gone or no longer fits it.
-    RemoveEvent { console: ConsoleId, event: OnId },
-    /// An event's actions on clips, nodes, parameters and marks that are gone.
-    ForgetActions { console: ConsoleId, event: OnId },
-    /// An event's `Set` of a parameter another control sets.
-    RemoveSet {
-        console: ConsoleId,
-        event: OnId,
-        param: Identifier,
-    },
-    /// A played value that its clip's events or a `Set` no longer allow.
-    DropPlayed {
-        console: ConsoleId,
-        clip: ConsoleClipId,
-        param: Identifier,
-    },
-    /// A played value of a parameter that is gone.
-    ForgetPlayed {
-        console: ConsoleId,
-        clip: ConsoleClipId,
-        param: Identifier,
-    },
+pub struct Repair {
+    pub site: Site,
+    pub action: GiveWay,
 }
 
-/// The holder of a parameter value.
-#[derive(Clone, Debug, PartialEq)]
-pub enum ParamOwner {
-    Clip {
-        sequence: SequenceId,
-        clip: ClipId,
-    },
-    ConsoleClip {
-        console: ConsoleId,
-        clip: ConsoleClipId,
-    },
-    Node {
-        graph: GraphOwner,
-        node: CompositionGraphNodeId,
-    },
-}
-
-/// The sequence or console a composition graph belongs to.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum GraphOwner {
-    Sequence(SequenceId),
-    Console(ConsoleId),
+/// How a member gives way.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GiveWay {
+    /// The member, or the part of it its field names, goes.
+    Remove,
+    /// A clip, envelope or mark collection is cut at the sequence's end; an
+    /// output, to the pixels its fixture and controller still have.
+    Shrink,
+    /// A parameter value goes back to the parameter's default.
+    Reset,
+    /// What pointed at something the edit took away is forgotten.
+    Forget,
 }
 
 impl Repair {
@@ -146,25 +51,155 @@ impl Repair {
     /// or changes something they made, but not one that only forgets what
     /// pointed at something gone with the edit.
     pub fn needs_confirmation(&self) -> bool {
+        self.action != GiveWay::Forget
+    }
+}
+
+impl ValidationProblem {
+    /// How the member that breaks the rule gives way; none when it cannot.
+    pub(crate) fn give_way(&self) -> Option<GiveWay> {
         match self {
-            Self::RemoveLayoutItems { .. }
-            | Self::RemoveRoute { .. }
-            | Self::ShortenRoute { .. }
-            | Self::RemoveClip { .. }
-            | Self::TrimClip { .. }
-            | Self::TrimMarks { .. }
-            | Self::RemoveAutomationClip { .. }
-            | Self::TrimAutomationClip { .. }
-            | Self::Unbind { .. }
-            | Self::ResetParam { .. }
-            | Self::RemoveConsoleClip { .. }
-            | Self::RemoveEvent { .. }
-            | Self::RemoveSet { .. }
-            | Self::DropPlayed { .. } => true,
-            Self::DetachBindings { .. }
-            | Self::ForgetAlways { .. }
-            | Self::ForgetActions { .. }
-            | Self::ForgetPlayed { .. } => false,
+            Self::Route { problem, .. } => match problem {
+                RouteProblem::DuplicateId
+                | RouteProblem::InvalidColorOrder
+                | RouteProblem::InvalidGamma
+                | RouteProblem::InvalidBrightness
+                | RouteProblem::EmptySpan
+                | RouteProblem::ChannelOverflow => None,
+                RouteProblem::TargetNotFixture
+                | RouteProblem::Target(_)
+                | RouteProblem::MissingController
+                | RouteProblem::MissingPort
+                | RouteProblem::OutputsOverlap { .. } => Some(GiveWay::Remove),
+                RouteProblem::SpanExceedsTarget { .. } | RouteProblem::PastLastChannel { .. } => {
+                    Some(GiveWay::Shrink)
+                }
+            },
+            Self::Timing(_) => None,
+            Self::Composition(problem) => problem.give_way(),
+            Self::Console(problem) => match problem {
+                ConsoleValidationError::DuplicateEventId(_)
+                | ConsoleValidationError::PlayedAndHeld { .. }
+                | ConsoleValidationError::RepeatedAlwaysClip { .. }
+                | ConsoleValidationError::AlwaysLength { .. } => None,
+                ConsoleValidationError::MissingAlwaysClip => Some(GiveWay::Forget),
+                ConsoleValidationError::Event { problem, .. } => match problem {
+                    EventProblem::Input(
+                        InputProblem::MissingDevice
+                        | InputProblem::NotAControl
+                        | InputProblem::NotAButton
+                        | InputProblem::NotAnAxis,
+                    )
+                    | EventProblem::SetByOtherControl(_) => Some(GiveWay::Remove),
+                    EventProblem::AxisPlays
+                    | EventProblem::Copies(_)
+                    | EventProblem::DurationBeyondClock
+                    | EventProblem::NonPositiveDuration
+                    | EventProblem::ShortestAboveLongest
+                    | EventProblem::WindowOutOfRange(_) => None,
+                    EventProblem::MissingClip
+                    | EventProblem::MissingNode
+                    | EventProblem::MissingLiveMarks
+                    | EventProblem::UnknownParam(_)
+                    | EventProblem::NotAutomatable(_) => Some(GiveWay::Forget),
+                },
+            },
+            Self::Layout(LayoutError::MissingDefinition(_)) => Some(GiveWay::Remove),
+            Self::Curve(_)
+            | Self::CurveNotNormalized
+            | Self::Gradient(_)
+            | Self::Fixture(_)
+            | Self::Layout(_)
+            | Self::Controller(_)
+            | Self::InputDevice(_)
+            | Self::Project(_)
+            | Self::Admission(_) => None,
+        }
+    }
+}
+
+impl CompositionProblem {
+    fn give_way(&self) -> Option<GiveWay> {
+        match self {
+            Self::Param { problem, .. } => problem.give_way(),
+            Self::Clip { problem, .. } => problem.give_way(),
+            Self::MarkOutsideDuration(..) => Some(GiveWay::Shrink),
+            Self::Name(_) | Self::DuplicateClipId(_) | Self::InvalidMarkLabel(..) => None,
+            Self::NoLayers
+            | Self::DuplicateLayerId(_)
+            | Self::Graph(_)
+            | Self::MissingLayer(_)
+            | Self::RepeatedLayer(_)
+            | Self::LiveMarksHold(_) => None,
+        }
+    }
+}
+
+impl ClipProblem {
+    fn give_way(&self) -> Option<GiveWay> {
+        match self {
+            Self::MissingLayer | Self::MissingTarget | Self::Definition(_) => Some(GiveWay::Remove),
+            Self::Region(region) => region.give_way(),
+            Self::Param(problem) => problem.give_way(),
+            Self::NeverPlays | Self::EnvelopePlayed => None,
+            Self::Envelope(problem) => match problem {
+                EnvelopeProblem::InvalidCurve(_)
+                | EnvelopeProblem::CurveOutOfRange
+                | EnvelopeProblem::BindsTwice
+                | EnvelopeProblem::Binding(_, BindingProblem::WindowOutOfRange) => None,
+                EnvelopeProblem::Overlap
+                | EnvelopeProblem::AlsoSet(_)
+                | EnvelopeProblem::Binding(
+                    _,
+                    BindingProblem::NotAutomatable | BindingProblem::MissingParam,
+                ) => Some(GiveWay::Remove),
+                EnvelopeProblem::Binding(
+                    _,
+                    BindingProblem::MissingClip | BindingProblem::MissingNode,
+                ) => Some(GiveWay::Forget),
+            },
+            Self::Played(_, problem) => match problem {
+                PlayedProblem::UnknownParam | PlayedProblem::NotAutomatable => {
+                    Some(GiveWay::Forget)
+                }
+                PlayedProblem::WithoutPress
+                | PlayedProblem::WithoutNotes
+                | PlayedProblem::AlsoSet => Some(GiveWay::Remove),
+                PlayedProblem::Twice | PlayedProblem::WindowOutOfRange => None,
+            },
+        }
+    }
+}
+
+impl RegionProblem {
+    /// A region that runs past the sequence's end is cut there; one invalid
+    /// by itself cannot give way.
+    fn give_way(&self) -> Option<GiveWay> {
+        match self {
+            Self::BeyondSequence | Self::EndBeyondAfterRounding => Some(GiveWay::Shrink),
+            Self::ZeroDuration
+            | Self::Overflow
+            | Self::StartBeyondClock
+            | Self::DurationBeyondClock
+            | Self::RoundsToZero => None,
+        }
+    }
+}
+
+impl ParamProblem {
+    fn give_way(&self) -> Option<GiveWay> {
+        match self {
+            Self::WrongType(_)
+            | Self::Undeclared(_)
+            | Self::MissingMarks(_)
+            | Self::MissingCurve(_)
+            | Self::MissingGradient(_) => Some(GiveWay::Reset),
+            Self::MissingRequired(_)
+            | Self::InvalidCurve(..)
+            | Self::InvalidGradient(..)
+            | Self::InvalidText(_)
+            | Self::InvalidFontHeight(_)
+            | Self::InvalidImageSize(_) => None,
         }
     }
 }
@@ -183,529 +218,206 @@ pub(crate) fn repair(
         let Some(first) = problems.first() else {
             return Ok(repairs);
         };
-        let mut planned = Vec::new();
+        let mut planned: Vec<(Repair, &ValidationProblem)> = Vec::new();
         for problem in &problems {
             let repair = plan(project, previous, problem).ok_or_else(|| problem.clone())?;
-            if !planned.contains(&repair) {
-                planned.push(repair);
+            if !planned.iter().any(|(other, _)| other == &repair) {
+                planned.push((repair, &problem.problem));
             }
         }
-        let first = first.clone();
         let count = repairs.len();
-        for repair in planned {
-            if apply(project, &repair) {
+        for (repair, problem) in planned {
+            if apply(project, &repair, problem) {
                 repairs.push(repair);
             }
         }
         if repairs.len() == count {
-            return Err(first);
+            return Err(first.clone());
         }
     }
 }
 
-/// The repair for one problem, if the member that breaks the rule can give
-/// way.
+/// The repair for one problem, if a member the edit left alone can give way:
+/// the one that breaks the rule, or the one it overlaps when the edit placed
+/// that one.
 fn plan(
     project: &DonderProject,
     previous: &DonderProject,
     error: &ProjectValidationError,
 ) -> Option<Repair> {
-    let state = State { project, previous };
-    match &error.problem {
-        ValidationProblem::Route { route, problem, .. } => {
-            let ObjectId::Patch(patch) = error.object else {
-                return None;
-            };
-            state.route(patch, *route, problem)
+    let action = error.problem.give_way()?;
+    let site = error.site();
+    // Only a field that names a part of the member narrows the repair.
+    let site = Site {
+        field: site.field.filter(|field| {
+            matches!(
+                field,
+                Field::Param(_)
+                    | Field::Played(_)
+                    | Field::Set(_)
+                    | Field::Binding(_)
+                    | Field::Always
+            )
+        }),
+        ..site
+    };
+    let same = |site: &Site| unchanged(project, previous, site);
+    if let ValidationProblem::Composition(CompositionProblem::Clip {
+        problem: ClipProblem::Envelope(EnvelopeProblem::Overlap),
+        ..
+    }) = &error.problem
+    {
+        return unbind_overlap(project, &site, same);
+    }
+    if same(&site) {
+        let action = match action {
+            GiveWay::Shrink => match fit(project, &site, &error.problem)? {
+                Fit::Nothing => GiveWay::Remove,
+                _ => GiveWay::Shrink,
+            },
+            action => action,
+        };
+        return Some(Repair { site, action });
+    }
+    // The member the edit placed wins over the one already there.
+    let other = |member| Site {
+        member: Some(member),
+        ..site.clone()
+    };
+    let other = match &error.problem {
+        ValidationProblem::Route {
+            route,
+            problem: RouteProblem::OutputsOverlap { other: fixture, .. },
+            ..
+        } => {
+            let routes = &project.root().routes;
+            let placed = routes.iter().find(|candidate| candidate.id == *route)?;
+            let controller = project.get::<crate::Controller>(placed.controller)?;
+            let layout = project.layout();
+            routes.iter().find_map(|candidate| {
+                let site = other(Member::Route(candidate.id));
+                (candidate.id != *route
+                    && candidate.controller == placed.controller
+                    && controller.port_output(candidate.port)
+                        == controller.port_output(placed.port)
+                    && layout
+                        .fixture(candidate.target)
+                        .is_some_and(|target| &target.name == fixture)
+                    && same(&site))
+                .then_some(site)
+            })?
         }
-        ValidationProblem::Setup(problem) => {
-            let ObjectId::Setup(setup) = error.object else {
-                return None;
-            };
-            match problem {
-                SetupProblem::RouteControllerInactive { route, .. } => {
-                    let patch = *project.get::<crate::Setup>(setup)?.patch.id();
-                    state
-                        .route_unchanged(patch, *route)
-                        .then_some(Repair::RemoveRoute {
-                            patch,
-                            route: *route,
-                        })
-                }
-                SetupProblem::TooManyControllers
-                | SetupProblem::SharedOscPort(_)
-                | SetupProblem::RouteOnOtherLayout { .. } => None,
-            }
-        }
-        ValidationProblem::Sequence(problem) => {
-            let ObjectId::Sequence(sequence) = error.object else {
-                return None;
-            };
-            state.sequence(sequence, problem)
-        }
-        ValidationProblem::Console(problem) => {
+        // Of an envelope and a `Set` that write one parameter, the one the
+        // edit left alone lets go of it.
+        ValidationProblem::Composition(CompositionProblem::Clip {
+            problem: ClipProblem::Envelope(EnvelopeProblem::AlsoSet(target)),
+            ..
+        }) => {
             let ObjectId::Console(console) = error.object else {
                 return None;
             };
-            state.console(console, problem)
+            let console = project.get::<Console>(console)?;
+            console.events.iter().find_map(|on| {
+                let site = Site::member(error.object, Member::Event(on.id))
+                    .at(Field::Set(target.param().clone()));
+                (on.actions.iter().any(
+                    |action| matches!(action, Action::Set { target: set, .. } if set == target),
+                ) && same(&site))
+                .then_some(site)
+            })?
         }
-        ValidationProblem::Layout(LayoutError::MissingDefinition(definition)) => {
-            let ObjectId::Layout(id) = error.object else {
+        ValidationProblem::Console(ConsoleValidationError::Event {
+            event,
+            problem: EventProblem::SetByOtherControl(param),
+        }) => {
+            let ObjectId::Console(console) = error.object else {
                 return None;
             };
-            let layout = project.get::<Layout>(id)?;
-            if !same(Some(layout), previous.get::<Layout>(id)) {
-                return None;
-            }
-            let items = layout
-                .fixtures
-                .iter()
-                .filter(|fixture| {
-                    matches!(&fixture.kind, LayoutFixtureKind::Fixture { definition: crate::ownership::Owned::Reference(owned), .. } if owned == definition)
-                })
-                .map(|fixture| fixture.id)
-                .collect::<Vec<_>>();
-            (!items.is_empty()).then_some(Repair::RemoveLayoutItems { layout: id, items })
+            let console = project.get::<Console>(console)?;
+            let placed = console.events.iter().find(|on| on.id == *event)?;
+            console.events.iter().find_map(|candidate| {
+                let site = other(Member::Event(candidate.id));
+                (candidate.control != placed.control && sets(candidate, param) && same(&site))
+                    .then_some(site)
+            })?
         }
-        ValidationProblem::Ownership(_)
-        | ValidationProblem::DefinitionMismatch
-        | ValidationProblem::Curve(_)
-        | ValidationProblem::CurveNotNormalized
-        | ValidationProblem::Gradient(_)
-        | ValidationProblem::Fixture(_)
-        | ValidationProblem::Layout(_)
-        | ValidationProblem::Controller(_)
-        | ValidationProblem::InputDevice(_)
-        | ValidationProblem::Admission(_) => None,
+        _ => return None,
+    };
+    Some(Repair {
+        site: other,
+        action,
+    })
+}
+
+/// Whether the member `site` names is in the edited project as it was before
+/// the edit; at an object, whether the field it names is.
+fn unchanged(project: &DonderProject, previous: &DonderProject, site: &Site) -> bool {
+    if site.member.is_some() {
+        let member = project.member(site);
+        return member.is_some() && member == previous.member(site);
+    }
+    match (site.object, &site.field) {
+        (ObjectId::Console(id), Some(Field::Always)) => {
+            let always = |project: &DonderProject| {
+                project
+                    .get::<Console>(id)
+                    .map(|console| console.always.clone())
+            };
+            let now = always(project);
+            now.is_some() && now == always(previous)
+        }
+        _ => false,
     }
 }
 
-/// The edited project and the valid one it was edited from.
-struct State<'a> {
-    project: &'a DonderProject,
-    previous: &'a DonderProject,
-}
-
-/// A lookup of a member in a project or object, typed so it serves both the
-/// edited project and the one before.
-fn finder<C, T>(find: impl Fn(&C) -> Option<&T>) -> impl Fn(&C) -> Option<&T> {
-    find
-}
-
-/// Whether a member is in the edited project as it was before the edit.
-fn same<T: PartialEq>(member: Option<&T>, before: Option<&T>) -> bool {
-    member.is_some() && member == before
-}
-
-impl State<'_> {
-    fn route_unchanged(&self, patch: PatchId, route: PixelRouteId) -> bool {
-        let find = finder(|project: &DonderProject| {
-            project
-                .get::<Patch>(patch)
-                .and_then(|patch| patch.routes.iter().find(|candidate| candidate.id == route))
-        });
-        same(find(self.project), find(self.previous))
-    }
-
-    fn route(&self, patch: PatchId, id: PixelRouteId, problem: &RouteProblem) -> Option<Repair> {
-        let unchanged = self.route_unchanged(patch, id);
-        let route = self
-            .project
-            .get::<Patch>(patch)?
-            .routes
-            .iter()
-            .find(|route| route.id == id)?;
-        let remove = Repair::RemoveRoute { patch, route: id };
-        let shorten = |start: u32, count: u32| {
-            Some(if count == 0 {
-                remove.clone()
-            } else {
-                Repair::ShortenRoute {
-                    patch,
-                    route: id,
-                    pixels: PixelSpan { start, count },
-                }
+/// Of two envelopes that drive one parameter at once, the one the edit left
+/// alone lets go of it.
+fn unbind_overlap(
+    project: &DonderProject,
+    site: &Site,
+    same: impl Fn(&Site) -> bool,
+) -> Option<Repair> {
+    let composition = match site.object {
+        ObjectId::Sequence(id) => &project.get::<Sequence>(id)?.composition,
+        ObjectId::Console(id) => &project.get::<Console>(id)?.composition,
+        _ => return None,
+    };
+    let Some(MemberRef::Clip(value)) = project.member(site) else {
+        return None;
+    };
+    let targets = |clip: &Clip| {
+        clip.envelope()
+            .map(|envelope| {
+                envelope
+                    .bindings
+                    .iter()
+                    .map(|binding| binding.target.clone())
+                    .collect::<Vec<_>>()
             })
+            .unwrap_or_default()
+    };
+    let at = |clip: &Clip| Site::member(site.object, Member::Clip(clip.id));
+    let unchanged = same(site);
+    composition.clips.iter().find_map(|other| {
+        if other.id == value.id || other.envelope().is_none() || !other.overlaps(value) {
+            return None;
+        }
+        let (giver, keeper) = if unchanged {
+            (value, other.as_ref())
+        } else if same(&at(other)) {
+            (other.as_ref(), value)
+        } else {
+            return None;
         };
-        match problem {
-            RouteProblem::DuplicateId
-            | RouteProblem::InvalidColorOrder
-            | RouteProblem::InvalidGamma
-            | RouteProblem::InvalidBrightness
-            | RouteProblem::EmptySpan
-            | RouteProblem::ChannelOverflow => None,
-            RouteProblem::MissingLayout
-            | RouteProblem::TargetNotFixture
-            | RouteProblem::Target(_)
-            | RouteProblem::MissingController
-            | RouteProblem::MissingPort => unchanged.then_some(remove),
-            RouteProblem::SpanExceedsTarget { span, pixels } => {
-                if !unchanged {
-                    return None;
-                }
-                shorten(span.start, pixels.saturating_sub(span.start))
-            }
-            RouteProblem::PastLastChannel {
-                channels,
-                available,
-                ..
-            } => {
-                if !unchanged {
-                    return None;
-                }
-                let per_pixel = route.encoding.channel_count() as u32;
-                let span = route.pixels.unwrap_or(PixelSpan {
-                    start: 0,
-                    count: channels.len() as u32 / per_pixel,
-                });
-                shorten(
-                    span.start,
-                    available.saturating_sub(channels.start) / per_pixel,
-                )
-            }
-            RouteProblem::OutputsOverlap { other, .. } => {
-                if unchanged {
-                    return Some(remove);
-                }
-                // The route the edit placed wins over the one already there.
-                let patch_value = self.project.get::<Patch>(patch)?;
-                let controller = self.project.get::<crate::Controller>(route.controller)?;
-                let same_stream = |candidate: &crate::patch::PixelRoute| {
-                    controller.port_output(candidate.port) == controller.port_output(route.port)
-                };
-                let earlier = patch_value.routes.iter().find(|candidate| {
-                    candidate.id != id
-                        && candidate.controller == route.controller
-                        && same_stream(candidate)
-                        && route_fixture(self.project, candidate).as_ref() == Some(other)
-                        && self.route_unchanged(patch, candidate.id)
-                })?;
-                Some(Repair::RemoveRoute {
-                    patch,
-                    route: earlier.id,
-                })
-            }
-        }
-    }
-
-    fn sequence(&self, id: SequenceId, problem: &SequenceValidationError) -> Option<Repair> {
-        let sequence = self.project.get::<Sequence>(id)?;
-        let before = self.previous.get::<Sequence>(id);
-        match problem {
-            SequenceValidationError::Timing(_)
-            | SequenceValidationError::Name(_)
-            | SequenceValidationError::DuplicateClipId(_)
-            | SequenceValidationError::DuplicateAutomationClipId(_)
-            | SequenceValidationError::InvalidMarkLabel(_) => None,
-            SequenceValidationError::Composition(problem) => self.composition(
-                GraphOwner::Sequence(id),
-                &sequence.composition_graph,
-                before.map(|before| &before.composition_graph),
-                problem,
-            ),
-            SequenceValidationError::MarkOutsideDuration(name) => {
-                let find = finder(|sequence: &Sequence| {
-                    sequence
-                        .mark_collections
-                        .iter()
-                        .find(|collection| &collection.key.name == name)
-                });
-                same(find(sequence), before.and_then(find)).then(|| Repair::TrimMarks {
-                    sequence: id,
-                    collection: name.clone(),
-                })
-            }
-            SequenceValidationError::Clip { clip, problem, .. } => {
-                let find = finder(|sequence: &Sequence| {
-                    sequence
-                        .clips
-                        .iter()
-                        .find(|candidate| &candidate.id == clip)
-                        .map(Arc::as_ref)
-                });
-                let value = find(sequence)?;
-                if !same(Some(value), before.and_then(find)) {
-                    return None;
-                }
-                let remove = Repair::RemoveClip {
-                    sequence: id,
-                    clip: clip.clone(),
-                };
-                match problem {
-                    ClipProblem::MissingLayer
-                    | ClipProblem::MissingTargetLayout
-                    | ClipProblem::MissingTarget
-                    | ClipProblem::MissingDefinition => Some(remove),
-                    ClipProblem::NotInActiveLayout | ClipProblem::MixedLayouts => None,
-                    ClipProblem::Region(region) => trim(region, &value.start, &sequence.duration)
-                        .map(|duration| match duration {
-                            Some(duration) => Repair::TrimClip {
-                                sequence: id,
-                                clip: clip.clone(),
-                                duration,
-                            },
-                            None => remove,
-                        }),
-                    ClipProblem::Param(problem) => param(
-                        ParamOwner::Clip {
-                            sequence: id,
-                            clip: clip.clone(),
-                        },
-                        problem,
-                    ),
-                }
-            }
-            SequenceValidationError::Automation { clip, problem } => {
-                let find = finder(|sequence: &Sequence| {
-                    sequence
-                        .automation_clips
-                        .iter()
-                        .find(|candidate| &candidate.id == clip)
-                });
-                let value = find(sequence)?;
-                let unchanged = same(Some(value), before.and_then(find));
-                let remove = Repair::RemoveAutomationClip {
-                    sequence: id,
-                    clip: clip.clone(),
-                };
-                match problem {
-                    AutomationProblem::MixedLayouts
-                    | AutomationProblem::NotInActiveLayout
-                    | AutomationProblem::InvalidCurve(_)
-                    | AutomationProblem::CurveOutOfRange
-                    | AutomationProblem::WindowOutOfRange
-                    | AutomationProblem::BindsTwice => None,
-                    AutomationProblem::MissingRow => unchanged.then_some(remove),
-                    AutomationProblem::Region(region) => {
-                        if !unchanged {
-                            return None;
-                        }
-                        trim(region, &value.start, &sequence.duration).map(
-                            |duration| match duration {
-                                Some(duration) => Repair::TrimAutomationClip {
-                                    sequence: id,
-                                    clip: clip.clone(),
-                                    duration,
-                                },
-                                None => remove,
-                            },
-                        )
-                    }
-                    AutomationProblem::NotAutomatable(_)
-                    | AutomationProblem::MissingClip
-                    | AutomationProblem::MissingNode
-                    | AutomationProblem::MissingParam(_) => {
-                        unchanged.then(|| Repair::DetachBindings {
-                            sequence: id,
-                            clip: clip.clone(),
-                        })
-                    }
-                    AutomationProblem::Overlap => {
-                        // The envelope the edit placed keeps the parameter.
-                        let unchanged_clip = |candidate: &crate::sequence::AutomationClip| {
-                            same(
-                                Some(candidate),
-                                before.and_then(|before| {
-                                    before
-                                        .automation_clips
-                                        .iter()
-                                        .find(|other| other.id == candidate.id)
-                                }),
-                            )
-                        };
-                        sequence.automation_clips.iter().find_map(|other| {
-                            if other.id == value.id || !other.overlaps(value) {
-                                return None;
-                            }
-                            let (giver, keeper) = if unchanged {
-                                (value, other)
-                            } else if unchanged_clip(other) {
-                                (other, value)
-                            } else {
-                                return None;
-                            };
-                            let target = giver
-                                .targets()
-                                .find(|target| keeper.targets().any(|kept| kept == *target))?;
-                            Some(Repair::Unbind {
-                                sequence: id,
-                                clip: giver.id.clone(),
-                                target: target.clone(),
-                            })
-                        })
-                    }
-                }
-            }
-        }
-    }
-
-    fn composition(
-        &self,
-        graph: GraphOwner,
-        current: &SequenceCompositionGraph,
-        before: Option<&SequenceCompositionGraph>,
-        problem: &CompositionProblem,
-    ) -> Option<Repair> {
-        match problem {
-            CompositionProblem::Param { node, problem } => {
-                let find = finder(|graph: &SequenceCompositionGraph| {
-                    graph.nodes.iter().find(|candidate| &candidate.id == node)
-                });
-                if !same(find(current), before.and_then(find)) {
-                    return None;
-                }
-                param(
-                    ParamOwner::Node {
-                        graph,
-                        node: node.clone(),
-                    },
-                    problem,
-                )
-            }
-            CompositionProblem::NoLayers
-            | CompositionProblem::DuplicateLayerId(_)
-            | CompositionProblem::Graph(_)
-            | CompositionProblem::MissingLayer(_)
-            | CompositionProblem::RepeatedLayer(_) => None,
-        }
-    }
-
-    fn console(&self, id: ConsoleId, problem: &ConsoleValidationError) -> Option<Repair> {
-        let console = self.project.get::<Console>(id)?;
-        let before = self.previous.get::<Console>(id);
-        match problem {
-            ConsoleValidationError::Timing(_)
-            | ConsoleValidationError::Name(_)
-            | ConsoleValidationError::DuplicateClipId(_)
-            | ConsoleValidationError::DuplicateEventId(_)
-            | ConsoleValidationError::PlayedAndHeld { .. }
-            | ConsoleValidationError::RepeatedAlwaysClip { .. }
-            | ConsoleValidationError::AlwaysLength { .. } => None,
-            ConsoleValidationError::Composition(problem) => self.composition(
-                GraphOwner::Console(id),
-                &console.composition_graph,
-                before.map(|before| &before.composition_graph),
-                problem,
-            ),
-            ConsoleValidationError::Clip { clip, problem, .. } => {
-                let find = finder(|console: &Console| console.clip(*clip));
-                if !same(find(console), before.and_then(find)) {
-                    return None;
-                }
-                match problem {
-                    ClipProblem::MissingLayer
-                    | ClipProblem::MissingTargetLayout
-                    | ClipProblem::MissingTarget
-                    | ClipProblem::MissingDefinition => Some(Repair::RemoveConsoleClip {
-                        console: id,
-                        clip: *clip,
-                    }),
-                    ClipProblem::NotInActiveLayout
-                    | ClipProblem::MixedLayouts
-                    | ClipProblem::Region(_) => None,
-                    ClipProblem::Param(problem) => param(
-                        ParamOwner::ConsoleClip {
-                            console: id,
-                            clip: *clip,
-                        },
-                        problem,
-                    ),
-                }
-            }
-            ConsoleValidationError::MissingAlwaysClip => {
-                same(Some(&console.always), before.map(|before| &before.always))
-                    .then_some(Repair::ForgetAlways { console: id })
-            }
-            ConsoleValidationError::Event { event, problem } => {
-                let find =
-                    finder(|console: &Console| console.events.iter().find(|on| on.id == *event));
-                let value = find(console)?;
-                let unchanged = same(Some(value), before.and_then(find));
-                match problem {
-                    EventProblem::Input(
-                        InputProblem::MissingDevice
-                        | InputProblem::NotAControl
-                        | InputProblem::NotInSetup
-                        | InputProblem::NotAButton
-                        | InputProblem::NotAnAxis,
-                    ) => unchanged.then_some(Repair::RemoveEvent {
-                        console: id,
-                        event: *event,
-                    }),
-                    EventProblem::AxisPlays
-                    | EventProblem::Copies(_)
-                    | EventProblem::DurationBeyondClock
-                    | EventProblem::NonPositiveDuration
-                    | EventProblem::ShortestAboveLongest
-                    | EventProblem::WindowOutOfRange(_) => None,
-                    EventProblem::MissingClip
-                    | EventProblem::MissingNode
-                    | EventProblem::MissingLiveMarks(_)
-                    | EventProblem::UnknownParam(_)
-                    | EventProblem::NotAutomatable(_) => {
-                        unchanged.then_some(Repair::ForgetActions {
-                            console: id,
-                            event: *event,
-                        })
-                    }
-                    EventProblem::SetByOtherControl(param) => {
-                        if unchanged {
-                            return Some(Repair::RemoveSet {
-                                console: id,
-                                event: *event,
-                                param: param.clone(),
-                            });
-                        }
-                        // The control the edit chose keeps the parameter.
-                        let other = console.events.iter().find(|other| {
-                            other.event.control() != value.event.control()
-                                && sets(other, param)
-                                && same(
-                                    Some(*other),
-                                    before.and_then(|before| {
-                                        before.events.iter().find(|on| on.id == other.id)
-                                    }),
-                                )
-                        })?;
-                        Some(Repair::RemoveSet {
-                            console: id,
-                            event: other.id,
-                            param: param.clone(),
-                        })
-                    }
-                }
-            }
-            ConsoleValidationError::Played {
-                clip,
-                param,
-                problem,
-                ..
-            } => {
-                let find = finder(|console: &Console| console.clip(*clip));
-                if !same(find(console), before.and_then(find)) {
-                    return None;
-                }
-                let (console, clip, param) = (id, *clip, param.clone());
-                match problem {
-                    PlayedProblem::UnknownParam | PlayedProblem::NotAutomatable => {
-                        Some(Repair::ForgetPlayed {
-                            console,
-                            clip,
-                            param,
-                        })
-                    }
-                    PlayedProblem::WithoutPress
-                    | PlayedProblem::WithoutNotes
-                    | PlayedProblem::AlsoSet => Some(Repair::DropPlayed {
-                        console,
-                        clip,
-                        param,
-                    }),
-                    PlayedProblem::Twice | PlayedProblem::WindowOutOfRange => None,
-                }
-            }
-        }
-    }
+        let kept = targets(keeper);
+        let target = targets(giver)
+            .into_iter()
+            .find(|target| kept.contains(target))?;
+        Some(Repair {
+            site: at(giver).at(Field::Binding(target.clone())),
+            action: GiveWay::Remove,
+        })
+    })
 }
 
 /// Whether event `on` sets a parameter named `param`.
@@ -715,331 +427,194 @@ fn sets(on: &crate::console::On, param: &Identifier) -> bool {
         .any(|action| matches!(action, Action::Set { target, .. } if target.param() == param))
 }
 
-fn param(owner: ParamOwner, problem: &ParamProblem) -> Option<Repair> {
-    match problem {
-        ParamProblem::WrongType(param)
-        | ParamProblem::Undeclared(param)
-        | ParamProblem::MissingMarks(param)
-        | ParamProblem::MissingCurve(param)
-        | ParamProblem::MissingGradient(param) => Some(Repair::ResetParam {
-            owner,
-            param: param.clone(),
-        }),
-        ParamProblem::MissingRequired(_)
-        | ParamProblem::InvalidCurve(..)
-        | ParamProblem::InvalidGradient(..)
-        | ParamProblem::InvalidText(_)
-        | ParamProblem::InvalidFontHeight(_)
-        | ParamProblem::InvalidImageSize(_) => None,
+/// What a member shrinks to.
+enum Fit {
+    /// Nothing of it is left.
+    Nothing,
+    Duration(DonderDuration),
+    Pixels(PixelSpan),
+    /// Marks keep what lies inside the sequence.
+    Marks,
+}
+
+/// What the member at `site` shrinks to for `problem`.
+fn fit(project: &DonderProject, site: &Site, problem: &ValidationProblem) -> Option<Fit> {
+    let rest = |start: &DonderTime| {
+        let ObjectId::Sequence(id) = site.object else {
+            return None;
+        };
+        Some(trim(start, &project.get::<Sequence>(id)?.duration))
+    };
+    match (problem, project.member(site)?) {
+        (
+            ValidationProblem::Composition(CompositionProblem::Clip { .. }),
+            MemberRef::Clip(clip),
+        ) => rest(clip.timing()?.0),
+        (ValidationProblem::Composition(CompositionProblem::MarkOutsideDuration(..)), _) => {
+            Some(Fit::Marks)
+        }
+        (ValidationProblem::Route { problem, .. }, MemberRef::Route(route)) => {
+            let (start, count) = match problem {
+                RouteProblem::SpanExceedsTarget { span, pixels } => {
+                    (span.start, pixels.saturating_sub(span.start))
+                }
+                RouteProblem::PastLastChannel {
+                    channels,
+                    available,
+                    ..
+                } => {
+                    let per_pixel = route.encoding.channel_count() as u32;
+                    let span = route.pixels.unwrap_or(PixelSpan {
+                        start: 0,
+                        count: channels.len() as u32 / per_pixel,
+                    });
+                    (
+                        span.start,
+                        available.saturating_sub(channels.start) / per_pixel,
+                    )
+                }
+                _ => return None,
+            };
+            Some(if count == 0 {
+                Fit::Nothing
+            } else {
+                Fit::Pixels(PixelSpan { start, count })
+            })
+        }
+        _ => None,
     }
 }
 
-/// For a region that runs past the sequence's end: `Some(Some(duration))` to
-/// cut it there, `Some(None)` when nothing of it is left, and `None` for a
-/// region that is invalid by itself.
-fn trim(
-    region: &RegionProblem,
-    start: &DonderTime,
-    sequence: &DonderDuration,
-) -> Option<Option<DonderDuration>> {
-    match region {
-        RegionProblem::BeyondSequence | RegionProblem::EndBeyondAfterRounding => {}
-        RegionProblem::ZeroDuration
-        | RegionProblem::Overflow
-        | RegionProblem::StartBeyondClock
-        | RegionProblem::DurationBeyondClock
-        | RegionProblem::RoundsToZero => return None,
-    }
+/// The part of a region from `start` that ends inside a sequence of length
+/// `sequence`.
+fn trim(start: &DonderTime, sequence: &DonderDuration) -> Fit {
     let (Some(exact), Some(micros)) = (
         sequence.0.checked_sub(start.0),
         sequence
             .as_micros_rounded()
             .checked_sub(start.as_micros_rounded()),
     ) else {
-        return Some(None);
+        return Fit::Nothing;
     };
     // The shorter of the exact rest and the rest on the playback clock ends
     // inside the sequence both ways.
     let duration = DonderDuration(exact.min(Duration::from_micros(micros as u64)));
-    Some((duration.as_micros_rounded() > 0).then_some(duration))
+    if duration.as_micros_rounded() > 0 {
+        Fit::Duration(duration)
+    } else {
+        Fit::Nothing
+    }
 }
 
-/// Apply `repair` to `project`; whether it changed anything.
-fn apply(project: &mut DonderProject, repair: &Repair) -> bool {
-    match repair {
-        Repair::RemoveLayoutItems { layout, items } => project
-            .find_mut::<Layout>(*layout)
-            .is_some_and(|layout| layout.remove_items(items).is_ok()),
-        Repair::RemoveRoute { patch, route } => project
-            .find_mut::<Patch>(*patch)
-            .is_some_and(|patch| retain(&mut patch.routes, |candidate| candidate.id != *route)),
-        Repair::ShortenRoute {
-            patch,
-            route,
-            pixels,
-        } => project
-            .find_mut::<Patch>(*patch)
-            .and_then(|patch| {
-                patch
-                    .routes
-                    .iter_mut()
-                    .find(|candidate| candidate.id == *route)
-            })
-            .is_some_and(|route| replace(&mut route.pixels, Some(*pixels))),
-        Repair::RemoveClip { sequence, clip } => project
-            .find_mut::<Sequence>(*sequence)
-            .is_some_and(|sequence| retain(&mut sequence.clips, |candidate| &candidate.id != clip)),
-        Repair::TrimClip {
-            sequence,
-            clip,
-            duration,
-        } => project
-            .find_mut::<Sequence>(*sequence)
-            .and_then(|sequence| {
-                sequence
-                    .clips
-                    .iter_mut()
-                    .find(|candidate| &candidate.id == clip)
-            })
-            .is_some_and(|clip| {
-                clip.duration != *duration && {
-                    Arc::make_mut(clip).duration = duration.clone();
-                    true
-                }
-            }),
-        Repair::TrimMarks {
-            sequence,
-            collection,
-        } => project
-            .find_mut::<Sequence>(*sequence)
-            .is_some_and(|sequence| {
-                let end = sequence.duration.0;
-                sequence
-                    .mark_collections
-                    .iter_mut()
-                    .find(|candidate| &candidate.key.name == collection)
-                    .is_some_and(|collection| {
-                        let mut changed = retain(&mut collection.marks, |mark| mark.time.0 <= end);
-                        for mark in &mut collection.marks {
-                            if mark.end() > end {
-                                mark.duration.0 = end - mark.time.0;
-                                changed = true;
-                            }
-                        }
-                        changed
-                    })
-            }),
-        Repair::RemoveAutomationClip { sequence, clip } => project
-            .find_mut::<Sequence>(*sequence)
-            .is_some_and(|sequence| {
-                retain(&mut sequence.automation_clips, |candidate| {
-                    &candidate.id != clip
-                })
-            }),
-        Repair::TrimAutomationClip {
-            sequence,
-            clip,
-            duration,
-        } => project
-            .find_mut::<Sequence>(*sequence)
-            .and_then(|sequence| {
-                sequence
-                    .automation_clips
-                    .iter_mut()
-                    .find(|candidate| &candidate.id == clip)
-            })
-            .is_some_and(|clip| {
-                clip.duration != *duration && {
-                    clip.crop(clip.start.clone(), duration.clone());
-                    true
-                }
-            }),
-        Repair::DetachBindings { sequence, clip } => {
-            let Some(value) = project.get::<Sequence>(*sequence) else {
+/// Apply `repair`, planned for `problem`, to `project`; whether it changed
+/// anything.
+fn apply(project: &mut DonderProject, repair: &Repair, problem: &ValidationProblem) -> bool {
+    let site = &repair.site;
+    match repair.action {
+        GiveWay::Remove => project.remove_at(site),
+        GiveWay::Shrink => {
+            let Some(fit) = fit(project, site, problem) else {
                 return false;
             };
-            let (mut gone, mut lost) = (Vec::new(), Vec::new());
-            for binding in value
-                .automation_clips
-                .iter()
-                .find(|candidate| &candidate.id == clip)
-                .map_or(&[][..], |clip| &clip.bindings)
-            {
-                match automation_target_param(project, value, &binding.target) {
-                    Err(AutomationProblem::MissingClip | AutomationProblem::MissingNode) => {
-                        gone.push(binding.target.clone());
-                    }
-                    Ok(param) if param.automation_mapping().is_some() => {}
-                    _ => lost.push(binding.target.clone()),
-                }
-            }
-            (!gone.is_empty() || !lost.is_empty())
-                && project
-                    .find_mut::<Sequence>(*sequence)
-                    .and_then(|sequence| {
-                        sequence
-                            .automation_clips
-                            .iter_mut()
-                            .find(|candidate| &candidate.id == clip)
-                    })
-                    .is_some_and(|clip| {
-                        clip.remove_bindings(|target| gone.contains(target));
-                        clip.detach_bindings(|target| lost.contains(target));
+            let end = match site.object {
+                ObjectId::Sequence(id) => project
+                    .get::<Sequence>(id)
+                    .map(|sequence| sequence.duration.0),
+                _ => None,
+            };
+            match (fit, project.member_mut(site)) {
+                (Fit::Duration(fit), Some(MemberMut::Clip(clip))) => match clip.timing() {
+                    Some((start, duration)) if *duration != fit => {
+                        let start = start.clone();
+                        std::sync::Arc::make_mut(clip).crop(start, fit);
                         true
-                    })
-        }
-        Repair::Unbind {
-            sequence,
-            clip,
-            target,
-        } => project
-            .find_mut::<Sequence>(*sequence)
-            .and_then(|sequence| {
-                sequence
-                    .automation_clips
-                    .iter_mut()
-                    .find(|candidate| &candidate.id == clip)
-            })
-            .is_some_and(|clip| {
-                let count = clip.targets().count();
-                clip.remove_bindings(|candidate| candidate == target);
-                clip.targets().count() != count
-            }),
-        Repair::ResetParam { owner, param } => {
-            let overrides = match owner {
-                ParamOwner::Clip { sequence, clip } => project
-                    .find_mut::<Sequence>(*sequence)
-                    .and_then(|sequence| {
-                        sequence
-                            .clips
-                            .iter_mut()
-                            .find(|candidate| &candidate.id == clip)
-                    })
-                    .filter(|clip| clip.param_overrides.contains_key(param))
-                    .map(|clip| &mut Arc::make_mut(clip).param_overrides),
-                ParamOwner::ConsoleClip { console, clip } => project
-                    .find_mut::<Console>(*console)
-                    .and_then(|console| {
-                        console
-                            .clips
-                            .iter_mut()
-                            .find(|candidate| candidate.id == *clip)
-                    })
-                    .map(|clip| &mut clip.param_overrides),
-                ParamOwner::Node { graph, node } => {
-                    let graph = match graph {
-                        GraphOwner::Sequence(sequence) => project
-                            .find_mut::<Sequence>(*sequence)
-                            .map(|sequence| &mut sequence.composition_graph),
-                        GraphOwner::Console(console) => project
-                            .find_mut::<Console>(*console)
-                            .map(|console| &mut console.composition_graph),
-                    };
-                    graph
-                        .and_then(|graph| {
-                            graph
-                                .nodes
-                                .iter_mut()
-                                .find(|candidate| &candidate.id == node)
-                        })
-                        .and_then(|node| match &mut node.kind {
-                            CompositionGraphNodeKind::Operator(operator) => {
-                                Some(&mut operator.params)
-                            }
-                            _ => None,
-                        })
+                    }
+                    _ => false,
+                },
+                (Fit::Pixels(pixels), Some(MemberMut::Route(route))) => {
+                    route.pixels != Some(pixels) && {
+                        route.pixels = Some(pixels);
+                        true
+                    }
                 }
-            };
-            overrides.is_some_and(|overrides| overrides.shift_remove(param).is_some())
+                (Fit::Marks, Some(MemberMut::Marks(collection))) => end.is_some_and(|end| {
+                    let mut changed = retain(&mut collection.marks, |mark| mark.time.0 <= end);
+                    for mark in &mut collection.marks {
+                        if mark.end() > end {
+                            mark.duration.0 = end - mark.time.0;
+                            changed = true;
+                        }
+                    }
+                    changed
+                }),
+                _ => false,
+            }
         }
-        Repair::RemoveConsoleClip { console, clip } => project
-            .find_mut::<Console>(*console)
-            .is_some_and(|console| retain(&mut console.clips, |candidate| candidate.id != *clip)),
-        Repair::ForgetAlways { console } => {
-            project
-                .find_mut::<Console>(*console)
-                .is_some_and(|console| {
-                    let clips = console.clips.iter().map(|clip| clip.id).collect::<Vec<_>>();
-                    retain(&mut console.always, |entry| clips.contains(&entry.clip))
-                })
-        }
-        Repair::RemoveEvent { console, event } => project
-            .find_mut::<Console>(*console)
-            .is_some_and(|console| retain(&mut console.events, |on| on.id != *event)),
-        Repair::ForgetActions { console, event } => {
-            let Some(value) = project.get::<Console>(*console) else {
+        GiveWay::Reset => {
+            let Some(Field::Param(param)) = &site.field else {
                 return false;
             };
-            let kept = value
-                .events
+            match project.member_mut(site) {
+                Some(MemberMut::Clip(clip)) => {
+                    clip.effect()
+                        .is_some_and(|effect| effect.params.contains_key(param))
+                        && std::sync::Arc::make_mut(clip)
+                            .effect_mut()
+                            .is_some_and(|effect| effect.params.shift_remove(param).is_some())
+                }
+                Some(MemberMut::Node(node)) => match &mut node.kind {
+                    CompositionGraphNodeKind::Operator(operator) => {
+                        operator.params.shift_remove(param).is_some()
+                    }
+                    _ => false,
+                },
+                _ => false,
+            }
+        }
+        GiveWay::Forget => forget(project, site),
+    }
+}
+
+/// Forget what the member or field at `site` named that is gone.
+fn forget(project: &mut DonderProject, site: &Site) -> bool {
+    match (site.object, &site.member, &site.field) {
+        (ObjectId::Console(id), None, Some(Field::Always)) => {
+            project.find_mut::<Console>(id).is_some_and(|console| {
+                let clips = console
+                    .composition
+                    .clips
+                    .iter()
+                    .filter(|clip| matches!(clip.placement, Placement::Played(_)))
+                    .map(|clip| clip.id)
+                    .collect::<Vec<_>>();
+                retain(&mut console.always, |entry| clips.contains(&entry.clip))
+            })
+        }
+        (_, Some(Member::Clip(_)), Some(Field::Played(_) | Field::Binding(_))) => {
+            project.remove_at(site)
+        }
+        (ObjectId::Console(id), Some(Member::Event(_)), _) => {
+            let (Some(console), Some(MemberRef::Event(on))) =
+                (project.get::<Console>(id), project.member(site))
+            else {
+                return false;
+            };
+            let kept = on
+                .actions
                 .iter()
-                .find(|on| on.id == *event)
-                .map(|on| {
-                    on.actions
-                        .iter()
-                        .map(|action| resolves(project, value, action))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
+                .map(|action| resolves(project, console, action))
+                .collect::<Vec<_>>();
             kept.contains(&false)
-                && project
-                    .find_mut::<Console>(*console)
-                    .and_then(|console| console.events.iter_mut().find(|on| on.id == *event))
-                    .is_some_and(|on| {
+                && match project.member_mut(site) {
+                    Some(MemberMut::Event(on)) => {
                         let mut kept = kept.into_iter();
                         on.actions.retain(|_| kept.next().unwrap_or(true));
                         true
-                    })
+                    }
+                    _ => false,
+                }
         }
-        Repair::RemoveSet {
-            console,
-            event,
-            param,
-        } => {
-            let Some(value) = project.get::<Console>(*console) else {
-                return false;
-            };
-            let Some(on) = value.events.iter().find(|on| on.id == *event) else {
-                return false;
-            };
-            // The targets of `param` another control sets too.
-            let shared = value
-                .events
-                .iter()
-                .filter(|other| other.event.control() != on.event.control())
-                .flat_map(|other| &other.actions)
-                .filter_map(|action| match action {
-                    Action::Set { target, .. } if target.param() == param => Some(target.clone()),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            project
-                .find_mut::<Console>(*console)
-                .and_then(|console| console.events.iter_mut().find(|on| on.id == *event))
-                .is_some_and(|on| {
-                    retain(&mut on.actions, |action| {
-                        !matches!(action, Action::Set { target, .. } if shared.contains(target))
-                    })
-                })
-        }
-        Repair::DropPlayed {
-            console,
-            clip,
-            param,
-        }
-        | Repair::ForgetPlayed {
-            console,
-            clip,
-            param,
-        } => project
-            .find_mut::<Console>(*console)
-            .and_then(|console| {
-                console
-                    .clips
-                    .iter_mut()
-                    .find(|candidate| candidate.id == *clip)
-            })
-            .is_some_and(|clip| retain(&mut clip.played, |value| &value.param != param)),
+        _ => false,
     }
 }
 
@@ -1052,14 +627,20 @@ fn resolves(project: &DonderProject, console: &Console, action: &Action) -> bool
         return false;
     }
     match action {
-        Action::Mark(key) => console.live_marks.iter().any(|marks| &marks.key == key),
-        Action::Set { target, .. } => target_param(
-            project,
-            &console.composition_graph,
-            target,
-            |clip: &ConsoleClipId| console.clip(*clip).map(|clip| clip.definition),
-        )
-        .is_ok_and(|param| param.automation_mapping().is_some()),
+        Action::Mark(id) => console
+            .composition
+            .marks
+            .iter()
+            .any(|marks| marks.id == *id),
+        Action::Set { target, .. } => {
+            target_param(project, &console.composition.graph, target, |clip| {
+                console
+                    .clip(clip)
+                    .and_then(crate::effect::Clip::effect)
+                    .map(|effect| effect.definition)
+            })
+            .is_ok_and(|param| param.automation_mapping().is_some())
+        }
         Action::Play(_) | Action::Start { .. } | Action::Stop { .. } | Action::Toggle { .. } => {
             true
         }
@@ -1071,12 +652,4 @@ fn retain<T>(items: &mut Vec<T>, keep: impl FnMut(&T) -> bool) -> bool {
     let count = items.len();
     items.retain(keep);
     items.len() != count
-}
-
-/// Set `slot` to `value`; whether it differed.
-fn replace<T: PartialEq>(slot: &mut T, value: T) -> bool {
-    *slot != value && {
-        *slot = value;
-        true
-    }
 }

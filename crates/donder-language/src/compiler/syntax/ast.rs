@@ -152,31 +152,6 @@ pub(crate) enum BinaryOp {
     Or,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ReducerKind {
-    Max,
-    Min,
-    Sum,
-    Any,
-    All,
-    First,
-    Last,
-    /// `table for`: an array of the body at each index, computed once per
-    /// frame.
-    Table,
-    /// `table sum for`: the body's running sums.
-    TableSum,
-}
-
-impl ReducerKind {
-    pub(crate) fn from_name(name: &str) -> Option<Self> {
-        crate::compiler::builtins::REDUCERS
-            .iter()
-            .find(|reducer| reducer.name == name)
-            .map(|reducer| reducer.kind)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub(crate) enum ExprKind {
     Literal(LiteralKind),
@@ -184,8 +159,6 @@ pub(crate) enum ExprKind {
     /// `pixel.index`, `target.count`.
     Field(Box<Expr>, Name),
     Call(Name, Vec<Expr>),
-    /// `source.at(time)`.
-    Method(Box<Expr>, Name, Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
@@ -219,7 +192,7 @@ pub(crate) struct Arm {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Reduction {
-    pub(crate) reducer: ReducerKind,
+    pub(crate) reducer: crate::compiler::ir::Reducer,
     pub(crate) index: Name,
     pub(crate) start: Expr,
     pub(crate) end: Expr,

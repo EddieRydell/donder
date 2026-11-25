@@ -7,7 +7,8 @@ import { runSnapshotCommand, useAppStore } from "./store";
 import type { AppCommandId, CommandId, EditorCommandId, KeyBinding, Shortcut, SidebarView } from "./types";
 import { editTarget, formatShortcut, isMac, matchesShortcut, shortcut } from "./platform";
 import { activeEditorCommand, editorSurfaceRoot } from "./shortcuts";
-import { dispatchUiEvent, focusSidebar, requestOpenExport, requestOpenLayerGraph } from "./ui/uiEvents";
+import { dispatchUiEvent, focusSidebar } from "./ui/uiEvents";
+import { openLayerGraph, requestExport, setDocumentUi } from "./ui/gui/documentUi";
 import { isPerforming, stopPerforming } from "./perform";
 
 export type CommandDefinition = {
@@ -33,6 +34,11 @@ const layersOpen = () => {
 const sequenceOpen = () => useAppStore.getState().guiDocument?.type === "sequence";
 const settings = () => useAppStore.getState().snapshot?.settings;
 const focusingSidebar = (view: SidebarView) => () => { focusSidebar(view); };
+/** An undo or redo replaced the document: what the editor selected or was drawing goes. */
+function guiHistoryChanged() {
+  setDocumentUi({ focus: null, selection: null });
+  useAppStore.getState().bumpGuiHistory();
+}
 
 const appCommands: Record<AppCommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
@@ -52,7 +58,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
     if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "reloadFile", path });
     useAppStore.getState().resetGuiLocalState();
   }, hasProject),
-  "file.export": command("Export...", "File", ["fseq", "fpp", "video", "mp4", "dondershow"], requestOpenExport, sequenceOpen),
+  "file.export": command("Export...", "File", ["fseq", "fpp", "video", "mp4", "dondershow"], requestExport, sequenceOpen),
   "file.closeEditor": command("Close Editor", "File", ["tab", "file"], async () => {
     const path = useAppStore.getState().snapshot?.activeFile;
     if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "closeFile", path });
@@ -66,12 +72,12 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
   "edit.undo": command("Undo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.undoActiveEdit);
-    dispatchUiEvent("guiHistoryChanged");
+    guiHistoryChanged();
   }, hasProject, [shortcut("z", { primary: true })]),
   "edit.redo": command("Redo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.redoActiveEdit);
-    dispatchUiEvent("guiHistoryChanged");
+    guiHistoryChanged();
   }, hasProject, isMac ? [shortcut("z", { primary: true, shift: true })] : [shortcut("z", { primary: true, shift: true }), shortcut("y", { primary: true })]),
   "view.toggleGuiMode": {
     ...command("Toggle GUI / Text Mode", "View", ["editor"], async () => {
@@ -107,7 +113,7 @@ const appCommands: Record<AppCommandId, CommandDefinition> = {
     }, hasProject),
     checked: () => settings()?.sequenceMarksLaneOnly ?? false
   },
-  "view.openLayerGraph": command("Layer Graph", "View", ["composition", "operators"], requestOpenLayerGraph, layersOpen),
+  "view.openLayerGraph": command("Layer Graph", "View", ["composition", "operators"], openLayerGraph, layersOpen),
   "view.toggleProjectTree": command("Toggle Side Bar", "View", ["collapse", "panel"], async () => {
     await runSnapshotCommand(commands.toggleProjectTree);
   }, always, [shortcut("b", { primary: true })]),

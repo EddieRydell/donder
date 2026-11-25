@@ -331,6 +331,9 @@ pub struct Marks {
     end: u32,
     /// The tick the window's mark times are measured from.
     origin: u32,
+    /// The console's live collection it reads instead, whose marks playback
+    /// adds as they arrive, measured from its invocation's start.
+    live: Option<u16>,
 }
 
 impl Marks {
@@ -388,7 +391,22 @@ impl Marks {
             first,
             end: last.max(first),
             origin: start,
+            live: None,
         }
+    }
+
+    /// Live collection `collection` of a console, empty until playback adds
+    /// its marks.
+    pub fn live(collection: u16) -> Self {
+        Self {
+            live: Some(collection),
+            ..Self::empty()
+        }
+    }
+
+    /// The live collection it reads, if any.
+    pub fn live_collection(&self) -> Option<u16> {
+        self.live
     }
 
     /// Every label's character codes, one after another.
@@ -583,7 +601,8 @@ impl MarkWindow<'_> {
 /// Windows are equal when they hold the same times, durations and labels.
 impl PartialEq for Marks {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len()
+        self.live == other.live
+            && self.len() == other.len()
             && self.iter().eq(other.iter())
             && (0..self.len()).all(|index| self.label(index) == other.label(index))
     }
@@ -591,6 +610,7 @@ impl PartialEq for Marks {
 
 impl core::hash::Hash for Marks {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.live.hash(state);
         self.len().hash(state);
         for (index, (mark, duration)) in self.iter().enumerate() {
             mark.as_ticks().hash(state);

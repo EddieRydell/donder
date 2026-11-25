@@ -11,9 +11,7 @@
 )]
 
 mod address;
-pub use address::{
-    DeclaredObject, DocumentId, ObjectAddress, OwnedObjectSlot, SourceIdentity, validation_message,
-};
+pub use address::{DeclaredObject, DocumentId, SourceIdentity, validation_message};
 mod analysis;
 mod check_cache;
 pub use check_cache::ProjectCheckCache;
@@ -26,21 +24,19 @@ mod imports;
 mod inclusion;
 mod index;
 mod loader;
-mod ownership_edit;
-pub use ownership_edit::remove_documents;
 mod project_config;
 mod project_loading;
-pub(crate) use project_config::canonicalize;
 pub use project_config::{
     PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE, ProjectWorkspace, atomic_write,
-    validate_document_path, validate_relative_path,
+    validate_document_path,
 };
+pub(crate) use project_config::{canonicalize, validate_relative_path};
 mod object_files;
 mod path_refactor;
 mod project_edit;
 mod serialization;
 mod session_edit;
-pub use session_edit::{SessionEdit, SessionEditError};
+pub use session_edit::{SessionEdit, SessionEditError, remove_documents};
 mod source;
 mod source_copy;
 
@@ -51,10 +47,7 @@ pub use diagnostics::{
 };
 pub use document::{DECLARATION_TYPE_NAMES, document_schema, param_refers, reference_targets};
 pub use errors::ExportProjectError;
-pub use imports::{
-    available_declarations, canonical_reference_alias, ensure_document_can_reference_object,
-    link_declaration,
-};
+pub use imports::ensure_document_can_reference_object;
 pub use inclusion::{Inclusion, include_document};
 pub use index::{Link, LinkTarget, ProjectIndex, ScriptMember};
 pub use object_files::object_document_path;

@@ -3,22 +3,17 @@
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_import::{ImportError, ImportOptions, ImportReport, Scale, SkipReason, UnroutedReason};
-use donder_model::{FixtureShape, Layout, LayoutFixtureKind, Owned, Patch};
+use donder_model::{FixtureShape, Layout, LayoutFixtureKind};
 use donder_project_io::ProjectSession;
 
 const EMPTY_PROJECT: &str = "Project house {
-  format: 2,
+  format: 9,
   description: none,
-  setup: Setup {
-    description: none,
-    layout: Layout { description: none, root: [], items: [] },
-    patch: Patch { description: none, routes: [] },
-    controllers: [],
-    input_devices: [],
-  },
-  sequences: [],
-  consoles: [],
+  layout: layout,
+  routes: [],
 }
+
+Layout layout { description: none, root: [], items: [] }
 ";
 
 fn show() -> Utf8PathBuf {
@@ -51,17 +46,22 @@ fn layout(session: &ProjectSession) -> &Layout {
         .unwrap()
 }
 
-fn fixture_shapes<'a>(layout: &'a Layout, name: &str) -> &'a [donder_model::FixtureElement] {
-    let fixture = layout
+fn fixture_shapes<'a>(
+    session: &'a ProjectSession,
+    name: &str,
+) -> &'a [donder_model::FixtureElement] {
+    let fixture = layout(session)
         .fixtures
         .iter()
         .find(|fixture| fixture.name.as_str() == name)
         .unwrap_or_else(|| panic!("no fixture {name}"));
     match &fixture.kind {
-        LayoutFixtureKind::Fixture {
-            definition: Owned::Inline(definition),
-            ..
-        } => &definition.elements,
+        LayoutFixtureKind::Fixture { definition, .. } => {
+            &session
+                .project()
+                .reusable::<donder_model::FixtureDefinition>()[definition]
+                .elements
+        }
         other => panic!("{name} is {other:?}"),
     }
 }
@@ -104,22 +104,17 @@ fn imports_the_house() {
     );
     let layout = layout(&session);
     assert_eq!(layout.fixtures.len(), 262 + 63);
-    let patch = session
-        .project()
-        .reusable::<Patch>()
-        .values()
-        .next()
-        .unwrap();
+    let patch = session.project().root();
     assert_eq!(patch.routes.len(), 291);
 }
 
 #[test]
 fn shapes_follow_the_models() {
     let (_directory, session, _) = imported(&ImportOptions::default());
-    let layout = layout(&session);
+
     // A sidewalk arch is one 250-pixel half ellipse, more than twice as tall as
     // it is wide.
-    let arch = fixture_shapes(layout, "sw_arch_16");
+    let arch = fixture_shapes(&session, "sw_arch_16");
     assert_eq!(arch.len(), 1);
     let FixtureShape::Arc {
         count,
@@ -132,14 +127,14 @@ fn shapes_follow_the_models() {
     assert_eq!((count, sweep_degrees.abs().round()), (250, 180.0));
     assert!(arch[0].transform.scale.y > 2.0);
     // Each of a pixel ball's 50 strands is one arc of longitude.
-    let ball = fixture_shapes(layout, "sphere_6");
+    let ball = fixture_shapes(&session, "sphere_6");
     assert_eq!(ball.len(), 50);
     assert!(
         ball.iter()
             .all(|shape| matches!(shape.shape, FixtureShape::Arc { count: 10, .. }))
     );
     // A single line of the mega tree is one straight line of 50 pixels.
-    let strand = fixture_shapes(layout, "megatreemanual_23");
+    let strand = fixture_shapes(&session, "megatreemanual_23");
     assert!(matches!(
         strand,
         [shape] if matches!(shape.shape, FixtureShape::Line { count: 50, .. })
@@ -150,12 +145,7 @@ fn shapes_follow_the_models() {
 fn routes_follow_the_channels() {
     let (_directory, session, _) = imported(&ImportOptions::default());
     let layout = layout(&session);
-    let patch = session
-        .project()
-        .reusable::<Patch>()
-        .values()
-        .next()
-        .unwrap();
+    let patch = session.project().root();
     let penguin = layout
         .fixtures
         .iter()
@@ -167,7 +157,7 @@ fn routes_follow_the_channels() {
     let routes: Vec<_> = patch
         .routes
         .iter()
-        .filter(|route| route.target.fixture == penguin)
+        .filter(|route| route.target == penguin)
         .collect();
     let [route] = routes[..] else {
         panic!("the penguin has {} routes", routes.len());
@@ -178,9 +168,9 @@ fn routes_follow_the_channels() {
         .unwrap();
     assert_eq!(
         universes.locate(
-            donder_model::patch_placements(
+            donder_model::route_placements(
                 session.project(),
-                patch,
+                &patch.routes,
                 &donder_model::fixture_pixel_counts(
                     session
                         .project()

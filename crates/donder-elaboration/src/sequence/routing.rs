@@ -1,20 +1,19 @@
 use crate::selection::Selection;
 use crate::stage::Stage;
-use donder_model::FixtureInstanceId;
+use donder_model::FixtureId;
 use donder_model::PixelRouteId;
 use donder_runtime::ShowBuilder;
 use donder_runtime_types::{FixtureGeometry, TargetGeometry, TargetScope};
 use indexmap::IndexMap;
 use std::ops::Range;
 
-pub(crate) fn targets<S>(
-    selected: &Selection<'_, S>,
+pub(crate) fn targets(
+    selected: &Selection<'_>,
     geometry: &[FixtureGeometry],
-    members: &IndexMap<FixtureInstanceId, Vec<(usize, Range<u32>)>>,
+    members: &IndexMap<FixtureId, Vec<(usize, Range<u32>)>>,
 ) -> IndexMap<PixelRouteId, TargetGeometry> {
     selected
-        .patch
-        .routes
+        .pixel_routes
         .iter()
         .filter(|route| {
             let placed = &selected.routes[&route.id].placement;
@@ -24,7 +23,7 @@ pub(crate) fn targets<S>(
         })
         .map(|route| {
             let target = TargetGeometry::parts(
-                members[&route.target.fixture]
+                members[&route.target]
                     .iter()
                     .map(|(index, cells)| (*index, &geometry[*index], cells.clone())),
                 TargetScope::PerFixture,
@@ -45,19 +44,14 @@ pub(crate) fn targets<S>(
 /// controller is one output of all its channels, so a route, and a pixel,
 /// runs on across universe boundaries; the transport splits the bytes into
 /// universes.
-pub(crate) fn prepare<S>(
-    builder: &mut ShowBuilder<'_>,
-    selected: &Selection<'_, S>,
-    stage: &Stage,
-) {
+pub(crate) fn prepare(builder: &mut ShowBuilder<'_>, selected: &Selection<'_>, stage: &Stage) {
     for selected_output in &selected.outputs {
         let output = builder.port(
             selected_output.controller_index,
             selected_output.output.runtime_port(),
         );
         let mut routes = selected
-            .patch
-            .routes
+            .pixel_routes
             .iter()
             .filter(|route| {
                 &route.controller == selected_output.controller

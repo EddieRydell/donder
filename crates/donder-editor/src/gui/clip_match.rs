@@ -2,20 +2,19 @@ use crate::dto::{
     GuiDocumentRequest, SequenceClipMatchRequest, SequenceClipParam, SequenceClipParamMatch,
     SequenceClipTimeMatch, SequenceParamValue, SequenceSelection,
 };
-use donder_model::{Clip, FixtureTarget};
+use donder_model::{Effect, FixtureId};
 use donder_project_io::ProjectSession;
 
 use super::projection::clip_params;
 use super::resolve_request;
 
-/// A clip or automation clip as matching compares it; an automation clip has
-/// no `clip` part.
+/// A clip as matching compares it; an envelope has no `effect` part.
 struct MatchClip<'a> {
     id: u32,
     start: f64,
     duration: f64,
-    target: &'a FixtureTarget,
-    clip: Option<(&'a Clip, Vec<SequenceClipParam>)>,
+    target: &'a FixtureId,
+    effect: Option<(&'a Effect, Vec<SequenceClipParam>)>,
 }
 
 /// "Select Matching": every clip that matches at least one seed clip. Each
@@ -31,68 +30,52 @@ pub fn matching_sequence_clips(
     }
     let sequence = resolved.view::<donder_model::Sequence>(session).object();
     let seconds = |nanos: u128| nanos as f64 / 1e9;
+    // Envelopes take part only when asked for.
     let clips: Vec<MatchClip> = sequence
+        .composition
         .clips
         .iter()
+        .filter(|clip| query.criteria.envelopes || clip.effect().is_some())
         .map(|clip| MatchClip {
             id: clip.id.0,
-            start: seconds(clip.start.as_nanos()),
-            duration: seconds(clip.duration.as_nanos()),
+            start: seconds(super::model::timed(clip).0.as_nanos()),
+            duration: seconds(super::model::timed(clip).1.as_nanos()),
             target: &clip.target,
             // Parameter values are projected only when a query compares them.
-            clip: Some((
-                clip,
-                if query.params.is_empty() {
-                    Vec::new()
-                } else {
-                    clip_params(session, sequence, clip)
-                },
-            )),
+            effect: clip.effect().map(|effect| {
+                (
+                    effect,
+                    if query.params.is_empty() {
+                        Vec::new()
+                    } else {
+                        clip_params(session, sequence, clip, effect)
+                    },
+                )
+            }),
         })
         .collect();
-    let automation: Vec<MatchClip> = if query.criteria.automation_clips {
-        sequence
-            .automation_clips
-            .iter()
-            .map(|clip| MatchClip {
-                id: clip.id.0,
-                start: seconds(clip.start.as_nanos()),
-                duration: seconds(clip.duration.as_nanos()),
-                target: &clip.row_target,
-                clip: None,
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
-    let seed = |clips: &'_ [MatchClip], ids: &[u32]| -> Result<Vec<usize>, String> {
-        ids.iter()
-            .map(|id| {
-                clips
-                    .iter()
-                    .position(|clip| clip.id == *id)
-                    .ok_or_else(|| "A selected clip is missing from the sequence.".to_string())
-            })
-            .collect()
-    };
-    let (clip_ids, automation_ids) = super::selection::split_clips(&query.clips);
-    // Automation seeds take part only when automation clips do.
-    let seeds: Vec<&MatchClip> = seed(&clips, &clip_ids)?
-        .into_iter()
-        .map(|index| &clips[index])
-        .chain(
-            seed(
-                &automation,
-                if query.criteria.automation_clips {
-                    &automation_ids
-                } else {
-                    &[]
-                },
-            )?
-            .into_iter()
-            .map(|index| &automation[index]),
-        )
-        .collect();
+    let seeds: Vec<&MatchClip> = query
+        .ids
+        .iter()
+        .filter_map(|id| {
+            let found = clips.iter().find(|clip| clip.id == *id);
+            // An envelope seed is skipped when envelopes take no part.
+            match found {
+                None if !query.criteria.envelopes
+                    && sequence
+                        .composition
+                        .clip(donder_model::ClipId(*id))
+                        .is_some_and(|clip| clip.envelope().is_some()) =>
+                {
+                    None
+                }
+                found => Some(
+                    found
+                        .ok_or_else(|| "A selected clip is missing from the sequence.".to_string()),
+                ),
+            }
+        })
+        .collect::<Result<_, _>>()?;
     let matching = |clips: &[MatchClip]| -> Vec<u32> {
         clips
             .iter()
@@ -101,21 +84,21 @@ pub fn matching_sequence_clips(
             .collect()
     };
     Ok(SequenceSelection::Clips {
-        clips: super::selection::clip_refs(&matching(&clips), &matching(&automation)),
+        ids: matching(&clips),
     })
 }
 
-/// Effect type and parameters compare clips only: an automation clip
-/// matches a clip only when neither is asked for, and a parameter the seed
+/// Effect type and parameters compare effect clips only: an envelope matches
+/// an effect clip only when neither is asked for, and a parameter the seed
 /// lacks constrains nothing.
 fn clips_match(seed: &MatchClip, candidate: &MatchClip, query: &SequenceClipMatchRequest) -> bool {
     let criteria = &query.criteria;
     let within = |time: SequenceClipTimeMatch, seed: f64, candidate: f64| {
         !time.enabled || (seed - candidate).abs() <= time.tolerance_seconds
     };
-    let clip_matches = match (&seed.clip, &candidate.clip) {
-        (Some((seed_clip, seed_params)), Some((clip, params))) => {
-            (!criteria.effect_type || seed_clip.definition == clip.definition)
+    let clip_matches = match (&seed.effect, &candidate.effect) {
+        (Some((seed_effect, seed_params)), Some((effect, params))) => {
+            (!criteria.effect_type || seed_effect.definition == effect.definition)
                 && query
                     .params
                     .iter()
@@ -163,18 +146,18 @@ fn param_matches(
 
 /// Numbers match within `tolerance`; every other value matches exactly.
 fn values_match(seed: &SequenceParamValue, candidate: &SequenceParamValue, tolerance: f32) -> bool {
-    use SequenceParamValue::{Float, FloatArray, Int, IntArray};
-    let near = |seed: f32, candidate: f32| (seed - candidate).abs() <= tolerance;
+    use SequenceParamValue::{Array, Float, Int};
     match (seed, candidate) {
         (Int { value: seed }, Int { value: candidate })
-        | (Float { value: seed }, Float { value: candidate }) => near(*seed, *candidate),
-        (IntArray { values: seed }, IntArray { values: candidate })
-        | (FloatArray { values: seed }, FloatArray { values: candidate }) => {
+        | (Float { value: seed }, Float { value: candidate }) => {
+            (seed - candidate).abs() <= tolerance
+        }
+        (Array { values: seed }, Array { values: candidate }) => {
             seed.len() == candidate.len()
                 && seed
                     .iter()
                     .zip(candidate)
-                    .all(|(seed, candidate)| near(*seed, *candidate))
+                    .all(|(seed, candidate)| values_match(seed, candidate, tolerance))
         }
         _ => seed == candidate,
     }

@@ -1,15 +1,15 @@
 # Profile import
 
 **File > Import Project** creates a new project from the layout, controllers
-and patch of an xLights or Vixen profile. `donder -p <new project>
-import <folder>` does the same into a project whose setup is still empty;
+and routes of an xLights or Vixen profile. `donder -p <new project>
+import <folder>` does the same into a project whose layout, controllers and routes are still empty;
 the folder's contents say which program it is from. Sequences, effects and
 preview backgrounds are not imported; a Vixen profile's curve and gradient
 libraries are.
 
 The importer is `crates/donder-import`. Each source has a reader that
 reproduces what that program loads, and one builder makes the result the
-project's setup: each fixture's pixels sit where the program draws them, in
+project: each fixture's pixels sit where the program draws them, in
 channel order, and its channels become routes on the controller ports that
 carry them. A state a reader does not reproduce exactly is refused with its
 reason, never imported differently.

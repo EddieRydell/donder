@@ -1,5 +1,6 @@
 import { commands } from "../../../api";
 import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
+import { put, site } from "../edits";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { EditorCommands } from "../../../shortcuts";
 import { AudioLines, ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Magnet, Monitor, Music, Pause, Play, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
@@ -12,7 +13,7 @@ import type { AppSnapshot, AudioTransportState, DerivedDataStatus, SequenceGuiDo
 
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
-import { requestOpenLayerGraph, requestTapMark } from "../../uiEvents";
+import { openLayerGraph } from "../documentUi";
 import { Badge, IconButton, Tip } from "../../kit";
 import { LiveOutputButton } from "../../LiveOutputButton";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
@@ -51,7 +52,7 @@ export function SequenceTransportControls({
       <IconButton icon={ChevronRight} label="Step forward" command="edit.moveRight" disabled={unsupported} onClick={() => { stepFrame(1); }} />
       <LiveOutputButton liveOutput={liveOutput} />
       <IconButton icon={Monitor} label="Preview" pressed={previewOpen} onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))} />
-      <IconButton icon={Workflow} label="Layer graph" command="view.openLayerGraph" onClick={requestOpenLayerGraph} />
+      <IconButton icon={Workflow} label="Layer graph" command="view.openLayerGraph" onClick={openLayerGraph} />
       <IconButton icon={Scissors} label="Slice clips" command="sequence.toggleSliceTool" pressed={sliceTool} onClick={toggleSliceTool} />
       <IconButton icon={Magnet} label={snapping ? "Snap: on, Alt bypasses" : "Snap: off, Alt snaps"} pressed={snapping} onClick={() => { toggleSequenceSnap(); }} />
       <IconButton icon={Music} label="Choose audio" onClick={() => void chooseAudio(document)} />
@@ -111,12 +112,7 @@ async function chooseAudio(document: SequenceGuiDocument) {
   if (audio === null) return;
   const durationSeconds = await loadAudioDurationSeconds(audio.resolvedPath);
   if (durationSeconds === null || Math.abs(durationSeconds - document.durationSeconds) < 0.01) return;
-  await runGuiEditCommand((request) =>
-    commands.applyGuiEdit(request, { type: "sequence", edit: {
-      type: "setDuration",
-      durationSeconds
-    } })
-  );
+  await put(site(null, { type: "duration" }), { type: "seconds", seconds: durationSeconds });
 }
 
 
@@ -244,8 +240,6 @@ export function sequenceTransportCommands(document: SequenceGuiDocument) {
     "transport.stop": { enabled, run: () => { void runSnapshotCommand(commands.audioStop); } },
     "transport.toggleLooping": { enabled, run: () => { void runSnapshotCommand(() => commands.audioSetLooping(!(transport()?.looping ?? false))); } },
     "transport.cycleFollowMode": { enabled, run: () => { cycleSequenceFollowMode(); } },
-    // M drops a mark at the playhead, so marks can be tapped along with the music.
-    "transport.tapMark": { enabled, run: ({ repeat }) => { if (!repeat) requestTapMark(); } },
     "transport.rewind": { enabled, run: () => { void runSnapshotCommand(commands.audioRewindToZero); } },
     "edit.moveLeft": { enabled, run: step(-1) },
     "edit.moveRight": { enabled, run: step(1) }

@@ -1,14 +1,16 @@
+use super::put::DeletedMember;
 use super::*;
+use crate::dto::GuiEdit;
 use crate::dto::SequenceGuiEdit;
 
 /// What an edit reports beyond the edited project: the sequence selection a
 /// selection edit leaves, what a cut or paste took, and the names it created.
-#[derive(Clone, Debug, Default)]
+#[derive(Default)]
 pub struct GuiEditOutcome {
     pub selection: Option<SequenceSelection>,
-    pub copied_count: u32,
-    pub skipped_count: u32,
     pub created: Vec<String>,
+    /// The object a removal took, whose file the caller deletes.
+    pub deleted: Option<DeletedMember>,
 }
 
 impl GuiEditOutcome {
@@ -32,61 +34,33 @@ impl GuiEditOutcome {
 pub fn apply_edit(
     session: &mut ProjectSession,
     request: &GuiDocumentRequest,
-    edit: GuiEditCommand,
+    edit: GuiEdit,
 ) -> Result<GuiEditOutcome, GuiMutationError> {
-    use super::item::Verb;
     use donder_model::ObjectKind as Kind;
     let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
     let none = |()| GuiEditOutcome::default();
     match (resolved.kind, edit) {
-        (_, GuiEditCommand::Rename { item, name }) => {
-            super::item::edit(session, &resolved, item, Verb::Rename(name))
-                .map(GuiEditOutcome::created)
+        (_, GuiEdit::Put { sites, value }) => {
+            super::put::put(session, &resolved, sites, value).map(GuiEditOutcome::created)
         }
-        (_, GuiEditCommand::SetDescription { item, description }) => {
-            super::item::edit(session, &resolved, item, Verb::Describe(description))
-                .map(GuiEditOutcome::created)
+        (_, GuiEdit::Remove { site }) => {
+            super::put::remove(session, &resolved, &site).map(|deleted| GuiEditOutcome {
+                deleted,
+                ..GuiEditOutcome::default()
+            })
         }
-        (_, GuiEditCommand::SetColor { item, color }) => {
-            super::item::edit(session, &resolved, item, Verb::Color(color))
-                .map(GuiEditOutcome::created)
-        }
-        (_, GuiEditCommand::Delete { item }) => {
-            super::item::edit(session, &resolved, item, Verb::Delete).map(GuiEditOutcome::created)
-        }
-        (Kind::Sequence, GuiEditCommand::Sequence { edit }) => {
+        (Kind::Sequence, GuiEdit::Sequence { edit }) => {
             edit_sequence_selection(session, &resolved, edit)
         }
-        (Kind::Setup, GuiEditCommand::Setup { edit }) => {
-            edit_setup(session, &resolved, edit).map(none)
-        }
-        (Kind::Layout, GuiEditCommand::Layout { edit }) => {
-            edit_layout(session, &resolved, edit).map(none)
-        }
-        (Kind::FixtureDefinition, GuiEditCommand::Fixture { edit }) => {
+        (Kind::Layout, GuiEdit::Layout { edit }) => edit_layout(session, &resolved, edit).map(none),
+        (Kind::FixtureDefinition, GuiEdit::Fixture { edit }) => {
             edit_fixture(session, &resolved, edit).map(none)
         }
-        (Kind::Curve, GuiEditCommand::Curve { points }) => {
-            super::library::edit_curve(session, &resolved, points).map(none)
-        }
-        (Kind::Gradient, GuiEditCommand::Gradient { gradient }) => {
-            super::library::edit_gradient(session, &resolved, gradient).map(none)
-        }
-        (Kind::Controller, GuiEditCommand::Controller { config, ports }) => {
-            super::controller::edit(session, &resolved, config, ports).map(none)
-        }
-        (Kind::InputDevice, GuiEditCommand::InputDevice { driver, controls }) => {
-            super::input_device::edit(session, &resolved, driver, controls).map(none)
-        }
-        (Kind::Console, GuiEditCommand::Console { edit }) => {
+        (Kind::Console, GuiEdit::Console { edit }) => {
             super::console::edit_console(session, &resolved, edit).map(GuiEditOutcome::created)
         }
-        (Kind::Project, GuiEditCommand::Project { edit }) => {
-            super::project::edit_project(session, &resolved, edit).map(none)
-        }
-        (Kind::Patch, GuiEditCommand::Patch { routes }) => {
-            super::patch::replace(session, &resolved.id::<donder_model::PatchId>(), routes)
-                .map(none)
+        (Kind::Project, GuiEdit::Project { edit }) => {
+            super::project::edit_project(session, edit).map(none)
         }
         _ => Err(GuiMutationError::Invalid(
             "This edit does not apply to the open object.".to_string(),
@@ -116,16 +90,8 @@ pub fn copy_selection(
     selection: &SequenceSelection,
 ) -> Result<(Option<String>, GuiEditOutcome), GuiMutationError> {
     let sequence = opened_sequence(session, request)?;
-    let (text, copied_count, skipped_count) =
-        copy_sequence_selection(session, &sequence, selection)?;
-    Ok((
-        text,
-        GuiEditOutcome {
-            copied_count,
-            skipped_count,
-            ..GuiEditOutcome::default()
-        },
-    ))
+    let text = copy_sequence_selection(session, &sequence, selection)?;
+    Ok((text, GuiEditOutcome::default()))
 }
 
 /// Copy `selection`, as [`copy_selection`] does, and remove it.
@@ -166,63 +132,33 @@ fn edit_sequence_selection(
             Ok(GuiEditOutcome::default())
         }
         SequenceGuiEdit::MoveClips {
-            clips,
+            ids,
             time_delta_seconds,
             anchor_lane,
             lane_delta,
         } => {
-            let (clip_ids, automation) = super::selection::split_clips(&clips);
             move_clip_selection(
                 session,
                 resolved,
-                &clip_ids,
-                &automation,
+                &ids,
                 time_delta_seconds,
                 anchor_lane as usize,
                 lane_delta,
             )?;
-            Ok(GuiEditOutcome::selection(SequenceSelection::Clips {
-                clips,
-            }))
+            Ok(GuiEditOutcome::selection(SequenceSelection::Clips { ids }))
         }
         SequenceGuiEdit::ResizeClips {
-            clips,
+            ids,
             edge,
             automation: resize,
             time_delta_seconds,
         } => {
-            let (clip_ids, automation) = super::selection::split_clips(&clips);
-            resize_clip_selection(
-                session,
-                resolved,
-                &clip_ids,
-                &automation,
-                edge,
-                resize,
-                time_delta_seconds,
-            )?;
-            Ok(GuiEditOutcome::selection(SequenceSelection::Clips {
-                clips,
-            }))
+            resize_clip_selection(session, resolved, &ids, edge, resize, time_delta_seconds)?;
+            Ok(GuiEditOutcome::selection(SequenceSelection::Clips { ids }))
         }
-        SequenceGuiEdit::ArrangeClips { clips, arrangement } => {
-            let (clip_ids, automation) = super::selection::split_clips(&clips);
-            arrange_clip_selection(session, resolved, &clip_ids, &automation, &arrangement)?;
-            Ok(GuiEditOutcome::selection(SequenceSelection::Clips {
-                clips,
-            }))
-        }
-        SequenceGuiEdit::EditClips { clips, edit } => {
-            let (clip_ids, automation) = super::selection::split_clips(&clips);
-            if !automation.is_empty() {
-                return Err(GuiMutationError::Invalid(
-                    "Only clips have these properties.".to_string(),
-                ));
-            }
-            edit_clip_selection(session, resolved.document_id(), resolved, &clip_ids, edit)?;
-            Ok(GuiEditOutcome::selection(SequenceSelection::Clips {
-                clips,
-            }))
+        SequenceGuiEdit::ArrangeClips { ids, arrangement } => {
+            arrange_clip_selection(session, resolved, &ids, &arrangement)?;
+            Ok(GuiEditOutcome::selection(SequenceSelection::Clips { ids }))
         }
         SequenceGuiEdit::MoveMarks {
             marks,

@@ -10,7 +10,7 @@ const MISSING = "missing";
 export function ReferenceInput({ label, value, choices, disabled = false, error = null, onChange }: { label: string; value: GuiObjectRef; choices: { reference: GuiObjectRef; label: string }[]; disabled?: boolean; error?: string | null; onChange: (value: GuiObjectRef) => void }) {
   const current = choices.find((choice) => sameGuiObject(choice.reference, value));
   const options = [
-    ...(current === undefined ? [{ value: MISSING, label: `${referenceLabel(value)} (missing)`, disabled: true }] : []),
+    ...(current === undefined ? [{ value: MISSING, label: `${value.objectKey} (missing)`, disabled: true }] : []),
     ...choices.map((choice) => ({ value: guiObjectKey(choice.reference), label: choice.label }))
   ];
   return <Field label={label} error={error}>
@@ -20,8 +20,4 @@ export function ReferenceInput({ label, value, choices, disabled = false, error 
     }} />
     <IconButton icon={ExternalLink} label="Open declaration" onClick={() => void navigateToGuiObject(value)} />
   </Field>;
-}
-
-function referenceLabel(reference: GuiObjectRef): string {
-  return reference.ownedPath.length > 0 ? reference.kind : reference.objectKey;
 }

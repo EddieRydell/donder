@@ -11,9 +11,7 @@ use crate::{DocumentId, SourceProject};
 fn folder(kind: ObjectKind) -> (&'static str, &'static str) {
     match kind {
         ObjectKind::Project => ("projects", "project"),
-        ObjectKind::Setup => ("setups", "setup"),
         ObjectKind::Layout => ("layouts", "layout"),
-        ObjectKind::Patch => ("patches", "patch"),
         ObjectKind::Controller => ("controllers", "controller"),
         ObjectKind::InputDevice => ("input_devices", "input_device"),
         ObjectKind::Sequence => ("sequences", "sequence"),
@@ -21,8 +19,7 @@ fn folder(kind: ObjectKind) -> (&'static str, &'static str) {
         ObjectKind::FixtureDefinition => ("fixtures", "fixture"),
         ObjectKind::Curve => ("curves", "curve"),
         ObjectKind::Gradient => ("gradients", "gradient"),
-        ObjectKind::EffectDefinition => ("effects", "effect"),
-        ObjectKind::OperatorDefinition => ("operators", "operator"),
+        ObjectKind::Script => ("scripts", "script"),
     }
 }
 

@@ -8,7 +8,7 @@ use donder_runtime_types::bytecode::Banks;
 use donder_runtime_types::{InstructionWord, SampleDuration, SampleTime};
 
 /// Current show format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 86;
+pub const FORMAT_VERSION: u32 = 90;
 
 /// Why a show is not played.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

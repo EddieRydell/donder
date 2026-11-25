@@ -1,6 +1,6 @@
 //! Execution capabilities for samples and signal operators.
 use super::RunContext;
-use donder_runtime_types::sample_duration_seconds_f32;
+use donder_runtime_types::{SampleDuration, sample_duration_seconds_f32};
 
 /// Query and sequence time in seconds, converted once per invocation. On ESP32
 /// each conversion is a software division; keeping it out of the interpreter
@@ -9,6 +9,7 @@ use donder_runtime_types::sample_duration_seconds_f32;
 pub(super) struct Clock {
     pub(super) seconds: f32,
     pub(super) duration: f32,
+    pub(super) origin: f32,
 }
 
 impl Clock {
@@ -16,6 +17,9 @@ impl Clock {
         Self {
             seconds: sample_duration_seconds_f32(context.time),
             duration: sample_duration_seconds_f32(context.duration),
+            origin: sample_duration_seconds_f32(SampleDuration::from_ticks(
+                context.origin.as_ticks(),
+            )),
         }
     }
 }

@@ -241,10 +241,6 @@ pub enum Shape {
     OneOf(Vec<Shape>),
     /// A record or variant type registered in the [`Schema`].
     Named(&'static str),
-    /// A reference to an object of a type, or that object written inline.
-    OwnedRecord(&'static str),
-    /// A reference, or a named object of the type written inline.
-    OwnedNamedRecord(&'static str),
 }
 
 /// What a reference names. A record field declares it with `#[refers(...)]`.
@@ -254,7 +250,7 @@ pub enum Refers {
     Declaration(&'static str),
     Effect,
     Operator,
-    /// A fixture or group of a layout: `layout.fixture`.
+    /// A fixture or group of the project's layout, by its name alone.
     Fixture,
     /// A control of an input device: `device.control`.
     Control,
@@ -519,72 +515,6 @@ impl Data for Reference {
     }
     fn shape(_: &mut Schema) -> Shape {
         unreachable!("a reference field says what it refers to with `#[refers(...)]`")
-    }
-}
-
-/// A reference to an object, or the object written in place, which its
-/// owner then owns: `definition: fixtures.strip` or `definition: Fixture { ... }`.
-#[derive(Clone, Debug, PartialEq)]
-pub enum OwnedRecord<T> {
-    Reference(Reference),
-    Inline(T),
-}
-
-impl<T: Record> Data for OwnedRecord<T> {
-    fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
-        match &value.value {
-            DataValue::Reference(_) => Reference::decode(value, decoder).map(Self::Reference),
-            DataValue::Record(..) => decode_record(value, decoder).map(Self::Inline),
-            _ => decoder.mismatch(value, &format!("a reference or `{} {{ ... }}`", T::TYPE)),
-        }
-    }
-    fn encode(&self) -> DataValue {
-        match self {
-            Self::Reference(reference) => reference.encode(),
-            Self::Inline(inline) => inline.encode(),
-        }
-    }
-    fn shape(schema: &mut Schema) -> Shape {
-        T::shape(schema);
-        Shape::OwnedRecord(T::TYPE)
-    }
-}
-
-/// A reference to an object, or a named object written in place, which its
-/// owner then owns: `controllers: [shared, Controller main { ... }]`.
-#[derive(Clone, Debug, PartialEq)]
-pub enum OwnedNamedRecord<T> {
-    Reference(Reference),
-    Inline(Name, T),
-}
-
-impl<T: Record> Data for OwnedNamedRecord<T> {
-    fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
-        match &value.value {
-            DataValue::Reference(_) => Reference::decode(value, decoder).map(Self::Reference),
-            DataValue::Named(ty, name, fields) if ty.value.as_str() == T::TYPE => {
-                T::decode_fields(fields, decoder)
-                    .map(|inline| Self::Inline(Name(name.clone()), inline))
-            }
-            _ => decoder.mismatch(
-                value,
-                &format!("a reference or `{} name {{ ... }}`", T::TYPE),
-            ),
-        }
-    }
-    fn encode(&self) -> DataValue {
-        match self {
-            Self::Reference(reference) => reference.encode(),
-            Self::Inline(name, inline) => DataValue::Named(
-                Spanned::new(identifier(T::TYPE), NO_SPAN),
-                name.0.clone(),
-                Spanned::new(inline.encode_fields(), NO_SPAN),
-            ),
-        }
-    }
-    fn shape(schema: &mut Schema) -> Shape {
-        T::shape(schema);
-        Shape::OwnedNamedRecord(T::TYPE)
     }
 }
 

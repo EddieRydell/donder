@@ -54,11 +54,10 @@ fn sample(
         .evaluate_signals(
             &PixelContext {
                 run: RunContext {
-                    progress: 0.0,
+                    origin: donder_runtime_types::SampleTime::from_ticks(0),
                     time: SampleDuration::from_ticks(0),
                     duration: SampleDuration::from_ticks(10_000_000),
                     frame_rate: 40.0,
-                    frame: 0,
                     pixel_count: 1,
                 },
                 index: 0,

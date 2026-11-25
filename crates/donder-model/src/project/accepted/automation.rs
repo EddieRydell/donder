@@ -1,23 +1,25 @@
 //! Resolve authored automation to declaration slots during project admission.
-use crate::sequence::{AutomationTarget, Sequence};
+use crate::composition::Composition;
+use crate::sequence::AutomationTarget;
 use crate::validation::{AdmissionProblem, ValidationProblem};
 use donder_language::compiler::ParamDecl;
-use donder_runtime_types::{AutomatedQuantity, PreparedAutomation};
+use donder_runtime_types::{AutomationSource, PreparedAutomation};
 
 use std::sync::Arc;
 
-/// Clips bound to the same target are merged into one envelope, so playback
+/// Envelopes bound to the same target are merged into one curve, so playback
 /// sees a single binding per target.
 pub(super) fn admit(
-    sequence: &Sequence,
+    composition: &Composition,
     params: &[ParamDecl],
     target: impl Fn(&AutomationTarget) -> bool,
 ) -> Result<Box<[PreparedAutomation]>, ValidationProblem> {
     let mut targets = Vec::new();
-    for binding in sequence
-        .automation_clips
+    for binding in composition
+        .clips
         .iter()
-        .flat_map(|clip| &clip.bindings)
+        .filter_map(|clip| clip.envelope())
+        .flat_map(|envelope| &envelope.bindings)
     {
         if target(&binding.target) && !targets.contains(&&binding.target) {
             targets.push(&binding.target);
@@ -37,7 +39,7 @@ pub(super) fn admit(
             let mapping = params[index].automation_mapping().unwrap_or_else(proven);
             let param_index = u16::try_from(index)
                 .map_err(|_| ValidationProblem::Admission(AdmissionProblem::TooManyParams))?;
-            let envelope = sequence
+            let envelope = composition
                 .automation_envelope(target)
                 .unwrap_or_else(|| unreachable!("the target came from a binding"));
             let mut curve = envelope.curve;
@@ -45,11 +47,12 @@ pub(super) fn admit(
                 .points
                 .sort_by(|left, right| left.position.total_cmp(&right.position));
             Ok(PreparedAutomation {
-                start: crate::clock::sample_time(&envelope.start),
-                duration: crate::clock::sample_duration(&envelope.duration),
-                curve: Arc::new(curve),
+                source: AutomationSource::Envelope {
+                    start: crate::clock::sample_time(&envelope.start),
+                    duration: crate::clock::sample_duration(&envelope.duration),
+                    curve: Arc::new(curve),
+                },
                 mapping,
-                quantity: AutomatedQuantity::Value,
                 param_index,
             })
         })

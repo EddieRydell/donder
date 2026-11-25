@@ -57,7 +57,10 @@ pub(crate) struct DesktopServices {
     render_refresh: LatestScheduler<RenderRefreshPayload>,
     derivations: LatestScheduler<audio_analysis::DerivationPayload>,
     audio: Arc<Mutex<crate::audio::AudioEngine>>,
-    sequence_render: Arc<Mutex<crate::rendering::SequenceRenderService>>,
+    /// The open sequence as it plays, once prepared.
+    sequence: Mutex<Option<crate::playing::Playing>>,
+    /// The generation of the latest show to play, a sequence's or a performance's.
+    playing_generation: std::sync::atomic::AtomicU32,
     live_output: Mutex<crate::output::LiveOutputService>,
     perform: Mutex<perform::PerformService>,
     learn: Mutex<learn::LearnService>,
@@ -68,7 +71,7 @@ pub(crate) struct DesktopServices {
     discovery: Mutex<Option<crate::device::discovery::DeviceDiscovery>>,
     /// Open views that list Donder controllers.
     device_watchers: Mutex<u32>,
-    /// Whether live output drives the setup's Donder controllers.
+    /// Whether live output drives the project's Donder controllers.
     devices_live: AtomicBool,
     /// Whether the user turned live output on, for every sequence and performance.
     live_output_enabled: AtomicBool,
@@ -96,8 +99,7 @@ pub(crate) fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 impl DesktopState {
     pub(crate) fn new(on_snapshot: impl Fn(AppSnapshot) + Send + Sync + 'static) -> Self {
         let audio = Arc::new(Mutex::new(crate::audio::AudioEngine::new()));
-        let sequence_render = Arc::new(Mutex::new(crate::rendering::SequenceRenderService::new()));
-        let output = crate::output::LiveOutputService::new(audio.clone(), sequence_render.clone());
+        let output = crate::output::LiveOutputService::new(audio.clone());
         let preview_wake = crate::preview::PreviewWake::new();
         Self(Arc::new_cyclic(
             |weak: &std::sync::Weak<DesktopServices>| {
@@ -146,9 +148,10 @@ impl DesktopState {
                         // Owned by the refresh worker; it keeps unchanged clips lowered between edits.
                         let mut preparation = donder_elaboration::PreparationCache::default();
                         move |request: RenderRefreshPayload| {
-                            let result = crate::rendering::prepare_render_session_cached(
+                            let result = crate::playing::prepare_show(
                                 request.project.project(),
-                                &request.sequence_id,
+                                donder_model::ShowId::Sequence(request.sequence_id),
+                                donder_elaboration::Retain::All,
                                 &mut preparation,
                             );
                             if let Some(state) = render_state.upgrade() {
@@ -167,7 +170,8 @@ impl DesktopState {
                         }
                     }),
                     audio,
-                    sequence_render,
+                    sequence: Mutex::new(None),
+                    playing_generation: std::sync::atomic::AtomicU32::new(0),
                     live_output: Mutex::new(output),
                     perform: Mutex::new(perform::PerformService::default()),
                     learn: Mutex::new(learn::LearnService::default()),
@@ -370,34 +374,30 @@ impl DesktopState {
         self.publish_live_output(error)
     }
 
-    /// Live output streams frames to the setup's E1.31 and Art-Net controllers
+    /// Live output streams frames to the project's E1.31 and Art-Net controllers
     /// and drives its Donder controllers, which play uploaded shows on the
     /// editor's clock. A performance in progress plays in place of the
     /// sequence, and only on streamed controllers. Transports open to the
-    /// controllers the frames were prepared on, which the render session or
+    /// controllers the frames were prepared on, which the prepared sequence or
     /// performance keeps with its show.
     fn start_live_output(&self) -> Result<(), String> {
         let project = self.project_session().ok_or("No project is loaded.")?;
         let mut streamed = false;
         let mut donder = false;
-        for controller in project.project().active_setup().controllers() {
+        for controller in project.project().controllers() {
             match controller.protocol {
                 donder_model::ControllerProtocol::Donder(_) => donder = true,
                 donder_model::ControllerProtocol::E131(_)
                 | donder_model::ControllerProtocol::ArtNet(_) => streamed = true,
             }
         }
-        let devices = self.perform_live_output(|performance| {
+        let devices = self.with_playing(|playing| {
             if !streamed && !donder {
-                return Err("Live output requires a controller in the setup.".to_string());
+                return Err("Live output requires a controller in the project.".to_string());
             }
             // The performance, or else the prepared sequence; output waits
             // for a sequence to prepare or a performance to start.
-            let Some(feed) = performance.map(Ok).or_else(|| {
-                lock_unpoisoned(&self.sequence_render)
-                    .streamed_session()
-                    .map(Err)
-            }) else {
+            let Some(playing) = playing else {
                 return Ok(None);
             };
             let mut service = lock_unpoisoned(&self.live_output);
@@ -405,14 +405,8 @@ impl DesktopState {
                 service.defer_start();
                 return Ok(Some(donder));
             }
-            match feed {
-                _ if !streamed => {}
-                Ok(output) => {
-                    service.perform(output);
-                }
-                Err((session, controllers)) => {
-                    service.enable(session, &controllers);
-                }
+            if streamed {
+                service.play(playing.clone());
             }
             Ok(Some(donder))
         })?;
@@ -431,6 +425,13 @@ impl DesktopState {
                 snapshot.status = error;
             }
         })
+    }
+
+    /// The generation of the next show to play.
+    pub(super) fn next_playing_generation(&self) -> u32 {
+        self.playing_generation
+            .fetch_add(1, Ordering::AcqRel)
+            .wrapping_add(1)
     }
 
     /// Live output follows what plays now: the performance, or else the

@@ -76,32 +76,25 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn setup_projection_identifies_its_composed_objects() {
+    fn project_projection_identifies_its_composed_objects() {
         let session = starter();
         let request = GuiDocumentRequest {
-            owned_path: Vec::new(),
             project_revision: 0,
-            path: "setups/setup.data.donder".to_string(),
-            object_key: "setup".to_string(),
+            path: donder_project_io::PROJECT_ROOT_FILE.to_string(),
+            object_key: "starter".to_string(),
         };
-        let GuiDocument::Setup { document } =
+        let GuiDocument::Project { document } =
             donder_editor::project_gui_document(Some(&session), &request)
         else {
-            panic!("setup projection was blocked");
+            panic!("project projection was blocked");
         };
         assert_eq!(document.layout_ref.object_key, "outputs_layout");
-        assert_eq!(document.patch_ref.object_key, "outputs");
         assert!(!document.controllers.is_empty());
 
-        for reference in [
-            &document.layout_ref,
-            &document.patch_ref,
-            &document.controllers[0].source_ref,
-        ] {
+        for reference in [&document.layout_ref, &document.controllers[0].source_ref] {
             let projection = donder_editor::project_gui_document(
                 Some(&session),
                 &GuiDocumentRequest {
-                    owned_path: Vec::new(),
                     project_revision: 0,
                     path: reference.path.clone(),
                     object_key: reference.object_key.clone(),
@@ -110,7 +103,6 @@ pub(crate) mod tests {
             assert!(matches!(
                 (&reference.kind, projection),
                 (ObjectKind::Layout, GuiDocument::Layout { .. })
-                    | (ObjectKind::Patch, GuiDocument::Patch { .. })
                     | (ObjectKind::Controller, GuiDocument::Controller { .. })
             ));
         }

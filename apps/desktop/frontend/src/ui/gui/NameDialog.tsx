@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAppStore } from "../../store";
-import type { GuiEditCommand, GuiEditUpdate } from "../../types";
+import type { GuiEdit, GuiEditUpdate } from "../../types";
 import { Button, Dialog, Field, TextField } from "../kit";
 import { DraftProblem, OBJECT, useDraftCheck, useFieldProblem } from "./problems";
 
@@ -10,7 +10,7 @@ export function NameDialog({ title, action, initial, draft, submit, onClose }: {
   title: string;
   action: string;
   initial: string;
-  draft?: (name: string) => GuiEditCommand;
+  draft?: (name: string) => GuiEdit;
   submit: (name: string) => Promise<GuiEditUpdate | null>;
   onClose: () => void;
 }) {

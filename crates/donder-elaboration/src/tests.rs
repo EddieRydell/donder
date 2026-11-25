@@ -18,22 +18,22 @@ fn example(name: &str) -> donder_project_io::ProjectSession {
 #[test]
 fn starter_prepares_and_produces_exact_controller_widths() {
     let session = example("starter");
-    let sequence_id = session.project().root().sequences.first().unwrap().id();
+    let sequence_id = session
+        .project()
+        .reusable::<donder_model::Sequence>()
+        .keys()
+        .next()
+        .unwrap();
     let renderer = prepare(session.project(), sequence_id, Retain::All).unwrap();
     let mut playback = renderer.into_playback();
     let frame = playback.evaluate(SampleTime::from_ticks(0));
-    let setup = session
-        .project()
-        .reusable::<donder_model::Setup>()
-        .get(session.project().root().setup.id())
-        .unwrap();
-    let expected_ports = setup
-        .controllers
-        .iter()
+    let controllers_store = session.project().reusable::<donder_model::Controller>();
+    let expected_ports = controllers_store
+        .keys()
         .map(|id| {
             session
                 .project()
-                .get::<donder_model::Controller>(*id.id())
+                .get::<donder_model::Controller>(*id)
                 .unwrap()
                 .outputs()
                 .len()
@@ -46,7 +46,12 @@ fn starter_prepares_and_produces_exact_controller_widths() {
         let controller = session
             .project()
             .reusable::<donder_model::Controller>()
-            .get(setup.controllers[output.controller_index as usize].id())
+            .get(
+                controllers_store
+                    .get_index(output.controller_index as usize)
+                    .unwrap()
+                    .0,
+            )
             .unwrap();
         let width = controller
             .output_width(controller.runtime_output(output.port))
@@ -58,7 +63,12 @@ fn starter_prepares_and_produces_exact_controller_widths() {
 #[test]
 fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
     let session = example("starter");
-    let sequence_id = session.project().root().sequences.get(1).unwrap().id();
+    let sequence_id = session
+        .project()
+        .reusable::<donder_model::Sequence>()
+        .get_index(1)
+        .unwrap()
+        .0;
     let renderer = prepare(session.project(), sequence_id, Retain::All).unwrap();
     let time = sample_time_from_frame(3594, renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();
@@ -69,7 +79,12 @@ fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
 #[test]
 fn output_fixtures_preserve_layout_instance_order() {
     let session = example("starter");
-    let sequence_id = session.project().root().sequences.first().unwrap().id();
+    let sequence_id = session
+        .project()
+        .reusable::<donder_model::Sequence>()
+        .keys()
+        .next()
+        .unwrap();
     let renderer = prepare(session.project(), sequence_id, Retain::All).unwrap();
     let time = sample_time_from_frame(renderer.frame_rate(), renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();

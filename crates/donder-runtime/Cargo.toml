@@ -16,6 +16,7 @@ iram = []
 
 [dependencies]
 donder-runtime-types.workspace = true
+donder-runtime-iram.workspace = true
 bytemuck.workspace = true
 libm.workspace = true
 

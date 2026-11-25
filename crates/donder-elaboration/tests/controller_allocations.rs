@@ -57,10 +57,8 @@ fn prepared_controller_sampling_does_not_allocate() {
         .expect("starter project should load");
     for sequence_id in session
         .project()
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
+        .reusable::<donder_model::Sequence>()
+        .keys()
     {
         let output = prepare(session.project(), sequence_id, Retain::All)
             .expect("starter output should prepare");
@@ -78,9 +76,8 @@ fn prepared_controller_sampling_does_not_allocate() {
                 .1
                 .as_str(),
         );
-        let setup = &session.project().reusable::<donder_model::Setup>()
-            [session.project().root().setup.id()];
-        let controller = setup.controllers[0].id();
+        let controllers_store = session.project().reusable::<donder_model::Controller>();
+        let controller = controllers_store.get_index(0).unwrap().0;
         let first_output =
             session.project().reusable::<donder_model::Controller>()[controller].outputs()[0].0;
         let mut selected = prepare(

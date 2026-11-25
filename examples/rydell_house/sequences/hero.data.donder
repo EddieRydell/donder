@@ -1,4 +1,3 @@
-import layouts from <layouts/layout.data.donder>;
 import effects from <effects/standard.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
 import operators from <operators/standard.donder>;
@@ -164,830 +163,942 @@ Sequence hero {
     Clip {
       name: mark_wipe,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.front_lines,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: front_lines,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_2,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.left_pot,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: left_pot,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_3,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.right_pot,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: right_pot,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_4,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.all_arches,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: all_arches,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_5,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.radio_sign,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: radio_sign,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_6,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.nativity,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: nativity,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.bushes,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: bushes,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7_2,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.stairs,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: stairs,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7_3,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.pilasters,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: pilasters,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7_4,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.spiral_trees,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: spiral_trees,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7_5,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.neighbor_trees,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: neighbor_trees,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7_6,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.penguin,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: penguin,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7_8,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.garage_matrix,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: garage_matrix,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_7_9,
       description: none,
-      layer: hue_shift,
-      start: 67.624034681s,
-      duration: 26.97991492s,
-      target: layouts.layout.arch_tunnel,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: arch_tunnel,
+      placement: Timed { start: 67.624034681s, duration: 26.97991492s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_8_2_2,
       description: none,
-      layer: hue_shift,
-      start: 80.239132513s,
-      duration: 1.062888866s,
-      target: layouts.layout.house_and_trees,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: house_and_trees,
+      placement: Timed { start: 80.239132513s, duration: 1.062888866s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_wipe_8_2_2_2,
       description: none,
-      layer: hue_shift,
-      start: 81.302021379s,
-      duration: 9.560489231s,
-      target: layouts.layout.house_and_trees,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: house_and_trees,
+      placement: Timed { start: 81.302021379s, duration: 9.560489231s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_wipe_9_2,
       description: none,
-      layer: hue_shift,
-      start: 90.621024464s,
-      duration: 3.531483571s,
-      target: layouts.layout.house_and_trees,
-      scope: PerFixture,
-      effect: effects.MarkWipe,
-      params: {
-        beats: marks,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
-          },
-        ],
-        offset_seconds: -0.08,
-        wipe_seconds: 0.3,
-        pulse_width: 0.4,
-        direction_angle: Curve {
-          points: [
-            (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
-            (0.871, 1.0), (1.0, 0.0),
+      target: house_and_trees,
+      placement: Timed { start: 90.621024464s, duration: 3.531483571s },
+      content: Effect {
+        layer: hue_shift,
+        scope: PerFixture,
+        effect: effects.MarkWipe,
+        params: {
+          beats: marks,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.05, #ffffff), (0.249, #0000ff), (0.542, #ff0090)],
+            },
           ],
-        },
-        wipe_positions: [
-          Curve {
+          offset_seconds: -0.08,
+          wipe_seconds: 0.3,
+          pulse_width: 0.4,
+          direction_angle: Curve {
             points: [
-              (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
-              (1.0, 1.0),
+              (0.0, 1.0), (0.1, 0.0), (0.21, 1.0), (0.396, 0.661), (0.494, 0.967), (0.687, 0.103),
+              (0.871, 1.0), (1.0, 0.0),
             ],
           },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+          wipe_positions: [
+            Curve {
+              points: [
+                (0.0, 0.0), (0.163, 0.353), (0.322, 0.605), (0.508, 0.818), (0.718, 0.937),
+                (1.0, 1.0),
+              ],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_wipe_8_2_2_3,
       description: none,
-      layer: hue_shift,
-      start: 80.239132513s,
-      duration: 1.062888866s,
-      target: layouts.layout.yard,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: yard,
+      placement: Timed { start: 80.239132513s, duration: 1.062888866s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_wipe_8_2_2_4,
       description: none,
-      layer: hue_shift,
-      start: 80.239132513s,
-      duration: 1.062888866s,
-      target: layouts.layout.mega_tree,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: mega_tree,
+      placement: Timed { start: 80.239132513s, duration: 1.062888866s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_wipe_8_2_2_5,
       description: none,
-      layer: hue_shift,
-      start: 80.239132513s,
-      duration: 1.062888866s,
-      target: layouts.layout.arch_tunnel,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: arch_tunnel,
+      placement: Timed { start: 80.239132513s, duration: 1.062888866s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_wipe_8_2_2_6,
       description: none,
-      layer: hue_shift,
-      start: 80.239132513s,
-      duration: 1.062888866s,
-      target: layouts.layout.garage_matrix,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: garage_matrix,
+      placement: Timed { start: 80.239132513s, duration: 1.062888866s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: mark_wipe_8_2_2_2_2,
       description: none,
-      layer: hue_shift,
-      start: 93.516961068s,
-      duration: 0.801163663s,
-      target: layouts.layout.everything,
-      scope: WholeTarget,
-      effect: effects.MarkWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: everything,
+      placement: Timed { start: 93.516961068s, duration: 0.801163663s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.09, #ffffff), (0.352, #0022ff), (0.694, #ff00a6)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          direction_angle: Curve { points: [(0.0, 0.752), (1.0, 0.0)] },
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: field_wipe,
       description: none,
-      layer: hue_shift,
-      start: 67.843028281s,
-      duration: 10.143018877s,
-      target: layouts.layout.house_and_trees,
-      scope: WholeTarget,
-      effect: effects.MarkFieldWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.053, #ffffff), (0.316, #0010ff), (0.728, #ff0057)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.4,
-        pulse_width: 0.8,
-        linear: 1.0,
-        saddle: 1.0,
-        radial: 1.0,
-        wipe_positions: [
-          Curve {
-            points: [(0.0, 0.0), (0.169, 0.482), (0.369, 0.801), (0.628, 0.947), (1.0, 1.0)],
-          },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+      target: house_and_trees,
+      placement: Timed { start: 67.843028281s, duration: 10.143018877s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkFieldWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.053, #ffffff), (0.316, #0010ff), (0.728, #ff0057)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.4,
+          pulse_width: 0.8,
+          linear: 1.0,
+          saddle: 1.0,
+          radial: 1.0,
+          wipe_positions: [
+            Curve {
+              points: [(0.0, 0.0), (0.169, 0.482), (0.369, 0.801), (0.628, 0.947), (1.0, 1.0)],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
       },
     },
     Clip {
       name: field_wipe_2,
       description: none,
-      layer: hue_shift,
-      start: 77.892128286s,
-      duration: 2.442170233s,
-      target: layouts.layout.house_and_trees,
-      scope: WholeTarget,
-      effect: effects.MarkFieldWipe,
-      params: {
-        beats: beats,
-        gradients: [
-          Gradient {
-            space: LinearRgb,
-            stops: [(0.053, #ffffff), (0.316, #0010ff), (0.728, #ff0057)],
-          },
-        ],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.5,
-        pulse_width: 0.6,
-        linear: 1.0,
-        saddle: 1.0,
-        radial: 1.0,
-        wipe_positions: [
-          Curve {
-            points: [(0.0, 0.0), (0.169, 0.482), (0.369, 0.801), (0.628, 0.947), (1.0, 1.0)],
-          },
-        ],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+      target: house_and_trees,
+      placement: Timed { start: 77.892128286s, duration: 2.442170233s },
+      content: Effect {
+        layer: hue_shift,
+        scope: WholeTarget,
+        effect: effects.MarkFieldWipe,
+        params: {
+          beats: beats,
+          gradients: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.053, #ffffff), (0.316, #0010ff), (0.728, #ff0057)],
+            },
+          ],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.5,
+          pulse_width: 0.6,
+          linear: 1.0,
+          saddle: 1.0,
+          radial: 1.0,
+          wipe_positions: [
+            Curve {
+              points: [(0.0, 0.0), (0.169, 0.482), (0.369, 0.801), (0.628, 0.947), (1.0, 1.0)],
+            },
+          ],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
       },
     },
     Clip {
       name: mark_field_wipe,
       description: none,
-      layer: default,
-      start: 67.556560902s,
-      duration: 27.111698471s,
-      target: layouts.layout.mega_tree,
-      scope: WholeTarget,
-      effect: effects.MarkFieldWipe,
-      params: {
-        beats: marks,
-        gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
-        offset_seconds: -0.1,
-        wipe_seconds: 0.3,
-        pulse_width: 0.3,
-        linear: -1.0,
-        wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
-        pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        overlap_marks: true,
+      target: mega_tree,
+      placement: Timed { start: 67.556560902s, duration: 27.111698471s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.MarkFieldWipe,
+        params: {
+          beats: marks,
+          gradients: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          offset_seconds: -0.1,
+          wipe_seconds: 0.3,
+          pulse_width: 0.3,
+          linear: -1.0,
+          wipe_positions: [Curve { points: [(0.0, 0.0), (1.0, 1.0)] }],
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          overlap_marks: true,
+        },
+      },
+    },
+    Clip {
+      name: envelope,
+      description: none,
+      target: house_and_trees,
+      placement: Timed { start: 63.883301869s, duration: 37.762129549s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.107450284, 0.0), (0.27459517, 1.0), (0.3580862, 0.521),
+            (0.41577092, 1.0), (0.44916734, 0.146), (0.57516295, 0.0), (0.69660443, 1.0),
+            (0.7885315, 0.0), (1.0, 0.5725221),
+          ],
+        },
+        bindings: [
+          Bound { binding: NodeParam { node: hue_shift_2, param: shift }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_2,
+      description: none,
+      target: mega_tree,
+      placement: Timed { start: 67.556560902s, duration: 27.111698471s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.2961753, 0.782), (0.33446783, 0.282), (0.4946003, 0.749),
+            (0.6582139, 0.391), (0.7289971, 0.857), (0.7580066, 0.032), (1.0, 1.0),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: mark_field_wipe, param: direction_angle },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_3,
+      description: none,
+      target: mega_tree,
+      placement: Timed { start: 67.556560902s, duration: 27.111698471s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.0), (0.26716578, 0.674), (0.5220398, 0.099), (1.0, 1.0)] },
+        bindings: [
+          Bound { binding: ClipParam { clip: mark_field_wipe, param: linear }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_4,
+      description: none,
+      target: mega_tree,
+      placement: Timed { start: 67.556560902s, duration: 27.111698471s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.1139956, 0.716), (0.19522221, 0.382), (0.29849604, 0.857),
+            (0.4829965, 0.116), (0.7707708, 0.791), (0.7881765, 0.349), (1.0, 1.0),
+          ],
+        },
+        bindings: [
+          Bound { binding: ClipParam { clip: mark_field_wipe, param: saddle }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_5,
+      description: none,
+      target: mega_tree,
+      placement: Timed { start: 67.556560902s, duration: 27.111698471s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.11898961, 0.716), (0.17584823, 0.216), (0.2071785, 0.849),
+            (0.2547541, 0.299), (0.30929196, 1.0), (0.36731097, 0.191), (0.400962, 0.866),
+            (0.43809417, 0.466), (0.4705848, 0.832), (0.5053962, 0.424), (0.54949063, 0.999),
+            (0.56109446, 0.074), (0.60286814, 0.891), (0.6701702, 0.257), (0.7084627, 0.832),
+            (0.74443454, 0.057), (0.8569914, 0.774), (0.91849154, 0.182), (1.0, 1.0),
+          ],
+        },
+        bindings: [
+          Bound { binding: ClipParam { clip: mark_field_wipe, param: radial }, window: (0.0, 1.0) },
+        ],
       },
     },
   ],
@@ -1009,83 +1120,4 @@ Sequence hero {
       Edge { from: hue_shift_2, to: root },
     ],
   },
-  automation: [
-    AutomationClip {
-      row: layouts.layout.house_and_trees,
-      start: 63.883301869s,
-      duration: 37.762129549s,
-      curve: Curve {
-        points: [
-          (0.0, 0.0), (0.107450284, 0.0), (0.27459517, 1.0), (0.3580862, 0.521), (0.41577092, 1.0),
-          (0.44916734, 0.146), (0.57516295, 0.0), (0.69660443, 1.0), (0.7885315, 0.0),
-          (1.0, 0.5725221),
-        ],
-      },
-      bindings: [
-        Bound { binding: NodeParam { node: hue_shift_2, param: shift }, window: (0.0, 1.0) },
-      ],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.layout.mega_tree,
-      start: 67.556560902s,
-      duration: 27.111698471s,
-      curve: Curve {
-        points: [
-          (0.0, 0.0), (0.2961753, 0.782), (0.33446783, 0.282), (0.4946003, 0.749),
-          (0.6582139, 0.391), (0.7289971, 0.857), (0.7580066, 0.032), (1.0, 1.0),
-        ],
-      },
-      bindings: [
-        Bound {
-          binding: ClipParam { clip: mark_field_wipe, param: direction_angle },
-          window: (0.0, 1.0),
-        },
-      ],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.layout.mega_tree,
-      start: 67.556560902s,
-      duration: 27.111698471s,
-      curve: Curve { points: [(0.0, 0.0), (0.26716578, 0.674), (0.5220398, 0.099), (1.0, 1.0)] },
-      bindings: [
-        Bound { binding: ClipParam { clip: mark_field_wipe, param: linear }, window: (0.0, 1.0) },
-      ],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.layout.mega_tree,
-      start: 67.556560902s,
-      duration: 27.111698471s,
-      curve: Curve {
-        points: [
-          (0.0, 0.0), (0.1139956, 0.716), (0.19522221, 0.382), (0.29849604, 0.857),
-          (0.4829965, 0.116), (0.7707708, 0.791), (0.7881765, 0.349), (1.0, 1.0),
-        ],
-      },
-      bindings: [
-        Bound { binding: ClipParam { clip: mark_field_wipe, param: saddle }, window: (0.0, 1.0) },
-      ],
-      detached: [],
-    },
-    AutomationClip {
-      row: layouts.layout.mega_tree,
-      start: 67.556560902s,
-      duration: 27.111698471s,
-      curve: Curve {
-        points: [
-          (0.0, 0.0), (0.11898961, 0.716), (0.17584823, 0.216), (0.2071785, 0.849),
-          (0.2547541, 0.299), (0.30929196, 1.0), (0.36731097, 0.191), (0.400962, 0.866),
-          (0.43809417, 0.466), (0.4705848, 0.832), (0.5053962, 0.424), (0.54949063, 0.999),
-          (0.56109446, 0.074), (0.60286814, 0.891), (0.6701702, 0.257), (0.7084627, 0.832),
-          (0.74443454, 0.057), (0.8569914, 0.774), (0.91849154, 0.182), (1.0, 1.0),
-        ],
-      },
-      bindings: [
-        Bound { binding: ClipParam { clip: mark_field_wipe, param: radial }, window: (0.0, 1.0) },
-      ],
-      detached: [],
-    },
-  ],
 }

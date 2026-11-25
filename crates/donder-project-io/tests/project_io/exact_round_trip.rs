@@ -33,12 +33,11 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
     let (_temporary, root, session) = starter_copy();
     let sequence_id = session
         .project()
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
+        .reusable::<donder_model::Sequence>()
+        .keys()
         .find(|id| {
             !session.project().reusable::<donder_model::Sequence>()[*id]
+                .composition
                 .clips
                 .is_empty()
         })
@@ -57,15 +56,18 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
         .get::<donder_model::Sequence>(sequence_id)
         .unwrap()
         .clone();
-    sequence.layers[0].name =
-        donder_language::object_name(&format!("{}_edited", sequence.layers[0].name.as_str()));
-    sequence.clips.reverse();
+    sequence.composition.layers[0].name = donder_language::object_name(&format!(
+        "{}_edited",
+        sequence.composition.layers[0].name.as_str()
+    ));
+    sequence.composition.clips.reverse();
     let names = sequence
+        .composition
         .clips
         .iter()
         .map(|effect| effect.name.clone())
         .collect::<Vec<_>>();
-    edited.put(sequence).unwrap();
+    edited.put((sequence_id, sequence)).unwrap();
 
     save_project(&edited).unwrap();
     let saved = fs::read_to_string(&path).unwrap();
@@ -77,6 +79,7 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
             .project()
             .get::<donder_model::Sequence>(sequence_id)
             .unwrap()
+            .composition
             .clips
             .iter()
             .map(|effect| effect.name.clone())
@@ -108,17 +111,17 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
 #[test]
 fn removing_only_typed_object_rejects_save_before_any_write() {
     let (_temporary, root, session) = starter_copy();
-    let id = *session.project().root().sequences[0].id();
+    let id = *session
+        .project()
+        .reusable::<donder_model::Sequence>()
+        .keys()
+        .next()
+        .unwrap();
     let document = session.address_of(id).document_id().clone();
     let before = donder_project_io::project_source_texts(&root).unwrap();
-    let mut project_root = session.project().root().clone();
-    project_root.sequences.retain(|source| source.id() != &id);
     session
         .clone()
-        .apply_edits([
-            donder_model::ProjectEdit::Put(donder_model::Object::Project(project_root)),
-            donder_model::ProjectEdit::Remove(id.into()),
-        ])
+        .apply_edits([donder_model::ProjectEdit::Remove(id.into())])
         .unwrap_err();
     // An edit that removes a declared object without its declaration is refused.
     assert!(source_document_text(&session, &document).unwrap().is_some());
@@ -133,13 +136,17 @@ fn typed_objects_without_source_inventory_cannot_be_silently_omitted() {
     use donder_model::SequenceId;
     let (_temporary, root, session) = starter_copy();
     let before = donder_project_io::project_source_texts(&root).unwrap();
-    let original = &session.project().reusable::<donder_model::Sequence>()
-        [session.project().root().sequences[0].id()];
+    let original = session
+        .project()
+        .reusable::<donder_model::Sequence>()
+        .values()
+        .next()
+        .unwrap();
     let mut candidate = session.clone();
-    let mut added = original.clone();
-    added.id = SequenceId(candidate.new_id());
+    let added = original.clone();
+    let id = SequenceId(candidate.new_id());
     candidate
-        .apply_edits([donder_model::ProjectEdit::Put(added.into())])
+        .apply_edits([donder_model::ProjectEdit::Put((id, added).into())])
         .unwrap_err();
     assert_eq!(
         before,
@@ -169,21 +176,13 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
         .copied()
         .find(|id| session.declaration((*id).into()).unwrap().1.as_str() == "unused")
         .unwrap();
-    assert!(
-        !session
-            .project()
-            .root()
-            .sequences
-            .iter()
-            .any(|source| source.id() == &id)
-    );
     let mut sequence = session
         .project()
         .get::<donder_model::Sequence>(id)
         .unwrap()
         .clone();
     sequence.frame_rate = 60;
-    session.put(sequence).unwrap();
+    session.put((id, sequence)).unwrap();
     save_project(&session).unwrap();
     assert_eq!(session.project(), common::load_project(&root).project());
 }

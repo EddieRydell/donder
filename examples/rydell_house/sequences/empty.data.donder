@@ -2,7 +2,6 @@ import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
 import curves from <curves/vixen_curves.data.donder>;
 import gradients from <gradients/vixen_gradients.data.donder>;
-import layouts from <layouts/layout.data.donder>;
 
 Sequence empty {
   description: none,
@@ -19,5 +18,4 @@ Sequence empty {
     ],
     edges: [Edge { from: layers.default, to: root }],
   },
-  automation: [],
 }

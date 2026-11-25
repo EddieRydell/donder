@@ -5,12 +5,8 @@
 
 use std::sync::Arc;
 
-use crate::fixture::{
-    FixtureDefinition, FixtureDefinitionId, FixtureElementId, FixtureTransform, OwnedFixture,
-};
-use crate::layout::{
-    FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixtureKind, LayoutId,
-};
+use crate::fixture::{FixtureDefinition, FixtureDefinitionId, FixtureElementId, FixtureTransform};
+use crate::layout::{FixtureId, Layout, LayoutError, LayoutFixtureKind};
 use glam::{Affine3A, EulerRot, Quat, Vec3};
 use indexmap::IndexMap;
 
@@ -39,18 +35,17 @@ pub struct PreparedFixtureDefinitions {
 
 #[derive(Clone, Debug)]
 pub struct PreparedFixtureInstance {
-    pub id: FixtureInstanceId,
+    pub id: FixtureId,
     pub pixels: Arc<[PreparedPixel]>,
     pub transform: Affine3A,
 }
 
 #[derive(Clone, Debug)]
 pub struct PreparedLayout {
-    pub id: LayoutId,
     pub instances: Vec<PreparedFixtureInstance>,
     /// Each target's placed instances in target order, each once, whether
     /// it selects all of an instance's pixels or a slice.
-    targets: IndexMap<FixtureInstanceId, Vec<usize>>,
+    targets: IndexMap<FixtureId, Vec<usize>>,
 }
 
 impl PreparedFixtureDefinitions {
@@ -71,7 +66,6 @@ impl PreparedFixtureDefinitions {
 
     pub fn prepare_layout(&self, layout: &Layout) -> PreparedLayout {
         let mut prepared = PreparedLayout {
-            id: layout.id,
             instances: Vec::new(),
             targets: IndexMap::new(),
         };
@@ -85,10 +79,7 @@ impl PreparedFixtureDefinitions {
                 indices.insert(fixture.id, prepared.instances.len());
                 prepared.instances.push(PreparedFixtureInstance {
                     id: fixture.id,
-                    pixels: match definition {
-                        OwnedFixture::Inline(value) => prepare_geometry(value).into(),
-                        OwnedFixture::Reference(id) => self.definitions[id].clone(),
-                    },
+                    pixels: self.definitions[definition].clone(),
                     transform: fixture_transform(transform),
                 });
             }
@@ -130,15 +121,12 @@ pub fn prepare_geometry(definition: &FixtureDefinition) -> Vec<PreparedPixel> {
 impl PreparedLayout {
     pub fn target(
         &self,
-        target: &FixtureTarget,
+        target: FixtureId,
     ) -> Result<impl Iterator<Item = &PreparedFixtureInstance>, LayoutError> {
-        if target.layout != self.id {
-            return Err(LayoutError::WrongLayout(target.layout));
-        }
         let members = self
             .targets
-            .get(&target.fixture)
-            .ok_or(LayoutError::MissingFixture(target.fixture))?;
+            .get(&target)
+            .ok_or(LayoutError::MissingFixture(target))?;
         Ok(members.iter().map(|&index| &self.instances[index]))
     }
 }

@@ -17,4 +17,4 @@ platforms = [
 # The firmware workspace builds these no_std crates; the host-only feature set
 # must not reach them.
 [final-excludes]
-workspace-members = ["donder-runtime", "donder-runtime-types", "donder-device-protocol"]
+workspace-members = ["donder-runtime", "donder-runtime-iram", "donder-runtime-types", "donder-device-protocol"]

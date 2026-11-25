@@ -166,11 +166,12 @@ fn whole_sequence_automation(
     curve: Arc<Curve>,
 ) -> PreparedAutomation {
     PreparedAutomation {
-        start: SampleTime::from_ticks(0),
-        duration: SampleDuration::from_ticks(8_000_000),
-        curve,
+        source: donder_runtime_types::AutomationSource::Envelope {
+            start: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(8_000_000),
+            curve,
+        },
         mapping: param.automation_mapping().unwrap(),
-        quantity: donder_runtime_types::AutomatedQuantity::Value,
         param_index: param_index as u16,
     }
 }
@@ -242,7 +243,16 @@ fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
         &effect,
         &[],
         vec![PreparedAutomation {
-            duration: SampleDuration::from_ticks(1_000_000),
+            source: match automation.source {
+                donder_runtime_types::AutomationSource::Envelope { start, curve, .. } => {
+                    donder_runtime_types::AutomationSource::Envelope {
+                        start,
+                        duration: SampleDuration::from_ticks(1_000_000),
+                        curve,
+                    }
+                }
+                source => source,
+            },
             ..automation
         }],
     ));
@@ -591,7 +601,6 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
         &[("shape", Value::Curve(empty))],
         vec![PreparedAutomation {
             mapping: donder_runtime_types::AutomationMapping::Curve { min: 0.5, max: 1.0 },
-            quantity: donder_runtime_types::AutomatedQuantity::Value,
             ..automation
         }],
     ));
@@ -625,7 +634,7 @@ const ADDRESSED_SOURCE: &str = "
 operator Mirror {
   input source;
 
-  sample { source.at(target.count - 1 - pixel.index) }
+  sample { source[target.count - 1 - pixel.index] }
 }
 
 operator Scatter {
@@ -634,14 +643,14 @@ operator Scatter {
   param spacing: float in 0.0..1.0 = 0.05;
 
   sample {
-    let blur = sum for i in 0..taps { source.at(pixel.index - i) * spacing };
-    let darkest = min for i in 0..taps { intensity(source.at(pixel.index + i)) };
+    let blur = sum for i in 0..taps { source[pixel.index - i] * spacing };
+    let darkest = min for i in 0..taps { intensity(source[pixel.index + i]) };
     guard (all for i in 0..taps { pixel.index >= i }) else blur;
     let brightest = first for i in 0..taps {
-      guard intensity(source.at(i)) > darkest;
+      guard intensity(source[i]) > darkest;
       i
     } else { 0 };
-    blur * (darkest + 0.5) + source.at(brightest)
+    blur * (darkest + 0.5) + source[brightest]
   }
 }";
 
@@ -749,7 +758,7 @@ fn library_effects_do_not_allocate_from_the_first_frame() {
             ("placed", constants),
             ("unplaced", ProgramConstants::default()),
         ] {
-            let sample = playback::bind(&invocation.instance(constants));
+            let sample = playback::bind(&invocation.instance(constants, &[]));
             let (count, lit) = first_frames(single_effect(&sample));
             if count != 0 {
                 allocating.push(format!("{name} {placement}: {count}"));
@@ -828,7 +837,7 @@ fn operators_do_not_allocate_from_the_first_frame() {
                 .collect();
             operators.push((
                 operator.name().as_str().to_owned(),
-                [fixed, automated].map(|invocation| invocation.instance(constants)),
+                [fixed, automated].map(|invocation| invocation.instance(constants, &[])),
                 inputs,
             ));
         }

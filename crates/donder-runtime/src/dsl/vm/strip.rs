@@ -20,18 +20,19 @@ use super::context::Clock;
 use super::workspace::{NEIGHBORHOOD, Neighborhood, Segment, StripWorkspace};
 use crate::dsl::bytecode::{
     Bank, ColorComponent, CompareOp, ContextRead, CurveOp, Direction, Edges, FloatBinary, Input,
-    Instruction, IntBinary, IntUnary, MarkOp, Reducer, Resource, SignalPixel, Slot, SlotKind,
+    Instruction, IntBinary, IntUnary, MarkOp, Reducer, SignalPixel, Slot, SlotKind,
 };
-use crate::format::{self, GradientStop, SectionPixel};
-use crate::resources::{CurveView, ParamsView};
+use crate::format::GradientStop;
+use crate::resources::ParamsView;
 use crate::sampling::{
     clamp_array_index, color_hue, color_intensity, color_saturation, float_binary, float_unary,
     gradient_color_scaled, hsv, int_binary, mark_at, mark_duration, max_float, min_float,
-    previous_mark, previous_mark_index, sample_gradient_stops, track_at, value_or,
+    previous_mark_index, sample_gradient_stops, track_at, value_or,
 };
-use crate::sections::{RunSections, SectionsView, single_section_query};
 use crate::view::{ProgramView, Show};
 use core::cell::Cell;
+use donder_runtime_iram::iram;
+use donder_runtime_types::sampling::CurveView;
 use donder_runtime_types::{Color, GradientSpace, InstructionWord, MarkWindow, TrackView};
 
 pub(crate) use crate::dsl::bytecode::STRIP;
@@ -42,13 +43,13 @@ pub(super) use crate::arena::Row;
 /// The instruction at the start of trusted code; one copy serves every
 /// dispatch.
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn decoded(code: &[InstructionWord]) -> Instruction {
     InstructionWord::decode(code)
 }
 
 /// A bound color word: the index of its color in the show.
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn word_color(show: Show<'_>, word: u32) -> Color {
     show.s.colors[word as usize]
 }
@@ -98,24 +99,21 @@ pub(crate) trait NeighborWeights {
 }
 
 /// A program without signal inputs.
+#[iram]
 impl StripSignals for super::NoSignals {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn read_strip(&mut self, _: usize, output: &mut [Color; STRIP]) {
         output.fill(Color::BLACK);
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn read_pixel(&mut self, _: usize, _: usize, _: SignalPixel<i32>) -> Color {
         Color::BLACK
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn sample_range(&mut self, _: usize, _: isize, colors: &mut [Color], locals: &mut [i32]) {
         colors.fill(Color::BLACK);
         locals.fill(super::OUTSIDE);
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn scan(&mut self, _: &ScanQuery, _: &mut dyn NeighborWeights, output: &mut [Color; STRIP]) {
         output.fill(Color::BLACK);
     }
@@ -124,10 +122,8 @@ impl StripSignals for super::NoSignals {
 /// Per-pixel inputs. The traversal fills them for each strip.
 pub(crate) struct Pixels<'w> {
     pub(crate) index: &'w Row<i32>,
-    pub(crate) fraction: &'w Row<f32>,
     pub(crate) x: &'w Row<f32>,
     pub(crate) y: &'w Row<f32>,
-    pub(crate) sections: &'w Row<SectionPixel>,
     /// Held by workspaces whose programs read depth or structure.
     pub(crate) structure: Option<StructureRows<'w>>,
 }
@@ -150,9 +146,9 @@ pub(crate) struct Extent {
     pub(crate) strand_length: i32,
 }
 
+#[iram]
 impl Extent {
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn key(&self) -> [u32; 9] {
         [
             self.min[0].to_bits(),
@@ -168,10 +164,10 @@ impl Extent {
     }
 }
 
+#[iram]
 impl<'w> Pixels<'w> {
     /// The structure rows, which a program that reads them was given.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn structure(&self) -> &StructureRows<'w> {
         match &self.structure {
             Some(rows) => rows,
@@ -180,39 +176,24 @@ impl<'w> Pixels<'w> {
     }
 }
 
-/// A resource: one of the show's, by index into its kind's section, or a
-/// parameter the invocation rewrites (an automated curve's window, live
-/// marks), by its resource bank.
+/// A resource: one of the show's, by index into its kind's section.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(transparent)]
 pub(super) struct Handle(u32);
 
-const PARAM_HANDLE: u32 = 1 << 31;
-
+#[iram]
 impl Handle {
     pub(super) const EMPTY: Self = Self(0);
 
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn show(index: u32) -> Self {
         Self(index)
     }
 
+    /// Its index in its kind's section.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn param(bank: u16) -> Self {
-        Self(PARAM_HANDLE | u32::from(bank))
-    }
-
-    /// The parameter bank of a rewritten resource, or the show index.
-    #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    pub(super) fn kind(self) -> Result<u32, u16> {
-        if self.0 & PARAM_HANDLE == 0 {
-            Ok(self.0)
-        } else {
-            Err(self.0 as u16)
-        }
+    pub(super) fn index(self) -> u32 {
+        self.0
     }
 }
 
@@ -224,13 +205,12 @@ pub(super) struct Store<'w, T> {
     pub(super) scalars: usize,
 }
 
+#[iram]
 impl<'w, T: Copy> Store<'w, T> {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn scalar(&self, index: u16) -> &'w Cell<T> {
         &self.values[usize::from(index)]
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn window(&self, start: usize) -> &'w Row<T> {
         let Ok(window) = <&Row<T>>::try_from(&self.values[start..start + STRIP]) else {
             unreachable!("a window spans one strip")
@@ -238,13 +218,11 @@ impl<'w, T: Copy> Store<'w, T> {
         window
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn row(&self, index: u16) -> &'w Row<T> {
         self.window(self.scalars + usize::from(index) * STRIP)
     }
 
     /// A scalar operand: the scalar masks every pixel to itself.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn one(&self, index: u16) -> Src<'w, T> {
         Src {
             row: self.window(usize::from(index)),
@@ -252,7 +230,6 @@ impl<'w, T: Copy> Store<'w, T> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn many(&self, index: u16) -> Src<'w, T> {
         Src {
             row: self.row(index),
@@ -269,17 +246,16 @@ pub(super) struct Range {
     end: u8,
 }
 
+#[iram]
 impl Range {
     pub(super) const EMPTY: Self = Self { start: 0, end: 0 };
 
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn new(start: u8, end: u8) -> Self {
         Self { start, end }
     }
 
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn get(self) -> (u8, u8) {
         (self.start, self.end)
     }
@@ -287,7 +263,7 @@ impl Range {
 
 /// A selection of one range.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn range(start: u8, end: u8) -> [Cell<Range>; 1] {
     [Cell::new(Range::new(start, end))]
 }
@@ -319,7 +295,7 @@ impl<'w> Levels<'w> {
     }
 
     /// The next level, and the levels inside it.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn split(self) -> (Level<'w>, Self) {
         let (sets, inner_sets) = self.sets.split_at(2 * STRIP);
         let (running, inner_running) = self.running.split_at(STRIP);
@@ -341,7 +317,7 @@ impl<'w> Levels<'w> {
 }
 
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn each(sel: Sel<'_>, mut visit: impl FnMut(usize)) {
     for range in sel.0 {
         let (start, end) = range.get().get();
@@ -353,7 +329,7 @@ fn each(sel: Sel<'_>, mut visit: impl FnMut(usize)) {
 
 /// The runs of the selected pixels where `keep` holds, written into `buffer`;
 /// returns how many.
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn filter(sel: Sel<'_>, buffer: &[Cell<Range>], keep: impl Fn(usize) -> bool) -> usize {
     let mut count = 0;
     let mut push = |start: usize, end: usize| {
@@ -390,14 +366,13 @@ pub(super) struct Src<'r, T> {
     mask: usize,
 }
 
+#[iram]
 impl<T: Copy> Src<'_, T> {
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(super) fn at(self, index: usize) -> T {
         self.row[index & self.mask & MASK].get()
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn is_scalar(self) -> bool {
         self.mask == 0
     }
@@ -415,7 +390,7 @@ type ColorSrc<'r> = [Src<'r, f32>; 3];
 pub(super) type ColorDst<'r> = [Dst<'r, f32>; 3];
 
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn color_at(color: ColorSrc<'_>, index: usize) -> Color {
     Color {
         red: color[0].at(index),
@@ -426,7 +401,7 @@ fn color_at(color: ColorSrc<'_>, index: usize) -> Color {
 
 /// Write `value(i)` at the selected pixels of a color, or once for a scalar.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 pub(super) fn pick_color(sel: Sel<'_>, dst: ColorDst<'_>, value: impl Fn(usize) -> Color) {
     match dst {
         [Dst::Many(red), Dst::Many(green), Dst::Many(blue)] => each(sel, |i| {
@@ -448,7 +423,7 @@ pub(super) fn pick_color(sel: Sel<'_>, dst: ColorDst<'_>, value: impl Fn(usize) 
 
 /// Cheap operations: rows, and a row with a scalar, have their own loops.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn map1<A: Copy, D: Copy>(sel: Sel<'_>, dst: Dst<'_, D>, a: Src<'_, A>, f: impl Fn(A) -> D) {
     match dst {
         Dst::One(dst) => dst.set(f(a.at(0))),
@@ -461,7 +436,7 @@ fn map1<A: Copy, D: Copy>(sel: Sel<'_>, dst: Dst<'_, D>, a: Src<'_, A>, f: impl 
 }
 
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn map2<A: Copy, B: Copy, D: Copy>(
     sel: Sel<'_>,
     dst: Dst<'_, D>,
@@ -483,7 +458,7 @@ fn map2<A: Copy, B: Copy, D: Copy>(
 }
 
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn map3<A: Copy, B: Copy, C: Copy, D: Copy>(
     sel: Sel<'_>,
     dst: Dst<'_, D>,
@@ -505,7 +480,7 @@ fn map3<A: Copy, B: Copy, C: Copy, D: Copy>(
 /// One operand of a costly operation: the operation, not operand dispatch,
 /// dominates, so one loop serves every operand kind.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 pub(super) fn apply1<A: Copy, D: Copy>(
     sel: Sel<'_>,
     dst: Dst<'_, D>,
@@ -519,7 +494,7 @@ pub(super) fn apply1<A: Copy, D: Copy>(
 }
 
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn apply2<A: Copy, B: Copy, D: Copy>(
     sel: Sel<'_>,
     dst: Dst<'_, D>,
@@ -534,7 +509,7 @@ fn apply2<A: Copy, B: Copy, D: Copy>(
 }
 
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 pub(super) fn apply3<A: Copy, B: Copy, C: Copy, D: Copy>(
     sel: Sel<'_>,
     dst: Dst<'_, D>,
@@ -551,25 +526,25 @@ pub(super) fn apply3<A: Copy, B: Copy, C: Copy, D: Copy>(
 
 /// Costly per-pixel operations, called rather than inlined into every loop.
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn unary(op: crate::dsl::bytecode::FloatUnary, value: f32) -> f32 {
     float_unary(op, value)
 }
 
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn binary(op: FloatBinary, a: f32, b: f32) -> f32 {
     float_binary(op, a, b)
 }
 
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn int(op: IntBinary, a: i32, b: i32) -> i32 {
     int_binary(op, a, b)
 }
 
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn component(op: ColorComponent, color: Color) -> f32 {
     match op {
         ColorComponent::Hue => color_hue(color),
@@ -579,20 +554,20 @@ fn component(op: ColorComponent, color: Color) -> f32 {
 }
 
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn hsv_color(hue: f32, saturation: f32, value: f32) -> Color {
     hsv(hue, saturation, value)
 }
 
 #[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn recolor(color: Color, hue: f32, shift: bool) -> Color {
     crate::sampling::recolor(color, hue, shift)
 }
 
 /// Offsets of pixel `i`'s range, as a reduction counts its iterations.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn offset_count(start: Src<'_, i32>, end: Src<'_, i32>, i: usize) -> i32 {
     end.at(i).wrapping_sub(start.at(i)).max(0)
 }
@@ -600,7 +575,7 @@ fn offset_count(start: Src<'_, i32>, end: Src<'_, i32>, i: usize) -> i32 {
 /// The union of the selected pixels' nonempty ranges, as `(first, past)`;
 /// `past <= first` when no pixel has one.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn range_union(start: Src<'_, i32>, end: Src<'_, i32>, sel: Sel<'_>) -> (i32, i32) {
     let (mut first, mut past) = (i32::MAX, i32::MIN);
     each(sel, |i| {
@@ -615,16 +590,9 @@ fn range_union(start: Src<'_, i32>, end: Src<'_, i32>, sel: Sel<'_>) -> (i32, i3
 
 /// `max` or `min` of two ints, one loop body for both orders.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn int_extreme(max: bool, a: i32, b: i32) -> i32 {
     if (b > a) == max && b != a { b } else { a }
-}
-
-/// The time of the last mark at or before `seconds`; NaN before the first.
-#[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn previous_mark_time(marks: &MarkWindow<'_>, seconds: f32, cursor: &Cell<usize>) -> f32 {
-    previous_mark(marks, seconds, cursor).map_or(f32::NAN, |(_, time)| time)
 }
 
 /// A stencil's neighborhood, read by every offset.
@@ -651,8 +619,8 @@ struct Weights<'s, 'm, 'w> {
     levels: Levels<'w>,
 }
 
+#[iram]
 impl NeighborWeights for Weights<'_, '_, '_> {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn weights(&mut self, colors: &[Color], weights: &mut [f32]) {
         for (colors, weights) in colors.chunks(STRIP).zip(weights.chunks_mut(STRIP)) {
             self.machine.fill_sample(self.sample, colors);
@@ -673,7 +641,6 @@ pub(crate) struct Bound<'a> {
     pub(crate) show: Show<'a>,
     pub(crate) program: ProgramView<'a>,
     pub(crate) params: ParamsView<'a>,
-    pub(crate) sections: Option<SectionsView<'a>>,
 }
 
 pub(crate) struct Strip<'a, 'w> {
@@ -686,8 +653,8 @@ pub(crate) struct Strip<'a, 'w> {
     extent: Extent,
 }
 
+#[iram]
 impl<'a, 'w> Strip<'a, 'w> {
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn new(
         bound: Bound<'a>,
         context: &RunContext,
@@ -703,14 +670,12 @@ impl<'a, 'w> Strip<'a, 'w> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn pixels(&self) -> &Pixels<'w> {
         &self.workspace.pixels
     }
 
     /// Evaluate the first `output.len()` pixels. They share a pixel count and
     /// target bounds.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn run(
         &mut self,
         pixel_count: usize,
@@ -769,7 +734,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     // Operand lookups run once per instruction, so they stay out of line: one
     // bounds check each rather than one per instruction arm.
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     pub(super) fn float(&self, slot: Slot) -> Src<'m, f32> {
         let ws = self.ws;
         let input = |row| Src { row, mask: MASK };
@@ -778,13 +743,12 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
             SlotKind::Row(index) => ws.floats.many(index),
             SlotKind::Input(Input::PixelX) => input(ws.pixels.x),
             SlotKind::Input(Input::PixelY) => input(ws.pixels.y),
-            SlotKind::Input(Input::PixelZ) => input(ws.pixels.structure().z),
-            SlotKind::Input(_) => input(ws.pixels.fraction),
+            SlotKind::Input(_) => input(ws.pixels.structure().z),
         }
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     pub(super) fn int(&self, slot: Slot) -> Src<'m, i32> {
         let ws = self.ws;
         match slot.kind() {
@@ -803,12 +767,12 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn boolean(&self, slot: Slot) -> Src<'m, bool> {
         operand(&self.ws.bools, slot)
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn color(&self, slot: Slot) -> ColorSrc<'m> {
         [
             self.float(slot),
@@ -818,30 +782,30 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     pub(super) fn handle(&self, slot: Slot) -> Src<'m, Handle> {
         operand(&self.ws.handles, slot)
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     pub(super) fn float_dst(&self, slot: Slot) -> Dst<'m, f32> {
         destination(&self.ws.floats, slot)
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     pub(super) fn int_dst(&self, slot: Slot) -> Dst<'m, i32> {
         destination(&self.ws.ints, slot)
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn bool_dst(&self, slot: Slot) -> Dst<'m, bool> {
         destination(&self.ws.bools, slot)
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     pub(super) fn color_dst(&self, slot: Slot) -> ColorDst<'m> {
         [
             self.float_dst(slot),
@@ -851,13 +815,13 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn handle_dst(&self, slot: Slot) -> Dst<'m, Handle> {
         destination(&self.ws.handles, slot)
     }
 
     /// The rows of the color row `slot`.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn color_rows(&self, slot: Slot) -> [&'m Row<f32>; 3] {
         let row = |dst| match dst {
             Dst::Many(row) => row,
@@ -868,7 +832,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     /// Write the first pixels of the color row `slot` from `colors`.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn fill_sample(&self, slot: Slot, colors: &[Color]) {
         let [red, green, blue] = self.color_rows(slot);
         for (k, color) in colors.iter().enumerate() {
@@ -879,21 +843,21 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     /// The first entry of a table row.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn set_first<T: Copy>(dst: Dst<'_, T>, value: T) {
         if let Dst::Many(row) = dst {
             row[0].set(value);
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn set_scalar<T: Copy>(dst: Dst<'_, T>, value: T) {
         if let Dst::One(dst) = dst {
             dst.set(value);
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn block(
         &self,
         code: &[InstructionWord],
@@ -954,7 +918,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn branch(
         &self,
         condition: Slot,
@@ -990,7 +954,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn reduce(
         &self,
         instruction: &Instruction,
@@ -1158,7 +1122,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     /// strips: its input is read once and its neighbor weights computed once,
     /// a strip at a time; then each offset runs its scalar code and
     /// accumulates its term at every selected pixel.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn stencil(
         &self,
         instruction: &Instruction,
@@ -1294,7 +1258,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     /// Combine offset `offset`'s term into `acc` at the selected pixels
     /// whose range holds it and whose neighbor there is in their fixture.
     #[allow(clippy::too_many_arguments)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn accumulate(
         &self,
         reducer: Reducer,
@@ -1361,7 +1325,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     /// A table: its block runs once per index, and each index's value lands
     /// in the table row.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn tabulate(
         &self,
         instruction: &Instruction,
@@ -1440,7 +1404,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     /// A scan: the provider computes it for the whole frame, once per query,
     /// with the weight block weighting each input color.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn scan(
         &self,
         instruction: &Instruction,
@@ -1487,7 +1451,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     /// Whether an `any` or `all` reduction has decided every selected pixel.
     #[inline(always)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn all_decided(&self, reducer: Reducer, acc: Slot, sel: Sel<'_>) -> bool {
         let (decided, any) = (self.boolean(acc), reducer == Reducer::Any);
         let mut open = false;
@@ -1496,7 +1460,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     /// Whether `value` at pixel `i` ends an early-exit reduction there.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn decides(&self, reducer: Reducer, value: Slot, i: usize) -> bool {
         match reducer {
             Reducer::Any => self.boolean(value).at(i),
@@ -1506,7 +1470,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     /// `acc = acc ⊕ value` for `max`, `min` and `sum`.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn combine(&self, reducer: Reducer, bank: Bank, acc: Slot, value: Slot, sel: Sel<'_>) {
         match bank {
             Bank::Float | Bank::Color => {
@@ -1547,7 +1511,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     /// `acc = acc ⊕ value` where the bool `mask` holds.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn combine_where(
         &self,
         reducer: Reducer,
@@ -1597,7 +1561,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn assign(&self, bank: Bank, dst: Slot, src: Slot, sel: Sel<'_>) {
         match bank {
             Bank::Float | Bank::Color => {
@@ -1612,63 +1576,45 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
     }
 
-    /// A bound resource parameter.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn resource(&self, bank: u16) -> crate::resources::ResourceSlot {
-        self.bound.params.resource(bank)
-    }
-
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn curve(&self, handle: Handle) -> CurveView<'m> {
-        let show = self.bound.show;
-        match handle.kind() {
-            Ok(index) => show.curve(index),
-            Err(bank) => self.bound.params.curve(show, self.resource(bank)),
-        }
+        self.bound.show.curve(handle.index())
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn gradient(&self, handle: Handle) -> (GradientSpace, &'m [GradientStop]) {
-        match handle.kind() {
-            Ok(index) => self.bound.show.gradient(index),
-            Err(_) => unreachable!("show gradients resolve when bound"),
-        }
+        self.bound.show.gradient(handle.index())
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     pub(super) fn marks(&self, handle: Handle) -> MarkWindow<'m> {
-        let show = self.bound.show;
-        match handle.kind() {
-            Ok(index) => show.marks(index),
-            Err(bank) => self.bound.params.marks(show, self.resource(bank)),
-        }
+        self.bound
+            .params
+            .marks(self.bound.show, handle.index(), self.context.origin)
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array(&self, handle: Handle) -> &'m [format::Value] {
-        match handle.kind() {
-            Ok(index) => self.bound.show.array(index),
-            Err(_) => unreachable!("show arrays resolve when bound"),
-        }
+    #[iram]
+    fn array(&self, handle: Handle) -> &'m [u32] {
+        self.bound.show.array(handle.index())
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn curve_query(&self, op: CurveOp, curve: Handle, value: f32, before: f32) -> f32 {
+    #[iram]
+    fn curve_query(&self, op: CurveOp, curve: Handle, value: f32, bound: f32) -> f32 {
         let curve = self.curve(curve);
         match op {
             CurveOp::Sample => curve.sample(value),
             CurveOp::Integral => curve.integral(value),
-            CurveOp::Crossing => curve.crossing(value),
-            CurveOp::LastCrossing => curve.last_crossing(value, before),
+            CurveOp::Crossing => curve.crossing(value, bound),
+            CurveOp::LastCrossing => curve.last_crossing(value, bound),
         }
     }
 
     /// `gradient_color_scaled` of one gradient over a strip.
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn gradient_strip(
         sel: Sel<'_>,
         dst: ColorDst<'_>,
@@ -1687,7 +1633,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn gradient_at(&self, gradient: Handle, position: f32, scale: Option<f32>) -> Color {
         let (space, stops) = self.gradient(gradient);
         match scale {
@@ -1698,7 +1644,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
 
     /// A gradient of each pixel's own at its position.
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn gradients(
         &self,
         sel: Sel<'_>,
@@ -1713,113 +1659,63 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn previous_mark(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> f32 {
-        previous_mark_time(&self.marks(marks), seconds, cursor)
-    }
-
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn length(&self, kind: Resource, resource: Handle) -> i32 {
-        match kind {
-            Resource::Marks => self.marks(resource).len() as i32,
-            _ => self.array(resource).len() as i32,
+    #[iram]
+    fn length(&self, marks: bool, resource: Handle) -> i32 {
+        if marks {
+            self.marks(resource).len() as i32
+        } else {
+            self.array(resource).len() as i32
         }
     }
 
     /// Item `index` of `array`, clamped to it; none of an empty array.
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn array_item(&self, array: Handle, index: i32) -> Option<&'m format::Value> {
+    #[iram]
+    fn array_item(&self, array: Handle, index: i32) -> Option<u32> {
         let items = self.array(array);
         if items.is_empty() {
             return None;
         }
-        Some(&items[clamp_array_index(index, items.len())])
-    }
-
-    /// An int array item: an int, or an enum option's index.
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn int_item(&self, item: Option<&format::Value>, default: i32) -> i32 {
-        match item {
-            Some(item) if matches!(item.kind, format::VALUE_INT | format::VALUE_ENUM) => {
-                item.word as i32
-            }
-            _ => default,
-        }
+        Some(items[clamp_array_index(index, items.len())])
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn mark_at(&self, marks: Handle, index: i32) -> f32 {
         mark_at(&self.marks(marks), index)
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn track(&self, handle: Handle) -> TrackView<'m> {
-        match handle.kind() {
-            Ok(index) => self.bound.show.audio(index),
-            Err(_) => unreachable!("show tracks resolve when bound"),
-        }
+        self.bound.show.audio(handle.index())
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn track_at(&self, track: Handle, channel: i32, seconds: f32) -> f32 {
         track_at(&self.track(track), channel, seconds)
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn mark_duration(&self, marks: Handle, index: i32) -> f32 {
         mark_duration(&self.marks(marks), index)
     }
 
     #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn previous_mark_index(&self, marks: Handle, seconds: f32, cursor: &Cell<usize>) -> i32 {
         previous_mark_index(&self.marks(marks), seconds, cursor)
     }
 
-    #[inline(never)]
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn section_query(
-        &self,
-        width: i32,
-        index: bool,
-        i: usize,
-        run: &Cell<Option<RunSections>>,
-    ) -> i32 {
-        let pixels = &self.ws.pixels;
-        let Some(target) = self.bound.sections else {
-            return single_section_query(
-                pixels.index[i & MASK].get(),
-                self.context.pixel_count,
-                width,
-                index,
-            );
-        };
-        let pixel = pixels.sections[i & MASK].get();
-        let sections = match run.get() {
-            Some(sections) if sections.key == (pixel.run, width) => sections,
-            _ => {
-                let sections = target.run_sections(pixel, width);
-                run.set(Some(sections));
-                sections
-            }
-        };
-        sections.query(pixel, index)
-    }
-
     /// A scalar of the query or target.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn context_float(&self, read: ContextRead) -> f32 {
         match read {
             ContextRead::Seconds => self.clock.seconds,
-            ContextRead::Progress => self.context.progress,
             ContextRead::Duration => self.clock.duration,
             ContextRead::FrameRate => self.context.frame_rate,
+            ContextRead::Origin => self.clock.origin,
             ContextRead::TargetMinX => self.extent.min[0],
             ContextRead::TargetMinY => self.extent.min[1],
             ContextRead::TargetMinZ => self.extent.min[2],
@@ -1829,7 +1725,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn step(&self, instruction: &Instruction, sel: Sel<'_>, signals: &mut dyn StripSignals) {
         use Instruction as I;
         let params = self.bound.params;
@@ -1854,24 +1750,14 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         pick_color(sel, self.color_dst(dst), |_| color);
                     }
                     Bank::Resource => {
-                        // A show resource resolves now; a rewritten one
-                        // when read.
-                        let slot = self.resource(index);
-                        let handle = if slot.store == crate::resources::STORE_SHOW {
-                            Handle::show(slot.index)
-                        } else {
-                            Handle::param(index)
-                        };
+                        let handle = Handle::show(params.resources[usize::from(index)]);
                         Self::set_scalar(self.handle_dst(dst), handle);
                     }
                 }
             }
-            I::Context { dst, read } => match read {
+            I::Context { dst, read, word } => match read {
                 ContextRead::PixelCount => {
                     Self::set_scalar(self.int_dst(dst), self.context.pixel_count);
-                }
-                ContextRead::Frame => {
-                    Self::set_scalar(self.int_dst(dst), self.context.frame as i32);
                 }
                 ContextRead::TargetMembers => {
                     Self::set_scalar(self.int_dst(dst), self.extent.members);
@@ -1881,6 +1767,10 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 }
                 ContextRead::TargetStrandLength => {
                     Self::set_scalar(self.int_dst(dst), self.extent.strand_length);
+                }
+                ContextRead::Live => {
+                    let value = params.live.values[self.int(word).at(0) as usize];
+                    Self::set_scalar(self.float_dst(dst), value);
                 }
                 read => Self::set_scalar(self.float_dst(dst), self.context_float(read)),
             },
@@ -2022,9 +1912,11 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                     }
                     (CurveOp::Crossing, 0) => {
                         let view = self.curve(curve.at(0));
-                        map1(sel, dst, value, |value| view.crossing(value));
+                        map2(sel, dst, value, self.float(before), |value, after| {
+                            view.crossing(value, after)
+                        });
                     }
-                    (CurveOp::LastCrossing, _) => apply3(
+                    (CurveOp::Crossing | CurveOp::LastCrossing, _) => apply3(
                         sel,
                         dst,
                         curve,
@@ -2110,11 +2002,6 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                                 self.mark_duration(marks.at(0), index)
                             });
                         }
-                        MarkOp::Last => {
-                            map1(sel, self.float_dst(dst), self.float(operand), |seconds| {
-                                previous_mark_time(&window, seconds, &cursor)
-                            });
-                        }
                         MarkOp::LastIndex => {
                             map1(sel, self.int_dst(dst), self.float(operand), |seconds| {
                                 previous_mark_index(&window, seconds, &cursor)
@@ -2138,13 +2025,6 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                         self.int(operand),
                         |marks, index| self.mark_duration(marks, index),
                     ),
-                    MarkOp::Last => apply2(
-                        sel,
-                        self.float_dst(dst),
-                        marks,
-                        self.float(operand),
-                        |marks, seconds| self.previous_mark(marks, seconds, &cursor),
-                    ),
                     MarkOp::LastIndex => apply2(
                         sel,
                         self.int_dst(dst),
@@ -2155,11 +2035,11 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 }
             }
             I::Length {
-                kind,
+                marks,
                 dst,
                 resource,
             } => apply1(sel, self.int_dst(dst), self.handle(resource), |resource| {
-                self.length(kind, resource)
+                self.length(marks, resource)
             }),
             I::Index {
                 bank,
@@ -2216,13 +2096,6 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
                 }
             }
             I::Move { bank, dst, src } => self.assign(bank, dst, src, sel),
-            I::Section { index, dst, width } => {
-                let (dst, width) = (self.int_dst(dst), self.int(width));
-                let run = Cell::new(None);
-                pick_each(sel, dst, |i| {
-                    self.section_query(width.at(i), index, i, &run)
-                });
-            }
             I::Read { .. } => self.sample(instruction, sel, signals),
             I::Lookup {
                 bank,
@@ -2266,7 +2139,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn compare(&self, op: CompareOp, bank: Bank, dst: Slot, a: Slot, b: Slot, sel: Sel<'_>) {
         let dst = self.bool_dst(dst);
         match bank {
@@ -2302,52 +2175,46 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 
     /// Array items. Indices clamp; an empty array reads the default.
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn index(&self, bank: Bank, dst: Slot, array: Slot, index: Slot, default: Slot, sel: Sel<'_>) {
         let (array, index) = (self.handle(array), self.int(index));
         let item = |i: usize| self.array_item(array.at(i), index.at(i));
         match bank {
             Bank::Float => {
                 let default = self.float(default);
-                pick_each(sel, self.float_dst(dst), |i| match item(i) {
-                    Some(item) if item.kind == format::VALUE_FLOAT => f32::from_bits(item.word),
-                    Some(item) if item.kind == format::VALUE_INT => item.word as i32 as f32,
-                    _ => default.at(i),
+                pick_each(sel, self.float_dst(dst), |i| {
+                    item(i).map_or(default.at(i), f32::from_bits)
                 });
             }
             Bank::Int => {
                 let default = self.int(default);
                 pick_each(sel, self.int_dst(dst), |i| {
-                    self.int_item(item(i), default.at(i))
+                    item(i).map_or(default.at(i), |word| word as i32)
                 });
             }
             Bank::Bool => {
                 let default = self.boolean(default);
-                pick_each(sel, self.bool_dst(dst), |i| match item(i) {
-                    Some(item) if item.kind == format::VALUE_BOOL => item.word != 0,
-                    _ => default.at(i),
+                pick_each(sel, self.bool_dst(dst), |i| {
+                    item(i).map_or(default.at(i), |word| word != 0)
                 });
             }
             Bank::Color => {
                 let default = self.color(default);
                 pick_color(sel, self.color_dst(dst), |i| match item(i) {
-                    Some(item) if item.kind == format::VALUE_COLOR => {
-                        word_color(self.bound.show, item.word)
-                    }
-                    _ => color_at(default, i),
+                    Some(word) => word_color(self.bound.show, word),
+                    None => color_at(default, i),
                 });
             }
             Bank::Resource => {
                 let default = self.handle(default);
-                pick_each(sel, self.handle_dst(dst), |i| match item(i) {
-                    Some(item) => Handle::show(item.word),
-                    _ => default.at(i),
+                pick_each(sel, self.handle_dst(dst), |i| {
+                    item(i).map_or(default.at(i), Handle::show)
                 });
             }
         }
     }
 
-    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    #[iram]
     fn sample(&self, instruction: &Instruction, sel: Sel<'_>, signals: &mut dyn StripSignals) {
         let Instruction::Read { dst, input, pixel } = *instruction else {
             unreachable!("dispatched by step")
@@ -2374,7 +2241,7 @@ impl<'m, 'w: 'm> Machine<'m, 'w> {
     }
 }
 
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn choose<T>(condition: bool, yes: T, no: T) -> T {
     if condition { yes } else { no }
 }
@@ -2382,7 +2249,7 @@ fn choose<T>(condition: bool, yes: T, no: T) -> T {
 /// How many of the first `len` entries of an ascending table hold
 /// `at_most`: the place a value goes among them.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn partition(len: i32, at_most: impl Fn(usize) -> bool) -> i32 {
     let (mut low, mut high) = (0, len.clamp(0, STRIP as i32) as usize);
     while low < high {
@@ -2398,7 +2265,7 @@ fn partition(len: i32, at_most: impl Fn(usize) -> bool) -> i32 {
 
 /// Write `value(i)` at the selected pixels, or once for a scalar destination.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn pick_each<T: Copy>(sel: Sel<'_>, dst: Dst<'_, T>, value: impl Fn(usize) -> T) {
     match dst {
         Dst::One(dst) => dst.set(value(0)),
@@ -2407,7 +2274,7 @@ fn pick_each<T: Copy>(sel: Sel<'_>, dst: Dst<'_, T>, value: impl Fn(usize) -> T)
 }
 
 /// An operand of a bank without pixel inputs.
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn operand<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Src<'s, T> {
     match slot.kind() {
         SlotKind::Scalar(index) => store.one(index),
@@ -2416,7 +2283,7 @@ fn operand<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Src<'s, T> {
     }
 }
 
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn destination<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Dst<'s, T> {
     match slot.kind() {
         SlotKind::Scalar(index) => Dst::One(store.scalar(index)),
@@ -2427,7 +2294,7 @@ fn destination<'s, T: Copy>(store: &'s Store<'_, T>, slot: Slot) -> Dst<'s, T> {
 
 /// Add a position to the last segment when it continues it, or start one.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn extend(segments: &mut [Segment], count: &mut usize, at: i32, key: i32) {
     if let Some(last) = count.checked_sub(1).map(|last| &mut segments[last])
         && i32::from(last.end) == at
@@ -2446,7 +2313,7 @@ fn extend(segments: &mut [Segment], count: &mut usize, at: i32, key: i32) {
 
 /// `acc += color * factor` at pixel `i`, or the channelwise max.
 #[inline(always)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+#[iram]
 fn combine_term(acc: [&Row<f32>; 3], i: usize, color: Color, factor: f32, max: bool) {
     for (acc, channel) in acc.iter().zip([color.red, color.green, color.blue]) {
         let term = channel * factor;

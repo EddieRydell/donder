@@ -2,7 +2,6 @@
 //! are computed now and become parameter slots; scheduling places every other
 //! node in a stage and region; the backend emits strip bytecode.
 mod emit;
-mod explain;
 mod schedule;
 mod slots;
 
@@ -11,19 +10,16 @@ use super::ir::interval::{Bounds, interval};
 use super::ir::{
     Binary, Domain, Evaluator, Graph, Node, Op, Param, Rebuild, Substitute, TooManyLoops,
 };
-use donder_runtime_types::PreparedAutomation;
 use donder_runtime_types::Program;
 use donder_runtime_types::bytecode::STRIP;
 use donder_runtime_types::{Type, Value};
 use std::collections::{HashMap, HashSet};
 
-/// A lowered program and the parameter values and automation it reads,
-/// not yet bound: preparation shares equal programs before binding them.
+/// A lowered program and the parameter values it reads, not yet bound: preparation shares equal programs before binding them.
 #[derive(Clone, Debug)]
 pub struct Lowered {
     pub program: Program,
     pub values: Vec<Value>,
-    pub automation: Box<[PreparedAutomation]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,27 +43,10 @@ impl From<TooManyLoops> for LowerError {
 }
 
 impl Instance {
-    /// The prepared dataflow graph, its execution plan and its bytecode.
-    pub fn explain(&self) -> String {
-        self.try_explain()
-            .unwrap_or_else(|error| format!("lowering failed: {error:?}"))
-    }
-
-    /// The program, its parameter values and automation.
+    /// The program and its parameter values.
     pub fn lower(&self) -> Lowered {
         self.try_lower()
             .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"))
-    }
-
-    fn try_explain(&self) -> Result<String, LowerError> {
-        let prepared = prepare(self)?;
-        let plan = schedule::schedule(&prepared.graph, prepared.root);
-        let bytecode = emit::emit(&prepared.graph, prepared.root, &plan)?;
-        Ok(explain::explain(
-            &prepared,
-            &plan,
-            &donder_runtime_types::bytecode::listing(&bytecode),
-        ))
     }
 
     pub(crate) fn try_lower(&self) -> Result<Lowered, LowerError> {
@@ -80,7 +59,6 @@ impl Instance {
                 inputs: self.inputs(),
             },
             values: prepared.values,
-            automation: prepared.automation.into(),
         })
     }
 }
@@ -90,7 +68,6 @@ pub(crate) struct Prepared {
     graph: Graph,
     root: Node,
     values: Vec<Value>,
-    automation: Vec<PreparedAutomation>,
 }
 
 /// Evaluate every value fixed for the instance. Those that a playback-time
@@ -98,10 +75,13 @@ pub(crate) struct Prepared {
 /// parameters; nothing else fixed survives.
 fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
     let graph = &instance.graph;
-    let automated: HashSet<u32> = instance
-        .automation
+    // Parameters left to playback keep their slots, first.
+    let automated: HashSet<u32> = graph
+        .params()
         .iter()
-        .map(|binding| u32::from(binding.param_index))
+        .enumerate()
+        .filter(|(_, param)| param.domain == Domain::TIME)
+        .map(|(index, _)| index as u32)
         .collect();
     let known: Vec<Option<Value>> = instance
         .values
@@ -185,15 +165,6 @@ fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
             reciprocal(fixed.get(&node)).unwrap_or_else(|| unreachable!("checked reciprocal")),
         ));
     }
-    let automation = instance
-        .automation
-        .iter()
-        .cloned()
-        .map(|mut binding| {
-            binding.param_index = remap[&u32::from(binding.param_index)] as u16;
-            binding
-        })
-        .collect();
     // Fixed slots hold known values; automated ones change during playback.
     let ranges: Vec<Option<(f64, f64)>> = values
         .iter()
@@ -231,7 +202,6 @@ fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         graph: target,
         root,
         values,
-        automation,
     })
 }
 

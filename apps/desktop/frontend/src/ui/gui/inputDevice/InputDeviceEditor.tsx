@@ -1,12 +1,13 @@
-import type { GuiEditCommand, GuiInputControl, GuiInputDriver, InputDeviceGuiDocument } from "../../../types";
+import type { GuiEdit, GuiInputControl, GuiInputDriver, InputDeviceGuiDocument } from "../../../types";
 import { InputDeviceForm } from "./InputDeviceForm";
+import { site } from "../edits";
 
-const deviceEdit = (driver: GuiInputDriver, controls: GuiInputControl[]): GuiEditCommand => ({ type: "inputDevice", driver, controls });
+const deviceEdit = (driver: GuiInputDriver, controls: GuiInputControl[]): GuiEdit => ({ type: "put", sites: [site(null)], value: { type: "inputDevice", driver, controls } });
 
 export function InputDeviceEditor({ document }: { document: InputDeviceGuiDocument }) {
-  return <main className="setup-editor">
+  return <main className="object-editor">
     <header className="object-overview-header"><h2>{document.device.name}</h2></header>
-    <section className="setup-section input-device-section"><InputDeviceForm
+    <section className="object-section input-device-section"><InputDeviceForm
       device={document.device}
       keyCodes={document.keyCodes}
       limits={document.inputLimits}

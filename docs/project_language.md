@@ -1,8 +1,8 @@
 # Donder project language
 
 A Donder project is a folder of documents written in one language. Data
-documents describe what the editor edits: the project, setups, controllers,
-layouts, fixtures, patches, sequences, curves and gradients. Script documents
+documents describe what the editor edits: the project, controllers, input
+devices, the layout, fixtures, sequences, consoles, curves and gradients. Script documents
 hold effects and operators in the [effect language](effect_language.md). Both
 kinds share one lexer and one set of literal rules. Project IO loads the
 documents into the typed `DonderProject`, which is authoritative from then on.
@@ -81,9 +81,8 @@ import       = "import" name "from" path ("," path)* ";"
 declaration  = TypeName name record_body
 record_body  = "{" (field ("," field)* ","?)? "}"
 field        = name ":" value
-value        = literal | reference | list | tuple | record | named | map
+value        = literal | reference | list | tuple | record | map
 record       = TypeName record_body?        -- a fieldless variant is its bare name
-named        = TypeName name record_body    -- an owned collection member
 list         = "[" (value ("," value)* ","?)? "]"
 tuple        = "(" value "," value ("," value)* ")"
 map          = "{" (name ":" value ("," name ":" value)* ","?)? "}"
@@ -117,13 +116,12 @@ does not also report the fields the error swallowed.
 
 ## Names and references
 
-**Every object other objects refer to has a name**: setups, controllers,
-input devices, controls, layouts, fixtures, groups, fixture definitions, fixture
-shapes, patches, sequences, layers, clips, mark collections, graph operator
-nodes, consoles, console clips, live mark collections, curves
-and gradients. The name is the object's only identity: references use it, and the
-GUI shows and edits it. Objects nothing refers to (routes, automation clips,
-edges, console events) have no name. No document contains a numeric ID; loading assigns session
+**Every object other objects refer to has a name**: controllers, input
+devices, controls, the layout, fixtures, groups, fixture definitions, fixture
+shapes, sequences, layers, clips (envelopes among them), mark collections,
+graph operator nodes, consoles, curves and gradients. The name is the object's
+only identity: references use it, and the GUI shows and edits it. Objects
+nothing refers to (routes, edges, console events) have no name. No document contains a numeric ID; loading assigns session
 identities in document order.
 
 | Object | Unique within |
@@ -148,41 +146,37 @@ converted to `snake_case` (`Glow Trail` becomes `glow_trail`).
   layer, node, clip or live mark collection of the same console;
 - `layers.layer` in an edge's `from:` reaches a layer's graph node;
 - `alias.name` reaches a top-level declaration of an imported document;
-- `layout.fixture` reaches a fixture or group of a layout, whatever groups list
-  it, so changing group membership changes no reference;
-- `device.control` reaches a button or axis of an input device;
-- an owned object is reached through its owner and the owning fields:
-  `show.setup.layout`, `show.setup.controllers.main`, `show.setup.layout.desk`,
-  `show.setup.input_devices.pad.hit`.
+- a fixture or group of the project's layout is named alone, `all_outputs`,
+  without an import, whatever groups list it, so changing group membership
+  changes no reference;
+- `device.control` reaches a button or axis of an input device.
 
 The expected kind comes from the schema, so a reference to the wrong kind of
 object is an error at the reference.
 
-## Owned and shared objects
+## Objects
 
-Some fields take either a reference or the object written in place, which its
-owner then owns: a project's `setup`, `sequences` and `consoles`, a setup's
-`layout`, `patch`, `controllers` and `input_devices`, and a fixture's
-`definition`. Owned and shared
-objects behave differently, so the two forms are two meanings, not two
-spellings: an owned object is copied and deleted with its owner, and a shared one
-is edited once for every user. An owned single value is a record
-(`setup: Setup { ... }`); an owned collection member carries its name
-(`controllers: [Controller main { ... }]`). Effect and operator code is always a
-named script declaration. Parameter values, clips, layers and groups are always
-owned.
+Every object is a top-level declaration: nothing is written inside another
+object. A fixture names its `definition`, a declaration of its layout's document
+or of another one it imports. Parameter values, clips, layers and groups are
+values of the object that holds them, and a parameter's curve or gradient is
+written in the value or names a declared one. Effect and operator code is always
+a named script declaration.
 
 The GUI names every sequence, console, controller, input device and fixture
 when it is added and declares it in a document of its own,
 `<folder>/<name>.data.donder`, such as `sequences/opening.data.donder`; a name
-whose document exists is refused. The project and setup overviews rename and
-delete their members. Renaming a member alone in its document renames the
-document to match, and renaming an owned member moves it into a document of its
-own. Deleting a member removes its document, after the editor lists what else
-changes; moving or deleting a document clears undo. Owned values are written in
-text. Linked curves and gradients follow their declaration; making one
+whose document exists is refused. The project overview renames and deletes its
+members. Renaming a member alone in its document renames the
+document to match. Deleting a member removes its document, after the editor lists
+what else changes; moving or deleting a document clears undo. Duplicating a
+fixture copies its definition under the copy's name, declared beside the layout,
+so the copy's geometry is its own; deleting the last fixture that places a
+definition declared in the layout's document deletes that definition. Linked
+curves and gradients follow their declaration; making one
 independent keeps its current value in the parameter. Imports follow typed
-references, and undo and redo include document registration and imports.
+references, a new document is imported from the root, and undo and redo include
+document registration and imports.
 
 ## Imports
 
@@ -202,16 +196,16 @@ import layouts from <layouts/outputs.data.donder>;
   following its imports.
 - Scripts import nothing; their functions are document-local.
 - When the GUI references an object in another document, it reuses an import or
-  adds one with a deterministic alias such as `effects` or `effects_2`.
-- The project is the documents reachable by imports from `project.data.donder`;
-  a file in the folder is not part of it until something imports it. Each
+  adds one with a deterministic alias such as `scripts` or `scripts_2`.
+- The project is the documents reachable by imports from `project.data.donder`
+  and every object they declare, in the order the loader meets them: each
+  document's declarations, then the documents it imports. A file in the folder
+  is not part of it until something imports it. Each
   `*.donder` file nothing reaches gets a warning, with a fix that imports it
   from the root. The fix extends the root import named for what the document
-  declares (`effects`, `operators`, `scripts` for both, `layouts`, `sequences`,
-  `consoles`, `devices`, ...), or the first `alias_2`, `alias_3`, ... without a
-  name clash. It also adds a document's sequences and consoles to the project's
-  `sequences` and `consoles`. A setup has no fix,
-  because the project names exactly one.
+  declares (`scripts`, `layouts`, `sequences`, `consoles`, `devices`, ...), or the first `alias_2`, `alias_3`, ... without a
+  name clash. A project has exactly one layout, the one its
+  root names; another `Layout` in a document it reaches is a load error.
 
 Prepared playback never sees paths, aliases or names.
 
@@ -223,16 +217,30 @@ a list.
 ### Project
 
 ```text
-import setups from <setups/setup.data.donder>;
+import layouts from <layouts/outputs.data.donder>;
+import devices from <input_devices/keyboard.data.donder>;
+import controllers from <controllers/controllers.data.donder>;
 import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;
 import consoles from <consoles/jam.data.donder>;
 
 Project starter {
-  format: 2,
+  format: 9,
   description: none,
-  setup: setups.setup,
-  sequences: [sequences.empty, sequences.layer_test],
-  consoles: [consoles.jam],
+  layout: layouts.outputs_layout,
+  routes: [
+    Route {
+      target: output_01,
+      pixels: none,
+      reverse: false,
+      controller: controllers.output_controller,
+      port: "1",
+      start: Next,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+      dither: false,
+    },
+  ],
 }
 ```
 
@@ -240,34 +248,27 @@ Project starter {
 | --- | --- |
 | `format` | integer, the current format marker |
 | `description` | `Option<string>` |
-| `setup` | a `Setup` reference or `Setup { ... }` |
-| `sequences` | `[Sequence reference or Sequence name { ... }]` |
-| `consoles` | `[Console reference or Console name { ... }]` |
+| `layout` | a `Layout` reference: the project's one layout |
+| `routes` | `[Route]`, how the layout's fixtures are wired to the controllers |
 
 The root document `project.data.donder` holds exactly one `Project`, which no
 other document may declare. Its `format` marks the current
 project format, `PROJECT_FORMAT_VERSION` in `donder-project-io`: any change to
 any document format bumps it. The loader reads it before decoding anything else
 and refuses a project in another format; there are no migrations. The root document cannot be moved, renamed or
-deleted, and there is no other manifest, lockfile or asset inventory.
+deleted, and there is no other manifest, lockfile or asset inventory. The project's
+controllers, input devices, sequences and consoles are those its documents
+declare.
 
-New projects start as a single `project.data.donder` with an owned setup, an
-empty layout and patch, no controllers or input devices, one owned sequence
-and no consoles. The root document imports the
-bundled standard effect and operator libraries, so the initial sequence can use
-them; other sequence documents need their own imports.
+New projects start with `project.data.donder`, an empty layout in
+`layouts/layout.data.donder`, one sequence in `sequences/sequence.data.donder`,
+and no controllers, input devices, routes or consoles. The root document
+imports the bundled standard effect and operator libraries, so they are part of
+the project; a sequence document imports the ones it uses.
 
-### Setup and controllers
+### Controllers
 
 ```text
-Setup main {
-  description: none,
-  layout: layouts.outputs_layout,
-  patch: patches.outputs,
-  controllers: [output_controller],
-  input_devices: [devices.keyboard],
-}
-
 Controller output_controller {
   description: none,
   protocol: E131 {
@@ -292,8 +293,6 @@ Controller dig_quad {
 }
 ```
 
-- `Setup`: `description`, `layout`, `patch`, `controllers: [controller]`,
-  `input_devices: [input device]`.
 - `Controller`: `description`, `protocol`.
 - `protocol` is one of:
   - `E131 { sender_name, bind_address, priority, mode, start_universe,
@@ -339,13 +338,13 @@ InputDevice keyboard {
 }
 ```
 
-- `InputDevice`: `description`, `driver`, `controls`. The setup lists the input
-  devices its consoles play from.
+- `InputDevice`: `description`, `driver`, `controls`. Every input device the
+  project's documents declare is one its consoles can play from.
 - `driver` is `Keyboard`, the computer keyboard; `Midi { port }`, the MIDI
   input ports whose name contains `port`, ignoring case, or every port when it
   is `none`; or `Osc { port }`, OSC messages sent over UDP to `port`, from 1 to
-  65535, on every network interface. No two OSC devices of a setup share a
-  port.
+  65535, on every network interface. No two OSC devices of a project share
+  a port.
 - A control is `Button { name, description, input }`, pressed or released, or
   `Axis { name, description, input }`, a position from 0 to 1.
 - A keyboard button's `input` is `Key { code }`. `code` is a key by its browser
@@ -377,7 +376,7 @@ InputDevice keyboard {
   inputs of the same kind conflict when they share a note or number and a
   channel: when either reads every channel, or both read the same one.
 
-In the GUI, the setup adds and attaches input devices, and an input device
+In the GUI, the project overview adds and attaches input devices, and an input device
 opens in its own editor.
 
 ### Layouts and fixtures
@@ -422,8 +421,7 @@ FixtureDefinition vertical_113 {
 - `Layout`: `description`, `root`, `items`. `items` lists every fixture and
   group once, each `Group { name, description, members }` or
   `Fixture { name, description, definition, transform }`, where `definition` is
-  a `FixtureDefinition` reference or `FixtureDefinition { ... }` owned by that
-  fixture. Fixture order in `items` is placement order.
+  a `FixtureDefinition` reference. Fixture order in `items` is placement order.
 - `root` and a group's `members` name items of the layout in display order. An
   item may be a member of several groups, and of the root as well. Each list
   names an item once, a group cannot contain itself through its members, and
@@ -457,33 +455,17 @@ Each shape is a strand, which effects read as `pixel.strand` and
 `pixel.along`; a grid's rows (or columns, along its `axis`) are a strand each,
 in wiring order.
 
-### Patches
+### Routes
 
-```text
-Patch outputs {
-  description: none,
-  routes: [
-    Route {
-      target: layouts.outputs_layout.output_01,
-      pixels: none,
-      reverse: false,
-      controller: setups.output_controller,
-      port: "1",
-      start: Next,
-      encoding: Rgb { order: (1, 0, 2) },
-      gamma: 1.0,
-      brightness: 1.0,
-      dither: false,
-    },
-  ],
-}
-```
+The project's `routes` wire its layout's fixtures to its controllers' ports;
+the project example above has one. In the GUI, Outputs on the project overview
+edits them.
 
 - `Route`: `target` (a fixture; groups are not routed), `pixels`, `reverse`,
   `controller`, `port`, `start`, `encoding`, `gamma`, `brightness`, `dither`.
 - `port` names one of the controller's ports.
 - `start` is `Next` or `Channel { channel }`:
-  - `Next` begins right after the route before it on its port, in patch order.
+  - `Next` begins right after the route before it on its port, in route order.
     The first route on an E1.31 or Art-Net port begins right after the last
     route on the controller's previous port, or at channel 0 on its first
     port. The first route on a Donder port begins at the port's channel 0.
@@ -534,13 +516,29 @@ Sequence layer_test {
     Clip {
       name: pulse,
       description: none,
-      layer: default,
-      start: 58.971401s,
-      duration: 1s,
-      target: elements.outputs_layout.all_outputs,
-      scope: WholeTarget,
-      effect: effects.Pulse,
-      params: { gradient: gradients.ember_core_gradient, pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] } },
+      target: all_outputs,
+      placement: Timed { start: 58.971401s, duration: 1s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: gradients.ember_core_gradient,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: envelope,
+      description: none,
+      target: all_outputs,
+      placement: Timed { start: 0s, duration: 249.753832s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.505), (0.103248, 0.787)] },
+        bindings: [
+          Bound { binding: NodeParam { node: dim, param: amount }, window: (0.0, 1.0) },
+        ],
+      },
     },
   ],
   graph: Graph {
@@ -561,23 +559,11 @@ Sequence layer_test {
       Edge { from: dim, to: root },
     ],
   },
-  automation: [
-    AutomationClip {
-      row: elements.outputs_layout.all_outputs,
-      start: 0s,
-      duration: 249.753832s,
-      curve: Curve { points: [(0.0, 0.505), (0.103248, 0.787)] },
-      bindings: [
-        Bound { binding: NodeParam { node: dim, param: amount }, window: (0.0, 1.0) },
-      ],
-      detached: [],
-    },
-  ],
 }
 ```
 
 - `Sequence`: `description`, `duration`, `frame_rate`, `audio` (a path or
-  `none`), `marks`, `layers`, `clips`, `graph`, `automation`.
+  `none`), `marks`, `layers`, `clips`, `graph`.
 - `MarkCollection`: `name`, `description`, `color`, `times`, in time order. A mark is its time and
   duration, `(4s, 0s)`, or those and a one-line label, `(4s, 2.5s, "chorus")`, for lyric words, singers or
   section names. A beat lasts zero; a mark must end by the sequence's end. The timeline draws a lasting mark's
@@ -585,8 +571,15 @@ Sequence layer_test {
 - `Layer`: `name`, `description`, `color`, `enabled`. The first layer is the
   default layer, which new clips use and which cannot be deleted. Deleting
   another layer deletes its clips.
-- `Clip`: `name`, `description`, `layer`, `start`, `duration`, `target` (a
-  fixture or group), `scope` (`PerFixture` or `WholeTarget`), `effect`, `params`.
+- `Clip`: `name`, `description`, `target` (a fixture or group: what an effect
+  plays over, or the row an envelope is drawn in), `placement`, `content`.
+  `placement` is `Timed { start, duration }`, or, only for a console's effect,
+  `Played { values }` for a clip its actions play. `content` is
+  `Effect { layer, scope, effect, params }`, with `scope` `PerFixture` or
+  `WholeTarget`, or `Envelope { curve, bindings }`. A binding is
+  `Bound { binding, window }`, and its target is `ClipParam { clip, param }`,
+  a parameter of a timed effect clip, or `NodeParam { node, param }`. An
+  envelope may bind nothing.
 - **Parameters are overrides.** A parameter absent from `params` follows the
   definition's declared default, including when that default changes later; a
   parameter present keeps its value, even if it equals the default. Values are
@@ -614,20 +607,14 @@ Sequence layer_test {
   Every node has one output, so an edge names only the input it reaches:
   `to: dim.input` names an operator input and `to: root` the root
   node. `position` is the node's place on the graph canvas.
-- `AutomationClip`: `row` (the fixture or group whose automation row holds it),
-  `start`, `duration`, `curve`, `bindings` and `detached`. A target is
-  `ClipParam { clip, param }` or `NodeParam { node, param }`; a binding is
-  `Bound { binding, window }` and a detached binding is `Detached { binding }`.
-  Deleting a bound clip or node removes its bindings; a clip may be bound to
-  nothing.
 
-Every place a `0..1` value reaches a parameter (an automation binding, a
+Every place a `0..1` value reaches a parameter (an envelope's binding, a
 console's `Set` and a console's `PlayedValue`) has a `window: (low, high)`, the
 part of `0..1` the binding uses: the value `v` becomes `low + (high - low) * v`
 before it maps onto the parameter's range. `(0.0, 1.0)` is the whole range,
 `(0.0, 0.7)` stops at 70% of it and `(1.0, 0.0)` inverts it. Both ends lie in
-`0..1`. The window belongs to the binding, so one clip bound to two parameters
-has a window for each, and a detached binding keeps none.
+`0..1`. The window belongs to the binding, so one envelope bound to two
+parameters has a window for each.
 
 Layers produce signals, operators combine and transform them, and the single
 root node is what plays. Nodes not connected to the root are kept but not
@@ -635,47 +622,48 @@ prepared. An input with no edge, the root's included, is black. Any input may
 have several edges: they combine by their channel-wise maximum, as the clips
 of a layer do.
 
-Every fixture or group has one clip row and one automation row. A member of
-several groups shows its rows under each, and every copy holds the same clips.
-An automation clip's row is only placement: moving it between rows does not
-change its bindings. One clip can bind several parameters. The curve's `0..1`
-value, through the binding's window, maps onto each parameter's declared range (a curve parameter's point
-values), an enum's options in order, or a bool (on at 0.5). Several clips may
-bind the same parameter if they do not overlap in time; preparation merges them
-into one envelope. Before the first clip the parameter holds that clip's first
-value, and in a gap it holds the value the previous clip ended on, so splitting
-a clip leaves playback unchanged. When the GUI deletes a bound clip or operator, or
-replaces its definition so a parameter no longer fits, the binding moves to
-`detached`, so it can be reattached rather than silently lost.
+Every fixture or group has one row of effect clips and one row of envelopes. A
+member of several groups shows its rows under each, and every copy holds the
+same clips. An envelope's row is only placement: moving it between rows does
+not change its bindings. One envelope can bind several parameters. The curve's
+`0..1` value, through the binding's window, maps onto each parameter's declared
+range (a curve parameter's point values), an enum's options in order, or a bool
+(on at 0.5). Several envelopes may bind the same parameter if they do not
+overlap in time; preparation merges them into one curve. Before the first the
+parameter holds that envelope's first value, and in a gap it holds the value
+the previous one ended on, so splitting an envelope leaves playback unchanged.
+Deleting a bound clip or operator forgets its bindings; an edit that leaves a
+binding's parameter missing or unable to follow an envelope removes the
+binding, after asking.
 
 In the editor:
 
 - Copy and cut put the selection on the system clipboard as a data document:
-  one `Sequence clipboard`, the copied sequence with only the selected clips,
-  automation clips or marks, and the imports its references need. Paste reads
+  one `Sequence clipboard`, the copied sequence with only the selected clips
+  or marks, and the imports its references need. Paste reads
   that document against the open project, so any text in this format pastes,
   and other text is refused.
-- Copy and paste of clips and automation together keeps relative timing and
+- Copy and paste of effect clips and envelopes together keeps relative timing and
   target offsets, names pasted clips afresh, places each clip on the layer of
   its layer's name, and remaps bindings to the copies. Bindings to clips outside
   the copied selection are dropped, and a binding to an operator node is kept
-  when the sequence pasted into has the node and no overlapping automation clip
-  binds it; a lone automation clip pastes without clip bindings. Marks paste
+  when the sequence pasted into has the node and no overlapping envelope binds
+  it; a lone envelope pastes without clip bindings. Marks paste
   into the collections of their names.
 - A paste that does not fit is rejected as a whole. Moving, resizing, cutting or
   pasting a selection is one history entry.
-- Resizing an automation clip crops it: the edge moves over fixed content,
+- Resizing an envelope crops it: the edge moves over fixed content,
   points outside the new window are dropped, and a cut edge gains a point at the
   value it cut through. Holding Ctrl while resizing stretches the curve instead.
-  Splitting crops the clip into two clips with the same bindings.
-- The slice tool (C, or the scissors button) cuts effect clips: clicking cuts
-  the clip under the line, and dragging vertically cuts every clip the line
-  crosses, in one history entry. The right half is a fresh clip whose `time`
-  and `progress` start again at zero; it gains the same automation bindings as
-  the left half, so automation continues across the cut. Alt snaps the line to
+  Splitting crops it into two envelopes with the same bindings.
+- The slice tool (C, or the scissors button) cuts clips: clicking cuts the
+  clip under the line, and dragging vertically cuts every clip the line
+  crosses, in one history entry. The right half of an effect clip is a fresh
+  clip whose `time` and `progress` start again at zero; the envelopes that drive
+  the left half drive it too, so they continue across the cut. Alt snaps the line to
   marks, and Escape returns to selecting.
-- Curve points keep their authored order and edit as in FL Studio's automation
-  clips, minus tension (segments are straight). Clicking anywhere in a clip below
+- Envelope points keep their authored order and edit as in FL Studio's
+  automation clips, minus tension (segments are straight). Clicking anywhere in a clip below
   its header adds a point there and drags it; the header moves the clip. A point
   wins over the clip edge it sits on. Right-clicking a point removes it, and a
   right-drag removes every point it sweeps over (a curve keeps one). A dragged
@@ -702,65 +690,71 @@ console plays.
 Console jam {
   description: "Play the outputs live from the keyboard.",
   frame_rate: 100,
-  marks: [LiveMarks { name: beat, description: none, color: #22c55e }],
+  marks: [MarkCollection { name: beat, description: none, color: #22c55e, times: [] }],
   layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
   clips: [
-    ConsoleClip {
+    Clip {
       name: background,
       description: "Pulses on every tapped beat.",
-      layer: default,
-      target: elements.outputs_layout.all_outputs,
-      scope: WholeTarget,
-      effect: effects.MarkPulse,
-      params: {
-        beats: beat,
-        accent: gradients.cool_gradient,
-        pulse_shape: curves.ease_down,
-        decay_seconds: 0.01,
+      target: all_outputs,
+      placement: Played { values: [] },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.MarkPulse,
+        params: {
+          beats: beat,
+          accent: gradients.cool_gradient,
+          pulse_shape: curves.ease_down,
+          decay_seconds: 0.01,
+        },
       },
-      played: [],
     },
-    ConsoleClip {
+    Clip {
       name: flash,
       description: none,
-      layer: default,
-      target: elements.outputs_layout.all_outputs,
-      scope: WholeTarget,
-      effect: effects.Pulse,
-      params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
-      played: [],
+      target: all_outputs,
+      placement: Played { values: [] },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: { gradient: gradients.white_strobe_gradient, pulse_shape: curves.ease_down },
+      },
     },
-    ConsoleClip {
+    Clip {
       name: wash,
       description: none,
-      layer: default,
-      target: elements.outputs_layout.all_outputs,
-      scope: WholeTarget,
-      effect: effects.Pulse,
-      params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
-      played: [],
+      target: all_outputs,
+      placement: Played { values: [] },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: { gradient: gradients.aurora_gradient, pulse_shape: curves.center_peak },
+      },
     },
   ],
   always: [Always { clip: background, length: 4s }],
   events: [
     On {
-      event: Press { control: devices.keyboard.kick },
+      happening: Press, control: devices.keyboard.kick,
       actions: [Play { clip: flash, copies: 4, length: Fixed { duration: 0.4s } }],
     },
     On {
-      event: Press { control: devices.keyboard.swell },
+      happening: Press, control: devices.keyboard.swell,
       actions: [Start { clip: wash, length: 4s }],
     },
-    On { event: Release { control: devices.keyboard.swell }, actions: [Stop { clip: wash }] },
-    On { event: Press { control: devices.keyboard.tap }, actions: [Mark { into: beat }] },
+    On { happening: Release, control: devices.keyboard.swell, actions: [Stop { clip: wash }] },
+    On { happening: Press, control: devices.keyboard.tap, actions: [Mark { into: beat }] },
     On {
-      event: Press { control: devices.keyboard.boost },
+      happening: Press, control: devices.keyboard.boost,
       actions: [
         Set { param: ClipParam { clip: background, param: decay_seconds }, window: (0.0, 1.0) },
       ],
     },
     On {
-      event: Release { control: devices.keyboard.boost },
+      happening: Release, control: devices.keyboard.boost,
       actions: [
         Set { param: ClipParam { clip: background, param: decay_seconds }, window: (0.0, 1.0) },
       ],
@@ -778,24 +772,24 @@ Console jam {
 
 - `Console`: `description`, `frame_rate`, `marks`, `layers`, `clips`,
   `always`, `events`, `graph`.
-- `LiveMarks`: `name`, `description`, `color`. A live mark collection starts
-  empty each session and gains a mark each time a `Mark` action runs.
+- `marks` are a sequence's `MarkCollection`s with `times: []`: a console's
+  collection starts empty each session and gains a mark each time a `Mark`
+  action runs.
 - `layers` and `graph` are exactly a sequence's `Layer` and `Graph`, with the
   same rules: the first layer is the default, a layer is in at most one layer
   node, there is one output node, and operator inputs on the output path are
   connected.
-- `ConsoleClip`: `name`, `description`, `layer`, `target`, `scope`, `effect`,
-  `params`, `played`: a clip without `start` or `duration`. Parameters are a
-  clip's, except that a marks value names one of the console's live mark
-  collections, or is `none`. `played` are `PlayedValue { param, from, window }`:
+- `clips` are `Clip`s. A `Timed` clip plays on the session clock from the
+  session's start; actions, `always` and `Set`s name only `Played` clips. Marks
+  values name the console's mark collections. `values` are
+  `PlayedValue { param, from, window }`:
   each copy takes that parameter from the press that started it, `from`
   `Velocity` or `PitchClass`, through `window`, mapped onto
   the parameter's range as automation is.
 - `always` are `Always { clip, length }`: clips that play from the session's
   start, each starting again from its beginning every `length`.
-- `On`: `event`, `actions`. `event` is `Press { control }` or
-  `Release { control }` of a button, or `Move { control }` of an axis, each
-  `device.control`. `actions` run in order, and are each one of:
+- `On`: `happening`, `control`, `actions`. `happening` is `Press` or `Release`
+  of a button, or `Move` of an axis, and `control` is that `device.control`. `actions` run in order, and are each one of:
   - `Play { clip, copies, length }` plays a copy of `clip` on top of
     those playing, up to `copies` (1 to 16) at once, reusing the oldest.
     `length` is `Fixed { duration }` or `Scaled { by, shortest, longest }`,
@@ -820,10 +814,8 @@ Console jam {
     at the window's low end until the first `Set`. One control sets a parameter, by any
     of its events. Deleting a clip or node removes the `Set`s of its
     parameters.
-- Every input device a console of the project reads must be among the project
-  setup's `input_devices`, and its clips target the setup's layout.
 
-In the GUI, the project lists its consoles with a Perform button each, the setup
+In the GUI, the project lists its consoles with a Perform button each, the project
 lists its input devices, and each input device and console has its own editor;
 a console's layers and graph use the sequence graph editor.
 
@@ -863,8 +855,8 @@ sample.
 
 ### Descriptions
 
-The project, setups, controllers, input devices and their controls, layouts, fixtures
-and groups, fixture definitions, patches, sequences, layers, mark collections,
+The project, controllers, input devices and their controls, the layout, fixtures
+and groups, fixture definitions, sequences, layers, mark collections,
 clips, consoles, live mark collections, console clips, curves
 and gradients have a `description`. The GUI edits an open object's description in
 the bar above its editor, and an item's with the item: a layout item's in its
@@ -912,7 +904,9 @@ preparation does not repeat them.
   positive durations cannot round to zero.
 - Names are `snake_case` and unique where the table above says. Timed objects
   fit within the sequence.
-- Clips reference an existing layer, a compatible target and a defined effect,
+- Clips reference an existing layer, a fixture or group of the layout and an
+  effect (effects and operators are one kind of script definition; a clip's
+  must be an effect and an operator node's an operator),
   and supply every parameter that has no default and no unknown ones, each
   within its declared range. Reduction
   bounds that depend on an array or marks length must fit the 10,000-iteration
@@ -920,19 +914,20 @@ preparation does not repeat them.
 - The graph has one output, typed acyclic connections, and layer nodes that
   reference distinct layers. Operator definitions, parameters and port types
   are checked even on disconnected branches.
-- Active automation bindings target existing parameters that support
-  automation. A clip binds a target at most once (active or detached), and clips
-  that bind the same target do not overlap. Automation curve values and every
-  binding window's ends lie in 0..1.
+- An envelope's bindings target existing parameters of timed effect clips or
+  operator nodes that support automation. An envelope binds a target at most
+  once, and envelopes that bind the same target do not overlap. Envelope curve
+  values and every binding window's ends lie in 0..1. A console's envelopes
+  are timed and play on its session's clock.
 - A console's frame rate is positive and at most 1,000. Its clips follow the
-  clip rules without timing and all target one layout, and `always` names each
+  clip rules without timing, and `always` names each
   clip at most once. A clip is played either by `Play` actions or by `Start`,
   `Toggle` and `always`, not both. Actions name existing clips and live mark
   collections; `Set` names an automatable parameter of a console clip or operator
   node, which one control sets and no played value also sets; `copies` is 1 to
   16; lengths, `always`'s too, are positive, fit the playback clock and have `shortest` at most
   `longest`, and a length scaled by an axis names an axis.
-- Events read controls of input devices in the project's setup: `Press` and
+- Events read controls of the project's input devices: `Press` and
   `Release` a button, and `Move` an axis, which runs only `Set`. A clip's
   played values name automatable parameters of its effect, each at most once,
   that no `Set` writes; only `Press` events start the clip and it is not in
@@ -970,7 +965,7 @@ fields, value types, references and diagnostic ranges.
 
 - `donder_language::data` holds the syntax tree, the error-tolerant parser, the
   canonical printer and literal rules, and the schema traits (`Data`, `Record`,
-  `OwnedRecord`, `OwnedNamedRecord`, `Reference`, `Name`, `Params`, `Meters`, `Path`).
+  `Reference`, `Name`, `Params`, `Meters`, `Path`).
 - `donder_project_io::document` declares the document types, decodes declarations
   and encodes typed state; `loader` resolves declarations into the typed project.
   Domain validation stays with the domain types, which both loading and the

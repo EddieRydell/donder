@@ -5,7 +5,7 @@ use std::{io, io::Write};
 pub const PROJECT_ROOT_FILE: &str = "project.data.donder";
 /// The root `Project` declaration's `format`. Any change to a document
 /// format bumps it; a project in another format is refused, never migrated.
-pub const PROJECT_FORMAT_VERSION: u8 = 2;
+pub const PROJECT_FORMAT_VERSION: u8 = 9;
 
 /// The one editable source root of a local project.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -24,7 +24,7 @@ impl ProjectWorkspace {
 }
 
 /// Validate a portable project-root-relative file path before resolving it on disk.
-pub fn validate_relative_path(value: &str) -> Result<(), String> {
+pub(crate) fn validate_relative_path(value: &str) -> Result<(), String> {
     if value.is_empty()
         || value.contains('\\')
         || value.contains(':')

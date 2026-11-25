@@ -18,22 +18,25 @@ has one owner:
 
 | Crate | Owns |
 | --- | --- |
-| `donder-runtime-types` | What playback accepts and what it means, `no_std + alloc`: colors, curves, gradients, marks and sample time; the strip bytecode (`bytecode`); `Program` (bytecode and its signal input count; an effect's has none) and `BoundProgram` (a program bound to checked parameter values and automation); prepared inputs such as sequence timing, fixture and target geometry and output encodings; and the sampling math (`sampling`) shared by constant folding and evaluation. An item belongs here only if the runtime consumes it and an upstream crate produces it. |
+| `donder-runtime-types` | What playback accepts and what it means, `no_std + alloc`: colors, curves, gradients, marks and sample time; the strip bytecode (`bytecode`); `Program` (bytecode and its signal input count; an effect's has none) and `BoundProgram` (a program bound to checked parameter values); prepared inputs such as sequence timing, fixture and target geometry and output encodings; and the sampling math (`sampling`) shared by constant folding and evaluation. An item belongs here only if the runtime consumes it and an upstream crate produces it. |
 | `donder-language` | The text language. `data`: the data-document syntax tree, parser, printer, literal rules and schema traits. `compiler`: the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission). `analysis`: semantic tokens, symbols, hover and completion for editors. The root holds import syntax, naming rules and authored quantities (times, distances, transforms). It does not depend on the model or the runtime. |
 | `donder-data-derive` | `#[derive(Data)]` for the data-document types: a type's Rust definition is its project-language schema, records for structs and choices for enums. Used by `donder-project-io`. |
-| `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, consoles, effect and operator definitions, ownership, opaque object ids, geometry preparation, validation, and the validated edits that change it: `ProjectEdit::Put` and `ProjectEdit::Remove` batches over one `Object` enum, and the ownership edits. |
+| `donder-model` | The typed domain model: fixtures, the layout, routes, controllers, input devices, sequences, consoles, script definitions (effects and operators), opaque object ids, geometry preparation, validation, and the validated edits that change it: `ProjectEdit::Put` and `ProjectEdit::Remove` batches over one `Object` enum. |
 | `donder-project-io` | Source documents and object addresses, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence or a console and an output selection into a `PreparedShow`: targets, fixture geometry, bound programs, automation, the global signal graph (black-signal folding, operator fusion), retention. Sequences and consoles share one preparation (`stage::build`) and differ only in how they place their clips. See [output selection](output_selection.md). |
 | `donder-runtime` | `no_std + alloc` show playback, the same on the host and the firmware: a trusted show in memory (`PreparedShow`) and its evaluation into one buffer it owns (`ShowPlayback`) by the private strip interpreter. The show's record layouts (`format`) are private to it. The default `host` feature adds the show builder (`ShowBuilder`) and clip rasters. |
+| `donder-runtime-iram` | `#[iram]`: under the runtime's `iram` feature, links a function, or every function of an impl, into ESP32 instruction RAM (`.rwtext`). |
 | `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
 | `donder-device-protocol` | The editor-controller wire protocol, `no_std`: HTTP paths, the access point password, the JSON commands and replies, and the UDP clock packets. The desktop and the firmware both use it. |
 | `donder-audio-analysis` | Beat and downbeat detection from song audio: decoding, the log-mel spectrogram and the embedded Beat This! model (small, MIT licensed) run with tract. Host-only. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
-| `donder-import` | Importing an xLights show's or a Vixen profile's layout, controllers and patch into a project: one reader per source and one shared setup builder. Used by the desktop and the CLI. |
-| `donder-cli` | `check`, `copy`, `render` (fixture colors at chosen times), `export-fseq`, `lsp` (the language server over stdio) and the generated builtin reference. |
-| `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion, shared by the desktop and browser hosts, and in its `dto` module the serialized editor contract exported to TypeScript. Edit helpers mutate the candidate session they are given. |
+| `donder-import` | Importing an xLights show's or a Vixen profile's layout, controllers and routes into a project: one reader per source and one shared project builder. Used by the desktop and the CLI. |
+| `donder-fixture-capture` | Fixture shapes measured from a phone video of the capture pattern. |
+| `donder-cli` | `check`, `render` (fixture colors at chosen times), `export-fseq`, `import`, `test` (test patterns to live controllers), `lsp` (the language server over stdio) and `builtins` (the generated builtin reference). |
+| `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion for the desktop, and in its `dto` module the serialized editor contract exported to TypeScript. Edit helpers mutate the candidate session they are given. |
 | `donder-test-support` | Dev-only playback workloads shared by runtime and elaboration tests and benchmarks. |
-| `apps/desktop` | The Tauri app: workflows, background scheduling and history in `desktop_state` and `state_tasks`, platform IO, the Preview process (`preview/`: playback clock, wgpu renderer and pipe protocol), and the React frontend, which exports the editor UI as `@donder/editor` for both hosts. |
+| `donder-workspace-hack` | Generated by cargo-hakari: one dependency feature set for every Cargo command; see [development](development.md#builds). |
+| `apps/desktop` | The Tauri app: workflows, background scheduling and history in `desktop_state` and `state_tasks`, platform IO, the Preview process (`preview/`: playback clock, wgpu renderer and pipe protocol), and the React frontend. |
 | `firmware/esp32` | The controller firmware, a separate Cargo workspace. See [ESP32 loading](esp32_loading.md). |
 
 Each crate's `lib.rs` is its public facade; implementation modules are not
@@ -47,20 +50,21 @@ declared objects by id and name; it is not a second editable model. Loading
 assigns every object a fresh session identity, an opaque id from one
 project-wide counter, so references and the objects they name agree whatever
 order they are read in. The model knows objects only by id: a declared object's
-document and name live in the source inventory alone, and an owned object's
-address is its owner's address and slot. A session's documents declare exactly
-the project's reusable objects, each once, so every object has an address and
-lookups by a project id cannot fail. The loader builds a session that way. A
+document and name live in the source inventory alone. A session's documents
+declare exactly the project's objects, each once, so every object has a
+declaration and lookups by a project id cannot fail. The project is every object
+the documents reachable from the root declare; there is no member list. The loader builds a session that way. A
 `ProjectSession`'s state is private and changes only through
 `ProjectSession::edit`: it edits a candidate, which the session takes only
-when that still holds, then adds the imports the project's references need,
-so editors never add imports themselves. Moving a document or making an object
-reusable changes where it is written, not the references to it; making one
+when that still holds, then adds the imports the project's references need and
+a root import for every document the root no longer reaches, such as a new
+object's own file, so editors never add imports themselves. Moving a document
+changes where an object is written, not the references to it; making one
 independent copies it under fresh ids. Saving prints names back from the ids,
 so data documents are exactly the typed state: saving prints the canonical text
 of each project-owned data document, and scripts are kept byte for byte. State
-that outlives a reload, such as the desktop's render target, keeps addresses
-and resolves them in each new session.
+that outlives a reload, such as the desktop's render target, keeps declarations
+(document and name) and resolves them in each new session.
 
 Loaded and historical states are immutable `Arc<ProjectSession>` snapshots. A
 GUI edit:
@@ -82,36 +86,44 @@ after a failure the transport bar shows, audio reads as silence, text as
 blank and images as black. The CLI derives everything when it loads a project and fails if it
 cannot.
 
-The model has one store per kind of reusable object, keyed by id; owned
-objects live in their owner. `DonderProject::get::<T>(id)` finds an object of
-kind `T` wherever it is written and `objects::<T>()` lists every one, so there
-is one lookup for every kind. Every model edit is a batch of `ProjectEdit`s:
+The model has one store per kind of object, keyed by id, in the order the
+loader meets the declarations. `DonderProject::get::<T>(id)` finds an object of
+kind `T` and `objects::<T>()` lists every one, so there is one lookup for every
+kind. Every model edit is a batch of `ProjectEdit`s:
 `Put(Object)` writes an object under the id it carries, in place of the object
-with that id or as a new reusable object, and `Remove(ObjectId)` removes a
-reusable one and its place in the project's and setups' member lists; the batch
-is validated as one change.
+with that id or as a new object, and `Remove(ObjectId)` removes one;
+`PutMember(Site, MemberValue)` writes a member in place of the one with its id,
+and `RemoveMember(Site)` removes a member or the part of one its field names.
+The batch is validated as one change. Effects and operators are one kind of object, a
+`ScriptDefinition`; a clip checks that its definition is an effect and an
+operator node that its definition is an operator (`DefinitionProblem`).
 
 A `DonderProject` exists only validated, so every reference it holds
 resolves. It hands out objects as `View`s (`project/view.rs`): an object with
 its id and project, whose methods follow its references without failing, such
-as a setup's layout, patch and controllers. `active_setup`, `active_layout`
-and `active_patch` are the root's setup and what it names. An id from outside
+as a console's clips. The project root holds what the project plays on:
+`layout()`, the one layout every fixture target names a fixture or group of,
+`controllers()`, `input_devices()` and the root's `routes`. An id from outside
 the project, such as a request, stale UI state or a CLI flag, is checked once
 with `view(id)`, which is `None` when the project lacks it; from then on the
 view's references are followed, not looked up again.
 
 Every domain rule lives once
 in the model's validation. A broken rule is a `ProjectValidationError`: the
-object it concerns and a typed `ValidationProblem` that names the member
-(a clip, layer, voice, control, port, layout item, ...) and the parameter or
-input where the problem lies; its sentence is written once, in `Display`. The
+object it concerns and a typed `ValidationProblem`; its sentence is written
+once, in `Display`. Every place in a project has one address, a `Site`
+(`site.rs`): an object, a `Member` of it (a clip, layer, envelope, event,
+control, port, route, layout item, ...) and a `Field` of either.
+`ProjectValidationError::site` says where a problem lies, repairs and edits
+name where they change, and `DonderProject::member` finds what a site names. The
 model refuses an edit it cannot apply with an `EditRejection`.
 
 An edit never fails because of what it leaves broken elsewhere. Each
-`ValidationProblem` has one `Repair` (`validation/repair.rs`), matched
-exhaustively, so a new rule must say how its members give way: a member the
-edit left alone is removed, trimmed, reset to its default or cut loose from
-what it lost, until the project is valid. A member the edit added or changed
+`ValidationProblem` says how its member gives way (`give_way`, matched
+exhaustively in `validation/repair.rs`), so a new rule must say it: a
+`Repair` is the problem's site and a `GiveWay` (`Remove`, `Shrink`, `Reset`,
+`Forget`), applied to a member the edit left alone, until the project is
+valid. A member the edit added or changed
 never gives way; when it breaks a rule, or no repair answers a problem, the
 edit is refused. In a conflict, such as overlapping outputs or two envelopes
 on one parameter, the untouched side gives way. Repairs only remove or shrink,
@@ -122,18 +134,19 @@ holds an edit that needs confirmation until the person confirms it, and
 `repair_changes` says what it changes. Deleting a document from the
 workspace removes the objects it declares the same way (`remove_documents`).
 
-Ownership edits (make
-reusable, make independent, use an existing declaration) name a slot by its owner and
-the member it holds and keep references consistent through
-`DonderProject::for_each_reference`, the one listing of every reference from one
-object to another, which project IO also uses to keep imports visible.
+`DonderProject::for_each_reference` is the one listing of every reference from
+one object to another; project IO uses it to keep imports visible.
 
-The GUI addresses an object by its document path, declared name and owned path,
-and the object's kind picks its editor. `apply_edit` is the one entry for GUI
-edits: kind-specific edits (`GuiEditCommand::Sequence`, `Layout`, ...), the
-ownership edit, and the generic item verbs `Rename`, `SetDescription`,
-`SetColor` and `Delete`, which name a part of the open object with a `GuiItem`.
-Clip edits take a list of clip references, so a single clip is a list of one.
+The GUI addresses an object by its document path and declared name, and the
+object's kind picks its editor. `apply_edit` is the one entry for GUI
+edits: `GuiEdit::Put` writes a value at sites of the open object (a name,
+description, color, a clip's timing or effect, a parameter, ...), the same
+field of several members together, by copying each member, setting the field
+and writing it back; `GuiEdit::Remove` removes what a site names, and what
+named it gives way. A `GuiSite` mirrors the model's `Site`, with no object for
+the open one. Renaming or removing an object alone in its file renames or
+deletes the file. The remaining kind-specific edits (`GuiEdit::Sequence`,
+`Layout`, ...) compute what they write: adds, splits, moves, arranges, pastes.
 Every edit returns one `GuiEditUpdate`: the changed document, the selection a
 selection edit leaves, what a cut or paste took, and the names it created.
 
@@ -220,7 +233,7 @@ fixed-size records that refer to one another by index. A `PreparedShow` holds
 those bytes in memory, and playback reads the records where they lie. Its
 `workspace_bytes()` is the exact size of its playback buffer.
 `prepared.into_playback()` (a `ShowPlayback`) owns that buffer and lays the nodes' frame buffers, scan
-frames, port bytes, the strip workspace and the automation scratch out in it,
+frames, port bytes, the strip workspace and a console's state out in it,
 and each later call borrows them again. `evaluate(time)` returns
 borrowed fixture colors and packed controller bytes for the frame nearest
 `time`; asking for the same frame again returns the frame it holds. It cannot
@@ -262,7 +275,7 @@ everywhere:
   sharing one Wayland surface.
 - **Live output.** One switch for every controller type. While it is off, Play
   plays only the Preview. While it is on, the desktop service evaluates
-  controller bytes and sends them over E1.31 or Art-Net, and drives the setup's
+  controller bytes and sends them over E1.31 or Art-Net, and drives the project's
   Donder controllers, which play uploaded shows on the editor's clock
   (`desktop_state/device_playback.rs`). Output is opt-in and fails
   closed: turning it off blacks out active ports, terminates E1.31 streams and stops
@@ -274,7 +287,7 @@ everywhere:
   the next show or a restart.
 
 Perform mode plays a console instead of a sequence (`desktop_state/perform.rs`).
-Starting arms the console on the active setup and starts a session clock;
+Starting arms the console on the project's controllers and starts a session clock;
 sequence playback stops until the performance ends. Keys from the main window
 and from the Preview (forwarded over its event pipe), MIDI and OSC are stamped
 on the session clock when the desktop receives them and become `ConsoleEvent`s:
@@ -302,16 +315,19 @@ collections, live automations and its routing: how many controls it reads, each
 for each `always` clip. `ShowPlayback` routes each input (`console.rs`),
 keeping the only performance state: the copy each voice last started, when
 and for how long, and whether it is held, each axis's position, each live
-automation's last value and the held presses. A new playback starts the
+automation's last value and the held presses. The playback buffer holds the
+live store: three words per live automation (its value, its integral's base
+and the seconds that base holds from) and the snapshots of those integrals
+at each clip's start, which `Start` writes, and which a `Set` updates for
+clips yet to start. A new playback starts the
 `always` clips. Routing issues commands (`Start` with a duration, `Stop`,
 `Mark` and `Set`), which change only the playback buffer; before each frame,
 a held copy whose length ended starts again where its next pass begins.
 Every console clip, `always` clips included, is a voice, with as many voices
-as its largest `Play` `copies`. A live automation sets automation bindings of
-clips' and operator nodes' plans (an operator's fused into its consumer's
-program included) and holds its starting value until the first `Set`, and a
-live collection is read
-by automation bindings of marks parameters (`AutomationMapping::LiveMarks`). The format is a numbered current version; a mismatch is rejected
+as its largest `Play` `copies`. Programs read a live automation's
+words (an operator's fused into its consumer's program included); it holds its
+starting value until the first `Set`. A live collection is read by marks
+records that name it (`AutomationMapping::LiveMarks`). The format is a numbered current version; a mismatch is rejected
 (`LoadError::Version`) rather than migrated, as is input shorter than the header.
 
 Performance design is described in [performance](performance.md).

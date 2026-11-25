@@ -19,42 +19,42 @@ pub(crate) fn new_project_files(
     let root = format!(
         r#"import effects from <effects/standard.donder>;
 import operators from <operators/standard.donder>;
+import layouts from <layouts/layout.data.donder>;
+import sequences from <sequences/sequence.data.donder>;
 
 Project {project} {{
   format: {format},
   description: none,
-  setup: Setup {{
-    description: none,
-    layout: Layout {{ description: none, root: [], items: [] }},
-    patch: Patch {{ description: none, routes: [] }},
-    controllers: [],
-    input_devices: [],
-  }},
-  sequences: [
-    Sequence sequence {{
-      description: none,
-      duration: 60s,
-      frame_rate: 60,
-      audio: none,
-      marks: [MarkCollection {{ name: marks, description: none, color: {initial_color}, times: [] }}],
-      layers: [Layer {{ name: default, description: none, color: {initial_color}, enabled: true }}],
-      clips: [],
-      graph: Graph {{
-        nodes: [LayerNode {{ layer: default, position: (80.0, 80.0) }}, RootNode {{ position: (420.0, 80.0) }}],
-        edges: [Edge {{ from: layers.default, to: root }}],
-      }},
-      automation: [],
-    }},
-  ],
-  consoles: [],
+  layout: layouts.layout,
+  routes: [],
 }}
 "#,
         format = PROJECT_FORMAT_VERSION,
     );
-    let (document, diagnostics) = donder_language::data::parse(&root);
-    if let Some(diagnostic) = diagnostics.first() {
-        return Err(format!("Invalid project template: {}", diagnostic.message));
-    }
+    let layout = "Layout layout { description: none, root: [], items: [] }\n".to_string();
+    let sequence = format!(
+        r#"Sequence sequence {{
+  description: none,
+  duration: 60s,
+  frame_rate: 60,
+  audio: none,
+  marks: [MarkCollection {{ name: marks, description: none, color: {initial_color}, times: [] }}],
+  layers: [Layer {{ name: default, description: none, color: {initial_color}, enabled: true }}],
+  clips: [],
+  graph: Graph {{
+    nodes: [LayerNode {{ layer: default, position: (80.0, 80.0) }}, RootNode {{ position: (420.0, 80.0) }}],
+    edges: [Edge {{ from: layers.default, to: root }}],
+  }},
+}}
+"#
+    );
+    let canonical = |text: &str| {
+        let (document, diagnostics) = donder_language::data::parse(text);
+        match diagnostics.first() {
+            Some(diagnostic) => Err(format!("Invalid project template: {}", diagnostic.message)),
+            None => Ok(donder_language::data::print(&document)),
+        }
+    };
     Ok(vec![
         ProjectBoilerplateFile {
             path: "AGENTS.md",
@@ -62,7 +62,15 @@ Project {project} {{
         },
         ProjectBoilerplateFile {
             path: PROJECT_ROOT_FILE,
-            text: donder_language::data::print(&document),
+            text: canonical(&root)?,
+        },
+        ProjectBoilerplateFile {
+            path: "layouts/layout.data.donder",
+            text: canonical(&layout)?,
+        },
+        ProjectBoilerplateFile {
+            path: "sequences/sequence.data.donder",
+            text: canonical(&sequence)?,
         },
         ProjectBoilerplateFile {
             path: "effects/standard.donder",
@@ -137,7 +145,7 @@ mod tests {
         write_new_project_files(&root, &files).unwrap();
         let template = &files
             .iter()
-            .find(|file| file.path == PROJECT_ROOT_FILE)
+            .find(|file| file.path == "sequences/sequence.data.donder")
             .unwrap()
             .text;
         let operators = [
@@ -170,16 +178,18 @@ mod tests {
         }
         edges.push(format!("Edge {{ from: {previous}, to: root }}"));
         let start = template.find("graph: Graph {").unwrap();
-        let end = template.find("automation: []").unwrap();
+        let end = template.rfind('}').unwrap();
         let text = format!(
-            "{}graph: Graph {{ nodes: [{}], edges: [{}] }},
-      {}",
+            "import operators from <operators/standard.donder>;
+
+{}graph: Graph {{ nodes: [{}], edges: [{}] }},
+{}",
             &template[..start],
             nodes.join(", "),
             edges.join(", "),
             &template[end..]
         );
-        fs::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
+        fs::write(root.join("sequences/sequence.data.donder"), text).unwrap();
         let session =
             donder_project_io::check_project(&root, &Default::default(), &mut Default::default())
                 .into_session()
@@ -187,7 +197,7 @@ mod tests {
         for (name, _) in operators {
             let definition = session
                 .project()
-                .reusable::<donder_model::OperatorDefinition>()
+                .reusable::<donder_model::ScriptDefinition>()
                 .values()
                 .find(|definition| definition.name() == name)
                 .unwrap();

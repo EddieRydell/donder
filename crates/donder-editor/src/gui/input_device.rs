@@ -35,7 +35,7 @@ pub(super) fn project_input_device(
     device: &InputDevice,
 ) -> SetupInputDevice {
     SetupInputDevice {
-        name: session.address_of(*id).declared_name().to_string(),
+        name: session.address_of(*id).object().to_string(),
         source_ref: super::model::object_ref(session, *id),
         driver: match &device.driver {
             InputDriver::Keyboard => GuiInputDriver::Keyboard,
@@ -194,12 +194,11 @@ pub(super) fn edit(
         .view::<donder_model::InputDevice>(session)
         .description
         .clone();
-    let device = domain_input_device(id, description, driver, controls)?;
-    session.put(device).map_err(GuiMutationError::from)
+    let device = domain_input_device(description, driver, controls)?;
+    session.put((id, device)).map_err(GuiMutationError::from)
 }
 
 pub(super) fn domain_input_device(
-    id: InputDeviceId,
     description: Option<String>,
     driver: GuiInputDriver,
     controls: Vec<GuiInputControl>,
@@ -208,7 +207,7 @@ pub(super) fn domain_input_device(
         .into_iter()
         .map(|control| {
             let member = crate::dto::GuiMember::Control { id: control.id };
-            let at = |field| crate::dto::GuiProblemSite::of(member.clone(), Some(field));
+            let at = |field| crate::dto::GuiSite::of(Some(member.clone()), Some(field));
             let kind = domain_control_kind(control.kind, &control.input)
                 .map_err(|error| error.at(at(crate::dto::GuiField::Input)))?;
             Ok(InputControl {
@@ -221,7 +220,6 @@ pub(super) fn domain_input_device(
         })
         .collect::<Result<_, GuiMutationError>>()?;
     let device = InputDevice {
-        id,
         description,
         driver: match driver {
             GuiInputDriver::Keyboard => InputDriver::Keyboard,

@@ -5,18 +5,17 @@ import { IconButton } from "../kit";
 
 const sessionViewports = new Map<string, SpatialViewport>();
 
-export function useSpatialViewport(bounds: RenderBounds, resetKey?: string, sessionKey?: string) {
-  const cached = sessionKey === undefined ? undefined : sessionViewports.get(sessionKey);
+export function useSpatialViewport(bounds: RenderBounds, key: string) {
+  const cached = sessionViewports.get(key);
   const [view, setView] = useState<SpatialViewport>(() => cached ?? { scale: 1, fitScale: 1, offsetX: 0, offsetY: 0 });
   const size = useRef({ width: 1, height: 1 });
-  const key = resetKey ?? "initial";
   const previousKey = useRef(cached === undefined ? "" : key);
   const reset = useCallback(() => { setView(fitViewport(bounds, size.current.width, size.current.height)); }, [bounds]);
   const resize = useCallback((width: number, height: number) => {
     size.current = { width, height };
     if (previousKey.current !== key) { previousKey.current = key; setView(fitViewport(bounds, width, height)); }
   }, [bounds, key]);
-  useEffect(() => { if (sessionKey !== undefined) sessionViewports.set(sessionKey, view); }, [sessionKey, view]);
+  useEffect(() => { sessionViewports.set(key, view); }, [key, view]);
   const zoomAt = useCallback((factor: number, x: number, y: number) => { setView((v) => {
     const scale = clamp(v.scale * factor, v.fitScale * 0.05, v.fitScale * 64);
     const ratio = scale / v.scale;

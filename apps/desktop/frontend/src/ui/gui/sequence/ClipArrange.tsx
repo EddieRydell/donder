@@ -1,9 +1,9 @@
 import { useState } from "react";
-import type { SequenceClipArrangement, SequenceClipRef } from "../../../types";
+import type { SequenceClipArrangement } from "../../../types";
 import { Button, ContextMenuEntries, Dialog, Field, NumberField, Toggle, type MenuEntry } from "../../kit";
 
-type ReferenceArrangement = Extract<SequenceClipArrangement, { reference: SequenceClipRef }>["type"];
-type SelectionArrangement = Exclude<SequenceClipArrangement, { reference: SequenceClipRef }>;
+type ReferenceArrangement = Extract<SequenceClipArrangement, { reference: number }>["type"];
+type SelectionArrangement = Exclude<SequenceClipArrangement, { reference: number }>;
 
 /** Align items, grouped; each lines the selection up with the right-clicked clip. */
 const ALIGN_ITEMS: { type: ReferenceArrangement; label: string }[][] = [
@@ -37,9 +37,9 @@ const ROW_ITEMS: { arrangement: SelectionArrangement; label: string }[] = [
 ];
 
 type ClipArrangeProps = {
-  reference: SequenceClipRef;
+  reference: number;
   canAlign: boolean;
-  markCollections: string[];
+  markCollections: number[];
   onArrange: (arrangement: SequenceClipArrangement) => void;
   onCascade: () => void;
 };

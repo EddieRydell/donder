@@ -11,10 +11,10 @@ fn selected_sequences_roundtrip_and_other_formats_are_rejected() {
             .into_session()
             .unwrap();
     let project = session.project();
-    let setup = &project.reusable::<donder_model::Setup>()[project.root().setup.id()];
-    let controller = setup.controllers[0].id();
+    let controllers_store = project.reusable::<donder_model::Controller>();
+    let controller = controllers_store.get_index(0).unwrap().0;
     let output = project.reusable::<donder_model::Controller>()[controller].outputs()[0].0;
-    for id in project.root().sequences.iter().map(|source| source.id()) {
+    for id in project.reusable::<donder_model::Sequence>().keys() {
         let prepared = prepare(project, id, Retain::Outputs(&[(*controller, output)])).unwrap();
         let original = prepared;
         let bytes = original.encode();

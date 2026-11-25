@@ -7,7 +7,7 @@
 //! the same for every strip: it becomes a table, filled once in its stage and
 //! read by index in the loop.
 use super::structural_operands;
-use crate::compiler::ir::{Binary, Context, Domain, Graph, Node, Op, Reducer, Unary};
+use crate::compiler::ir::{Binary, Context, Domain, Graph, Node, Op, Reducer};
 use donder_runtime_types::bytecode::STRIP;
 use donder_runtime_types::{Type, Value};
 use std::collections::{HashMap, HashSet};
@@ -193,12 +193,12 @@ fn present(graph: &Graph, filter: Option<Node>, index: Node) -> Option<(Node, No
     let Op::Select(low, high, no) = *graph.op(filter?) else {
         return None;
     };
-    let (Op::Binary(Binary::IntGreaterEqual, at, zero), Op::Binary(Binary::IntLess, other, count)) =
+    let (Op::Binary(Binary::GreaterEqual, at, zero), Op::Binary(Binary::Less, other, count)) =
         (graph.op(low).clone(), graph.op(high).clone())
     else {
         return None;
     };
-    let Op::Binary(Binary::IntAdd, a, b) = *graph.op(at) else {
+    let Op::Binary(Binary::Add, a, b) = *graph.op(at) else {
         return None;
     };
     let pixel = match (a == index, b == index) {
@@ -389,16 +389,13 @@ fn prefix_capable(graph: &Graph, node: Node) -> bool {
         graph.op(node),
         Op::Context(
             Context::PixelIndex
-                | Context::PixelFraction
                 | Context::PixelX
                 | Context::PixelY
                 | Context::PixelZ
                 | Context::PixelMember
                 | Context::PixelStrand
                 | Context::PixelAlong
-        ) | Op::Unary(Unary::SectionCount | Unary::SectionIndex, _)
-            | Op::Binary(Binary::SectionPosition, ..)
-            | Op::LoopIndex(_)
+        ) | Op::LoopIndex(_)
             | Op::Read { .. }
             | Op::Items(_)
     ) && !matches!(graph.op(node), Op::Reduce(id) if !graph.loop_(*id).reducer.tabulates())

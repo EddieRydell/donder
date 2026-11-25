@@ -2,39 +2,41 @@ import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { useMemo, useState } from "react";
 
-import { CheckCheck, Circle, CircleDot, Eye, EyeOff, Link2, Plus, Trash2 } from "lucide-react";
-import { THEME_COLORS } from "../../../theme";
+import { Circle, CircleDot, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 
 import type {
-  GuiMember,
   SequenceGuiDocument,
-  SequenceAutomationTarget,
-  SequenceClip,
-  SequenceClipDetails,
-  SequenceClipParam,
   SequenceMarkCollection,
   SequenceMarkRef,
-  SequenceClipScope,
-  SequenceClipCommonEdit
+  SequenceSelection
 } from "../../../types";
+import { describe, put, recolor, remove, rename, site } from "../edits";
+
+/** Write the marks of `collection` with the mark at `index` changed. */
+function putMark(collection: SequenceMarkCollection, index: number, change: { durationSeconds?: number; label?: string | null }) {
+  const marks = collection.marksSeconds.map((timeSeconds, at) => ({
+    timeSeconds,
+    durationSeconds: at === index && change.durationSeconds !== undefined ? change.durationSeconds : collection.markDurationsSeconds[at] ?? 0,
+    label: at === index && change.label !== undefined ? change.label : collection.markLabels[at] ?? null
+  }));
+  return put(site({ type: "marks", id: collection.id }, { type: "points" }), { type: "marks", marks });
+}
 import { ColorPicker } from "../../ColorPicker";
-import { AddRow, Button, Field, IconButton, NumberField, Problem, Section, Select, Tabs, TextField, type SelectOption } from "../../kit";
+import { AddRow, Button, IconButton, NumberField, Problem, Section, Select, Tabs, TextField } from "../../kit";
 import { DescriptionField } from "../DescriptionField";
 import { useFieldProblem } from "../problems";
-import { NameField } from "./NameField";
-import { EffectDefinitionPicker, effectReferencesEqual } from "./definitionMenu";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
-import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
-import { TypedParamInput } from "./params/TypedParamInput";
+import { roundToNanosecond } from "../shared";
 import { sequenceComposition } from "./composition";
 import { activeMarkCollection, defaultMarkColor } from "./marks";
 import { BeatDetectionDialog } from "./BeatDetectionDialog";
 import { MarkSubdivision } from "./MarkSubdivision";
-import { MIN_CLIP_DURATION_SECONDS, clipIdsOfKind, clipRefs, selectedClipId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
+import { selectionCompatibleWithFocusedItem, selectionCount, useSequenceSelection } from "./sequenceSelection";
 import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { targetsEqual } from "./sequenceTargets";
-import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
 import { LayerList } from "./sequenceLayers";
+import { ClipFields, EnvelopeFields, type ClipFieldsAdapter } from "../clip/ClipFields";
+import { focusedClipId, setDocumentUi, showMarks, useDocumentUi, type GuiFocus } from "../documentUi";
 
 type SequenceInspectorTab = "clip" | "layers" | "marks";
 
@@ -52,98 +54,18 @@ const SEQUENCE_INSPECTOR_TABS: { value: SequenceInspectorTab; label: string }[] 
   { value: "marks", label: "Marks" }
 ];
 
-/** The select value shown while the selected clips differ; never a real layer id or scope. */
-const MIXED = "";
-const SCOPE_OPTIONS: SelectOption<SequenceClipScope>[] = [
-  { value: "perFixture", label: "Per fixture" },
-  { value: "wholeTarget", label: "Whole target" }
-];
-/** The step a clip or mark time scrubs by, in seconds. */
+/** The step a mark time scrubs by, in seconds. */
 const TIME_STEP_SECONDS = 0.01;
 
-function supportsAutomation(document: SequenceGuiDocument, details: Map<number, SequenceClipDetails> | null, target: SequenceAutomationTarget) {
-  if (target.type === "clipParam") {
-    return details?.get(target.clipId)?.params
-      .find((param) => param.name === target.param)?.supportsAutomation === true;
-  }
-  const node = document.compositionGraph.nodes.find((node) => node.id === target.nodeId);
-  return node?.kind.type === "operator" && node.kind.params
-    .find((param) => param.name === target.param)?.supportsAutomation === true;
-}
-
-function layerOptions(document: SequenceGuiDocument): SelectOption<string>[] {
-  return document.layers.map((layer) => ({ value: String(layer.id), label: layer.name }));
-}
-
-function TimeField({ name, value, min, mixed = false, problem, onCommit }: { name: string; value: number; min: number; mixed?: boolean; problem: string | null; onCommit: (seconds: number) => void }) {
-  return <Field label={name} error={problem}>
-    <NumberField
-      name={name}
-      value={value}
-      min={min}
-      step={TIME_STEP_SECONDS}
-      unit="s"
-      invalid={problem !== null}
-      {...(mixed ? { format: () => "Multiple" } : {})}
-      onCommit={(seconds) => { onCommit(Math.max(min, roundToNanosecond(seconds))); }}
-    />
-  </Field>;
-}
-
-export function SequenceInspector({
-  document,
-  selected,
-  setSelected,
-  sequenceSelection,
-  setSequenceSelection,
-  automationClipChooser,
-  setAutomationClipChooser,
-  activeMarkCollectionKey,
-  setActiveMarkCollectionKey,
-  visibleMarkCollectionKeys,
-  setVisibleMarkCollectionKeys
-}: {
-  document: SequenceGuiDocument;
-  selected: GuiFocus;
-  setSelected: (id: GuiFocus) => void;
-  sequenceSelection: SequenceSelection;
-  setSequenceSelection: (selection: SequenceSelection) => void;
-  automationClipChooser: AutomationClipChooser;
-  setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
-  activeMarkCollectionKey: string | null;
-  setActiveMarkCollectionKey: (key: string | null) => void;
-  visibleMarkCollectionKeys: Set<string>;
-  setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
-}) {
+export function SequenceInspector({ document }: { document: SequenceGuiDocument }) {
   const [activeTab, setActiveTab] = useState<SequenceInspectorTab>("clip");
   const footer = <Tabs name="Sequence inspector sections" value={activeTab} options={SEQUENCE_INSPECTOR_TABS} onChange={setActiveTab} />;
 
   return (
     <InspectorScrollArea footer={footer}>
-      {activeTab === "clip" && (
-        <ClipInspectorPanel
-          document={document}
-          selected={selected}
-          setSelected={setSelected}
-          sequenceSelection={sequenceSelection}
-          automationClipChooser={automationClipChooser}
-          setAutomationClipChooser={setAutomationClipChooser}
-        />
-      )}
+      {activeTab === "clip" && <ClipInspectorPanel document={document} />}
       {activeTab === "layers" && <LayerInspectorPanel document={document} />}
-      {activeTab === "marks" && (
-        <MarkInspectorPanel
-          document={document}
-          selected={selected}
-          setSelected={setSelected}
-          sequenceSelection={sequenceSelection}
-          setSequenceSelection={setSequenceSelection}
-          activeMarkCollectionKey={activeMarkCollectionKey}
-          setActiveMarkCollectionKey={setActiveMarkCollectionKey}
-          visibleMarkCollectionKeys={visibleMarkCollectionKeys}
-          setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
-        />
-      )}
+      {activeTab === "marks" && <MarkInspectorPanel document={document} />}
     </InspectorScrollArea>
   );
 }
@@ -152,354 +74,51 @@ function DeleteButton({ onDelete }: { onDelete: () => void }) {
   return <Button variant="danger" icon={Trash2} tip="Delete" command="edit.delete" onClick={onDelete}>Delete</Button>;
 }
 
-function SelectedClipsInspector({
-  document,
-  clipIds,
-  onDelete
-}: {
-  document: SequenceGuiDocument;
-  clipIds: number[];
-  onDelete: () => void;
-}) {
-
-  const clips = clipIds
-    .map((id) => document.clips.find((clip) => clip.id === id))
-    .filter((clip): clip is SequenceClip => clip !== undefined);
-  const details = useSequenceClipDetails(document, clips.map((clip) => clip.id));
-  const members: GuiMember[] = clips.map((clip) => ({ type: "clip", id: clip.id }));
-  const problems = {
-    layer: useFieldProblem(members, { type: "layer" }),
-    scope: useFieldProblem(members, { type: "scope" }),
-    start: useFieldProblem(members, { type: "start" }),
-    duration: useFieldProblem(members, { type: "duration" })
+/** A sequence's clips, whose parameters bind to its envelopes. */
+function sequenceClipFields(document: SequenceGuiDocument): ClipFieldsAdapter {
+  const envelopes = document.clips.filter((clip) => clip.content.type === "envelope");
+  return {
+    document,
+    paramControl: (clip, param) => ({ automation: {
+      target: { type: "clipParam", clipId: clip.id, param: param.name },
+      envelopes,
+      canCreate: document.targets.some((lane) => targetsEqual(lane.target, clip.target))
+    } })
   };
-  const first = clips[0];
-  if (first === undefined) return <h2>Clips</h2>;
-
-  const selectedClipIds = clips.map((clip) => clip.id);
-  const layerId = commonClipValue(clips, (clip) => clip.layerId);
-  const scope = commonClipValue(clips, (clip) => clip.scope);
-  const startSeconds = commonClipValue(clips, (clip) => clip.startSeconds);
-  const durationSeconds = commonClipValue(clips, (clip) => clip.durationSeconds);
-  const commonParams = details === null ? [] : commonEditableClipParams(clips.map((clip) => details.get(clip.id)).filter((clip) => clip !== undefined));
-  const applyEdit = (edit: SequenceClipCommonEdit) =>
-    runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "editClips",
-        clips: clipRefs("clip", selectedClipIds),
-        edit
-      } })
-    );
-  const mixedOption = { value: MIXED, label: "Multiple", disabled: true } as const;
-
-  return (
-    <>
-      <h2>Clips</h2>
-      <div className="inspector-readout-grid">
-        <Readout label="Selected" value={String(clips.length)} />
-      </div>
-      <Field label="Layer" error={problems.layer}>
-        <Select
-          name="Layer"
-          invalid={problems.layer !== null}
-          value={layerId === null ? MIXED : String(layerId)}
-          options={layerId === null ? [mixedOption, ...layerOptions(document)] : layerOptions(document)}
-          onChange={(value) => void applyEdit({ type: "layer", layerId: Number(value) })}
-        />
-      </Field>
-      <Field label="Scope" error={problems.scope}>
-        <Select<SequenceClipScope | typeof MIXED>
-          name="Scope"
-          invalid={problems.scope !== null}
-          value={scope ?? MIXED}
-          options={scope === null ? [mixedOption, ...SCOPE_OPTIONS] : SCOPE_OPTIONS}
-          onChange={(value) => { if (value !== MIXED) void applyEdit({ type: "scope", scope: value }); }}
-        />
-      </Field>
-      <TimeField name="Start" min={0} value={startSeconds ?? first.startSeconds} mixed={startSeconds === null} problem={problems.start}
-        onCommit={(value) => void applyEdit({ type: "start", startSeconds: value })} />
-      <TimeField name="Duration" min={MIN_CLIP_DURATION_SECONDS} value={durationSeconds ?? first.durationSeconds} mixed={durationSeconds === null} problem={problems.duration}
-        onCommit={(value) => void applyEdit({ type: "duration", durationSeconds: value })} />
-      {commonParams.length > 0 && (
-        <Section title="Shared parameters">
-          {commonParams.map(({ param, mixed }) => (
-            <SharedClipParamInput
-              key={`${selectedClipIds.join(",")}:${param.name}`}
-              param={param}
-              mixed={mixed}
-              commitParam={(name, value) => applyEdit({ type: "param", name, value }).then(() => undefined)}
-              document={document}
-              members={members}
-            />
-          ))}
-        </Section>
-      )}
-      <DeleteButton onDelete={onDelete} />
-    </>
-  );
 }
 
-function commonEditableClipParams(clips: SequenceClipDetails[]): { param: SequenceClipParam; mixed: boolean }[] {
-  const first = clips[0];
-  if (first === undefined) return [];
-  return first.params.flatMap((param) => {
-    if (!param.editable) return [];
-    const matches = clips.slice(1).map((clip) => clip.params.find((candidate) =>
-      candidate.name === param.name && candidate.kind === param.kind && candidate.editable
-    ));
-    if (matches.some((match) => match === undefined)) return [];
-    const options = param.kind === "enum"
-      ? param.options.filter((option) => matches.every((match) => match !== undefined && match.options.some((candidate) => candidate.name === option.name)))
-      : param.options;
-    const [firstOption] = options;
-    if (param.kind === "enum" && firstOption === undefined) return [];
-    const mixed = matches.some((match) => JSON.stringify(match?.value) !== JSON.stringify(param.value));
-    const chosen = param.value.type === "enum" ? param.value.value : null;
-    const displayParam = firstOption !== undefined && chosen !== null && !options.some((option) => option.name === chosen)
-      ? { ...param, options, value: { type: "enum" as const, value: firstOption.name, fields: firstOption.fields.map((field) => ({ name: field.name, value: field.value })) } }
-      : { ...param, options };
-    return [{ param: displayParam, mixed }];
-  });
-}
-
-function SharedClipParamInput({
-  param,
-  mixed,
-  commitParam,
-  document,
-  members
-}: {
-  param: SequenceClipParam;
-  mixed: boolean;
-  commitParam: (name: string, value: SequenceClipParam["value"]) => Promise<void>;
-  document: SequenceGuiDocument;
-  members: GuiMember[];
-}) {
-  const [editingMixed, setEditingMixed] = useState(false);
-  const problem = useFieldProblem(mixed && !editingMixed ? members : [], { type: "param", name: param.name });
-  if (mixed && !editingMixed) {
-    return (
-      <Field label={param.name} tip={param.description ?? undefined} error={problem}>
-        <Button tip="Edit every selected clip's value" onClick={() => { setEditingMixed(true); }}>Multiple</Button>
-      </Field>
-    );
-  }
-  return (
-    <>
-      <TypedParamInput
-        param={param}
-        commitParam={commitParam}
-        curveLibrary={document.curveLibrary}
-        gradientLibrary={document.gradientLibrary}
-        markCollections={document.markCollections}
-        member={members}
-      />
-      {mixed && <IconButton icon={CheckCheck} label="Apply shown value to all" onClick={() => { void commitParam(param.name, param.value); }} />}
-    </>
-  );
-}
-
-function commonClipValue<T>(clips: SequenceClip[], read: (clip: SequenceClip) => T): T | null {
-  const first = clips[0];
-  if (first === undefined) return null;
-  const value = read(first);
-  return clips.every((clip) => Object.is(read(clip), value)) ? value : null;
-}
-
-function ClipInspectorPanel({
-  document,
-  selected,
-  setSelected,
-  sequenceSelection,
-  automationClipChooser,
-  setAutomationClipChooser
-}: {
-  document: SequenceGuiDocument;
-  selected: GuiFocus;
-  setSelected: (id: GuiFocus) => void;
-  sequenceSelection: SequenceSelection;
-  automationClipChooser: AutomationClipChooser;
-  setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
-}) {
-  const inspectedAutomationClip = selected?.type === "automationClip"
-    ? document.automationClips.find((automationClip) => automationClip.id === selected.id) ?? null
-    : null;
-  const inspectedClipIds = inspectedAutomationClip !== null
-    ? inspectedAutomationClip.detachedBindings.flatMap((binding) => binding.target.type === "clipParam" ? [binding.target.clipId] : [])
-    : [selectedClipId(selected)].filter((id) => id !== null);
-  const details = useSequenceClipDetails(document, inspectedClipIds);
-
-  if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
-    if (sequenceSelection.type !== "clips") return <h2>Clip</h2>;
-    const deleteSelection = () => {
-      void runGuiEditCommand((request) =>
-        commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: sequenceSelection } })
-      ).then((result) => {
-        if (result !== null) setSelected(null);
-      });
-    };
-    if (sequenceSelection.clips.every((clip) => clip.type === "clip")) {
-      return <SelectedClipsInspector document={document} clipIds={clipIdsOfKind(sequenceSelection.clips, "clip")} onDelete={deleteSelection} />;
-    }
-    return (
-      <>
-        <h2>Clips</h2>
-        <div className="inspector-readout-grid">
-          <Readout label="Selected" value={String(selectionCount(sequenceSelection))} />
-        </div>
-        <DeleteButton onDelete={deleteSelection} />
-      </>
-    );
-  }
-
-  const automationClip = selected?.type === "automationClip"
-    ? document.automationClips.find((automationClip) => automationClip.id === selected.id) ?? null
-    : null;
-  if (automationClip !== null) {
-    return (
-      <>
-        <h2>Automation Clip</h2>
-        <div className="inspector-readout-grid">
-          <Readout label="Start" value={`${automationClip.startSeconds.toFixed(3)}s`} />
-          <Readout label="Duration" value={`${automationClip.durationSeconds.toFixed(3)}s`} />
-          <Readout label="Bindings" value={String(automationClip.bindings.length)} />
-          <Readout label="Detached" value={String(automationClip.detachedBindings.length)} />
-        </div>
-        {automationClip.detachedBindings.map((binding, index) => (
-          <Field key={`${binding.target.type}-${index}`} label={detachedAutomationTargetLabel(binding.target)} tip="Detached">
-            <IconButton
-              icon={Link2}
-              label="Rebind"
-              disabled={!supportsAutomation(document, details, binding.target)}
-              onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
-                type: "rebindDetachedAutomation",
-                automationClipId: automationClip.id,
-                detachedIndex: index,
-                target: binding.target
-              } }))}
-            />
-            <IconButton
-              icon={Trash2}
-              label="Discard provenance"
-              danger
-              onClick={() => void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: {
-                type: "discardDetachedAutomation",
-                automationClipId: automationClip.id,
-                detachedIndex: index
-              } }))}
-            />
-          </Field>
-        ))}
-        <DeleteButton onDelete={() =>
-          void runGuiEditCommand((request) =>
-            commands.applyGuiEdit(request, { type: "sequence", edit: {
-              type: "deleteSelection",
-              selection: { type: "clips", clips: [{ type: "automation", id: automationClip.id }] }
-            } })
-          ).then((result) => {
-            if (result !== null) setSelected(null);
-          })
-        } />
-      </>
-    );
-  }
-  const id = selectedClipId(selected);
-  const clip = document.clips.find((candidate) => candidate.id === id);
-
+/** The focused clip, or the selected clips edited together. */
+function ClipInspectorPanel({ document }: { document: SequenceGuiDocument }) {
+  const focus = useDocumentUi((ui) => ui.focus);
+  const selection = useSequenceSelection(document);
+  const adapter = useMemo(() => sequenceClipFields(document), [document]);
+  const several = selection?.type === "clips" && selectionCount(selection) > 1 && selectionCompatibleWithFocusedItem(selection, focus);
+  const focused = focusedClipId(focus);
+  const ids = several ? selection.ids : focused === null ? [] : [focused];
+  const clips = document.clips.filter((clip) => ids.includes(clip.id));
+  const details = useSequenceClipDetails(document, clips.filter((clip) => clip.content.type === "effect").map((clip) => clip.id));
+  const deleteClips = () => {
+    void runGuiEditCommand((request) =>
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: { type: "clips", ids } } })
+    ).then((result) => {
+      if (result !== null) setDocumentUi({ focus: null, selection: null });
+    });
+  };
+  const [clip] = clips;
   if (clip === undefined) return <h2>Clip</h2>;
-  return <ClipFields document={document} clip={clip} clipDetails={details?.get(clip.id)}
-    automationClipChooser={automationClipChooser} setAutomationClipChooser={setAutomationClipChooser} />;
-}
-
-/** One clip's name, effect, layer, timing, scope and parameters. */
-function ClipFields({ document, clip, clipDetails, automationClipChooser, setAutomationClipChooser }: {
-  document: SequenceGuiDocument;
-  clip: SequenceClip;
-  clipDetails: SequenceClipDetails | undefined;
-  automationClipChooser: AutomationClipChooser;
-  setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
-}) {
-  const item = { type: "clip", id: clip.id } as const;
-  const problems = {
-    effect: useFieldProblem(item, { type: "effect" }),
-    layer: useFieldProblem(item, { type: "layer" }),
-    start: useFieldProblem(item, { type: "start" }),
-    duration: useFieldProblem(item, { type: "duration" }),
-    scope: useFieldProblem(item, { type: "scope" })
-  };
-
-  const currentDefinition = clipDetails === undefined ? undefined : document.effectDefinitions.find((definition) =>
-    effectReferencesEqual(definition.effect, clipDetails.effectReference)
-  );
-  const editClip = (edit: SequenceClipCommonEdit) =>
-    runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "editClips", clips: [{ type: "clip", id: clip.id }], edit } })
-    );
-
-  return (
-    <>
-      <h2>Clip</h2>
-      <NameField name={clip.name} label="Name" member={item} commit={(name) => runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "rename", item, name }))} />
-      <DescriptionField description={clip.description} member={item} onCommit={(description) =>
-        runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "setDescription", item, description }))} />
-      <Field label="Effect" tip={currentDefinition?.description ?? undefined} error={problems.effect}>
-        <EffectDefinitionPicker
-          definitions={document.effectDefinitions}
-          label={currentDefinition?.name ?? clip.effect}
-          onSelect={(definition) =>
-            void runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "sequence", edit: {
-                type: "changeEffectDefinition",
-                initialColor: THEME_COLORS.white,
-                id: clip.id,
-                effect: definition.effect
-              } })
-            )
-          }
-        />
-      </Field>
-      <Field label="Layer" error={problems.layer}>
-        <Select
-          name="Layer"
-          invalid={problems.layer !== null}
-          value={String(clip.layerId)}
-          options={layerOptions(document)}
-          onChange={(value) => void editClip({ type: "layer", layerId: Number(value) })}
-        />
-      </Field>
-      <TimeField name="Start" min={0} value={clip.startSeconds} problem={problems.start}
-        onCommit={(startSeconds) => void editClip({ type: "start", startSeconds })} />
-      <TimeField name="Duration" min={MIN_CLIP_DURATION_SECONDS} value={clip.durationSeconds} problem={problems.duration}
-        onCommit={(durationSeconds) => void editClip({ type: "duration", durationSeconds })} />
-      <Field label="Scope" error={problems.scope}>
-        <Select name="Scope" value={clip.scope} options={SCOPE_OPTIONS} invalid={problems.scope !== null} onChange={(scope) => void editClip({ type: "scope", scope })} />
-      </Field>
-      {clipDetails !== undefined && clipDetails.params.length > 0 && (
-        <Section title="Parameters">
-          {clipDetails.params.map((param) => (
-            <TypedParamInput
-              key={`${clip.id}:${param.name}`}
-              param={param}
-              commitParam={(name, value) =>
-                editClip({ type: "param", name, value }).then(() => undefined)
-              }
-              curveLibrary={document.curveLibrary}
-              gradientLibrary={document.gradientLibrary}
-              markCollections={document.markCollections}
-              member={item}
-              automation={{
-                target: { type: "clipParam", clipId: clip.id, param: param.name },
-                automationClips: document.automationClips,
-                canCreateAutomationClip: document.lanes.some((lane) => targetsEqual(lane.target, clip.target)),
-                automationClipChooser,
-                setAutomationClipChooser
-              }}
-            />
-          ))}
-        </Section>
-      )}
-    </>
-  );
+  if (several) {
+    return <>
+      <h2>Clips</h2>
+      <div className="inspector-readout-grid"><Readout label="Selected" value={String(clips.length)} /></div>
+      {clips.every((candidate) => candidate.content.type === "effect") && <ClipFields clips={clips} details={details} adapter={adapter} />}
+      <DeleteButton onDelete={deleteClips} />
+    </>;
+  }
+  return <>
+    <h2>{clip.content.type === "envelope" ? "Envelope" : "Clip"}</h2>
+    {clip.content.type === "envelope" ? <EnvelopeFields clip={clip} /> : <ClipFields clips={clips} details={details} adapter={adapter} />}
+    <DeleteButton onDelete={deleteClips} />
+  </>;
 }
 
 function LayerInspectorPanel({ document }: { document: SequenceGuiDocument }) {
@@ -507,53 +126,35 @@ function LayerInspectorPanel({ document }: { document: SequenceGuiDocument }) {
   return <LayerList composition={composition} />;
 }
 
-function MarkInspectorPanel({
-  document,
-  selected,
-  setSelected,
-  sequenceSelection,
-  setSequenceSelection,
-  activeMarkCollectionKey,
-  setActiveMarkCollectionKey,
-  visibleMarkCollectionKeys,
-  setVisibleMarkCollectionKeys
-}: {
-  document: SequenceGuiDocument;
-  selected: GuiFocus;
-  setSelected: (id: GuiFocus) => void;
-  sequenceSelection: SequenceSelection;
-  setSequenceSelection: (selection: SequenceSelection) => void;
-  activeMarkCollectionKey: string | null;
-  setActiveMarkCollectionKey: (key: string | null) => void;
-  visibleMarkCollectionKeys: Set<string>;
-  setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
-}) {
-
-  const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
+function MarkInspectorPanel({ document }: { document: SequenceGuiDocument }) {
+  const selected = useDocumentUi((ui) => ui.focus);
+  const sequenceSelection = useSequenceSelection(document);
+  const activeMarkCollectionKey = useDocumentUi((ui) => ui.activeMarks);
+  const visibleMarkCollectionKeys = useDocumentUi((ui) => ui.visibleMarks);
+  const setVisibleMarkCollectionKeys = (visibleMarks: ReadonlySet<string>) => { setDocumentUi({ visibleMarks }); };
+  const setActiveMarkCollectionKey = (activeMarks: string | null) => { setDocumentUi({ activeMarks }); };
+  const selectedMark = selected?.type === "mark" ? { collectionId: selected.collectionId, index: selected.index } : null;
   const activeCollection = activeMarkCollection(document.markCollections, activeMarkCollectionKey);
   const selectedMarks = selectedMarkEntries(document, selected, sequenceSelection);
-  const collectionOptions = document.markCollections.map((collection) => ({ value: collection.key, label: collection.key }));
+  const collectionOptions = document.markCollections.map((collection) => ({ value: String(collection.id), label: collection.name }));
 
   const createCollection = () => {
     void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "createMarkCollections",
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit: {
+        type: "addMarkCollections",
         collections: [{ name: "Marks", color: defaultMarkColor(document.markCollections.length), marksSeconds: [] }]
-      } })
+      } } })
     ).then((result) => {
-      if (result === null) return;
-      setActiveMarkCollectionKey(result.created[0] ?? null);
-      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...result.created]));
+      if (result !== null) showMarks(result.created, true);
     });
   };
 
-  /** Renames, carrying the active and visible state to the new key; a rejected name reverts. */
-  const renameCollection = (key: string, value: string) => {
+  /** Renames, carrying the active and visible state to the new name; a rejected name reverts. */
+  const renameCollection = (collection: SequenceMarkCollection, value: string) => {
+    const key = collection.name;
     const name = value.trim();
     if (name === "" || name === key) return;
-    void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "rename", item: { type: "markCollection", key }, name })
-    ).then((result) => {
+    void rename({ type: "marks", id: collection.id }, name).then((result) => {
       if (result === null) return;
       const renamed = result.created[0] ?? key;
       if (activeMarkCollectionKey === key) setActiveMarkCollectionKey(renamed);
@@ -564,29 +165,23 @@ function MarkInspectorPanel({
   };
 
   const deleteCollection = (collection: SequenceMarkCollection) => {
-    void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "delete", item: { type: "markCollection", key: collection.key } })
-    ).then((result) => {
+    void remove(site({ type: "marks", id: collection.id })).then((result) => {
       if (result === null) return;
-      if (selectedMark?.collectionKey === collection.key) setSelected(null);
-      if (activeCollection?.key === collection.key) {
-        setActiveMarkCollectionKey(document.markCollections.find((candidate) => candidate.key !== collection.key)?.key ?? null);
+      if (selectedMark?.collectionId === collection.id) setDocumentUi({ focus: null });
+      if (activeCollection?.name === collection.name) {
+        setActiveMarkCollectionKey(document.markCollections.find((candidate) => candidate.name !== collection.name)?.name ?? null);
       }
-      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys].filter((key) => key !== collection.key)));
+      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys].filter((key) => key !== collection.name)));
     });
   };
 
   const setSelectedMarkRefs = (refs: SequenceMarkRef[]) => {
     const validRefs = refs.filter((ref) => markEntry(document, ref) !== null);
-    if (validRefs.length === 0) {
-      setSelected(null);
-      setSequenceSelection(null);
-      return;
-    }
     const firstRef = validRefs[0];
-    if (firstRef === undefined) return;
-    setSelected({ type: "mark", collectionKey: firstRef.collectionKey, index: firstRef.index });
-    setSequenceSelection({ type: "marks", marks: validRefs });
+    setDocumentUi(firstRef === undefined ? { focus: null, selection: null } : {
+      focus: { type: "mark", collectionId: firstRef.collectionId, index: firstRef.index },
+      selection: { type: "marks", marks: validRefs }
+    });
   };
 
   const moveSelectedMark = (entry: SelectedMarkEntry, timeSeconds: number) => {
@@ -604,17 +199,17 @@ function MarkInspectorPanel({
     });
   };
 
-  const reassignSelectedMark = (entry: SelectedMarkEntry, targetCollectionKey: string) => {
-    if (targetCollectionKey === entry.ref.collectionKey) return;
-    const targetCollection = document.markCollections.find((collection) => collection.key === targetCollectionKey);
+  const reassignSelectedMark = (entry: SelectedMarkEntry, targetCollectionId: number) => {
+    if (targetCollectionId === entry.ref.collectionId) return;
+    const targetCollection = document.markCollections.find((collection) => collection.id === targetCollectionId);
     if (targetCollection === undefined) return;
     const nextRefs = selectedRefsAfterReassign(selectedMarks.map((mark) => mark.ref), entry.ref, targetCollection, entry.timeSeconds);
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: {
         type: "reassignMarkCollection",
-        collectionKey: entry.ref.collectionKey,
+        collectionId: entry.ref.collectionId,
         index: entry.ref.index,
-        targetCollectionKey
+        targetCollectionId
       } })
     ).then((result) => {
       if (result !== null) setSelectedMarkRefs(nextRefs);
@@ -624,27 +219,15 @@ function MarkInspectorPanel({
   const spanSelectedMark = (entry: SelectedMarkEntry, durationSeconds: number) => {
     const next = roundToNanosecond(Math.max(0, durationSeconds));
     if (!Number.isFinite(next) || next === entry.durationSeconds) return;
-    void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "setMarkDuration",
-        collectionKey: entry.ref.collectionKey,
-        index: entry.ref.index,
-        durationSeconds: next
-      } })
-    );
+    const collection = document.markCollections.find((candidate) => candidate.id === entry.ref.collectionId);
+    if (collection !== undefined) void putMark(collection, entry.ref.index, { durationSeconds: next });
   };
 
   const labelSelectedMark = (entry: SelectedMarkEntry, label: string) => {
     const next = label.trim() === "" ? null : label.trim();
     if (next === entry.label) return;
-    void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: {
-        type: "setMarkLabel",
-        collectionKey: entry.ref.collectionKey,
-        index: entry.ref.index,
-        label: next
-      } })
-    );
+    const collection = document.markCollections.find((candidate) => candidate.id === entry.ref.collectionId);
+    if (collection !== undefined) void putMark(collection, entry.ref.index, { label: next });
   };
 
   const deleteSelectedMark = (entry: SelectedMarkEntry) => {
@@ -664,81 +247,62 @@ function MarkInspectorPanel({
       <h2>Marks</h2>
       <Section title="Collections" actions={<>
         <IconButton icon={Plus} label="Add collection" onClick={createCollection} />
-        <BeatDetectionDialog
-          document={document}
-          setActiveMarkCollectionKey={setActiveMarkCollectionKey}
-          visibleMarkCollectionKeys={visibleMarkCollectionKeys}
-          setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
-        />
+        <BeatDetectionDialog document={document} />
       </>}>
         {document.markCollections.length === 0 && <AddRow label="Add collection" onAdd={createCollection} />}
         {document.markCollections.length > 0 && (
           <div className="mark-collection-edit-list">
             {document.markCollections.map((collection) => {
-              const active = activeCollection?.key === collection.key;
-              const visible = visibleMarkCollectionKeys.has(collection.key);
-              return <div key={collection.key} className="mark-collection-edit-row">
+              const active = activeCollection?.name === collection.name;
+              const visible = visibleMarkCollectionKeys.has(collection.name);
+              return <div key={collection.name} className="mark-collection-edit-row">
                 <IconButton
                   icon={active ? CircleDot : Circle}
                   pressed={active}
-                  label={`Use ${collection.key} for new marks`}
-                  onClick={() => { setActiveMarkCollectionKey(collection.key); }}
+                  label={`Use ${collection.name} for new marks`}
+                  onClick={() => { setActiveMarkCollectionKey(collection.name); }}
                 />
                 <IconButton
                   icon={visible ? Eye : EyeOff}
                   pressed={visible}
-                  label={visible ? `Hide ${collection.key}` : `Show ${collection.key}`}
+                  label={visible ? `Hide ${collection.name}` : `Show ${collection.name}`}
                   onClick={() => {
                     const next = new Set(visibleMarkCollectionKeys);
-                    if (visible) next.delete(collection.key);
-                    else next.add(collection.key);
+                    if (visible) next.delete(collection.name);
+                    else next.add(collection.name);
                     setVisibleMarkCollectionKeys(next);
                   }}
                 />
                 <ColorPicker
                   value={collection.color}
-                  label={`${collection.key} color`}
+                  label={`${collection.name} color`}
                   commit={(color) =>
-                    runGuiEditCommand((request) =>
-                      commands.applyGuiEdit(request, { type: "setColor", item: { type: "markCollection", key: collection.key }, color })
-                    ).then(() => undefined)
+                    recolor({ type: "marks", id: collection.id }, color).then(() => undefined)
                   }
                 />
-                <MarkCollectionName name={collection.key} onCommit={(name) => { renameCollection(collection.key, name); }} />
-                <IconButton icon={Trash2} label={`Delete ${collection.key}`} danger onClick={() => { deleteCollection(collection); }} />
+                <MarkCollectionName id={collection.id} name={collection.name} onCommit={(name) => { renameCollection(collection, name); }} />
+                <IconButton icon={Trash2} label={`Delete ${collection.name}`} danger onClick={() => { deleteCollection(collection); }} />
               </div>;
             })}
           </div>
         )}
         {activeCollection !== null && (
-          <DescriptionField description={activeCollection.description} member={{ type: "markCollection", key: activeCollection.key }} onCommit={(description) =>
-            runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "setDescription", item: { type: "markCollection", key: activeCollection.key }, description })
-            )} />
+          <DescriptionField description={activeCollection.description} member={{ type: "marks", id: activeCollection.id }} onCommit={(description) => describe({ type: "marks", id: activeCollection.id }, description)} />
         )}
       </Section>
         {selectedMarks.length >= 2 && (
-          <MarkSubdivision
-            document={document}
-            selectedSeconds={selectedMarks.map((entry) => entry.timeSeconds)}
-            visibleMarkCollectionKeys={visibleMarkCollectionKeys}
-            setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
-            clearMarkSelection={() => {
-              setSelected(null);
-              setSequenceSelection(null);
-            }}
-          />
+          <MarkSubdivision document={document} selectedSeconds={selectedMarks.map((entry) => entry.timeSeconds)} />
         )}
       {selectedMarks.length > 0 && (
         <Section title={`Selected · ${selectedMarks.length}`}>
           <div className="mark-selected-list">
             {selectedMarks.map((entry, index) => (
-              <div key={`${entry.ref.collectionKey}:${entry.ref.index}:${index}`} className="mark-selected-row">
+              <div key={`${entry.ref.collectionId}:${entry.ref.index}:${index}`} className="mark-selected-row">
                 <Select
                   name="Mark collection"
-                  value={entry.ref.collectionKey}
+                  value={String(entry.ref.collectionId)}
                   options={collectionOptions}
-                  onChange={(key) => { reassignSelectedMark(entry, key); }}
+                  onChange={(key) => { reassignSelectedMark(entry, Number(key)); }}
                 />
                 <NumberField
                   name="Mark time"
@@ -774,8 +338,8 @@ function MarkInspectorPanel({
 }
 
 /** A mark collection's name in its row, marked when a rename is refused. */
-function MarkCollectionName({ name, onCommit }: { name: string; onCommit: (name: string) => void }) {
-  const problem = useFieldProblem({ type: "markCollection", key: name }, { type: "name" });
+function MarkCollectionName({ id, name, onCommit }: { id: number; name: string; onCommit: (name: string) => void }) {
+  const problem = useFieldProblem({ type: "marks", id }, { type: "name" });
   return <Problem error={problem}><TextField name={`${name} name`} value={name} invalid={problem !== null} onCommit={onCommit} /></Problem>;
 }
 
@@ -786,13 +350,13 @@ function markIndexAfterInsert(collection: SequenceMarkCollection, timeSeconds: n
 function selectedMarkEntries(
   document: SequenceGuiDocument,
   selected: GuiFocus,
-  sequenceSelection: SequenceSelection
+  sequenceSelection: SequenceSelection | null
 ): SelectedMarkEntry[] {
   const refs =
     sequenceSelection?.type === "marks" && sequenceSelection.marks.length > 0
       ? sequenceSelection.marks
       : selected?.type === "mark"
-        ? [{ collectionKey: selected.collectionKey, index: selected.index }]
+        ? [{ collectionId: selected.collectionId, index: selected.index }]
         : [];
   const seen = new Set<string>();
   const entries: SelectedMarkEntry[] = [];
@@ -807,7 +371,7 @@ function selectedMarkEntries(
 }
 
 function markEntry(document: SequenceGuiDocument, ref: SequenceMarkRef): SelectedMarkEntry | null {
-  const collection = document.markCollections.find((candidate) => candidate.key === ref.collectionKey);
+  const collection = document.markCollections.find((candidate) => candidate.id === ref.collectionId);
   const timeSeconds = collection?.marksSeconds[ref.index];
   const durationSeconds = collection?.markDurationsSeconds[ref.index];
   if (collection === undefined || timeSeconds === undefined || durationSeconds === undefined) return null;
@@ -827,9 +391,9 @@ function selectedRefsAfterMove(
     }))
     .sort((left, right) => left.timeSeconds - right.timeSeconds || left.markIndex - right.markIndex);
   return refs.map((ref) => {
-    if (ref.collectionKey !== movedRef.collectionKey) return ref;
+    if (ref.collectionId !== movedRef.collectionId) return ref;
     const nextIndex = sorted.findIndex((mark) => mark.markIndex === ref.index);
-    return nextIndex < 0 ? ref : { collectionKey: ref.collectionKey, index: nextIndex };
+    return nextIndex < 0 ? ref : { collectionId: ref.collectionId, index: nextIndex };
   });
 }
 
@@ -841,12 +405,12 @@ function selectedRefsAfterReassign(
 ) {
   const targetIndex = markIndexAfterInsert(targetCollection, timeSeconds);
   return refs.map((ref) => {
-    if (sameMarkRef(ref, movedRef)) return { collectionKey: targetCollection.key, index: targetIndex };
-    if (ref.collectionKey === movedRef.collectionKey && ref.index > movedRef.index) {
-      return { collectionKey: ref.collectionKey, index: ref.index - 1 };
+    if (sameMarkRef(ref, movedRef)) return { collectionId: targetCollection.id, index: targetIndex };
+    if (ref.collectionId === movedRef.collectionId && ref.index > movedRef.index) {
+      return { collectionId: ref.collectionId, index: ref.index - 1 };
     }
-    if (ref.collectionKey === targetCollection.key && ref.index >= targetIndex) {
-      return { collectionKey: ref.collectionKey, index: ref.index + 1 };
+    if (ref.collectionId === targetCollection.id && ref.index >= targetIndex) {
+      return { collectionId: ref.collectionId, index: ref.index + 1 };
     }
     return ref;
   });
@@ -856,18 +420,18 @@ function selectedRefsAfterDelete(refs: SequenceMarkRef[], deletedRef: SequenceMa
   return refs
     .filter((ref) => !sameMarkRef(ref, deletedRef))
     .map((ref) => {
-      if (ref.collectionKey === deletedRef.collectionKey && ref.index > deletedRef.index) {
-        return { collectionKey: ref.collectionKey, index: ref.index - 1 };
+      if (ref.collectionId === deletedRef.collectionId && ref.index > deletedRef.index) {
+        return { collectionId: ref.collectionId, index: ref.index - 1 };
       }
       return ref;
     });
 }
 
 function sameMarkRef(left: SequenceMarkRef, right: SequenceMarkRef) {
-  return left.collectionKey === right.collectionKey && left.index === right.index;
+  return left.collectionId === right.collectionId && left.index === right.index;
 }
 
 function markRefKey(ref: SequenceMarkRef) {
-  return `${ref.collectionKey}:${ref.index}`;
+  return `${ref.collectionId}:${ref.index}`;
 }
 

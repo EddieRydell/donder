@@ -26,11 +26,10 @@ const WHITE: Color = Color::from_bytes([255, 255, 255]);
 fn at(progress: f32) -> PixelContext {
     PixelContext {
         run: RunContext {
-            progress,
+            origin: donder_runtime_types::SampleTime::from_ticks(0),
             time: SampleDuration::from_ticks((progress * 1_000_000.0) as u32),
             duration: SampleDuration::from_ticks(1_000_000),
             frame_rate: 40.0,
-            frame: 0,
             pixel_count: 1,
         },
         index: 0,
@@ -551,14 +550,6 @@ fn signals_are_only_operator_inputs() {
             .contains("unknown type `Signal`")
     );
     assert!(
-        compile_error("operator Bad { input source; sample { let t = time; t.at(0) } }")
-            .contains("only operator inputs have methods")
-    );
-    assert!(
-        compile_error("operator Bad { input source; sample { source.later(time) } }")
-            .contains("signals have no method `later`")
-    );
-    assert!(
         compile_error("operator Bad { input source; input source; sample { source } }")
             .contains("`source` is declared twice")
     );
@@ -771,11 +762,11 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
             input source;
             sample {
                 let p = pixel.index;
-                let a = source.at(p);
+                let a = source[p];
                 let c = source;
-                let d = source.at(p);
+                let d = source[p];
                 let p = p + 1;
-                max(max(a, max(c, d)), source.at(p))
+                max(max(a, max(c, d)), source[p])
             }
         }",
     );
@@ -798,14 +789,7 @@ fn spatial_signal_queries_keep_their_coordinate_domains() {
         ]
     );
     assert_eq!(result.blue, 4.0);
-    for query in [
-        "source.at()",
-        "source.at(1.0)",
-        "source.at(0.0, 1)",
-        "source.at(1, 2)",
-        "source.at_global(1)",
-        "source.at(#ffffff)",
-    ] {
+    for query in ["source[1.0]", "source[#ffffff]"] {
         assert!(
             compile_script(&format!(
                 "operator Invalid {{ input source; sample {{ {query} }} }}"
@@ -834,11 +818,11 @@ fn equal_signal_queries_share_one_sample() {
             vec![(0, SignalPixel::Current)],
         ),
         (
-            "max(max(source.at(2), source.at(2)), max(other, other))",
+            "max(max(source[2], source[2]), max(other, other))",
             vec![(0, SignalPixel::Local(2)), (1, SignalPixel::Current)],
         ),
         (
-            "max for i in 0..3 { source.at(i) }",
+            "max for i in 0..3 { source[i] }",
             vec![
                 (0, SignalPixel::Local(0)),
                 (0, SignalPixel::Local(1)),
@@ -850,7 +834,7 @@ fn equal_signal_queries_share_one_sample() {
             "operator Reads {{ input source; input other; sample {{ {body} }} }}"
         ));
         let mut context = pixel(0, 4);
-        context.run.progress = 1.0;
+        context.run.time = context.run.duration;
         let mut samples = Samples::default();
         operator
             .evaluate_signals(

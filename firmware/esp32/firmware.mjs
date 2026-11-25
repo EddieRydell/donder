@@ -92,9 +92,20 @@ function checkRuntimeWidth(nm, objdump) {
 
 function main() {
   const [mode, ...args] = process.argv.slice(2);
+  if (mode === 'storage-test' && args.length === 0) {
+    // Device storage builds for the host, against native libclang.
+    const result = spawnSync('cargo', ['test', '--manifest-path', 'firmware/esp32/Cargo.toml', '-p', 'donder-device-storage', '--lib', '--locked'], {
+      cwd: root,
+      stdio: 'inherit',
+      env: { ...process.env, LIBCLANG_PATH: requiredPath('DONDER_HOST_LIBCLANG_PATH'), CARGO_TARGET_DIR: join(root, 'target/storage-host') },
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`cargo test failed (${result.signal ?? result.status}).`);
+    return;
+  }
   const digQuad = mode === 'build' && args.length === 2 && args[0] === '--board' && args[1] === 'dig-quad';
   if ((mode !== 'build' && mode !== 'cargo') || (mode === 'build' && args.length > 0 && !digQuad) || (mode === 'cargo' && args.length === 0)) {
-    throw new Error('Usage: pnpm firmware:build [--board dig-quad] | pnpm firmware:cargo <cargo arguments>');
+    throw new Error('Usage: pnpm firmware:build [--board dig-quad] | pnpm firmware:cargo <cargo arguments> | pnpm storage:test');
   }
   const library = requiredPath('DONDER_ESP_LIBCLANG_PATH');
   const compilerBin = requiredPath('DONDER_ESP_TOOLCHAIN_BIN', true);

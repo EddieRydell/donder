@@ -1,4 +1,4 @@
-import { useSpatialGuides } from "./spatialViewState";
+import { useObjectViewState } from "../../../viewStatePersistence";
 import { editTarget, isMac, isSecondaryClick } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
 import { boxSelection, selectedItems, selectionClick, unionBounds, type Box, type SpatialItem } from "./spatialSelection";
@@ -9,7 +9,7 @@ import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRe
 import { createStore, useStore, type StoreApi } from "zustand";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ContextMenuEntries, type MenuEntry } from "../../kit";
-import type { GuiObjectRef, Point3Meters, SpatialRenderPixel, SpatialRenderPlan, SpatialUnit } from "../../../types";
+import type { GuiObjectRef, Point3Meters, SpatialRenderPixel, SpatialGuide, SpatialRenderPlan, SpatialUnit } from "../../../types";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { drawSpatialCanvas, nearestPoint, normalizeBounds, normalizePoint, unproject } from "../shared";
 import { SpatialControls, useSpatialViewport } from "../SpatialViewport";
@@ -29,11 +29,16 @@ type LayoutMenu = {
   onAddGroup: () => void;
 };
 
+/** A view with no saved guides shows none. */
+const NO_GUIDES: SpatialGuide[] = [];
+
 /** `onOpen` opens the pixel owner under a double-click in its own editor. */
+
 export function SpatialCanvas({ plan, reference, documentKey, selection, items, onSelect, onOpen, onMoveStart, onDelete, onDuplicate, layoutMenu, fixtureTools }: { plan: SpatialRenderPlan; reference: GuiObjectRef; documentKey: string; selection: number[]; items: SpatialItem[]; onSelect: (owners: number[]) => void; onOpen?: (owner: number) => void; onMoveStart: (owners: number[], anchor: number) => Move | null; onDelete: () => void; onDuplicate: () => void; layoutMenu?: LayoutMenu; fixtureTools?: FixtureCanvasTools }) {
   const snapping = useAppStore((state) => state.snapshot?.settings.spatialSnap);
   if (snapping === undefined) throw new Error("Spatial editor settings are missing.");
-  const guides = useSpatialGuides(reference);
+  const [spatialView, saveSpatialView] = useObjectViewState("spatial", reference);
+  const guides = { guides: spatialView?.guides ?? NO_GUIDES, save: (next: SpatialGuide[]) => { saveSpatialView({ guides: next }); } };
   const chosen = selectedItems(items, selection);
   const selectedOwners = chosen.flatMap((item) => item.owners);
   const selected = selection.length === 1 ? selection[0] ?? null : null;
@@ -67,7 +72,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
   const pending = useAppStore((state) => state.guiEditPending);
   const [menuPosition, setMenuPosition] = useState<Point3Meters | null>(null);
   const bounds = useMemo(() => normalizeBounds(plan.bounds), [plan.bounds]);
-  const spatial = useSpatialViewport(bounds, documentKey, documentKey);
+  const spatial = useSpatialViewport(bounds, documentKey);
   const targets = useMemo(() => fixtureTools === undefined ? plan.pixels.map((pixel) => ({ owner: pixel.owner, position: pixel.position })) : [...fixtureTools.handles.map((handle) => ({ owner: handle.element, position: handle.position })), ...plan.pixels.filter((pixel) => fixtureTools.elements.some((element) => element.id === pixel.owner && element.shape.type === "pixel")).map((pixel) => ({ owner: pixel.owner, position: pixel.position }))], [fixtureTools, plan.pixels]);
   const fixture = useFixtureCanvasTools(fixtureTools, selected, spatial.view.scale, plan, snapping, targets, guides.guides);
   useEffect(() => { if (fixtureTools?.tool !== null && fixtureTools?.tool !== undefined) canvas.current?.focus(); }, [fixtureTools?.tool]);
@@ -84,7 +89,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
     const marqueeBox = marquee.current;
     const rect = element.getBoundingClientRect();
     spatial.resize(rect.width, rect.height);
-    drawSpatialCanvas(element, bounds, (context, project) => {
+    drawSpatialCanvas(element, (context, project) => {
       context.strokeStyle = THEME_COLORS.canvasGuide;
       context.lineWidth = THEME_METRICS.fixtureGuideWidth;
       context.setLineDash([THEME_METRICS.spatialSelectionDash]);
@@ -151,7 +156,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       setOffset({ owners: active.commit.owners, x: delta.xMeters, y: delta.yMeters, pixels: active.pixels });
     } else if (active === null && canvas.current !== null) {
       const rect = canvas.current.getBoundingClientRect();
-      fixture.move(unproject(lastPointer.current.clientX - rect.left, lastPointer.current.clientY - rect.top, canvas.current, bounds, spatial.view), modifiers);
+      fixture.move(unproject(lastPointer.current.clientX - rect.left, lastPointer.current.clientY - rect.top, spatial.view), modifiers);
     }
   };
   const cancel = () => { setMarquee(null); setDragging(false); pointerActive.current = false; gesture.current = null; showPanCursor(); setOffset(null); fixture.cancel(); };
@@ -206,7 +211,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
         event.currentTarget.setPointerCapture(event.pointerId);
         event.currentTarget.focus();
         const rect = event.currentTarget.getBoundingClientRect();
-        const world = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
+        const world = unproject(event.clientX - rect.left, event.clientY - rect.top, spatial.view);
         if (event.button === 1 || spaceHeld.current) { gesture.current = { type: "pan", x: event.clientX, y: event.clientY }; showPanCursor(); return; }
         if ((fixtureTools?.tool !== null || !(event.ctrlKey || event.metaKey)) && fixture.down(world, event)) return;
         const index = nearestPoint(points, world, THEME_METRICS.spatialHitRadius / spatial.view.scale);
@@ -230,14 +235,14 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onPointerMove={(event) => {
         lastPointer.current = { clientX: event.clientX, clientY: event.clientY };
         const rect = event.currentTarget.getBoundingClientRect();
-        if (gesture.current === null && fixture.move(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), event)) return;
+        if (gesture.current === null && fixture.move(unproject(event.clientX - rect.left, event.clientY - rect.top, spatial.view), event)) return;
         const active = gesture.current;
         if (active === null) return;
         if (active.type === "pan") {
           spatial.panBy(event.clientX - active.x, event.clientY - active.y);
           gesture.current = { type: "pan", x: event.clientX, y: event.clientY };
         } else if (active.type === "box") {
-          const world = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
+          const world = unproject(event.clientX - rect.left, event.clientY - rect.top, spatial.view);
           active.end = { xMeters: world.x, yMeters: world.y, zMeters: world.z };
           setMarquee(boxFromPoints(active.start, active.end));
         } else {
@@ -248,12 +253,12 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onPointerUp={(event) => {
         pointerActive.current = false; setDragging(false);
         const rect = event.currentTarget.getBoundingClientRect();
-        if (gesture.current === null && !isSecondaryClick(event) && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), event)) return;
+        if (gesture.current === null && !isSecondaryClick(event) && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, spatial.view), event)) return;
         const active = gesture.current;
         gesture.current = null;
         if (active?.type === "pan") showPanCursor();
         if (active?.type === "box") {
-          const world = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
+          const world = unproject(event.clientX - rect.left, event.clientY - rect.top, spatial.view);
           const box = boxFromPoints(active.start, { xMeters: world.x, yMeters: world.y, zMeters: world.z });
           onSelect([...new Set([...active.selection, ...boxSelection(items, box)])]);
           setMarquee(null);
@@ -286,7 +291,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onDoubleClick={(event) => {
         if (onOpen === undefined) return;
         const rect = event.currentTarget.getBoundingClientRect();
-        const index = nearestPoint(points, unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), THEME_METRICS.spatialHitRadius / spatial.view.scale);
+        const index = nearestPoint(points, unproject(event.clientX - rect.left, event.clientY - rect.top, spatial.view), THEME_METRICS.spatialHitRadius / spatial.view.scale);
         const owner = index === null ? null : plan.pixels[index]?.owner ?? null;
         if (owner !== null) onOpen(owner);
       }}
@@ -299,7 +304,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       }}
       onContextMenu={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();
-        const point = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
+        const point = unproject(event.clientX - rect.left, event.clientY - rect.top, spatial.view);
         if (fixtureTools !== undefined || layoutMenu !== undefined) {
           const index = nearestPoint(points, point, THEME_METRICS.spatialHitRadius / spatial.view.scale);
           const owner = index === null ? null : plan.pixels[index]?.owner ?? null;

@@ -25,7 +25,6 @@ pub use alloc::rc::Rc as Shared;
 #[cfg(feature = "atomic")]
 pub use alloc::sync::Arc as Shared;
 
-mod automation;
 mod bindings;
 pub mod bytecode;
 mod console;
@@ -36,17 +35,13 @@ mod types;
 mod values;
 mod word;
 
-pub use automation::{
-    AutomationMapping, AutomationValue, automated_bool, automated_float, automated_index,
-    automated_int, automation_value_at_position, curve_window_points,
-};
 pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
-pub use console::{ConsoleEvent, InputEvent, InputHappening};
+pub use console::{ConsoleEvent, InputEvent, InputHappening, PlayedSource};
 pub use prepared::{
-    AutomatedQuantity, ChannelColors, FixtureGeometry, MAX_CHANNEL_COLORS, OutputEncoding,
-    PixelEncoding, PixelStructure, PreparedAutomation, SequenceTiming, SpatialContext,
-    TargetGeometry, TargetPixel, TargetScope, channel_level,
+    AutomationMapping, AutomationSource, ChannelColors, FixtureGeometry, MAX_CHANNEL_COLORS,
+    OutputEncoding, PixelEncoding, PixelStructure, PreparedAutomation, SequenceTiming,
+    SpatialContext, TargetGeometry, TargetPixel, TargetScope, channel_level,
 };
 pub use program::{BoundProgram, Program};
 pub use types::{Identifier, IdentifierError, Type, Value};

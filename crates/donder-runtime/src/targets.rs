@@ -1,11 +1,10 @@
 //! Targets as a show stores them: runs of contiguous cells, or one record
 //! per pixel for irregular selections, with each pixel's original logical
-//! place. A pixel's fraction is computed from its place, as authoring does.
+//! place.
 use crate::dsl::Extent;
 use crate::format::{self, PixelRun};
 use core::cell::Cell;
 
-use crate::sections::SectionsView;
 use crate::view::Show;
 
 /// A target pixel: its storage fixture and cell, and its index among the
@@ -16,19 +15,6 @@ pub(crate) struct PreparedPixel {
     pub fixture_pixel_index: u32,
     pub pixel_index: usize,
     pub pixel_count: usize,
-}
-
-impl PreparedPixel {
-    /// 0 at the scope's first pixel, 1 at its last, evenly spaced between;
-    /// 0 for a scope of one pixel.
-    #[inline(always)]
-    pub(crate) fn fraction(&self) -> f32 {
-        if self.pixel_count <= 1 {
-            0.0
-        } else {
-            self.pixel_index as f32 / (self.pixel_count - 1) as f32
-        }
-    }
 }
 
 #[inline(always)]
@@ -59,7 +45,6 @@ pub(crate) struct TargetView<'a> {
     pixels: &'a [format::Pixel],
     spatial: &'a [format::SpatialRun],
     structure: &'a [format::PixelStructure],
-    pub(crate) sections: SectionsView<'a>,
 }
 
 /// Consecutive target pixels that share a fixture, count and contiguous
@@ -90,7 +75,6 @@ impl<'a> TargetView<'a> {
             pixels,
             spatial: record.spatial.get(s.spatial_runs),
             structure: record.structure.get(s.pixel_structure),
-            sections: SectionsView::of(show, record),
         }
     }
 

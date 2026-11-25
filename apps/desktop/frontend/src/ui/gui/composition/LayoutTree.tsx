@@ -1,6 +1,6 @@
 import { useState, type DragEvent } from "react";
 import { isSecondaryClick } from "../../../platform";
-import { ChevronDown, ChevronRight, Link2, Scissors } from "lucide-react";
+import { ChevronDown, ChevronRight, Scissors } from "lucide-react";
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
@@ -115,7 +115,6 @@ function LayoutTreeItem({ item, parent, next, context, selected, onSelect, onOpe
   const pixelCount = memberPixelCount(context.items, item.id, context.pixelCounts);
   const shared = context.shared(item.id);
   const metadata = item.kind.type === "group" ? `${fixtures.length} fixtures · ${pixelCount} px` : `${pixelCount} px`;
-  const linked = item.kind.type === "fixture" && item.kind.definition.type === "reference";
   const location = (event: DragEvent<HTMLElement>): Location => {
     const rect = event.currentTarget.getBoundingClientRect();
     const y = (event.clientY - rect.top) / rect.height;
@@ -138,7 +137,6 @@ function LayoutTreeItem({ item, parent, next, context, selected, onSelect, onOpe
         ? open ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} /> : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />
         : null}</span>
       <span className="composition-tree-name">{item.name}</span><span className="composition-tree-meta">{metadata}</span>
-      {linked && <Badge icon={Link2} tip="Linked to a reusable fixture" />}
       {shared > 1 && <Badge tip={`In ${shared} groups`}>{`×${shared}`}</Badge>}
     </summary>
     {item.kind.type === "group" && <div className="composition-tree-children"><LayoutTreeRows members={item.kind.members} parent={item.id} context={context} selected={selected} onSelect={onSelect} onOpen={onOpen} /></div>}

@@ -1,5 +1,6 @@
 import { commands, errorMessage } from "../../../../api";
 import { runGuiEditCommand } from "../../../../store";
+import { put, remove, site } from "../../edits";
 import { navigateToGuiObject } from "../../../../workspace/navigation";
 import { isSecondaryClick } from "../../../../platform";
 import { matchesCommand } from "../../../../commandRegistry";
@@ -9,12 +10,13 @@ import { ArrowDown, ArrowUp, FlipHorizontal2, FlipVertical2, Image as ImageIcon,
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
-import type { GuiMember, SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../types";
+import type { GuiMember, SequenceGradientStop, SequenceCurvePoint, GuiClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceClipParam, SequenceParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceGradientSpace, SequenceLibraryLink } from "../../../../types";
 
 import { ColorPicker } from "../../../ColorPicker";
 import { AddRow, Button, Field, IconButton, NumberField, Problem, Section, Select, TextField, Toggle } from "../../../kit";
 import { useFieldProblem } from "../../problems";
-import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
+import { automationTargetsEqual, clamp } from "../../shared";
+import { setDocumentUi, useDocumentUi } from "../../documentUi";
 import { WindowFields } from "../../WindowFields";
 
 /** The select value for a marks parameter with no collection; collection keys are never empty. */
@@ -56,12 +58,13 @@ export type EditedSequenceCurvePoint = { time: number; value: number };
 
 export type EditedSequenceGradientStop = { time: number; value: string };
 
-type ParamAutomationControls = {
+/** How a sequence binds a parameter to an envelope. */
+type EnvelopeBindingControls = {
   target: SequenceAutomationTarget;
-  automationClips: SequenceAutomationClip[];
-  canCreateAutomationClip: boolean;
-  automationClipChooser: AutomationClipChooser;
-  setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
+  /** The sequence's envelopes. */
+  envelopes: GuiClip[];
+  /** Whether a new envelope has a row to go in. */
+  canCreate: boolean;
 };
 
 export function TypedParamInput({
@@ -79,8 +82,8 @@ export function TypedParamInput({
   commitParam: (name: string, value: SequenceParamValue) => Promise<void>;
   curveLibrary: SequenceCurveLibraryItem[];
   gradientLibrary: SequenceGradientLibraryItem[];
-  markCollections: Pick<SequenceMarkCollection, "key">[];
-  automation?: ParamAutomationControls | null;
+  markCollections: Pick<SequenceMarkCollection, "id" | "name">[];
+  automation?: EnvelopeBindingControls | null;
   /** Controls that link the parameter to its automation, in place of a sequence's. */
   automationControl?: ReactNode;
   /** Whether `automationControl` has linked the parameter to what sets it. */
@@ -108,8 +111,8 @@ function TypedParamValue({
   commitParam: (name: string, value: SequenceParamValue) => Promise<void>;
   curveLibrary: SequenceCurveLibraryItem[];
   gradientLibrary: SequenceGradientLibraryItem[];
-  markCollections: Pick<SequenceMarkCollection, "key">[];
-  automation: ParamAutomationControls | null;
+  markCollections: Pick<SequenceMarkCollection, "id" | "name">[];
+  automation: EnvelopeBindingControls | null;
   automationControl: ReactNode;
   linked: boolean;
 }) {
@@ -127,14 +130,7 @@ function TypedParamValue({
   const automationActions = automationControl !== null ? automationControl :
     automation === null || !param.supportsAutomation
       ? null
-      : automationBindingControl(
-          automation.target,
-          param,
-          automation.automationClips,
-          automation.canCreateAutomationClip,
-          automation.automationClipChooser,
-          automation.setAutomationClipChooser
-        );
+      : <EnvelopeBinding controls={automation} param={param} />;
   // An automated parameter shows no value of its own: automation sets it, so only its controls remain.
   const valueField = (control: ReactNode) => (
     <ParamField label={param.name} tip={tip}>
@@ -197,29 +193,20 @@ function TypedParamValue({
         <GradientValueEditor name={param.name} tip={tip} value={param.value.value} declarations={gradientLibrary}
           commit={(value) => commit({ type: "gradient", value })} />
       );
-    case "intArray":
-      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "int").value} step={1} integer commit={(values) => commit({ type: "intArray", values })} />;
-    case "floatArray":
-      return <NumberArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "float").value} step={0.05} integer={false} commit={(values) => commit({ type: "floatArray", values })} />;
-    case "boolArray":
-      return <BoolArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "bool").value} commit={(values) => commit({ type: "boolArray", values })} />;
-    case "colorArray":
-      return <ColorArrayParam name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "color").value} commit={(values) => commit({ type: "colorArray", values })} />;
-    case "curveArray":
-      return <CurveArrayParam declarations={curveLibrary} name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "curve").value} range={param.range} commit={(values) => commit({ type: "curveArray", values })} />;
-    case "gradientArray":
-      return <GradientArrayParam declarations={gradientLibrary} name={param.name} tip={tip} values={param.value.values} initial={newItem(param, "gradient").value} commit={(values) => commit({ type: "gradientArray", values })} />;
+    case "array":
+      return <ArrayParam param={param} values={param.value.values} tip={tip} curveLibrary={curveLibrary} gradientLibrary={gradientLibrary} markCollections={markCollections}
+        commit={(values) => commit({ type: "array", values })} />;
     case "marks":
       return (
         <ParamField label={param.name} tip={tip}>
           <Select
             name={param.name}
-            value={param.value.key ?? NO_MARK_COLLECTION}
+            value={param.value.id === null ? NO_MARK_COLLECTION : String(param.value.id)}
             options={[
               { value: NO_MARK_COLLECTION, label: "None" },
-              ...markCollections.map((collection) => ({ value: collection.key, label: collection.key }))
+              ...markCollections.map((collection) => ({ value: String(collection.id), label: collection.name }))
             ]}
-            onChange={(key) => void commit({ type: "marks", key: key === NO_MARK_COLLECTION ? null : key })}
+            onChange={(key) => void commit({ type: "marks", id: key === NO_MARK_COLLECTION ? null : Number(key) })}
           />
         </ParamField>
       );
@@ -293,13 +280,6 @@ function optionValue(param: SequenceClipParam, name: string): SequenceParamValue
   return { type: "enum", value: name, fields: (option?.fields ?? []).map((field) => ({ name: field.name, value: field.value })) };
 }
 
-/** The value a new item of an array parameter starts with, which the backend gives every array parameter. */
-function newItem<T extends SequenceParamValue["type"]>(param: SequenceClipParam, type: T): Extract<SequenceParamValue, { type: T }> {
-  const item = param.newItem;
-  if (item === null || item.type !== type) throw new Error(`Parameter \`${param.name}\` has no new ${type} item.`);
-  return item as Extract<SequenceParamValue, { type: T }>;
-}
-
 function formatRange(range: SequenceParamRange) {
   return `${roundCurveValue(range.min)}..${roundCurveValue(range.max)}`;
 }
@@ -329,59 +309,26 @@ function NumberParam({ name, value, step, integer, range, commit }: {
   />;
 }
 
-function NumberArrayParam({ name, tip, values, initial, step, integer, commit }: { name: string; tip: string | undefined; values: number[]; initial: number; step: number; integer: boolean; commit: (values: number[]) => Promise<void> }) {
-  return (
-    <ArrayShell
-      name={name}
-      tip={tip}
-      values={values}
-      newValue={() => values[values.length - 1] ?? initial}
-      commit={commit}
-      render={(value, index) => (
-        <NumberField name={`${name} ${index + 1}`} value={value} step={step} integer={integer} onCommit={(next) => void commit(replaceAt(values, index, next))} />
-      )}
-    />
-  );
-}
-
-function automationBindingControl(target: SequenceAutomationTarget,
-  param: SequenceClipParam,
-  clips: SequenceAutomationClip[],
-  canCreateAutomationClip: boolean,
-  automationClipChooser: AutomationClipChooser,
-  setAutomationClipChooser: (chooser: AutomationClipChooser) => void
-) {
-
-  const choosing = automationClipChooser !== null && automationTargetsEqual(automationClipChooser.target, target);
+/** The envelope a parameter follows and its window, or buttons that bind one: an existing envelope chosen on the
+ * timeline, behind the layer graph, or a new one. */
+function EnvelopeBinding({ controls: { target, envelopes, canCreate }, param }: { controls: EnvelopeBindingControls; param: SequenceClipParam }) {
+  const choosing = useDocumentUi((ui) => ui.bindingChooser !== null && automationTargetsEqual(ui.bindingChooser.target, target));
   if (param.automation !== null) {
-    const { automationClipId, window: bounds } = param.automation;
+    const { clipId, window: bounds } = param.automation;
     return (
       <>
         <WindowFields
           value={bounds}
           range={param.range}
           onChange={(next) =>
-            void runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "sequence", edit: {
-                type: "setAutomationWindow",
-                automationClipId,
-                target,
-                window: next
-              } })
-            )
+            void put(site({ type: "clip", id: clipId }, { type: "binding", target }), { type: "window", window: next })
           }
         />
         <IconButton
           icon={Link2Off}
-          label="Unlink automation"
+          label="Unlink envelope"
           onClick={() =>
-            void runGuiEditCommand((request) =>
-              commands.applyGuiEdit(request, { type: "sequence", edit: {
-                type: "unbindAutomationParam",
-                automationClipId,
-                target
-              } })
-            )
+            void remove(site({ type: "clip", id: clipId }, { type: "binding", target }))
           }
         />
       </>
@@ -391,72 +338,51 @@ function automationBindingControl(target: SequenceAutomationTarget,
     <>
       <IconButton
         icon={Link2}
-        label="Link existing automation"
-        disabled={clips.length === 0}
+        label="Bind to an envelope"
+        disabled={envelopes.length === 0}
         onClick={() => {
-          setAutomationClipChooser({ target });
+          setDocumentUi({ bindingChooser: { target }, graphOpen: false });
         }}
       />
       <IconButton
         icon={Plus}
-        label="Create automation"
-        disabled={!canCreateAutomationClip}
+        label="Add envelope"
+        disabled={!canCreate}
         onClick={() =>
           void runGuiEditCommand((request) =>
             commands.applyGuiEdit(request, { type: "sequence", edit: {
-              type: "createAndBindAutomationClip",
+              type: "addEnvelopeFor",
               target
             } })
           )
         }
       />
-      {choosing && <IconButton icon={X} label="Cancel choosing" onClick={() => { setAutomationClipChooser(null); }} />}
+      {choosing && <IconButton icon={X} label="Cancel choosing" onClick={() => { setDocumentUi({ bindingChooser: null }); }} />}
     </>
   );
 }
 
-function BoolArrayParam({ name, tip, values, initial, commit }: { name: string; tip: string | undefined; values: boolean[]; initial: boolean; commit: (values: boolean[]) => Promise<void> }) {
-  return (
-    <ArrayShell
-      name={name}
-      tip={tip}
-      values={values}
-      newValue={() => initial}
-      commit={commit}
-      render={(value, index) => (
-        <Toggle name={`${name} ${index + 1}`} checked={value} onChange={(checked) => void commit(replaceAt(values, index, checked))} />
-      )}
-    />
-  );
-}
-
-function ColorArrayParam({ name, tip, values, initial, commit }: { name: string; tip: string | undefined; values: string[]; initial: string; commit: (values: string[]) => Promise<void> }) {
-  return (
-    <ArrayShell
-      name={name}
-      tip={tip}
-      values={values}
-      newValue={() => values[values.length - 1] ?? initial}
-      commit={commit}
-      render={(value, index) => (
-        <ColorPicker label={`${name} ${index + 1}`} value={value} commit={(next) => commit(replaceAt(values, index, next))} />
-      )}
-    />
-  );
-}
-
-function CurveArrayParam({ name, tip, values, initial, declarations, range, commit }: { name: string; tip: string | undefined; values: SequenceCurveValue[]; initial: SequenceCurveValue; declarations: SequenceCurveLibraryItem[]; range: SequenceParamRange | null; commit: (values: SequenceCurveValue[]) => Promise<void> }) {
-  return <ArrayShell name={name} tip={tip} values={values}
+/** An array parameter: each item edited as the array's element, added from the item the backend gives every array parameter. */
+function ArrayParam({ param, values, tip, curveLibrary, gradientLibrary, markCollections, commit }: {
+  param: SequenceClipParam;
+  values: SequenceParamValue[];
+  tip: string | undefined;
+  curveLibrary: SequenceCurveLibraryItem[];
+  gradientLibrary: SequenceGradientLibraryItem[];
+  markCollections: Pick<SequenceMarkCollection, "id" | "name">[];
+  commit: (values: SequenceParamValue[]) => Promise<void>;
+}) {
+  if (param.kind.type !== "array" || param.newItem === null) throw new Error(`Parameter ${param.name} is not an array.`);
+  const { element } = param.kind;
+  const initial = param.newItem;
+  return <ArrayShell name={param.name} tip={tip} values={values}
     newValue={() => values[values.length - 1] ?? initial}
     commit={commit}
-    render={(value, index) => <CurveValueEditor name={`#${index + 1}`} tip={undefined} value={value} declarations={declarations} range={range} commit={(next) => commit(replaceAt(values, index, next))} />} />;
-}
-
-function GradientArrayParam({ name, tip, values, initial, declarations, commit }: { name: string; tip: string | undefined; values: SequenceGradientValue[]; initial: SequenceGradientValue; declarations: SequenceGradientLibraryItem[]; commit: (values: SequenceGradientValue[]) => Promise<void> }) {
-  return <ArrayShell name={name} tip={tip} values={values}
-    newValue={() => values[values.length - 1] ?? initial}
-    commit={commit}
-    render={(value, index) => <GradientValueEditor name={`#${index + 1}`} tip={undefined} value={value} declarations={declarations} commit={(next) => commit(replaceAt(values, index, next))} />} />;
+    render={(value, index) => <TypedParamValue
+      param={{ ...param, name: `${param.name} ${index + 1}`, description: null, kind: element, value, automation: null, newItem: null, supportsAutomation: false, editable: true }}
+      commitParam={(_, next) => commit(replaceAt(values, index, next))}
+      curveLibrary={curveLibrary} gradientLibrary={gradientLibrary} markCollections={markCollections}
+      automation={null} automationControl={null} linked={false} />} />;
 }
 
 function ArrayShell<T>({
@@ -615,7 +541,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
           <IconButton
             icon={SquareArrowOutUpRight}
             label={`Open ${linkedDeclaration.displayName}`}
-            onClick={() => void navigateToGuiObject({ ownedPath: [], path: linkedDeclaration.path, objectKey: linkedDeclaration.objectKey })}
+            onClick={() => void navigateToGuiObject({ path: linkedDeclaration.path, objectKey: linkedDeclaration.objectKey })}
           />
         </>}
       </ParamField>

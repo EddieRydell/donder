@@ -3,36 +3,34 @@ mod repair;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::console::{
-    Action, Console, ConsoleClip, ConsoleClipId, InputEvent, LengthSource, MAX_COPIES, On,
-    PlayLength,
+use crate::composition::{
+    Composition, CompositionGraph, CompositionGraphNodeKind, MarkCollectionId,
 };
+use crate::console::{Action, CONSOLE_SESSION, Console, LengthSource, MAX_COPIES, On, PlayLength};
 use crate::controller::ControllerOutput;
-use crate::effect::{OwnedCurve, OwnedGradient, ParamValue};
+use crate::effect::{Clip, ClipContent, ClipId, CurveValue, GradientValue, ParamValue, Placement};
 use crate::fixture::FixtureDefinitionId;
 use crate::identity::ObjectId;
 use crate::input_device::{ControlRef, InputControlKind};
 use crate::operator::{param_matches, validate_composition_graph};
 use crate::project::DonderProject;
-use crate::sequence::{
-    AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
-    SequenceCompositionGraph, SequenceLayer, SequenceLayerId, curve_is_normalized,
-};
-use donder_language::compiler::ParamDecl;
+use crate::sequence::{AutomationTarget, Sequence, curve_is_normalized};
+use crate::site::Member;
+use donder_language::compiler::{DeclarationKind, ParamDecl};
 use donder_language::{
     DonderDuration, DonderTime, sample_duration_from_donder_duration, sample_time_from_donder_time,
 };
-use donder_runtime_types::{Identifier, SampleDuration};
+use donder_runtime_types::{Identifier, InputHappening, SampleDuration};
 use indexmap::IndexMap;
 
 pub use problem::{
-    AdmissionProblem, AutomationProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
-    EventProblem, InputProblem, Member, MemberPart, NameProblem, OwnershipProblem, ParamProblem,
-    PlayedProblem, ProblemSite, ProjectValidationError, RegionProblem, RouteProblem,
-    SequenceValidationError, SetupProblem, TimingProblem, ValidationProblem,
+    AdmissionProblem, BindingProblem, ClipProblem, CompositionProblem, ConsoleValidationError,
+    EnvelopeProblem, EventProblem, InputProblem, NameProblem, ParamProblem, PlayedProblem,
+    ProjectProblem, ProjectValidationError, RegionProblem, RouteProblem, TimingProblem,
+    ValidationProblem,
 };
 pub(crate) use repair::repair;
-pub use repair::{GraphOwner, ParamOwner, Repair};
+pub use repair::{GiveWay, Repair};
 
 pub(crate) const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
 pub(crate) const MAX_SEQUENCE_FRAME_RATE: u32 = 1_000;
@@ -54,32 +52,23 @@ pub(crate) fn project_problems(
     previous: Option<&DonderProject>,
 ) -> Vec<ProjectValidationError> {
     let mut problems = Vec::new();
-    if let Err(problem) = crate::ownership::validate_ownership(project) {
+    if let Err(problem) = root_layout_exists(project) {
         problems.push(problem);
         return problems;
     }
     if let Some(previous) = previous
         && project.only_sequences_differ_from(previous)
     {
-        for sequence in project.objects::<crate::Sequence>() {
+        for (sequence_id, sequence) in project.objects::<crate::Sequence>() {
             sequence_problems(
                 project,
+                sequence_id,
                 sequence,
-                previous.get::<crate::Sequence>(sequence.id),
+                previous.get::<crate::Sequence>(sequence_id),
                 &mut problems,
             );
         }
         return problems;
-    }
-    for (id, definition) in project.reusable::<crate::EffectDefinition>() {
-        if definition.id != *id {
-            problems.push(at(*id)(ValidationProblem::DefinitionMismatch));
-        }
-    }
-    for (id, definition) in project.reusable::<crate::OperatorDefinition>() {
-        if definition.id != *id {
-            problems.push(at(*id)(ValidationProblem::DefinitionMismatch));
-        }
     }
     for (id, definition) in project.reusable::<crate::CurveDefinition>() {
         if let Err(error) = definition.curve.validate() {
@@ -102,52 +91,51 @@ pub(crate) fn project_problems(
             Err(error) => problems.push(at(*id)(ValidationProblem::Fixture(error))),
         }
     }
-    for controller in project.objects::<crate::Controller>() {
+    for (controller_id, controller) in project.objects::<crate::Controller>() {
         if let Err(error) = controller.validate() {
-            problems.push(at(controller.id)(ValidationProblem::Controller(error)));
+            problems.push(at(controller_id)(ValidationProblem::Controller(error)));
         }
     }
-    for device in project.objects::<crate::InputDevice>() {
+    for (device_id, device) in project.objects::<crate::InputDevice>() {
         if let Err(error) = device.validate() {
-            problems.push(at(device.id)(ValidationProblem::InputDevice(error)));
+            problems.push(at(device_id)(ValidationProblem::InputDevice(error)));
         }
     }
-    for layout in project.objects::<crate::Layout>() {
+    for (layout_id, layout) in project.objects::<crate::Layout>() {
+        // Every fixture whose definition is gone, so each gives way at once.
+        let missing = layout
+            .fixtures
+            .iter()
+            .filter(|fixture| matches!(&fixture.kind, crate::LayoutFixtureKind::Fixture { definition, .. } if !project.reusable::<crate::FixtureDefinition>().contains_key(definition)))
+            .map(|fixture| at(layout_id)(ValidationProblem::Layout(crate::LayoutError::MissingDefinition(fixture.id))))
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            problems.extend(missing);
+            continue;
+        }
         if let Err(error) = layout
             .validate(project.reusable::<crate::FixtureDefinition>())
             .and_then(|()| layout.validate_slices(&counts))
         {
-            problems.push(at(layout.id)(ValidationProblem::Layout(error)));
+            problems.push(at(layout_id)(ValidationProblem::Layout(error)));
         }
     }
     if !problems.is_empty() {
         return problems;
     }
-    for patch in project.objects::<crate::Patch>() {
-        let mut found = Vec::new();
-        validate_patch(project, patch, &counts, &mut found);
-        problems.extend(found.into_iter().map(at(patch.id)));
+    let mut found = Vec::new();
+    validate_routes(project, &counts, &mut found);
+    validate_root(project, &mut found);
+    problems.extend(found.into_iter().map(at(project.root().id)));
+    for (sequence_id, sequence) in project.objects::<crate::Sequence>() {
+        sequence_problems(project, sequence_id, sequence, None, &mut problems);
     }
-    for setup in project.objects::<crate::Setup>() {
-        let mut found = Vec::new();
-        if let Err(problem) = validate_setup(project.referenced(setup.id), &mut found) {
-            found.push(problem);
-        }
-        problems.extend(found.into_iter().map(at(setup.id)));
-    }
-    for sequence in project.objects::<crate::Sequence>() {
-        sequence_problems(project, sequence, None, &mut problems);
-    }
-    for console in project.objects::<crate::Console>() {
+    for (console_id, console) in project.objects::<crate::Console>() {
         let mut found = Vec::new();
         if let Err(problem) = console_problems(project, console, &mut found) {
             found.push(problem);
         }
-        problems.extend(
-            found
-                .into_iter()
-                .map(|problem| at(console.id)(ValidationProblem::Console(problem))),
-        );
+        problems.extend(found.into_iter().map(at(console_id)));
     }
     problems
 }
@@ -155,6 +143,7 @@ pub(crate) fn project_problems(
 /// The problems of one sequence, attached to it.
 fn sequence_problems(
     project: &DonderProject,
+    sequence_id: crate::SequenceId,
     sequence: &Sequence,
     previous: Option<&Sequence>,
     problems: &mut Vec<ProjectValidationError>,
@@ -163,11 +152,7 @@ fn sequence_problems(
     if let Err(problem) = validate_sequence_since(project, sequence, previous, &mut found) {
         found.push(problem);
     }
-    problems.extend(
-        found
-            .into_iter()
-            .map(|problem| at(sequence.id)(ValidationProblem::Sequence(problem))),
-    );
+    problems.extend(found.into_iter().map(at(sequence_id)));
 }
 
 /// The first of `problems`, the one a single-problem check reports.
@@ -183,7 +168,7 @@ pub(crate) fn at(
     move |problem| ProjectValidationError { object, problem }
 }
 
-/// The channels a route of a patch claims on a controller output.
+/// The channels a route claims on a controller output.
 struct Claim<'a> {
     channels: std::ops::Range<u32>,
     fixture: &'a Identifier,
@@ -198,17 +183,18 @@ struct CheckedRoute<'a> {
 }
 
 /// Each route that breaks a rule, once.
-fn validate_patch(
+fn validate_routes(
     project: &DonderProject,
-    patch: &crate::patch::Patch,
     counts: &IndexMap<FixtureDefinitionId, u32>,
     problems: &mut Vec<ValidationProblem>,
 ) {
     let mut ids = HashSet::new();
     let mut checked = HashMap::new();
     let mut failed = HashMap::new();
-    for route in &patch.routes {
-        match check_route(project, route, counts, &mut ids) {
+    let layout = project.layout();
+    let routes = &project.root().routes;
+    for route in routes {
+        match check_route(project, &layout, route, counts, &mut ids) {
             Ok(route_check) => {
                 checked.insert(route.id, route_check);
             }
@@ -218,7 +204,7 @@ fn validate_patch(
         }
     }
     let placements = crate::patch::place_routes(
-        &patch.routes,
+        routes,
         |id| project.get::<crate::Controller>(id),
         |route| {
             checked
@@ -227,7 +213,7 @@ fn validate_patch(
         },
     );
     let mut occupied = HashMap::new();
-    for route in &patch.routes {
+    for route in routes {
         let result = match (failed.remove(&route.id), checked.get(&route.id)) {
             (Some(problem), _) => Err(problem),
             (None, Some(route_check)) => {
@@ -256,7 +242,8 @@ fn route_problem(
 
 /// A route's own rules, apart from where its channels land.
 fn check_route<'a>(
-    project: &'a DonderProject,
+    project: &DonderProject,
+    layout: &'a crate::Layout,
     route: &crate::patch::PixelRoute,
     counts: &IndexMap<FixtureDefinitionId, u32>,
     ids: &mut HashSet<crate::patch::PixelRouteId>,
@@ -266,10 +253,7 @@ fn check_route<'a>(
     if !ids.insert(route.id) {
         return Err(fail(None, RouteProblem::DuplicateId));
     }
-    let layout = project
-        .get::<crate::Layout>(route.target.layout)
-        .ok_or_else(|| fail(None, RouteProblem::MissingLayout))?;
-    let target = layout.fixture(route.target.fixture);
+    let target = layout.fixture(route.target);
     if let Some(target) = target {
         fixture = Some(&target.name);
     }
@@ -289,7 +273,7 @@ fn check_route<'a>(
         return Err(fail(fixture, RouteProblem::InvalidBrightness));
     }
     let target_count = layout
-        .target_pixel_count(&route.target, counts)
+        .target_pixel_count(route.target, counts)
         .map_err(|error| fail(fixture, RouteProblem::Target(error)))?;
     let pixels = match route.pixels {
         Some(span) if span.count == 0 => return Err(fail(fixture, RouteProblem::EmptySpan)),
@@ -327,7 +311,7 @@ fn check_route<'a>(
     })
 }
 
-/// A checked route's channels, after the routes before it in its patch
+/// A checked route's channels, after the routes before it
 /// claimed theirs in `occupied`. A route whose start follows a route that
 /// broke a rule is not placed, and that route reports the problem.
 fn place_route<'a>(
@@ -394,59 +378,41 @@ fn place_route<'a>(
     Ok(())
 }
 
-/// The name of the fixture a route drives, when its layout has it.
-fn route_fixture(project: &DonderProject, route: &crate::patch::PixelRoute) -> Option<Identifier> {
-    project
-        .get::<crate::Layout>(route.target.layout)?
-        .fixture(route.target.fixture)
-        .map(|fixture| fixture.name.clone())
+/// The root's layout exists: checks of other objects read it.
+fn root_layout_exists(project: &DonderProject) -> Result<(), ProjectValidationError> {
+    let root = project.root().id;
+    if !project.layouts.contains_key(&project.root().layout) {
+        return Err(at(root)(ValidationProblem::Project(
+            ProjectProblem::MissingLayout,
+        )));
+    }
+    Ok(())
 }
 
-/// The setup's members exist and are distinct by ownership validation. Each
-/// problem is pushed to `problems`.
-fn validate_setup(
-    setup: crate::View<'_, crate::Setup>,
-    problems: &mut Vec<ValidationProblem>,
-) -> Result<(), ValidationProblem> {
-    if setup.controllers.len() as u128 > u128::from(u32::MAX) + 1 {
-        return Err(ValidationProblem::Setup(SetupProblem::TooManyControllers));
+/// The rules of the project's own members. Each problem is pushed to
+/// `problems`.
+fn validate_root(project: &DonderProject, problems: &mut Vec<ValidationProblem>) {
+    if project.controllers.len() as u128 > u128::from(u32::MAX) + 1 {
+        problems.push(ValidationProblem::Project(
+            ProjectProblem::TooManyControllers,
+        ));
     }
-    let project = setup.project();
-    let controllers = setup
-        .controllers
-        .iter()
-        .map(|controller| controller.id())
-        .collect::<HashSet<_>>();
     let mut osc_ports = HashSet::new();
-    for input_device in setup.input_devices() {
+    for input_device in project.input_devices() {
         if let crate::InputDriver::Osc { port } = input_device.driver
             && !osc_ports.insert(port)
         {
-            problems.push(ValidationProblem::Setup(SetupProblem::SharedOscPort(port)));
+            problems.push(ValidationProblem::Project(ProjectProblem::SharedOscPort(
+                port,
+            )));
         }
     }
-    for route in &setup.patch().routes {
-        if &route.target.layout != setup.layout.id() {
-            problems.push(ValidationProblem::Setup(SetupProblem::RouteOnOtherLayout {
-                route: route.id,
-                fixture: route_fixture(project, route),
-            }));
-        } else if !controllers.contains(&route.controller) {
-            problems.push(ValidationProblem::Setup(
-                SetupProblem::RouteControllerInactive {
-                    route: route.id,
-                    fixture: route_fixture(project, route),
-                },
-            ));
-        }
-    }
-    Ok(())
 }
 
 pub fn validate_sequence(
     project: &DonderProject,
     sequence: &Sequence,
-) -> Result<(), SequenceValidationError> {
+) -> Result<(), ValidationProblem> {
     let mut problems = Vec::new();
     validate_sequence_since(project, sequence, None, &mut problems)?;
     first(problems)
@@ -462,31 +428,9 @@ fn validate_sequence_since(
     project: &DonderProject,
     sequence: &Sequence,
     previous: Option<&Sequence>,
-    problems: &mut Vec<SequenceValidationError>,
-) -> Result<(), SequenceValidationError> {
-    use SequenceValidationError as Error;
-    let unchanged = previous
-        .filter(|previous| {
-            previous.layers == sequence.layers
-                && previous.mark_collections == sequence.mark_collections
-        })
-        .map(|previous| {
-            previous
-                .clips
-                .iter()
-                .map(|clip| (&clip.id, clip))
-                .collect::<HashMap<_, _>>()
-        })
-        .unwrap_or_default();
-    let setup = project.active_setup();
-    let active_layout = setup.layout.id();
-    let active = project
-        .root
-        .sequences
-        .iter()
-        .any(|source| source.id() == &sequence.id);
-
-    let timing = |problem| Err(Error::Timing(problem));
+    problems: &mut Vec<ValidationProblem>,
+) -> Result<(), ValidationProblem> {
+    let timing = |problem| Err(ValidationProblem::Timing(problem));
     if sequence.frame_rate == 0 {
         return timing(TimingProblem::ZeroFrameRate);
     }
@@ -506,216 +450,110 @@ fn validate_sequence_since(
     if sequence.frame_count() > u128::from(MAX_SEQUENCE_FRAME_COUNT) {
         return timing(TimingProblem::TooManyFrames);
     }
-    if let Some(clip) = first_repeat(&sequence.clips, |clip| clip.id.clone()) {
-        return Err(Error::DuplicateClipId(clip.id.clone()));
-    }
-    if let Some(clip) = first_repeat(&sequence.automation_clips, |clip| clip.id.0) {
-        return Err(Error::DuplicateAutomationClipId(clip.id.clone()));
-    }
-    validate_sequence_names(sequence, &unchanged).map_err(Error::Name)?;
-
-    let mark_keys = sequence
-        .mark_collections
-        .iter()
-        .map(|collection| &collection.key)
-        .collect::<HashSet<_>>();
-    let layer_ids = validate_layers_and_graph::<Error>(
+    let mut found = Vec::new();
+    validate_composition(
         project,
-        &sequence.layers,
-        &sequence.composition_graph,
-        &mark_keys,
-    )?;
-    for collection in &sequence.mark_collections {
-        let name = || collection.key.name.clone();
-        if collection
-            .marks
-            .iter()
-            .any(|mark| mark.end() > sequence.duration.0)
-        {
-            problems.push(Error::MarkOutsideDuration(name()));
-        } else if collection.marks.iter().any(|mark| {
-            mark.label.as_deref().is_some_and(|label| {
-                label.is_empty() || label.trim() != label || label.contains(['\n', '\r'])
-            })
-        }) {
-            problems.push(Error::InvalidMarkLabel(name()));
+        &sequence.composition,
+        Clock::Sequence {
+            end: sequence.duration.0,
+            sampled: sampled_sequence_duration,
+        },
+        previous.map(|previous| &previous.composition),
+        &mut found,
+    )
+    .map_err(ValidationProblem::Composition)?;
+    problems.extend(found.into_iter().map(ValidationProblem::Composition));
+    Ok(())
+}
+
+/// The clock a composition plays on: a sequence's, which its marks and clips
+/// end within and which plays only timed clips, or a console's session.
+#[derive(Clone, Copy)]
+enum Clock {
+    Sequence {
+        end: std::time::Duration,
+        sampled: SampleDuration,
+    },
+    Session,
+}
+
+impl Clock {
+    /// Where timed clips end by, exactly and on the playback clock.
+    fn end(self) -> (std::time::Duration, SampleDuration) {
+        match self {
+            Self::Sequence { end, sampled } => (end, sampled),
+            Self::Session => (
+                std::time::Duration::from_micros(u64::from(CONSOLE_SESSION.as_ticks())),
+                CONSOLE_SESSION,
+            ),
         }
     }
+}
 
-    let is_unchanged = |clip: &std::sync::Arc<crate::effect::Clip>| {
+/// The ids of a composition's mark collections.
+fn mark_keys(composition: &Composition) -> HashSet<&MarkCollectionId> {
+    composition.marks.iter().map(|marks| &marks.id).collect()
+}
+
+/// A sequence's or console's composition. Mark collections, clips, layers and
+/// graph nodes are referred to by name, so each name is valid and unique.
+/// Edges name a layer node `layers.layer`, so layers have their own
+/// namespace; operator nodes share theirs with the root node `root`. A
+/// sequence's marks end by its end; a console's start empty. A sequence plays
+/// timed clips; a console also played ones. With `previous`, the composition
+/// in a validated project whose layouts and definitions are the same
+/// allocations, a clip still shared with it keeps its target and parameter
+/// checks when the layers and mark collections are unchanged too. A problem of
+/// the whole composition stops the checks; each mark collection and clip that
+/// breaks a rule is pushed to `problems`.
+fn validate_composition(
+    project: &DonderProject,
+    composition: &Composition,
+    clock: Clock,
+    previous: Option<&Composition>,
+    problems: &mut Vec<CompositionProblem>,
+) -> Result<(), CompositionProblem> {
+    let Composition {
+        marks,
+        layers,
+        graph,
+        clips,
+    } = composition;
+    let unchanged = previous
+        .filter(|previous| previous.layers == *layers && previous.marks == *marks)
+        .map(|previous| {
+            previous
+                .clips
+                .iter()
+                .map(|clip| (clip.id, clip))
+                .collect::<HashMap<_, _>>()
+        })
+        .unwrap_or_default();
+    let is_unchanged = |clip: &std::sync::Arc<Clip>| {
         unchanged
             .get(&clip.id)
             .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, clip))
     };
-    // An unchanged clip compared against an unchanged first clip in an unchanged
-    // context only needs the checks that involve the sequence's own duration.
-    let first_unchanged = sequence.clips.first().is_none_or(is_unchanged);
-    let region = |clip: &crate::effect::Clip| {
-        validate_timed_region(
-            clip.start.0,
-            clip.duration.0,
-            sequence.duration.0,
-            sampled_sequence_duration,
-        )
-        .map_err(ClipProblem::Region)
-    };
-    for clip in &sequence.clips {
-        let check = || {
-            if first_unchanged && is_unchanged(clip) {
-                return region(clip);
-            }
-            if !layer_ids.contains(&clip.layer_id) {
-                return Err(ClipProblem::MissingLayer);
-            }
-            region(clip)?;
-            if active && &clip.target.layout != active_layout {
-                return Err(ClipProblem::NotInActiveLayout);
-            }
-            if sequence
-                .clips
-                .first()
-                .is_some_and(|first| first.target.layout != clip.target.layout)
-            {
-                return Err(ClipProblem::MixedLayouts);
-            }
-            if is_unchanged(clip) {
-                return Ok(());
-            }
-            validate_target(project, &clip.target)?;
-            validate_params(project, &clip.definition, &clip.param_overrides, &mark_keys)
-        };
-        if let Err(problem) = check() {
-            problems.push(Error::Clip {
-                clip: clip.id.clone(),
-                name: clip.name.clone(),
-                problem,
-            });
-        }
+    if let Some(clip) = first_repeat(clips, |clip| clip.id) {
+        return Err(CompositionProblem::DuplicateClipId(clip.id));
     }
-    let mut automation_targets = HashMap::<_, Vec<_>>::new();
-    let sequence_layout = sequence
-        .clips
-        .first()
-        .map(|clip| &clip.target.layout)
-        .or_else(|| {
-            sequence
-                .automation_clips
-                .first()
-                .map(|clip| &clip.row_target.layout)
-        });
-    for clip in &sequence.automation_clips {
-        let mut check = || {
-            if sequence_layout.is_some_and(|layout| layout != &clip.row_target.layout) {
-                return Err(AutomationProblem::MixedLayouts);
-            }
-            if active && &clip.row_target.layout != active_layout {
-                return Err(AutomationProblem::NotInActiveLayout);
-            }
-            if project
-                .get::<crate::Layout>(clip.row_target.layout)
-                .and_then(|layout| layout.fixture(clip.row_target.fixture))
-                .is_none()
-            {
-                return Err(AutomationProblem::MissingRow);
-            }
-            validate_timed_region(
-                clip.start.0,
-                clip.duration.0,
-                sequence.duration.0,
-                sampled_sequence_duration,
-            )
-            .map_err(AutomationProblem::Region)?;
-            clip.curve
-                .validate()
-                .map_err(AutomationProblem::InvalidCurve)?;
-            if !curve_is_normalized(&clip.curve) {
-                return Err(AutomationProblem::CurveOutOfRange);
-            }
-            let mut clip_targets = HashSet::new();
-            for target in clip.targets() {
-                if !clip_targets.insert(target) {
-                    return Err(AutomationProblem::BindsTwice);
-                }
-                automation_targets
-                    .entry(target)
-                    .or_insert_with(Vec::new)
-                    .push(clip);
-            }
-            for binding in &clip.bindings {
-                if !binding.window.is_normalized() {
-                    return Err(AutomationProblem::WindowOutOfRange);
-                }
-                let declaration = automation_target_param(project, sequence, &binding.target)?;
-                if declaration.automation_mapping().is_none() {
-                    return Err(AutomationProblem::NotAutomatable(declaration.name.clone()));
-                }
-            }
-            Ok(())
-        };
-        if let Err(problem) = check() {
-            problems.push(Error::Automation {
-                clip: clip.id.clone(),
-                problem,
-            });
-        }
-    }
-    for clips in automation_targets.values() {
-        for (index, clip) in clips.iter().enumerate() {
-            if let Some(other) = clips[index + 1..].iter().find(|other| clip.overlaps(other)) {
-                problems.push(Error::Automation {
-                    clip: other.id.clone(),
-                    problem: AutomationProblem::Overlap,
-                });
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Clips and mark collections are referred to by name, so each name is valid
-/// and unique among its kind.
-fn validate_sequence_names(
-    sequence: &Sequence,
-    unchanged: &HashMap<&crate::effect::ClipId, &std::sync::Arc<crate::effect::Clip>>,
-) -> Result<(), NameProblem> {
-    let clips = sequence
-        .clips
+    let name = CompositionProblem::Name;
+    let mark_names = marks
         .iter()
-        .map(|clip| (Member::Clip(clip.id.clone()), &clip.name));
-    let marks = sequence.mark_collections.iter().map(|collection| {
-        (
-            Member::Marks(collection.key.name.clone()),
-            &collection.key.name,
-        )
-    });
+        .map(|collection| (Member::Marks(collection.id), &collection.name));
+    let clip_names = clips.iter().map(|clip| (Member::Clip(clip.id), &clip.name));
     // An unchanged clip's name was accepted when it was admitted.
     snake_case(
-        sequence
-            .clips
+        clips
             .iter()
-            .filter(|clip| {
-                !unchanged
-                    .get(&clip.id)
-                    .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, clip))
-            })
-            .map(|clip| (Member::Clip(clip.id.clone()), &clip.name))
-            .chain(marks.clone()),
-    )?;
-    distinct(clips)?;
-    distinct(marks)
-}
-
-/// The layers and composition graph of a sequence or console: layers and graph
-/// nodes are referred to by name, so each name is valid and unique. Edges name
-/// a layer node `layers.layer`, so layers have their own namespace; operator
-/// nodes share theirs with the root node `root`. Returns the layer ids.
-fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>>(
-    project: &DonderProject,
-    layers: &'a [SequenceLayer],
-    graph: &SequenceCompositionGraph,
-    mark_keys: &HashSet<&MarkCollectionKey>,
-) -> Result<HashSet<&'a SequenceLayerId>, E> {
+            .filter(|clip| !is_unchanged(clip))
+            .map(|clip| (Member::Clip(clip.id), &clip.name))
+            .chain(mark_names.clone()),
+    )
+    .map_err(name)?;
+    distinct(clip_names).map_err(name)?;
+    distinct(mark_names).map_err(name)?;
+    let mark_keys = mark_keys(composition);
     let operators = || {
         graph.nodes.iter().filter_map(|node| match &node.kind {
             CompositionGraphNodeKind::Operator(operator) => Some((&node.id, operator)),
@@ -723,30 +561,30 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
         })
     };
     if layers.is_empty() {
-        return Err(CompositionProblem::NoLayers.into());
+        return Err(CompositionProblem::NoLayers);
     }
     if let Some(layer) = first_repeat(layers, |layer| layer.id.clone()) {
-        return Err(CompositionProblem::DuplicateLayerId(layer.id.clone()).into());
+        return Err(CompositionProblem::DuplicateLayerId(layer.id.clone()));
     }
     let layer_names = layers
         .iter()
         .map(|layer| (Member::Layer(layer.id.clone()), &layer.name));
     let node_names =
         || operators().map(|(id, operator)| (Member::Node(id.clone()), &operator.name));
-    snake_case(layer_names.clone().chain(node_names()))?;
-    distinct(layer_names)?;
+    snake_case(layer_names.clone().chain(node_names())).map_err(name)?;
+    distinct(layer_names).map_err(name)?;
     let root = donder_language::object_name(donder_language::data::ROOT_NODE);
     let root_node = graph
         .nodes
         .iter()
         .find(|node| matches!(node.kind, CompositionGraphNodeKind::Root))
         .map(|node| (Member::Node(node.id.clone()), &root));
-    distinct(root_node.into_iter().chain(node_names()))?;
-    validate_composition_graph(graph, project.reusable::<crate::OperatorDefinition>())
+    distinct(root_node.into_iter().chain(node_names())).map_err(name)?;
+    validate_composition_graph(graph, project.reusable::<crate::ScriptDefinition>())
         .map_err(CompositionProblem::Graph)?;
     for (node, operator) in operators() {
         let definition = project
-            .get::<crate::OperatorDefinition>(operator.operator)
+            .get::<crate::ScriptDefinition>(operator.operator)
             .unwrap_or_else(|| unreachable!("the graph's operators were found"));
         let problem = |problem| CompositionProblem::Param {
             node: node.clone(),
@@ -754,7 +592,7 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
         };
         validate_overrides(definition.params(), &operator.params).map_err(problem)?;
         for (name, value) in &operator.params {
-            validate_param_references(project, name, value, mark_keys).map_err(problem)?;
+            validate_param_references(project, name, value, &mark_keys).map_err(problem)?;
         }
     }
     let layer_ids = layers.iter().map(|layer| &layer.id).collect::<HashSet<_>>();
@@ -762,25 +600,150 @@ fn validate_layers_and_graph<'a, E: From<NameProblem> + From<CompositionProblem>
     for node in &graph.nodes {
         if let CompositionGraphNodeKind::Layer { layer_id } = &node.kind {
             if !layer_ids.contains(layer_id) {
-                return Err(CompositionProblem::MissingLayer(node.id.clone()).into());
+                return Err(CompositionProblem::MissingLayer(node.id.clone()));
             }
             if !graph_layers.insert(layer_id) {
-                return Err(CompositionProblem::RepeatedLayer(node.id.clone()).into());
+                return Err(CompositionProblem::RepeatedLayer(node.id.clone()));
             }
         }
     }
-    Ok(layer_ids)
+    for collection in marks {
+        let name = || collection.name.clone();
+        match clock {
+            Clock::Session if !collection.marks.is_empty() => {
+                problems.push(CompositionProblem::LiveMarksHold(collection.id));
+            }
+            Clock::Sequence { end, .. } if collection.marks.iter().any(|mark| mark.end() > end) => {
+                problems.push(CompositionProblem::MarkOutsideDuration(
+                    collection.id,
+                    name(),
+                ));
+            }
+            _ if collection.marks.iter().any(|mark| {
+                mark.label.as_deref().is_some_and(|label| {
+                    label.is_empty() || label.trim() != label || label.contains(['\n', '\r'])
+                })
+            }) =>
+            {
+                problems.push(CompositionProblem::InvalidMarkLabel(collection.id, name()));
+            }
+            _ => {}
+        }
+    }
+    // An unchanged clip compared against an unchanged first clip in an unchanged
+    // context only needs the checks that involve the clock's own end.
+    let first_unchanged = clips.first().is_none_or(is_unchanged);
+    let (end, sampled_end) = clock.end();
+    let placement = |clip: &Clip| match (&clip.placement, clock) {
+        (Placement::Timed { start, duration }, _) => {
+            validate_timed_region(start.0, duration.0, end, sampled_end)
+                .map_err(ClipProblem::Region)
+        }
+        (Placement::Played(_), Clock::Sequence { .. }) => Err(ClipProblem::NeverPlays),
+        (Placement::Played(_), Clock::Session) if clip.envelope().is_some() => {
+            Err(ClipProblem::EnvelopePlayed)
+        }
+        (Placement::Played(_), Clock::Session) => Ok(()),
+    };
+    for clip in clips {
+        let check = || match &clip.content {
+            ClipContent::Effect(effect) => {
+                if first_unchanged && is_unchanged(clip) {
+                    return placement(clip);
+                }
+                if !layer_ids.contains(&effect.layer) {
+                    return Err(ClipProblem::MissingLayer);
+                }
+                placement(clip)?;
+                if is_unchanged(clip) {
+                    return Ok(());
+                }
+                validate_target(project, clip.target)?;
+                validate_params(project, &effect.definition, &effect.params, &mark_keys)
+            }
+            // An envelope's checks read the clips and nodes it binds.
+            ClipContent::Envelope(envelope) => {
+                placement(clip)?;
+                validate_target(project, clip.target)?;
+                validate_envelope(project, composition, envelope).map_err(ClipProblem::Envelope)
+            }
+        };
+        if let Err(problem) = check() {
+            problems.push(CompositionProblem::Clip {
+                clip: clip.id,
+                name: clip.name.clone(),
+                problem,
+            });
+        }
+    }
+    // Of two envelopes that drive one parameter at once, the later one breaks
+    // the rule.
+    let mut driven = HashMap::<_, Vec<&Clip>>::new();
+    for clip in clips {
+        for binding in clip
+            .envelope()
+            .into_iter()
+            .flat_map(|envelope| &envelope.bindings)
+        {
+            driven.entry(&binding.target).or_default().push(clip);
+        }
+    }
+    for envelopes in driven.values() {
+        for (index, clip) in envelopes.iter().enumerate() {
+            if let Some(other) = envelopes[index + 1..]
+                .iter()
+                .find(|other| clip.overlaps(other))
+            {
+                problems.push(CompositionProblem::Clip {
+                    clip: other.id,
+                    name: other.name.clone(),
+                    problem: ClipProblem::Envelope(EnvelopeProblem::Overlap),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
-/// A sequence or console clip's target names an existing fixture or group.
+/// An envelope's curve is valid and normalized, and each binding drives an
+/// automatable parameter of a timed effect clip or operator of `composition`,
+/// once, through a normalized window.
+fn validate_envelope(
+    project: &DonderProject,
+    composition: &Composition,
+    envelope: &crate::Envelope,
+) -> Result<(), EnvelopeProblem> {
+    envelope
+        .curve
+        .validate()
+        .map_err(EnvelopeProblem::InvalidCurve)?;
+    if !curve_is_normalized(&envelope.curve) {
+        return Err(EnvelopeProblem::CurveOutOfRange);
+    }
+    let mut targets = HashSet::new();
+    for binding in &envelope.bindings {
+        if !targets.insert(&binding.target) {
+            return Err(EnvelopeProblem::BindsTwice);
+        }
+        let problem = |problem| EnvelopeProblem::Binding(binding.target.clone(), problem);
+        if !binding.window.is_normalized() {
+            return Err(problem(BindingProblem::WindowOutOfRange));
+        }
+        let declaration =
+            automation_target_param(project, composition, &binding.target).map_err(problem)?;
+        if declaration.automation_mapping().is_none() {
+            return Err(problem(BindingProblem::NotAutomatable));
+        }
+    }
+    Ok(())
+}
+
+/// A clip's target names a fixture or group of the project's layout.
 fn validate_target(
     project: &DonderProject,
-    target: &crate::layout::FixtureTarget,
+    target: crate::layout::FixtureId,
 ) -> Result<(), ClipProblem> {
-    let layout = project
-        .get::<crate::Layout>(target.layout)
-        .ok_or(ClipProblem::MissingTargetLayout)?;
-    if layout.fixture(target.fixture).is_none() {
+    if project.layout().fixture(target).is_none() {
         return Err(ClipProblem::MissingTarget);
     }
     Ok(())
@@ -790,13 +753,13 @@ fn validate_target(
 /// and every parameter without a default supplied.
 fn validate_params(
     project: &DonderProject,
-    definition: &crate::effect::EffectDefinitionId,
+    definition: &crate::effect::ScriptId,
     overrides: &IndexMap<Identifier, ParamValue>,
-    mark_keys: &HashSet<&MarkCollectionKey>,
+    mark_keys: &HashSet<&MarkCollectionId>,
 ) -> Result<(), ClipProblem> {
     let definition = project
-        .get::<crate::EffectDefinition>(*definition)
-        .ok_or(ClipProblem::MissingDefinition)?;
+        .script(*definition, DeclarationKind::Effect)
+        .map_err(ClipProblem::Definition)?;
     validate_overrides(definition.params(), overrides).map_err(ClipProblem::Param)?;
     for (name, value) in overrides {
         validate_param_references(project, name, value, mark_keys).map_err(ClipProblem::Param)?;
@@ -830,37 +793,15 @@ fn validate_overrides(
     Ok(())
 }
 
-/// A console clip.
-fn validate_console_clip(
-    project: &DonderProject,
-    clip: &ConsoleClip,
-    layer_ids: &HashSet<&SequenceLayerId>,
-    mark_keys: &HashSet<&MarkCollectionKey>,
-    active_layout: Option<&crate::layout::LayoutId>,
-    console_layout: Option<&crate::layout::LayoutId>,
-) -> Result<(), ClipProblem> {
-    if !layer_ids.contains(&clip.layer_id) {
-        return Err(ClipProblem::MissingLayer);
-    }
-    if active_layout.is_some_and(|layout| &clip.target.layout != layout) {
-        return Err(ClipProblem::NotInActiveLayout);
-    }
-    if console_layout.is_some_and(|layout| layout != &clip.target.layout) {
-        return Err(ClipProblem::MixedLayouts);
-    }
-    validate_target(project, &clip.target)?;
-    validate_params(project, &clip.definition, &clip.param_overrides, mark_keys)
-}
-
 /// The automation mapping of parameter `name` of `definition`: `None` when
 /// it has no such parameter, `Some(None)` when it cannot be automated.
 fn param_mapping(
     project: &DonderProject,
-    definition: &crate::effect::EffectDefinitionId,
+    definition: &crate::effect::ScriptId,
     name: &Identifier,
 ) -> Option<Option<donder_runtime_types::AutomationMapping>> {
     project
-        .get::<crate::EffectDefinition>(*definition)
+        .get::<crate::ScriptDefinition>(*definition)
         .and_then(|definition| {
             definition
                 .params()
@@ -870,82 +811,39 @@ fn param_mapping(
         .map(ParamDecl::automation_mapping)
 }
 
-pub fn validate_console(
-    project: &DonderProject,
-    console: &Console,
-) -> Result<(), ConsoleValidationError> {
-    let mut problems = Vec::new();
-    console_problems(project, console, &mut problems)?;
-    first(problems)
-}
-
-/// [`validate_console`]: a problem of the whole console stops the checks; each
+/// A console's problems: a problem of the whole console stops the checks; each
 /// clip, `always` entry, event and played value that breaks a rule is pushed
 /// to `problems`.
 fn console_problems(
     project: &DonderProject,
     console: &Console,
-    problems: &mut Vec<ConsoleValidationError>,
-) -> Result<(), ConsoleValidationError> {
+    problems: &mut Vec<ValidationProblem>,
+) -> Result<(), ValidationProblem> {
     use ConsoleValidationError as Error;
-    let setup = project.active_setup();
-    let active = project
-        .root
-        .consoles
-        .iter()
-        .any(|source| source.id() == &console.id);
     if console.frame_rate == 0 {
-        return Err(Error::Timing(TimingProblem::ZeroFrameRate));
+        return Err(ValidationProblem::Timing(TimingProblem::ZeroFrameRate));
     }
     if console.frame_rate > MAX_SEQUENCE_FRAME_RATE {
-        return Err(Error::Timing(TimingProblem::FrameRateAboveLimit));
-    }
-    let live_marks = console
-        .live_marks
-        .iter()
-        .map(|marks| (Member::LiveMarks(marks.key.name.clone()), &marks.key.name));
-    let clips = console
-        .clips
-        .iter()
-        .map(|clip| (Member::ConsoleClip(clip.id), &clip.name));
-    snake_case(live_marks.clone().chain(clips.clone()))?;
-    distinct(live_marks)?;
-    distinct(clips)?;
-    if let Some(clip) = first_repeat(&console.clips, |clip| clip.id) {
-        return Err(Error::DuplicateClipId(clip.id));
+        return Err(ValidationProblem::Timing(
+            TimingProblem::FrameRateAboveLimit,
+        ));
     }
     if let Some(on) = first_repeat(&console.events, |on| on.id) {
-        return Err(Error::DuplicateEventId(on.id));
+        return Err(ValidationProblem::Console(Error::DuplicateEventId(on.id)));
     }
-    let mark_keys = console
-        .live_marks
-        .iter()
-        .map(|marks| &marks.key)
-        .collect::<HashSet<_>>();
-    let layer_ids = validate_layers_and_graph::<Error>(
+    let mut found = Vec::new();
+    validate_composition(
         project,
-        &console.layers,
-        &console.composition_graph,
-        &mark_keys,
-    )?;
-    let console_layout = console.clips.first().map(|clip| &clip.target.layout);
-    let active_layout = active.then(|| setup.layout.id());
-    for clip in &console.clips {
-        if let Err(problem) = validate_console_clip(
-            project,
-            clip,
-            &layer_ids,
-            &mark_keys,
-            active_layout,
-            console_layout,
-        ) {
-            problems.push(Error::Clip {
-                clip: clip.id,
-                name: clip.name.clone(),
-                problem,
-            });
-        }
-    }
+        &console.composition,
+        Clock::Session,
+        None,
+        &mut found,
+    )
+    .map_err(ValidationProblem::Composition)?;
+    let mark_keys = mark_keys(&console.composition);
+    let mut problems_of_console = Vec::new();
+    let problems_of_composition = problems;
+    let problems = &mut problems_of_console;
     let mut always = HashSet::new();
     for entry in &console.always {
         let Some(clip) = console.clip(entry.clip) else {
@@ -965,7 +863,7 @@ fn console_problems(
             });
         }
     }
-    for clip in &console.clips {
+    for clip in &console.composition.clips {
         let played = console
             .actions()
             .any(|action| matches!(action, Action::Play(play) if play.clip == clip.id));
@@ -980,11 +878,6 @@ fn console_problems(
             });
         }
     }
-    let setup_devices = setup
-        .input_devices
-        .iter()
-        .map(|source| source.id())
-        .collect::<HashSet<_>>();
     let control = |input: &ControlRef| -> Result<&InputControlKind, InputProblem> {
         let device = project
             .get::<crate::InputDevice>(input.device)
@@ -992,9 +885,6 @@ fn console_problems(
         let control = device
             .control(input.control)
             .ok_or(InputProblem::NotAControl)?;
-        if active && !setup_devices.contains(&input.device) {
-            return Err(InputProblem::NotInSetup);
-        }
         Ok(&control.kind)
     };
     for on in &console.events {
@@ -1005,16 +895,37 @@ fn console_problems(
             });
         }
     }
-    for clip in &console.clips {
-        validate_played(project, console, clip, &control, &mut |param, problem| {
-            problems.push(Error::Played {
+    // A parameter follows an envelope or a control's `Set`, not both.
+    let set = console.set_targets();
+    for clip in &console.composition.clips {
+        for binding in clip
+            .envelope()
+            .into_iter()
+            .flat_map(|envelope| &envelope.bindings)
+            .filter(|binding| set.contains(&&binding.target))
+        {
+            found.push(CompositionProblem::Clip {
                 clip: clip.id,
                 name: clip.name.clone(),
-                param,
-                problem,
+                problem: ClipProblem::Envelope(EnvelopeProblem::AlsoSet(binding.target.clone())),
+            });
+        }
+    }
+    for clip in &console.composition.clips {
+        validate_played(project, console, clip, &control, &mut |param, problem| {
+            found.push(CompositionProblem::Clip {
+                clip: clip.id,
+                name: clip.name.clone(),
+                problem: ClipProblem::Played(param, problem),
             });
         });
     }
+    problems_of_composition.extend(found.into_iter().map(ValidationProblem::Composition));
+    problems_of_composition.extend(
+        problems_of_console
+            .into_iter()
+            .map(ValidationProblem::Console),
+    );
     Ok(())
 }
 
@@ -1022,18 +933,18 @@ fn validate_event<'a>(
     project: &'a DonderProject,
     console: &Console,
     on: &On,
-    mark_keys: &HashSet<&MarkCollectionKey>,
+    mark_keys: &HashSet<&MarkCollectionId>,
     control: &impl Fn(&ControlRef) -> Result<&'a InputControlKind, InputProblem>,
 ) -> Result<(), EventProblem> {
-    let input = control(on.event.control()).map_err(EventProblem::Input)?;
-    match on.event {
-        InputEvent::Press(_) | InputEvent::Release(_) if !input.is_button() => {
+    let input = control(&on.control).map_err(EventProblem::Input)?;
+    match on.happening {
+        InputHappening::Press | InputHappening::Release if !input.is_button() => {
             return Err(EventProblem::Input(InputProblem::NotAButton));
         }
-        InputEvent::Move(_) if input.is_button() => {
+        InputHappening::Move if input.is_button() => {
             return Err(EventProblem::Input(InputProblem::NotAnAxis));
         }
-        InputEvent::Move(_)
+        InputHappening::Move
             if on
                 .actions
                 .iter()
@@ -1076,32 +987,37 @@ fn validate_event<'a>(
             }
             Action::Mark(key) => {
                 if !mark_keys.contains(key) {
-                    return Err(EventProblem::MissingLiveMarks(key.name.clone()));
+                    return Err(EventProblem::MissingLiveMarks);
                 }
             }
             Action::Set { target, window } => {
                 if !window.is_normalized() {
                     return Err(EventProblem::WindowOutOfRange(target.param().clone()));
                 }
-                let declaration = target_param(
-                    project,
-                    &console.composition_graph,
-                    target,
-                    |clip: &ConsoleClipId| console.clip(*clip).map(|clip| clip.definition),
-                )
-                .map_err(|problem| match problem {
-                    AutomationProblem::MissingClip => EventProblem::MissingClip,
-                    AutomationProblem::MissingNode => EventProblem::MissingNode,
-                    AutomationProblem::MissingParam(param) => EventProblem::UnknownParam(param),
-                    _ => unreachable!("a target's parameter is missing or found"),
-                })?;
+                let declaration =
+                    target_param(project, &console.composition.graph, target, |clip| {
+                        console
+                            .clip(clip)
+                            .and_then(Clip::effect)
+                            .map(|effect| effect.definition)
+                    })
+                    .map_err(|problem| match problem {
+                        BindingProblem::MissingClip => EventProblem::MissingClip,
+                        BindingProblem::MissingNode => EventProblem::MissingNode,
+                        BindingProblem::MissingParam => {
+                            EventProblem::UnknownParam(target.param().clone())
+                        }
+                        BindingProblem::WindowOutOfRange | BindingProblem::NotAutomatable => {
+                            unreachable!("a target's parameter is missing or found")
+                        }
+                    })?;
                 let param = target.param();
                 if declaration.automation_mapping().is_none() {
                     return Err(EventProblem::NotAutomatable(param.clone()));
                 }
                 // One control sets a parameter, by every event it answers.
                 if console.events.iter().any(|other| {
-                    other.event.control() != on.event.control()
+                    other.control != on.control
                         && other
                             .actions
                             .iter()
@@ -1136,7 +1052,7 @@ fn length(length: &DonderDuration) -> Result<(), EventProblem> {
 fn validate_played<'a>(
     project: &'a DonderProject,
     console: &Console,
-    clip: &ConsoleClip,
+    clip: &Clip,
     control: &impl Fn(&ControlRef) -> Result<&'a InputControlKind, InputProblem>,
     report: &mut dyn FnMut(Identifier, PlayedProblem),
 ) {
@@ -1152,15 +1068,18 @@ fn validate_played<'a>(
     let pressed = !console.is_always(clip.id)
         && starts
             .iter()
-            .all(|on| matches!(on.event, InputEvent::Press(_)));
+            .all(|on| on.happening == InputHappening::Press);
     let notes = starts
         .iter()
-        .all(|on| control(on.event.control()).is_ok_and(|input| input.notes().is_some()));
+        .all(|on| control(&on.control).is_ok_and(|input| input.notes().is_some()));
     let set = console.set_targets();
     let mut played = HashSet::new();
-    for value in &clip.played {
+    let Some(effect) = clip.effect() else {
+        return;
+    };
+    for value in clip.played() {
         let mut check = || {
-            match param_mapping(project, &clip.definition, &value.param) {
+            match param_mapping(project, &effect.definition, &value.param) {
                 None => return Err(PlayedProblem::UnknownParam),
                 Some(None) => return Err(PlayedProblem::NotAutomatable),
                 Some(Some(_)) => {}
@@ -1174,7 +1093,7 @@ fn validate_played<'a>(
             if !pressed {
                 return Err(PlayedProblem::WithoutPress);
             }
-            if value.from.needs_note() && !notes {
+            if crate::console::needs_note(value.from) && !notes {
                 return Err(PlayedProblem::WithoutNotes);
             }
             let target = AutomationTarget::ClipParam {
@@ -1256,31 +1175,31 @@ fn validate_param_references(
     project: &DonderProject,
     param: &Identifier,
     value: &ParamValue,
-    mark_keys: &HashSet<&MarkCollectionKey>,
+    mark_keys: &HashSet<&MarkCollectionId>,
 ) -> Result<(), ParamProblem> {
     let name = || param.clone();
     match value {
         ParamValue::Marks(Some(key)) if !mark_keys.contains(key) => {
             Err(ParamProblem::MissingMarks(name()))
         }
-        ParamValue::Curve(OwnedCurve::Inline(curve)) => curve
+        ParamValue::Curve(CurveValue::Literal(curve)) => curve
             .validate()
             .map_err(|error| ParamProblem::InvalidCurve(name(), error)),
-        ParamValue::Curve(OwnedCurve::Reference(id))
+        ParamValue::Curve(CurveValue::Linked(id))
             if !project
                 .reusable::<crate::CurveDefinition>()
                 .contains_key(id) =>
         {
             Err(ParamProblem::MissingCurve(name()))
         }
-        ParamValue::Gradient(OwnedGradient::Reference(id))
+        ParamValue::Gradient(GradientValue::Linked(id))
             if !project
                 .reusable::<crate::GradientDefinition>()
                 .contains_key(id) =>
         {
             Err(ParamProblem::MissingGradient(name()))
         }
-        ParamValue::Gradient(OwnedGradient::Inline(gradient)) => gradient
+        ParamValue::Gradient(GradientValue::Literal(gradient)) => gradient
             .validate()
             .map_err(|error| ParamProblem::InvalidGradient(name(), error)),
         ParamValue::Array(values) => {
@@ -1308,41 +1227,41 @@ fn validate_param_references(
     }
 }
 
-/// The declaration an automation target addresses.
+/// The declaration an envelope's or `Set`'s target addresses: a parameter of
+/// a timed effect clip or of an operator node of `composition`.
 pub fn automation_target_param<'a>(
     project: &'a DonderProject,
-    sequence: &'a Sequence,
+    composition: &Composition,
     target: &AutomationTarget,
-) -> Result<&'a ParamDecl, AutomationProblem> {
-    target_param(project, &sequence.composition_graph, target, |clip_id| {
-        sequence
-            .clips
-            .iter()
-            .find(|clip| &clip.id == clip_id)
-            .map(|clip| clip.definition)
+) -> Result<&'a ParamDecl, BindingProblem> {
+    target_param(project, &composition.graph, target, |clip| {
+        composition
+            .clip(clip)
+            .and_then(Clip::bindable)
+            .map(|effect| effect.definition)
     })
 }
 
 /// The declaration a sequence's or console's automation target addresses;
 /// `clip_definition` finds the effect of a clip it names.
-fn target_param<'a, Clip>(
+fn target_param<'a>(
     project: &'a DonderProject,
-    graph: &SequenceCompositionGraph,
-    target: &AutomationTarget<Clip>,
-    clip_definition: impl FnOnce(&Clip) -> Option<crate::effect::EffectDefinitionId>,
-) -> Result<&'a ParamDecl, AutomationProblem> {
+    graph: &CompositionGraph,
+    target: &AutomationTarget,
+    clip_definition: impl FnOnce(ClipId) -> Option<crate::effect::ScriptId>,
+) -> Result<&'a ParamDecl, BindingProblem> {
     let find = |params: &'a [ParamDecl], param: &Identifier| {
         params
             .iter()
             .find(|declaration| &declaration.name == param)
-            .ok_or_else(|| AutomationProblem::MissingParam(param.clone()))
+            .ok_or(BindingProblem::MissingParam)
     };
     match target {
         AutomationTarget::ClipParam { clip_id, param } => {
-            let definition = clip_definition(clip_id).ok_or(AutomationProblem::MissingClip)?;
+            let definition = clip_definition(*clip_id).ok_or(BindingProblem::MissingClip)?;
             let definition = project
-                .get::<crate::EffectDefinition>(definition)
-                .ok_or_else(|| AutomationProblem::MissingParam(param.clone()))?;
+                .get::<crate::ScriptDefinition>(definition)
+                .ok_or(BindingProblem::MissingParam)?;
             find(definition.params(), param)
         }
         AutomationTarget::CompositionNodeParam { node_id, param } => {
@@ -1354,35 +1273,11 @@ fn target_param<'a, Clip>(
                     CompositionGraphNodeKind::Operator(operator) => Some(operator),
                     _ => None,
                 })
-                .ok_or(AutomationProblem::MissingNode)?;
+                .ok_or(BindingProblem::MissingNode)?;
             let definition = project
-                .get::<crate::OperatorDefinition>(operator.operator)
-                .ok_or_else(|| AutomationProblem::MissingParam(param.clone()))?;
+                .get::<crate::ScriptDefinition>(operator.operator)
+                .ok_or(BindingProblem::MissingParam)?;
             find(definition.params(), param)
         }
-    }
-}
-
-impl From<NameProblem> for SequenceValidationError {
-    fn from(problem: NameProblem) -> Self {
-        Self::Name(problem)
-    }
-}
-
-impl From<CompositionProblem> for SequenceValidationError {
-    fn from(problem: CompositionProblem) -> Self {
-        Self::Composition(problem)
-    }
-}
-
-impl From<NameProblem> for ConsoleValidationError {
-    fn from(problem: NameProblem) -> Self {
-        Self::Name(problem)
-    }
-}
-
-impl From<CompositionProblem> for ConsoleValidationError {
-    fn from(problem: CompositionProblem) -> Self {
-        Self::Composition(problem)
     }
 }

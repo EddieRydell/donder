@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { SequenceGuiDocument } from "../../../types";
 import { Button, Field, NumberField, Section, Select, TextField, Toggle } from "../../kit";
 import { defaultMarkColor, subdivisionTimes } from "./marks";
+import { setDocumentUi, showMarks } from "../documentUi";
 
 const MIN_DIVISIONS = 2;
 const MAX_DIVISIONS = 32;
@@ -13,25 +14,13 @@ const DUPLICATE_MARK_SECONDS = 1e-4;
 const NEW_COLLECTION = "";
 
 /** Divides every gap between the selected marks into equal parts. */
-export function MarkSubdivision({
-  document,
-  selectedSeconds,
-  visibleMarkCollectionKeys,
-  setVisibleMarkCollectionKeys,
-  clearMarkSelection
-}: {
-  document: SequenceGuiDocument;
-  selectedSeconds: number[];
-  visibleMarkCollectionKeys: Set<string>;
-  setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
-  clearMarkSelection: () => void;
-}) {
+export function MarkSubdivision({ document, selectedSeconds }: { document: SequenceGuiDocument; selectedSeconds: number[] }) {
   const [divisions, setDivisions] = useState(MIN_DIVISIONS);
   const [target, setTarget] = useState(NEW_COLLECTION);
   const [name, setName] = useState("subdivisions");
   const [includeSelected, setIncludeSelected] = useState(false);
   const divisionsValid = Number.isInteger(divisions) && divisions >= MIN_DIVISIONS && divisions <= MAX_DIVISIONS;
-  const targetCollection = document.markCollections.find((collection) => collection.key === target);
+  const targetCollection = document.markCollections.find((collection) => collection.name === target);
   const valid = divisionsValid && (targetCollection !== undefined || name.trim().length > 0);
 
   const subdivide = () => {
@@ -43,19 +32,19 @@ export function MarkSubdivision({
     );
     if (targetCollection === undefined) {
       void runGuiEditCommand((request) =>
-        commands.applyGuiEdit(request, { type: "sequence", edit: {
-          type: "createMarkCollections",
+        commands.applyGuiEdit(request, { type: "sequence", edit: { type: "composition", edit: {
+          type: "addMarkCollections",
           collections: [{ name, color: defaultMarkColor(document.markCollections.length), marksSeconds: timesSeconds }]
-        } })
+        } } })
       ).then((result) => {
-        if (result !== null) setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, ...result.created]));
+        if (result !== null) showMarks(result.created, false);
       });
       return;
     }
     // Inserting marks renumbers the target collection, so the selection's indices would go stale.
     void runGuiEditCommand((request) =>
-      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "addMarks", collectionKey: targetCollection.key, timesSeconds } })
-    ).then((result) => { if (result !== null) clearMarkSelection(); });
+      commands.applyGuiEdit(request, { type: "sequence", edit: { type: "addMarks", collectionId: targetCollection.id, timesSeconds } })
+    ).then((result) => { if (result !== null) setDocumentUi({ focus: null, selection: null }); });
   };
 
   return (
@@ -69,7 +58,7 @@ export function MarkSubdivision({
           value={target}
           options={[
             { value: NEW_COLLECTION, label: "New collection" },
-            ...document.markCollections.map((collection) => ({ value: collection.key, label: collection.key }))
+            ...document.markCollections.map((collection) => ({ value: collection.name, label: collection.name }))
           ]}
           onChange={setTarget}
         />

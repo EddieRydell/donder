@@ -527,9 +527,14 @@ name = "donder-runtime"
 version = "0.2.3"
 dependencies = [
  "bytemuck",
+ "donder-runtime-iram",
  "donder-runtime-types",
  "libm",
 ]
+
+[[package]]
+name = "donder-runtime-iram"
+version = "0.2.3"
 
 [[package]]
 name = "donder-runtime-types"

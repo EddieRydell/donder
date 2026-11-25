@@ -49,12 +49,13 @@ fn automation(
     mapping: AutomationMapping,
 ) -> Box<[PreparedAutomation]> {
     Box::new([PreparedAutomation {
-        start: SampleTime::from_ticks(0),
-        duration: SampleDuration::from_ticks(8_000_000),
-        curve: curve.into(),
+        source: donder_runtime_types::AutomationSource::Envelope {
+            start: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(8_000_000),
+            curve: curve.into(),
+        },
         param_index,
         mapping,
-        quantity: donder_runtime_types::AutomatedQuantity::Value,
     }])
 }
 
@@ -94,6 +95,18 @@ fn single_pixels(count: usize, invocation: &BoundProgram) -> PreparedShow {
         let layer = builder.layer(true, effects);
         Some(layer)
     })
+}
+
+/// `invocation` lowered as [`workload::layered_show`] lowers it on `count`
+/// pixels: division by its fixed duration and pixel count is multiplication.
+fn staged(invocation: &donder_language::compiler::Invocation, count: usize) -> BoundProgram {
+    workload::sample_fixture(
+        invocation,
+        count,
+        SampleTime::from_ticks(0),
+        SampleDuration::from_ticks(8_000_000),
+    )
+    .program
 }
 
 /// Playback of `show` matches each of its `count` pixels sampled alone by
@@ -232,7 +245,7 @@ fn uniform_resource_samples_match_single_pixels() {
     assert_matches_single_pixels(
         workload::layered_show(200, &invocation, 1),
         200,
-        &playback::lower(&invocation),
+        &staged(&invocation, 200),
         "uniform resources",
     );
 }
@@ -308,7 +321,7 @@ fn staged_upstream_matches_unstaged_execution_across_effects() {
     assert!(in_query_block(&sample.program.program().bytecode, is_sin));
     for (source, count) in [
         playback::IDENTITY_SOURCE,
-        "operator Mix { input source; sample { max(source, source.at(pixel.index + 1)) } }",
+        "operator Mix { input source; sample { max(source, source[pixel.index + 1]) } }",
     ]
     .into_iter()
     .flat_map(|source| [1, 2].map(|count| (source, count)))
@@ -357,7 +370,7 @@ fn staged_operators_match_unstaged_evaluation_with_nested_signals() {
         "operator Wave { input source; sample {
             let gain = sin(time * 7.0) * 0.5 + 0.5;
             let gain = if pixel.index % 2 == 0 { gain * pixel.fraction } else { gain };
-            source.at(pixel.index + 1) * gain
+            source[pixel.index + 1] * gain
         } }",
     ] {
         let operator = workload::operator_program(&compile(source));
@@ -392,7 +405,7 @@ fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
     );
     let mix = workload::operator_program(&compile(
         "operator Mix { input a; input b; sample {
-            max(max(a, b), max(a.at(pixel.index + 1), a))
+            max(max(a, b), max(a[pixel.index + 1], a))
         } }",
     ));
     // The parameter's product with the query's progress runs once per query.
@@ -401,7 +414,7 @@ fn staged_nested_operators_track_sibling_parameters_and_shifted_reads() {
         matches!(
             op,
             Instruction::Context {
-                read: ContextRead::Progress,
+                read: ContextRead::Seconds,
                 ..
             }
         )
@@ -610,7 +623,7 @@ fn mixed_pixel_and_time_expressions_match_single_pixels() {
             assert_matches_single_pixels(
                 workload::layered_show(count, &effect, layers),
                 count,
-                &invocation,
+                &staged(&effect, count),
                 &format!("layers={layers} count={count} {source}"),
             );
         }
