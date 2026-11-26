@@ -1,7 +1,7 @@
 import type { GuiClip, GuiPlacement, SequenceGuiDocument, SequenceAutomationResize, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../types";
 
 import { clamp } from "../shared";
-import { clipFocus, focusedClipId, useDocumentUi, type GuiFocus } from "../documentUi";
+import { clipFocus, useDocumentUi, type GuiFocus } from "../documentUi";
 
 /** A clip placed at a time, as every clip of a sequence is. */
 export type TimedClip = GuiClip & { placement: Extract<GuiPlacement, { type: "timed" }> };
@@ -66,7 +66,6 @@ export type SequenceViewport = {
   markRulerHeight: number;
   rowHeights: SequenceRowHeightMap;
   /** Group lanes whose members are hidden, by group fixture. */
-  collapsedGroups: ReadonlySet<number>;
   scrollXSeconds: number;
   scrollY: number;
 };
@@ -286,13 +285,6 @@ export function reconcileSequenceSelection(document: SequenceGuiDocument | null,
   return marks.length === 0 ? null : marks.length === selection.marks.length ? selection : { type: "marks", marks };
 }
 
-export function selectionFromSingle(selected: GuiFocus): SequenceSelection | null {
-  const clipId = focusedClipId(selected);
-  if (clipId !== null) return { type: "clips", ids: [clipId] };
-  if (selected?.type === "mark") return { type: "marks", marks: [{ collectionId: selected.collectionId, index: selected.index }] };
-  return null;
-}
-
 export function singleSelectionFocus(selection: SequenceSelection | null): GuiFocus {
   if (selection?.type === "clips") {
     const id = selection.ids[0];
@@ -308,16 +300,6 @@ export function singleSelectionFocus(selection: SequenceSelection | null): GuiFo
 
 export function selectionCount(selection: SequenceSelection) {
   return selection.type === "clips" ? selection.ids.length : selection.marks.length;
-}
-
-export function selectionCompatibleWithFocusedItem(selection: SequenceSelection, selected: GuiFocus) {
-  const clipId = focusedClipId(selected);
-  if (clipId !== null) return selection.type === "clips" && selection.ids.includes(clipId);
-  if (selected?.type === "mark") {
-    const mark = { collectionId: selected.collectionId, index: selected.index };
-    return selection.type === "marks" && markLookupHas(markRefLookup(selection.marks), mark);
-  }
-  return true;
 }
 
 export function nextClipSelection(current: SequenceSelection | null, id: number, shift: boolean, ctrl: boolean): SequenceSelection {

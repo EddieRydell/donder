@@ -289,6 +289,24 @@ impl PersistenceService {
         inner.save_now()
     }
 
+    pub(crate) fn record_collapsed_groups(
+        &self,
+        project_root: &str,
+        groups: Vec<u32>,
+    ) -> Result<(), String> {
+        let mut inner = self.inner();
+        if !inner.write_allowed {
+            return Ok(());
+        }
+        inner
+            .store
+            .projects
+            .entry(project_root.to_string())
+            .or_insert_with(PersistedProjectSession::new)
+            .collapsed_groups = groups;
+        inner.save_now()
+    }
+
     pub(crate) fn remap_project_paths(
         &self,
         project_root: &str,
@@ -352,6 +370,7 @@ impl PersistenceService {
                 sequence_viewports: BTreeMap::new(),
                 spatial_views: BTreeMap::new(),
                 graph_views: BTreeMap::new(),
+                collapsed_groups: Vec::new(),
             };
         };
         ProjectRestoreState {
@@ -359,6 +378,7 @@ impl PersistenceService {
             sequence_viewports: session.sequence_viewports.clone(),
             spatial_views: session.spatial_views.clone(),
             graph_views: session.graph_views.clone(),
+            collapsed_groups: session.collapsed_groups.clone(),
         }
     }
 
@@ -484,7 +504,6 @@ mod tests {
                 ("1:row:0".into(), height * 2.0),
                 ("1:row:1".into(), height),
             ]),
-            collapsed_groups: Vec::new(),
             scroll_x_seconds: 0.0,
             scroll_y: 0.0,
             active_mark_collection_key: None,

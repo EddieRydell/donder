@@ -31,12 +31,12 @@ import { sequenceComposition } from "./composition";
 import { activeMarkCollection, defaultMarkColor } from "./marks";
 import { BeatDetectionDialog } from "./BeatDetectionDialog";
 import { MarkSubdivision } from "./MarkSubdivision";
-import { selectionCompatibleWithFocusedItem, selectionCount, useSequenceSelection } from "./sequenceSelection";
+import { useSequenceSelection } from "./sequenceSelection";
 import { useSequenceClipDetails } from "./sequenceClipDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { LayerList } from "./sequenceLayers";
 import { ClipFields, EnvelopeFields, type ClipFieldsAdapter } from "../clip/ClipFields";
-import { focusedClipId, setDocumentUi, showMarks, useDocumentUi, type GuiFocus } from "../documentUi";
+import { setDocumentUi, showMarks, useDocumentUi } from "../documentUi";
 
 type SequenceInspectorTab = "clip" | "layers" | "marks";
 
@@ -87,21 +87,19 @@ function sequenceClipFields(document: SequenceGuiDocument): ClipFieldsAdapter {
   };
 }
 
-/** The focused clip, or the selected clips edited together. */
+/** The selected clip, or the selected clips edited together. */
 function ClipInspectorPanel({ document }: { document: SequenceGuiDocument }) {
-  const focus = useDocumentUi((ui) => ui.focus);
   const selection = useSequenceSelection(document);
   const adapter = useMemo(() => sequenceClipFields(document), [document]);
-  const several = selection?.type === "clips" && selectionCount(selection) > 1 && selectionCompatibleWithFocusedItem(selection, focus);
-  const focused = focusedClipId(focus);
-  const ids = several ? selection.ids : focused === null ? [] : [focused];
+  const ids = selection?.type === "clips" ? selection.ids : [];
+  const several = ids.length > 1;
   const clips = document.clips.filter((clip) => ids.includes(clip.id));
   const details = useSequenceClipDetails(document, clips.filter((clip) => clip.content.type === "effect").map((clip) => clip.id));
   const deleteClips = () => {
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection: { type: "clips", ids } } })
     ).then((result) => {
-      if (result !== null) setDocumentUi({ focus: null, selection: null });
+      if (result !== null) setDocumentUi({ selection: null });
     });
   };
   const [clip] = clips;
@@ -127,15 +125,13 @@ function LayerInspectorPanel({ document }: { document: SequenceGuiDocument }) {
 }
 
 function MarkInspectorPanel({ document }: { document: SequenceGuiDocument }) {
-  const selected = useDocumentUi((ui) => ui.focus);
   const sequenceSelection = useSequenceSelection(document);
   const activeMarkCollectionKey = useDocumentUi((ui) => ui.activeMarks);
   const visibleMarkCollectionKeys = useDocumentUi((ui) => ui.visibleMarks);
   const setVisibleMarkCollectionKeys = (visibleMarks: ReadonlySet<string>) => { setDocumentUi({ visibleMarks }); };
   const setActiveMarkCollectionKey = (activeMarks: string | null) => { setDocumentUi({ activeMarks }); };
-  const selectedMark = selected?.type === "mark" ? { collectionId: selected.collectionId, index: selected.index } : null;
   const activeCollection = activeMarkCollection(document.markCollections, activeMarkCollectionKey);
-  const selectedMarks = selectedMarkEntries(document, selected, sequenceSelection);
+  const selectedMarks = selectedMarkEntries(document, sequenceSelection);
   const collectionOptions = document.markCollections.map((collection) => ({ value: String(collection.id), label: collection.name }));
 
   const createCollection = () => {
@@ -167,7 +163,6 @@ function MarkInspectorPanel({ document }: { document: SequenceGuiDocument }) {
   const deleteCollection = (collection: SequenceMarkCollection) => {
     void remove(site({ type: "marks", id: collection.id })).then((result) => {
       if (result === null) return;
-      if (selectedMark?.collectionId === collection.id) setDocumentUi({ focus: null });
       if (activeCollection?.name === collection.name) {
         setActiveMarkCollectionKey(document.markCollections.find((candidate) => candidate.name !== collection.name)?.name ?? null);
       }
@@ -177,11 +172,7 @@ function MarkInspectorPanel({ document }: { document: SequenceGuiDocument }) {
 
   const setSelectedMarkRefs = (refs: SequenceMarkRef[]) => {
     const validRefs = refs.filter((ref) => markEntry(document, ref) !== null);
-    const firstRef = validRefs[0];
-    setDocumentUi(firstRef === undefined ? { focus: null, selection: null } : {
-      focus: { type: "mark", collectionId: firstRef.collectionId, index: firstRef.index },
-      selection: { type: "marks", marks: validRefs }
-    });
+    setDocumentUi({ selection: validRefs.length === 0 ? null : { type: "marks", marks: validRefs } });
   };
 
   const moveSelectedMark = (entry: SelectedMarkEntry, timeSeconds: number) => {
@@ -349,15 +340,9 @@ function markIndexAfterInsert(collection: SequenceMarkCollection, timeSeconds: n
 
 function selectedMarkEntries(
   document: SequenceGuiDocument,
-  selected: GuiFocus,
   sequenceSelection: SequenceSelection | null
 ): SelectedMarkEntry[] {
-  const refs =
-    sequenceSelection?.type === "marks" && sequenceSelection.marks.length > 0
-      ? sequenceSelection.marks
-      : selected?.type === "mark"
-        ? [{ collectionId: selected.collectionId, index: selected.index }]
-        : [];
+  const refs = sequenceSelection?.type === "marks" ? sequenceSelection.marks : [];
   const seen = new Set<string>();
   const entries: SelectedMarkEntry[] = [];
   for (const ref of refs) {

@@ -44,7 +44,7 @@ export function MarkSubdivision({ document, selectedSeconds }: { document: Seque
     // Inserting marks renumbers the target collection, so the selection's indices would go stale.
     void runGuiEditCommand((request) =>
       commands.applyGuiEdit(request, { type: "sequence", edit: { type: "addMarks", collectionId: targetCollection.id, timesSeconds } })
-    ).then((result) => { if (result !== null) setDocumentUi({ focus: null, selection: null }); });
+    ).then((result) => { if (result !== null) setDocumentUi({ selection: null }); });
   };
 
   return (

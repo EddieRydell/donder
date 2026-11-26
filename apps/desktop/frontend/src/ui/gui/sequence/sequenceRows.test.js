@@ -92,7 +92,6 @@ test("mixed selections preserve both row kinds and move or resize with one const
   const surviving = selection.reconcileSequenceSelection({ ...document, clips: [automation] }, selected);
   assert.deepEqual(surviving, { type: "clips", ids: [9] });
   assert.equal(selection.reconcileSequenceSelection({ ...document, clips: [] }, selected), null);
-  assert.deepEqual(selection.selectionFromSingle({ type: "member", member: { type: "clip", id: 9 } }), { type: "clips", ids: [9] });
 });
 
 test("a target shared by two groups draws its clips on both lanes and moves from the nearest copy", () => {

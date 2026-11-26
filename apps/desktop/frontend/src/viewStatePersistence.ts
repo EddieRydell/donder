@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { commands, errorMessage } from "./api";
 import type { GuiObjectRef, PersistedGraphViewState, PersistedSequenceViewportState, PersistedSpatialViewState, ProjectRestoreState, ViewStateUpdate } from "./types";
 import { objectViewKey } from "./workspace/guiIdentity";
@@ -46,6 +46,8 @@ export async function flushViewStateSaves(): Promise<void> {
   await job;
 }
 
+const EMPTY_RESTORE_STATE: ProjectRestoreState = { editorStates: {}, sequenceViewports: {}, spatialViews: {}, graphViews: {}, collapsedGroups: [] };
+
 type ObjectViews = { spatial: PersistedSpatialViewState; graph: PersistedGraphViewState; sequenceViewport: PersistedSequenceViewportState };
 /** Where the restore state keeps each kind of object view. */
 const RESTORED = { spatial: "spatialViews", graph: "graphViews", sequenceViewport: "sequenceViewports" } as const satisfies Record<keyof ObjectViews, keyof ProjectRestoreState>;
@@ -56,7 +58,7 @@ export function useObjectViewState<K extends keyof ObjectViews>(kind: K, referen
   const { path, objectKey } = reference;
   const restored = useAppStore((store) => store.restoreState?.[RESTORED[kind]][key]) as ObjectViews[K] | undefined;
   const save = useCallback((state: ObjectViews[K]) => {
-    const restore = useAppStore.getState().restoreState ?? { editorStates: {}, sequenceViewports: {}, spatialViews: {}, graphViews: {} };
+    const restore = useAppStore.getState().restoreState ?? EMPTY_RESTORE_STATE;
     useAppStore.getState().setRestoreState({ ...restore, [RESTORED[kind]]: { ...restore[RESTORED[kind]], [key]: state } });
     scheduleViewStateSave(JSON.stringify([kind, key]), async () => {
       const snapshot = await commands.saveViewState({ type: kind, state: { path, objectKey, state } } as ViewStateUpdate);
@@ -64,4 +66,22 @@ export function useObjectViewState<K extends keyof ObjectViews>(kind: K, referen
     });
   }, [key, kind, objectKey, path]);
   return [restored, save];
+}
+
+const NO_COLLAPSED_GROUPS: number[] = [];
+
+/** The group lanes every sequence of the project collapses, by group fixture, and how to save another set. */
+export function useCollapsedGroups(): [ReadonlySet<number>, (groups: ReadonlySet<number>) => void] {
+  const restored = useAppStore((store) => store.restoreState?.collapsedGroups ?? NO_COLLAPSED_GROUPS);
+  const groups = useMemo(() => new Set(restored), [restored]);
+  const save = useCallback((next: ReadonlySet<number>) => {
+    const state = [...next];
+    const restore = useAppStore.getState().restoreState ?? EMPTY_RESTORE_STATE;
+    useAppStore.getState().setRestoreState({ ...restore, collapsedGroups: state });
+    scheduleViewStateSave("collapsedGroups", async () => {
+      const snapshot = await commands.saveViewState({ type: "collapsedGroups", state });
+      useAppStore.getState().setSnapshot(snapshot, "command");
+    });
+  }, []);
+  return [groups, save];
 }

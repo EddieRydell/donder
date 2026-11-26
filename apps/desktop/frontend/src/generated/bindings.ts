@@ -1172,8 +1172,6 @@ export type PersistedSequenceViewportState = {
 	audioStripHeightPx?: number,
 	markRulerHeightPx?: number,
 	rowHeights: { [key in string]: number },
-	/**  Group lanes whose members are hidden, by group fixture. */
-	collapsedGroups?: number[],
 	scrollXSeconds: number,
 	scrollY: number,
 	activeMarkCollectionKey: string | null,
@@ -1278,6 +1276,8 @@ export type ProjectRestoreState = {
 	sequenceViewports: { [key in string]: PersistedSequenceViewportState },
 	spatialViews: { [key in string]: PersistedSpatialViewState },
 	graphViews: { [key in string]: PersistedGraphViewState },
+	/**  Group lanes every sequence collapses, by group fixture. */
+	collapsedGroups: number[],
 };
 
 export type ProjectSearchMatch = {
@@ -1912,7 +1912,7 @@ export type TransitionRequest = {
 export type TransitionResult = { type: "applied"; snapshot: AppSnapshot; closeApplication: boolean } | { type: "needsDecision"; snapshot: AppSnapshot; dirtyPaths: string[] } | { type: "cancelled"; snapshot: AppSnapshot };
 
 /**  One piece of view state the workbench or an editor keeps between sessions. */
-export type ViewStateUpdate = { type: "workspaceLayout"; state: WorkspaceLayoutState } | { type: "workspaceExplorer"; state: WorkspaceExplorerState } | { type: "editor"; state: PersistedEditorViewStateUpdate } | { type: "sequenceViewport"; state: PersistedSequenceViewportStateUpdate } | { type: "graph"; state: PersistedGraphViewStateUpdate } | { type: "spatial"; state: PersistedSpatialViewStateUpdate };
+export type ViewStateUpdate = { type: "workspaceLayout"; state: WorkspaceLayoutState } | { type: "workspaceExplorer"; state: WorkspaceExplorerState } | { type: "editor"; state: PersistedEditorViewStateUpdate } | { type: "sequenceViewport"; state: PersistedSequenceViewportStateUpdate } | { type: "graph"; state: PersistedGraphViewStateUpdate } | { type: "spatial"; state: PersistedSpatialViewStateUpdate } | { type: "collapsedGroups"; state: number[] };
 
 export type WorkspaceEntry = {
 	path: string,

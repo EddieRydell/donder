@@ -60,6 +60,10 @@ impl DesktopState {
                 .persistence
                 .record_spatial_view(root, update)
                 .map_err(|error| format!("Spatial view state was not saved: {error}")),
+            (ViewStateUpdate::CollapsedGroups(groups), Some(root)) => self
+                .persistence
+                .record_collapsed_groups(root, groups)
+                .map_err(|error| format!("Collapsed groups were not saved: {error}")),
         };
         match result {
             Ok(()) => snapshot,
@@ -75,6 +79,7 @@ impl DesktopState {
                 sequence_viewports: Default::default(),
                 spatial_views: Default::default(),
                 graph_views: Default::default(),
+                collapsed_groups: Vec::new(),
             };
         };
         self.persistence.restore_view_state(project_root)

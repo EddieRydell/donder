@@ -20,9 +20,6 @@ pub struct PersistedSequenceViewportState {
     #[serde(default = "default_mark_ruler_height_px")]
     pub mark_ruler_height_px: f32,
     pub row_heights: BTreeMap<String, f32>,
-    /// Group lanes whose members are hidden, by group fixture.
-    #[serde(default)]
-    pub collapsed_groups: Vec<u32>,
     pub scroll_x_seconds: f64,
     pub scroll_y: f32,
     pub active_mark_collection_key: Option<String>,
@@ -106,6 +103,8 @@ pub struct ProjectRestoreState {
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
     pub spatial_views: BTreeMap<String, PersistedSpatialViewState>,
     pub graph_views: BTreeMap<String, PersistedGraphViewState>,
+    /// Group lanes every sequence collapses, by group fixture.
+    pub collapsed_groups: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -146,4 +145,5 @@ pub enum ViewStateUpdate {
     SequenceViewport(PersistedSequenceViewportStateUpdate),
     Graph(PersistedGraphViewStateUpdate),
     Spatial(PersistedSpatialViewStateUpdate),
+    CollapsedGroups(Vec<u32>),
 }

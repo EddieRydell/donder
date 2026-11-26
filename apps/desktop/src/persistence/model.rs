@@ -61,6 +61,9 @@ pub(crate) struct PersistedProjectSession {
     pub spatial_views: BTreeMap<String, PersistedSpatialViewState>,
     pub graph_views: BTreeMap<String, PersistedGraphViewState>,
     pub sequence_transports: BTreeMap<String, PersistedSequenceTransport>,
+    /// Group lanes every sequence collapses, by group fixture.
+    #[serde(default)]
+    pub collapsed_groups: Vec<u32>,
     pub workspace_explorer: WorkspaceExplorerState,
 }
 
@@ -83,6 +86,7 @@ impl PersistedProjectSession {
             spatial_views: BTreeMap::new(),
             graph_views: BTreeMap::new(),
             sequence_transports: BTreeMap::new(),
+            collapsed_groups: Vec::new(),
             workspace_explorer: WorkspaceExplorerState::default(),
         }
     }

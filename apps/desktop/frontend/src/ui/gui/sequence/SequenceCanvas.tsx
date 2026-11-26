@@ -2,7 +2,7 @@ import { commands, errorMessage } from "../../../api";
 import { useAppStore, runGuiEditCommand, runSnapshotCommand } from "../../../store";
 import { put, site } from "../edits";
 import { MIN_CLIP_DURATION_SECONDS, isTimed, markIndexAfterMove, useSequenceSelection } from "./sequenceSelection";
-import { clipFocus, focusedClipId, setDocumentUi, showMarks, useDocumentUi, type GuiFocus } from "../documentUi";
+import { focusedClipId, setDocumentUi, showMarks, useDocumentUi } from "../documentUi";
 import { hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { useEditorCommands } from "../../../shortcuts";
 import { OverlayPortal } from "../../OverlayPortal";
@@ -15,7 +15,7 @@ import { ChevronRight, Scissors, Trash2 } from "lucide-react";
 import { ContextMenuEntries, Tip, type MenuEntry } from "../../kit";
 
 
-import { useObjectViewState } from "../../../viewStatePersistence";
+import { useCollapsedGroups, useObjectViewState } from "../../../viewStatePersistence";
 
 import type { AppSettings, SequenceClipArrangement, SequenceClipMatch, SequenceSelection, SequenceClipParamMatch, GuiDocumentRequest, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceCurvePoint, SequenceFollowMode, SequenceAutomationTarget, SequenceGuiDocument, SequenceClipScope, SequenceEffectDefinition, SequenceGuiEdit } from "../../../types";
 
@@ -51,7 +51,6 @@ import {
   laneIndexFromCanvasY,
   sequenceRowLayout,
   collapseRows,
-  collapsedLanes,
   type SequenceRowKind,
   type SequenceRowHeightMap
 } from "./sequenceRows";
@@ -64,7 +63,7 @@ import { ClipMatchDialog, ClipMatchMenuItems, type ClipMatchSeed, type MatchClip
 import { sameGuiDocument } from "../../../snapshotState";
 
 import { hit, laneLabelLayout, reduce, sharedBadgeX, TIMELINE_STRIPS, type CanvasLayout, type GestureContext, type GestureState, type TimelineStrip } from "./canvasGestures";
-import { buildSequenceClipLayout, clipRowKind, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextClipSelection, nextMarkSelection, normalizedRect, selectionCount, selectionFromMarqueeClips, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, sequenceSelectionsEqual, setMarkDraft, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceClipLayout, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
+import { buildSequenceClipLayout, clipRowKind, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextClipSelection, nextMarkSelection, normalizedRect, selectionCount, selectionFromMarqueeClips, selectionFromMarqueeMarks, selectionFromTimeSpan, sequenceHoverEqual, sequenceSelectionsEqual, setMarkDraft, singleSelectionFocus, type MarkDraftLookup, type MarqueeBox, type SequenceClipLayout, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
 const SEQUENCE_FOLLOW = {
   edge: THEME_METRICS.sequenceFollowEdge,
@@ -148,9 +147,9 @@ type SharedBadgeHover = { laneIndex: number; y: number; height: number; scrollY:
 
 
 export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) {
-  const selected = useDocumentUi((ui) => ui.focus);
-  const setSelected = (focus: GuiFocus) => { setDocumentUi({ focus }); };
   const sequenceSelection = useSequenceSelection(document);
+  // One selected clip or mark is the focused one; a sequence never stores focus apart from its selection.
+  const selected = singleSelectionFocus(sequenceSelection);
   const setSequenceSelection = (selection: SequenceSelection | null) => { setDocumentUi({ selection }); };
   const bindingChooser = useDocumentUi((ui) => ui.bindingChooser);
   const activeMarkCollectionKey = useDocumentUi((ui) => ui.activeMarks);
@@ -267,12 +266,12 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
   const targetMarkCollectionKey = activeMarkCollection(document.markCollections, activeMarkCollectionKey)?.name ?? null;
   const automationRowHeight = automationLaneRowHeight(initialSequenceLaneHeight(settings));
   const envelopeTargets = useMemo(() => document.clips.filter((clip) => clip.content.type === "envelope").map((clip) => clip.target), [document.clips]);
-  // Group lanes collapse like folders in a file tree; their members take no rows.
-  const hiddenLanes = useMemo(() => collapsedLanes(document.targets, viewport.collapsedGroups), [document.targets, viewport.collapsedGroups]);
+  // Group lanes collapse like folders in a file tree; their members and envelopes take no rows.
+  const [collapsedGroups, saveCollapsedGroups] = useCollapsedGroups();
   const layoutRows = useCallback(
     (rowHeights: SequenceRowHeightMap, reveal: boolean) =>
-      collapseRows(sequenceRowLayout(document.targets, envelopeTargets, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, reveal), hiddenLanes),
-    [document.targets, envelopeTargets, settings, automationRowHeight, hiddenLanes]
+      collapseRows(sequenceRowLayout(document.targets, envelopeTargets, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, reveal), document.targets, collapsedGroups),
+    [document.targets, envelopeTargets, settings, automationRowHeight, collapsedGroups]
   );
   const rows = useMemo(() => layoutRows(viewport.rowHeights, revealAutomation), [layoutRows, viewport.rowHeights, revealAutomation]);
   const visibleMarkCollections = useMemo(
@@ -443,7 +442,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
             audioStripHeight: SEQUENCE_CANVAS.initialAudioStripHeightPx,
             markRulerHeight: SEQUENCE_CANVAS.initialMarkRulerHeightPx,
             rowHeights: completeRowHeights({}, document, settings),
-            collapsedGroups: new Set(),
             scrollXSeconds: 0,
             scrollY: 0
           });
@@ -491,7 +489,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       audioStripHeightPx: viewport.audioStripHeight,
       markRulerHeightPx: viewport.markRulerHeight,
       rowHeights: persistRowHeights(viewport.rowHeights),
-      collapsedGroups: [...viewport.collapsedGroups],
       scrollXSeconds: viewport.scrollXSeconds,
       scrollY: viewport.scrollY,
       activeMarkCollectionKey,
@@ -545,7 +542,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
     // Most moves keep the box's contents; those leave the editor's state alone.
     if (sequenceSelectionsEqual(sequenceSelectionRef.current, merged)) return;
     updateSequenceSelection(merged);
-    setSelected(null);
     const startSeconds = selectionStartSeconds(document, merged);
     if (startSeconds !== null) setSelectedTimeSeconds(startSeconds);
   };
@@ -658,7 +654,7 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       const labelLayout = laneLabelLayout(lane);
       const labelY = y + row.height / 2;
       if (row.kind === "clips" && lane.kind === "group") {
-        drawDisclosure(ctx, labelLayout.disclosureX, labelY, viewport.collapsedGroups.has(lane.target.fixture));
+        drawDisclosure(ctx, labelLayout.disclosureX, labelY, collapsedGroups.has(lane.target.fixture));
       }
       const shared = row.kind === "clips" && lane.occurrences > 1;
       const badgeX = sharedBadgeX(left);
@@ -717,7 +713,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       ctx,
       visibleMarkCollections,
       targetMarkCollectionKey,
-      selected,
       selectedMarks,
       marksLaneOnly,
       left,
@@ -771,7 +766,7 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
         ctx.fillStyle = SEQUENCE_COLORS.overlay;
         ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
       }
-      const clipSelected = selectedClipIds.has(clip.clip.id) || focusedClipId(selected) === clip.clip.id;
+      const clipSelected = selectedClipIds.has(clip.clip.id);
       ctx.strokeStyle = clipSelected ? SEQUENCE_COLORS.clipSelected : hoverResize !== null ? SEQUENCE_COLORS.clipHover : automationTargeted ? SEQUENCE_COLORS.accent : SEQUENCE_COLORS.clipBorder;
       ctx.lineWidth = clipSelected || hoverResize !== null || automationTargeted ? THEME_METRICS.visualLineWidthStrong : THEME_METRICS.visualLineWidth;
       ctx.strokeRect(clip.rect.x + THEME_METRICS.visualHairlineOffset, clip.rect.y + THEME_METRICS.visualHairlineOffset, Math.max(0, clip.rect.width - THEME_METRICS.visualLineWidth), Math.max(0, clip.rect.height - THEME_METRICS.visualLineWidth));
@@ -970,7 +965,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
   const deleteItems = async (selection: NonNullable<SequenceSelection>) => {
     const result = await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "sequence", edit: { type: "deleteSelection", selection } }));
     if (result === null) return;
-    setSelected(null);
     updateSequenceSelection(result.selection);
   };
 
@@ -1068,7 +1062,7 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
   };
 
   const selectedMark = selected?.type === "mark" ? { collectionId: selected.collectionId, index: selected.index } : null;
-  const activeSelection = sequenceSelection ?? selectionFromSingle(selected);
+  const activeSelection = sequenceSelection;
   const editable = () => !useAppStore.getState().guiEditPending;
   const hasSelection = () => editable() && activeSelection !== null && selectionCount(activeSelection) > 0;
 
@@ -1092,7 +1086,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       // A result for a sequence that is no longer open names its clips, not these.
       if (!sameGuiDocument(useAppStore.getState().guiRequest, request)) return;
       updateSequenceSelection(selection);
-      setSelected(singleSelectionFocus(selection));
     }).catch((error: unknown) => { useAppStore.getState().reportFailure("command", errorMessage(error)); });
   };
   const [cascadeOpen, setCascadeOpen] = useState(false);
@@ -1115,7 +1108,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       : commands.cutSequenceSelection(request, activeSelection)).then((result) => {
       if (result === null) return;
       updateSequenceSelection(result.selection);
-      setSelected(singleSelectionFocus(result.selection));
     });
   };
   const paste = () => {
@@ -1127,13 +1119,10 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       // A paste that placed nothing keeps the selection.
       if (result === null || result.selection === null) return;
       updateSequenceSelection(result.selection);
-      setSelected(singleSelectionFocus(result.selection));
     });
   };
   const deleteSelection = () => {
-    // A single item deletes the focused one, which a one-item selection may not hold.
-    const selection = activeSelection !== null && selectionCount(activeSelection) > 1 ? activeSelection : selectionFromSingle(selected);
-    if (selection !== null) void deleteItems(selection);
+    if (activeSelection !== null) void deleteItems(activeSelection);
   };
   const nudgeMark = (mark: NonNullable<typeof selectedMark>, direction: -1 | 1, shift: boolean) => {
     const collection = document.markCollections.find((candidate) => candidate.id === mark.collectionId);
@@ -1153,7 +1142,7 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       } })
     ).then((result) => {
       setMarkDrafts(new Map());
-      if (result !== null) setSelected(singleSelectionFocus(result.selection));
+      if (result !== null) setSequenceSelection(result.selection);
     });
   };
   const transportCommands = sequenceTransportCommands(document);
@@ -1199,7 +1188,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
       run: () => {
         const all: NonNullable<SequenceSelection> = { type: "clips", ids: document.clips.map((clip) => clip.id) };
         updateSequenceSelection(selectionCount(all) > 0 ? all : null);
-        setSelected(singleSelectionFocus(all));
       }
     },
     "edit.moveLeft": arrowCommand(-1),
@@ -1244,7 +1232,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
             return;
           case "mark": {
             const { mark } = target;
-            setSelected({ type: "mark", collectionId: mark.collectionId, index: mark.index });
             updateSequenceSelection({ type: "marks", marks: [{ collectionId: mark.collectionId, index: mark.index }] });
             setDocumentUi({ activeMarks: markCollectionKey(mark.collectionId) });
             setSelectedTimeSeconds(mark.timeSeconds);
@@ -1261,13 +1248,11 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
             // Right-clicking a curve point erases it (pointer events do that), so no menu opens over it.
             if (target.type === "curvePoint") break;
             if (target.type === "lane") {
-              setSelected(null);
               updateSequenceSelection(null);
               setSequenceContextMenu({ kind: "blank", laneIndex, startSeconds });
               return;
             }
             const id = target.hit.clip.id;
-            setSelected(clipFocus(id));
             const active = sequenceSelectionRef.current;
             updateSequenceSelection(active?.type === "clips" && active.ids.includes(id) ? active : { type: "clips", ids: [id] });
             setSequenceContextMenu({ kind: "clip", laneIndex, startSeconds, clipId: id });
@@ -1363,7 +1348,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
               ? activeSelection
               : nextMarkSelection(activeSelection?.type === "marks" ? activeSelection : null, mark, event.shiftKey, event.ctrlKey || event.metaKey);
             updateSequenceSelection(nextSelection);
-            setSelected({ type: "mark", collectionId: mark.collectionId, index: mark.index });
             setDocumentUi({ activeMarks: markCollectionKey(markHit.collectionId) });
             setSelectedTimeSeconds(markHit.timeSeconds);
             drag.current = { kind: "mark", collectionId: markHit.collectionId, index: markHit.index, startX: x, startY: y, active: false, originalTimeSeconds: markHit.timeSeconds };
@@ -1372,7 +1356,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
           case "markRuler": {
             // Dragging across empty ruler box-selects marks by time.
             setSelectedTimeSeconds(timeFromCanvasX(x));
-            setSelected(null);
             updateSequenceSelection(null);
             const state = { mode: "marks" as const, anchorSeconds: timeFromCanvasX(x), anchorY: y, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
             drag.current = { kind: "marquee", state };
@@ -1406,11 +1389,9 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
           }
           case "disclosure": {
             const group = targetAtLane(document, target.laneIndex).fixture;
-            setViewport((previous) => {
-              const collapsedGroups = new Set(previous.collapsedGroups);
-              if (!collapsedGroups.delete(group)) collapsedGroups.add(group);
-              return { ...previous, collapsedGroups };
-            });
+            const next = new Set(collapsedGroups);
+            if (!next.delete(group)) next.add(group);
+            saveCollapsedGroups(next);
             return;
           }
           case "rowLabel": {
@@ -1419,7 +1400,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
             const rowSelection: SequenceSelection = { type: "clips", ids: row === null ? [] : document.clips.filter((clip) => clipRowKind(clip) === row.kind && targetsEqual(clip.target, laneTarget)).map((clip) => clip.id) };
             setSelectedLaneIndex(target.laneIndex);
             updateSequenceSelection(selectionCount(rowSelection) > 0 ? rowSelection : null);
-            setSelected(singleSelectionFocus(rowSelection));
             return;
           }
           case "curve":
@@ -1437,7 +1417,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
         }
         if (target.type === "curvePoint" || target.type === "curve") {
           const envelope = target.type === "curvePoint" ? target.layout : target.hit;
-          setSelected(clipFocus(envelope.clip.id));
           updateSequenceSelection({ type: "clips", ids: [envelope.clip.id] });
           let index = target.type === "curvePoint" ? target.index : 0;
           if (target.type === "curve") {
@@ -1456,7 +1435,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
             ? activeSelection
             : nextClipSelection(activeSelection?.type === "clips" ? activeSelection : null, clipHit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey);
           updateSequenceSelection(nextSelection);
-          setSelected(singleSelectionFocus(nextSelection) ?? clipFocus(clipHit.clip.id));
           setSelectedLaneIndex(clipHit.laneIndex);
           setSelectedTimeSeconds(selectionStartSeconds(document, nextSelection) ?? clipHit.clip.placement.startSeconds);
           drag.current = { kind: "sequence", id: clipHit.clip.id, startX: x, startY: y, active: false, originalStartSeconds: clipHit.clip.placement.startSeconds, laneIndex: clipHit.laneIndex, resize: clipHit.resize };
@@ -1466,7 +1444,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
           const timeSeconds = timeFromCanvasX(x);
           setSelectedLaneIndex(target.laneIndex);
           setSelectedTimeSeconds(timeSeconds);
-          setSelected(null);
           updateSequenceSelection(null);
           // Alt-drag selects every clip in the time span; a plain drag box-selects.
           const state: SequenceMarquee = { mode: event.altKey ? "span" : "clips", anchorSeconds: timeSeconds, anchorY: y - top + viewport.scrollY, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
@@ -1564,7 +1541,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
           case "mark": {
             const deltaSeconds = roundToNanosecond((x - state.startX) / viewport.pxPerSecond);
             const timeSeconds = clamp(state.originalTimeSeconds + deltaSeconds, 0, document.durationSeconds);
-            setSelected({ type: "mark", collectionId: state.collectionId, index: state.index });
             const collection = document.markCollections.find((candidate) => candidate.id === state.collectionId);
             const committedIndex = collection === undefined ? state.index : markIndexAfterMove(collection, state.index, timeSeconds);
             const activeSelection = sequenceSelectionRef.current;
@@ -1656,7 +1632,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
               setMarkDrafts(new Map());
               if (update === null) return;
               updateSequenceSelection(update.selection);
-              setSelected(singleSelectionFocus(update.selection));
             });
             return;
           }
@@ -1678,7 +1653,6 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
             void applySequenceEdit(edit, gestureRequest.current).then((update) => {
               if (update === null) return;
               updateSequenceSelection(update.selection);
-              setSelected(singleSelectionFocus(update.selection));
               setSelectedLaneIndex(current.laneIndex + (edit.type === "moveClips" ? edit.laneDelta : 0));
               const startSeconds = earliestStartSeconds(clips);
               if (startSeconds !== null) setSelectedTimeSeconds(startSeconds);
@@ -2028,7 +2002,6 @@ function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | u
     audioStripHeight: clamp(state?.audioStripHeightPx ?? SEQUENCE_CANVAS.initialAudioStripHeightPx, TIMELINE_STRIPS.audio.minPx, TIMELINE_STRIPS.audio.maxPx),
     markRulerHeight: clamp(state?.markRulerHeightPx ?? SEQUENCE_CANVAS.initialMarkRulerHeightPx, TIMELINE_STRIPS.marks.minPx, TIMELINE_STRIPS.marks.maxPx),
     rowHeights: restoreRowHeights(document.targets, state?.rowHeights, initialSequenceLaneHeight(settings)),
-    collapsedGroups: new Set(state?.collapsedGroups ?? []),
     scrollXSeconds: Math.max(0, state?.scrollXSeconds ?? 0),
     scrollY: Math.max(0, state?.scrollY ?? 0)
   };

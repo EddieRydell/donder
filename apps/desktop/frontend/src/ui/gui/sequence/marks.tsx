@@ -1,8 +1,6 @@
 import type { SequenceMarkCollection } from "../../../types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 
-import type { GuiFocus } from "../documentUi";
-
 import { getMarkDraft, markDraftEntries, setMarkDraft, type MarkDraftLookup, type MarkRefLookup } from "./sequenceSelection";
 
 const DEFAULT_MARK_COLORS = [THEME_COLORS.markBlue, THEME_COLORS.markOrange, THEME_COLORS.markGreen, THEME_COLORS.markPink, THEME_COLORS.markYellow, THEME_COLORS.markRed];
@@ -28,7 +26,6 @@ export function drawSequenceMarks(
   ctx: CanvasRenderingContext2D,
   collections: SequenceMarkCollection[],
   activeCollectionKey: string | null,
-  selected: GuiFocus,
   selectedMarks: MarkRefLookup,
   laneOnly: boolean,
   left: number,
@@ -58,9 +55,7 @@ export function drawSequenceMarks(
       const x = left + (drawnTimeSeconds - scrollXSeconds) * pxPerSecond;
       const spanPx = (collection.markDurationsSeconds[index] ?? 0) * pxPerSecond;
       if (x + spanPx < left - MARK_DRAWING.cullPaddingPx || x > left + width + MARK_DRAWING.cullPaddingPx) continue;
-      const isSelected =
-        (selected?.type === "mark" && selected.collectionId === collection.id && selected.index === index) ||
-        (selectedMarks.get(collection.id)?.has(index) ?? false);
+      const isSelected = selectedMarks.get(collection.id)?.has(index) ?? false;
       const lineX = x + THEME_METRICS.visualHairlineOffset;
       ctx.strokeStyle = collection.color;
       if (!laneOnly) {

@@ -140,12 +140,15 @@ export function collapsedLanes(lanes: SequenceLane[], collapsedGroups: ReadonlyS
   return hidden;
 }
 
-/** Rows of hidden lanes take no height; the rows below move up. */
-export function collapseRows(rows: SequenceRowLayout[], hiddenLanes: ReadonlySet<number>): SequenceRowLayout[] {
-  if (hiddenLanes.size === 0) return rows;
+/** Rows of lanes inside collapsed groups take no height, nor does a collapsed group's envelope
+ * row; the rows below move up. */
+export function collapseRows(rows: SequenceRowLayout[], lanes: SequenceLane[], collapsedGroups: ReadonlySet<number>): SequenceRowLayout[] {
+  if (collapsedGroups.size === 0) return rows;
+  const hiddenLanes = collapsedLanes(lanes, collapsedGroups);
   let top = 0;
   return rows.map((row) => {
-    const height = hiddenLanes.has(row.laneIndex) ? 0 : row.height;
+    const folded = row.kind === "automation" && lanes[row.laneIndex]?.kind === "group" && collapsedGroups.has(row.target.fixture);
+    const height = hiddenLanes.has(row.laneIndex) || folded ? 0 : row.height;
     const collapsed = { ...row, top, height, bottom: top + height };
     top += height;
     return collapsed;
