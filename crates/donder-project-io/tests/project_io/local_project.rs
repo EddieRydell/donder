@@ -1,7 +1,7 @@
 use crate::common;
 use crate::common::starter_copy as starter;
 use camino::Utf8Path;
-use donder_project_io::{PROJECT_ROOT_FILE, check_project, plan_path_change};
+use donder_project_io::{IoDiagnosticSeverity, PROJECT_ROOT_FILE, check_project, plan_path_change};
 use fs_err as fs;
 
 #[test]
@@ -14,7 +14,15 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
         .replace("audio: none", "audio: <audio/test.wav>");
     fs::write(&sequence, text).unwrap();
     let missing = check_project(&root, &Default::default(), &mut Default::default());
-    assert!(missing.session.is_none());
+    let unresolved = missing.session.as_ref().unwrap();
+    assert_eq!(missing.diagnostics.len(), 1);
+    assert_eq!(
+        missing.diagnostics[0].severity,
+        IoDiagnosticSeverity::Warning
+    );
+    assert!(missing.diagnostics[0].message.contains("audio/test.wav"));
+    assert_eq!(unresolved.source().referenced_assets().len(), 1);
+    assert!(!unresolved.source().referenced_assets()[0].is_available());
     assert!(!missing.recovery.documents.is_empty());
     fs::create_dir_all(root.join("audio")).unwrap();
     fs::write(
@@ -26,6 +34,7 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
         .into_session()
         .unwrap();
     assert_eq!(session.source().referenced_assets().len(), 1);
+    assert!(session.source().referenced_assets()[0].is_available());
     assert_eq!(fs::read(root.join(PROJECT_ROOT_FILE)).unwrap(), config);
 }
 

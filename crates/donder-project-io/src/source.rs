@@ -285,8 +285,53 @@ impl ImportEdge {
 pub struct ReferencedAsset {
     pub id: AssetId,
     pub relative_path: Utf8PathBuf,
-    pub absolute_path: Utf8PathBuf,
+    location: AssetLocation,
     pub referenced_by: BTreeSet<DocumentId>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum AssetLocation {
+    Available(Utf8PathBuf),
+    Missing(Utf8PathBuf),
+}
+
+impl ReferencedAsset {
+    /// The resolved path when the asset is available, or its expected path
+    /// when it is missing.
+    pub fn absolute_path(&self) -> &Utf8Path {
+        match &self.location {
+            AssetLocation::Available(path) | AssetLocation::Missing(path) => path,
+        }
+    }
+
+    /// The resolved path only when the asset was available as the project was
+    /// loaded or edited.
+    pub fn available_path(&self) -> Option<&Utf8Path> {
+        match &self.location {
+            AssetLocation::Available(path) => Some(path),
+            AssetLocation::Missing(_) => None,
+        }
+    }
+
+    /// Whether the asset was available as the project was loaded or edited.
+    pub fn is_available(&self) -> bool {
+        self.available_path().is_some()
+    }
+
+    /// Why the asset is unavailable, or `None` when it can be read.
+    pub fn unavailable_reason(&self) -> Option<&'static str> {
+        match &self.location {
+            AssetLocation::Available(_) => None,
+            AssetLocation::Missing(_) => Some("the asset file is missing"),
+        }
+    }
+
+    pub(crate) fn relocate(&mut self, path: Utf8PathBuf) {
+        self.location = match &self.location {
+            AssetLocation::Available(_) => AssetLocation::Available(path),
+            AssetLocation::Missing(_) => AssetLocation::Missing(path),
+        };
+    }
 }
 
 /// Why a file cannot be referenced as an asset.
@@ -294,8 +339,6 @@ pub struct ReferencedAsset {
 pub enum AssetError {
     /// The path is not a project-relative path.
     Path(String),
-    /// No file exists at the path.
-    Missing,
     /// The file cannot be read; the error names it.
     Read(std::io::Error),
     /// The path names no file inside the project.
@@ -306,7 +349,6 @@ impl std::fmt::Display for AssetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Path(message) => f.write_str(message),
-            Self::Missing => f.write_str("the file does not exist"),
             Self::Read(error) => error.fmt(f),
             Self::Outside => f.write_str("the asset is not a file inside the project"),
         }
@@ -315,7 +357,7 @@ impl std::fmt::Display for AssetError {
 
 /// Reference the file at `path`, relative to the project `root`, from
 /// `document`. An asset already referenced at that path gains the document; a
-/// new one takes the next id.
+/// new one takes the next id. A missing file is retained as unavailable.
 pub(crate) fn reference_asset(
     assets: &mut Vec<ReferencedAsset>,
     root: &Utf8Path,
@@ -331,18 +373,22 @@ pub(crate) fn reference_asset(
         existing.referenced_by.insert(document.clone());
         return Ok(existing.id.clone());
     }
-    let absolute = crate::canonicalize(&root.join(path)).map_err(|error| match error.kind() {
-        std::io::ErrorKind::NotFound => AssetError::Missing,
-        _ => AssetError::Read(error),
-    })?;
-    if !absolute.is_file() || !absolute.starts_with(root) {
-        return Err(AssetError::Outside);
-    }
+    let expected = root.join(path);
+    let location = match crate::canonicalize(&expected) {
+        Ok(absolute) if absolute.is_file() && absolute.starts_with(root) => {
+            AssetLocation::Available(absolute)
+        }
+        Ok(_) => return Err(AssetError::Outside),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            AssetLocation::Missing(expected)
+        }
+        Err(error) => return Err(AssetError::Read(error)),
+    };
     let id = AssetId(assets.iter().map(|asset| asset.id.0).max().unwrap_or(0) + 1);
     assets.push(ReferencedAsset {
         id: id.clone(),
         relative_path: relative,
-        absolute_path: absolute,
+        location,
         referenced_by: BTreeSet::from([document.clone()]),
     });
     Ok(id)

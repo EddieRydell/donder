@@ -126,6 +126,25 @@ impl IoDiagnostic {
             related: Vec::new(),
         }
     }
+
+    /// A warning with no fix and no related locations.
+    pub(crate) fn warning(
+        path: impl Into<Utf8PathBuf>,
+        range: Option<TextRange>,
+        code: IoDiagnosticCode,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            path: path.into(),
+            range,
+            severity: IoDiagnosticSeverity::Warning,
+            code,
+            message: message.into(),
+            detail: None,
+            fix: None,
+            related: Vec::new(),
+        }
+    }
 }
 
 /// Why loading stopped: the diagnostics of the document where it did.

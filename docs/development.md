@@ -42,10 +42,10 @@ channels, chosen by what the error is about:
 - **Project problems** are `IoDiagnostic`s: a document path, a text range
   where one exists, a severity, a code and a message. Loading, syntax,
   scripts, project rules and referenced assets all report this way, and the
-  Problems view, the language server and the CLI read the same records. An
-  error about something a document references, such as a missing audio file,
-  sits at the referencing field, not at the referenced file. Positions count
-  UTF-16 code units, as LSP and Monaco do.
+  Problems view, the language server and the CLI read the same records. A
+  diagnostic about something a document references, such as a missing asset
+  warning, sits at the referencing field, not at the referenced file.
+  Positions count UTF-16 code units, as LSP and Monaco do.
 - **Refused GUI edits** are `GuiProblem`s, at the field of the open editor
   the model's problem site names. They are built from typed state; an edit
   never prints document text to locate its problem.

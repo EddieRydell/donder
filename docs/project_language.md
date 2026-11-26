@@ -946,7 +946,9 @@ are canonical and every field is explicit, saving a loaded project rewrites no
 byte of a canonically formatted document, and changes only whitespace in any
 other valid one. Script text is kept exactly and never regenerated. Audio, fonts and
 images are project-relative paths; copying a sequence keeps the paths and does not copy
-the files.
+the files. A missing asset produces a warning while remaining in typed state;
+playback and rendering substitute silence for audio, blank text for fonts and
+black pixels for images.
 
 Each file is written through `donder_project_io::atomic_write`, which replaces
 it with a complete synced temporary file. That keeps any one file from being

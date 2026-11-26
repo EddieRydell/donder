@@ -153,6 +153,7 @@ impl DesktopState {
         };
         let media = session
             .audio_asset(&sequence.audio)
+            .filter(|asset| asset.is_available())
             .and_then(|asset| asset.relative_path.file_name());
         donder_output::encode_fseq(
             prepared,
@@ -179,7 +180,7 @@ impl DesktopState {
         };
         let audio = session
             .audio_asset(&sequence.audio)
-            .map(|asset| asset.absolute_path.clone());
+            .and_then(|asset| asset.available_path().map(ToOwned::to_owned));
         crate::preview::export_video(
             session.project(),
             &id,

@@ -165,7 +165,8 @@ impl ProjectSession {
 
     /// Reference the file at `path`, relative to the project root, from
     /// `document`. An asset already referenced at that path gains the
-    /// document; a new one takes the next id.
+    /// document; a new one takes the next id. A missing file is retained as
+    /// unavailable.
     pub fn reference_asset(
         &mut self,
         document: &DocumentId,

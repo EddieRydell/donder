@@ -87,6 +87,9 @@ pub fn check_project(
             let result = loader.load();
             checked_scripts = std::mem::take(&mut loader.checked_scripts);
             index.links = loader.links.take().into_iter().collect();
+            for diagnostic in loader.diagnostics.take() {
+                push_diagnostic(&mut diagnostics, diagnostic);
+            }
             (texts, *cache) = loader.into_texts_and_cache();
             result
         }

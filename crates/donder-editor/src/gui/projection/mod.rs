@@ -202,8 +202,8 @@ fn sequence_audio(
 ) -> Option<SequenceAudio> {
     session.audio_asset(audio).map(|asset| SequenceAudio {
         import_path: asset.relative_path.to_string(),
-        resolved_path: asset.absolute_path.to_string(),
-        exists: asset.absolute_path.is_file(),
+        resolved_path: asset.absolute_path().to_string(),
+        exists: asset.is_available(),
     })
 }
 

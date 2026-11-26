@@ -98,7 +98,17 @@ fn load(path: &camino::Utf8Path) -> Result<donder_project_io::ProjectSession, St
     }
     for (asset, derivations) in files {
         let asset = session.asset(&asset).ok_or("an asset is missing")?;
-        let path = asset.absolute_path.clone();
+        let Some(path) = asset.available_path().map(ToOwned::to_owned) else {
+            let reason = asset
+                .unavailable_reason()
+                .unwrap_or_else(|| unreachable!("the asset has no available path"));
+            for derivation in derivations {
+                session
+                    .with_derived(derivation, donder_model::Derived::Failed(reason.into()))
+                    .map_err(|error| error.to_string())?;
+            }
+            continue;
+        };
         let results = donder_elaboration::derive(path.as_std_path(), &derivations);
         for (derivation, derived) in derivations.into_iter().zip(results) {
             if let donder_model::Derived::Failed(reason) = &derived {
@@ -285,6 +295,7 @@ fn export_fseq(
     }
     let media = session
         .audio_asset(&sequence.audio)
+        .filter(|asset| asset.is_available())
         .and_then(|asset| asset.relative_path.file_name());
     let bytes = donder_output::encode_fseq(prepared, fseq_channel, step, media, |_, _| {})
         .map_err(|error| error.describe(|index| &labels[index].1).to_string())?;
