@@ -158,7 +158,6 @@ fn configured_project(
     match effect {
         MarkEffect::Chase => {
             set("chase_position", chase_position);
-            set("section_width_pixels", ParamValue::Int(7));
         }
         MarkEffect::Wipe => {
             set("wipe_positions", ParamValue::Array(vec![shape(0.0, 1.0)]));

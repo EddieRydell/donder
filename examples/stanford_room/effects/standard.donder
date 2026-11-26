@@ -27,7 +27,6 @@ effect Chase {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
   param pulse_overlap: float in 1.0..1000.0 = 8.0;
-  param section_width_pixels: int in 1..1000 = 1;
   param chase_position: curve in 0.0..1.0;
   param reverse: bool = false;
   param extend_to_start: bool = false;
@@ -40,9 +39,8 @@ effect Chase {
   sample {
     guard in_band(bands, band, band_step);
     -- Split into bands, each band chases up its own column over the pixels it holds.
-    let item_count = if bands == 1 { ceil(target.count / section_width_pixels) } else { ceil(target.count / (bands * section_width_pixels)) };
-    let item_index = floor(pixel.index / section_width_pixels);
-    let position = if bands == 1 { item_index / max(1.0, item_count - 1.0) } else { (pixel.y - target.min_y) / (target.max_y - target.min_y) };
+    let item_count = if bands == 1 { target.count } else { ceil(target.count / bands) };
+    let position = if bands == 1 { pixel.index / max(1.0, item_count - 1.0) } else { (pixel.y - target.min_y) / (target.max_y - target.min_y) };
     let chase_value = if reverse { 1.0 - position } else { position };
     let pulse_duration = pulse_overlap / item_count;
     let travel_start = if extend_to_start { -pulse_duration } else { 0.0 };
@@ -110,7 +108,6 @@ effect Spin {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
   param pulse_overlap: float in 1.0..200.0 = 8.0;
-  param section_width_pixels: int in 1..1000 = 1;
   param chase_position: curve in 0.0..1.0;
   param revolutions: int in 1..100 = 2;
   param reverse: bool = false;
@@ -119,9 +116,8 @@ effect Spin {
   param pulse_shape: curve in 0.0..1.0;
 
   sample {
-    let item_count = ceil(target.count / section_width_pixels);
-    let item_index = floor(pixel.index / section_width_pixels);
-    let position = item_index / max(1.0, item_count - 1.0);
+    let item_count = target.count;
+    let position = pixel.index / max(1.0, item_count - 1.0);
     let position = if reverse { 1.0 - position } else { position };
     let pulse_width = pulse_overlap / item_count;
     let travel_start = if extend_to_start { pulse_width } else { 0.0 };
@@ -136,7 +132,7 @@ effect Spin {
     let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
     let gradient_position =
       if gradient_mode == ThroughEffect { progress }
-      else if gradient_mode == AcrossItems { item_index / max(1.0, item_count - 1.0) }
+      else if gradient_mode == AcrossItems { pixel.index / max(1.0, item_count - 1.0) }
       else { pulse_progress };
     gradient[gradient_position] * clamp(level, 0.0, 1.0)
   }
@@ -184,7 +180,6 @@ effect MarkChase {
   param offset_seconds: float in -1.0..1.0 = 0.0;
   param chase_seconds: float in 0.01..10.0 = 0.5;
   param pulse_overlap: float in 1.0..200.0 = 8.0;
-  param section_width_pixels: int in 1..1000 = 5;
   param chase_position: curve in 0.0..1.0;
   param pulse_shape: curve in 0.0..1.0;
   param overlap_marks: bool = false;
@@ -194,9 +189,8 @@ effect MarkChase {
   -- chase still running stays lit, and overlapping pulses keep the brighter color.
   -- At most the 32 latest chases overlap.
   sample {
-    let item_count = ceil(target.count / section_width_pixels);
-    let item_index = floor(pixel.index / section_width_pixels);
-    let position = item_index / max(1.0, item_count - 1.0);
+    let item_count = target.count;
+    let position = pixel.index / max(1.0, item_count - 1.0);
     let pulse_duration = pulse_overlap / item_count;
     let travel_end = max(0.0, 1.0 - pulse_duration);
     let hit = travel_end * curve_first_crossing(chase_position, position);

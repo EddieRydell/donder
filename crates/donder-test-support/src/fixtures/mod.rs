@@ -92,7 +92,6 @@ fn pulse_params() -> IndexMap<Identifier, Value> {
 fn chase_params() -> IndexMap<Identifier, Value> {
     params([
         ("gradient", Value::Gradient(gradient())),
-        ("section_width_pixels", Value::Int(6)),
         ("chase_position", Value::Curve(ramp())),
         ("pulse_shape", Value::Curve(curve())),
     ])

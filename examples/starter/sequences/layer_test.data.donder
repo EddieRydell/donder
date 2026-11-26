@@ -91,7 +91,6 @@ Sequence layer_test {
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.123, #ffffff)] },
           pulse_overlap: 80.0,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
           revolutions: 25,
           pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },

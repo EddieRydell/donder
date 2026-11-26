@@ -133,7 +133,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 1000.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -167,7 +166,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 1000.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -201,7 +199,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 1000.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -235,7 +232,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 1000.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -269,7 +265,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -303,7 +298,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -337,7 +331,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -371,7 +364,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -405,7 +397,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -439,7 +430,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -473,7 +463,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -507,7 +496,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -541,7 +529,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 17.863,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -575,7 +562,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 17.863,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -609,7 +595,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 17.863,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -643,7 +628,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 17.863,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -677,7 +661,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 51.588,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -711,7 +694,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 51.588,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -745,7 +727,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 51.588,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -779,7 +760,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 51.588,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -813,7 +793,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 60.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -847,7 +826,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 60.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -881,7 +859,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 60.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -915,7 +892,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 60.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -949,7 +925,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -983,7 +958,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1017,7 +991,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -1051,7 +1024,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -1085,7 +1057,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -1119,7 +1090,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1153,7 +1123,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -1187,7 +1156,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -1221,7 +1189,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 75.571,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -1255,7 +1222,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 75.571,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -1289,7 +1255,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 75.571,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1323,7 +1288,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 75.571,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -1357,7 +1321,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1391,7 +1354,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -1425,7 +1387,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -1459,7 +1420,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -1493,7 +1453,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -1527,7 +1486,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1561,7 +1519,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -1595,7 +1552,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -1629,7 +1585,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 500.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -1663,7 +1618,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 500.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1697,7 +1651,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 500.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -1731,7 +1684,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 500.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -1765,7 +1717,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -1799,7 +1750,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1833,7 +1783,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -1867,7 +1816,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.098,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -1901,7 +1849,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -1935,7 +1882,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -1969,7 +1915,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -2003,7 +1948,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2037,7 +1981,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -2071,7 +2014,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -2105,7 +2047,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2139,7 +2080,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -2173,7 +2113,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -2207,7 +2146,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -2241,7 +2179,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -2275,7 +2212,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2309,7 +2245,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -2343,7 +2278,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -2377,7 +2311,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2411,7 +2344,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -2474,7 +2406,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 90.185,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -2508,7 +2439,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 90.185,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2542,7 +2472,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 90.185,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -2576,7 +2505,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 90.185,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -2610,7 +2538,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 74.072,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -2644,7 +2571,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 74.072,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -2678,7 +2604,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 74.072,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2712,7 +2637,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 74.072,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -2746,7 +2670,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -2780,7 +2703,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2814,7 +2736,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -2848,7 +2769,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 58.708,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -2882,7 +2802,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -2916,7 +2835,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -2950,7 +2868,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -2984,7 +2901,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 31.728,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -3018,7 +2934,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 56.835,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -3052,7 +2967,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 56.835,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -3086,7 +3000,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 56.835,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -3120,7 +3033,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 56.835,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -3154,7 +3066,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 65.079,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -3188,7 +3099,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 65.079,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -3222,7 +3132,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 65.079,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -3256,7 +3165,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 65.079,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -3290,7 +3198,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -3324,7 +3231,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -3358,7 +3264,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -3392,7 +3297,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -3426,7 +3330,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -3460,7 +3363,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -3494,7 +3396,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -3528,7 +3429,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -6974,7 +6874,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 29.222,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7008,7 +6907,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 44.994,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7042,7 +6940,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7076,7 +6973,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7110,7 +7006,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.353,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7144,7 +7039,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 29.222,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7178,7 +7072,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 25.072,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7212,7 +7105,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7246,7 +7138,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 28.392,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7280,7 +7171,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7314,7 +7204,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 44.994,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7348,7 +7237,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7382,7 +7270,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7416,7 +7303,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7450,7 +7336,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7484,7 +7369,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7518,7 +7402,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7552,7 +7435,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7586,7 +7468,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7620,7 +7501,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7654,7 +7534,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7688,7 +7567,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7722,7 +7600,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7756,7 +7633,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7790,7 +7666,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7824,7 +7699,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7858,7 +7732,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -7892,7 +7765,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7926,7 +7798,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7960,7 +7831,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -7994,7 +7864,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8028,7 +7897,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8062,7 +7930,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8096,7 +7963,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 79.027,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8130,7 +7996,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 32.543,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8164,7 +8029,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8198,7 +8062,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8232,7 +8095,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8266,7 +8128,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8300,7 +8161,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8334,7 +8194,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8368,7 +8227,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8402,7 +8260,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8436,7 +8293,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8470,7 +8326,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8504,7 +8359,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8538,7 +8392,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8572,7 +8425,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8606,7 +8458,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8640,7 +8491,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8674,7 +8524,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8708,7 +8557,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8742,7 +8590,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8776,7 +8623,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.961,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8810,7 +8656,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.961,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8844,7 +8689,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.961,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -8878,7 +8722,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 69.066,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8912,7 +8755,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8946,7 +8788,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -8980,7 +8821,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9014,7 +8854,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9048,7 +8887,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9082,7 +8920,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 56.615,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9116,7 +8953,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 69.066,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9150,7 +8986,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9184,7 +9019,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9218,7 +9052,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9252,7 +9085,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9286,7 +9118,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9320,7 +9151,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9354,7 +9184,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9388,7 +9217,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9422,7 +9250,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9456,7 +9283,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9490,7 +9316,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 39.183,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9524,7 +9349,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 21.752,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9558,7 +9382,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 21.752,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9592,7 +9415,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 21.752,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9626,7 +9448,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9660,7 +9481,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -9694,7 +9514,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -9728,7 +9547,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 29.222,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -9762,7 +9580,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 44.994,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -9796,7 +9613,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -9830,7 +9646,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -9864,7 +9679,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 38.353,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -9898,7 +9712,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 29.222,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -9932,7 +9745,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 25.072,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -9966,7 +9778,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10000,7 +9811,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 28.392,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10034,7 +9844,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10068,7 +9877,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 44.994,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10102,7 +9910,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10136,7 +9943,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10170,7 +9976,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10204,7 +10009,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10238,7 +10042,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10272,7 +10075,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10306,7 +10108,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10340,7 +10141,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10374,7 +10174,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10408,7 +10207,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10442,7 +10240,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10476,7 +10273,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10510,7 +10306,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10544,7 +10339,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10578,7 +10372,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10612,7 +10405,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 8.471,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10646,7 +10438,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10680,7 +10471,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10714,7 +10504,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10748,7 +10537,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10782,7 +10570,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10816,7 +10603,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10850,7 +10636,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 79.027,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10884,7 +10669,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 32.543,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10918,7 +10702,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -10952,7 +10735,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -10986,7 +10768,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11020,7 +10801,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11054,7 +10834,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11088,7 +10867,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11122,7 +10900,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11156,7 +10933,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11190,7 +10966,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11224,7 +10999,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11258,7 +11032,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11292,7 +11065,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11326,7 +11098,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11360,7 +11131,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11394,7 +11164,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11428,7 +11197,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11462,7 +11230,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 83.177,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11496,7 +11263,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11530,7 +11296,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.961,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11564,7 +11329,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.961,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11598,7 +11362,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.961,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11632,7 +11395,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 69.066,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11666,7 +11428,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11700,7 +11461,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11734,7 +11494,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11768,7 +11527,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11802,7 +11560,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11836,7 +11593,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 56.615,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11870,7 +11626,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 69.066,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11904,7 +11659,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -11938,7 +11692,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -11972,7 +11725,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12006,7 +11758,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -12040,7 +11791,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -12074,7 +11824,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12108,7 +11857,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -12142,7 +11890,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12176,7 +11923,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -12210,7 +11956,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12244,7 +11989,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 39.183,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12278,7 +12022,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 21.752,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12312,7 +12055,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 21.752,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -12346,7 +12088,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 21.752,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12380,7 +12121,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -12414,7 +12154,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -12448,7 +12187,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -12730,7 +12468,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 39.748,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: true,
@@ -12751,7 +12488,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 39.748,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: false,
@@ -12772,7 +12508,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 31.799,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: false,
@@ -12793,7 +12528,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 31.799,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: true,
@@ -12814,7 +12548,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 35.774,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: false,
@@ -12835,7 +12568,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 35.774,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: true,
@@ -12856,7 +12588,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 39.748,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: true,
@@ -12877,7 +12608,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 39.748,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: false,
@@ -12898,7 +12628,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 31.799,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: false,
@@ -12919,7 +12648,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 31.799,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 1,
           reverse: true,
@@ -12940,7 +12668,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -12961,7 +12688,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13042,7 +12768,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13063,7 +12788,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13084,7 +12808,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13105,7 +12828,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13126,7 +12848,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13147,7 +12868,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13168,7 +12888,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13189,7 +12908,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13210,7 +12928,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13231,7 +12948,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13252,7 +12968,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13356,7 +13071,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13377,7 +13091,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13398,7 +13111,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13419,7 +13131,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13440,7 +13151,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13461,7 +13171,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13482,7 +13191,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13503,7 +13211,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13524,7 +13231,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13545,7 +13251,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13566,7 +13271,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13647,7 +13351,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13668,7 +13371,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13689,7 +13391,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13710,7 +13411,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13731,7 +13431,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13752,7 +13451,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13773,7 +13471,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13794,7 +13491,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13815,7 +13511,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13836,7 +13531,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13857,7 +13551,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13878,7 +13571,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -13899,7 +13591,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13920,7 +13611,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13941,7 +13631,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13962,7 +13651,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -13983,7 +13671,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14004,7 +13691,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14025,7 +13711,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14046,7 +13731,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14067,7 +13751,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14088,7 +13771,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14109,7 +13791,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14130,7 +13811,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14151,7 +13831,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14172,7 +13851,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14193,7 +13871,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14237,7 +13914,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14258,7 +13934,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14279,7 +13954,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14300,7 +13974,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14321,7 +13994,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14342,7 +14014,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14363,7 +14034,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14384,7 +14054,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14405,7 +14074,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14426,7 +14094,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14447,7 +14114,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14468,7 +14134,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14489,7 +14154,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: true,
@@ -14510,7 +14174,6 @@ Sequence all_we_are {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
           gradient_mode: ThroughEffect,
           pulse_overlap: 53.12,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           revolutions: 15,
           reverse: false,
@@ -14718,7 +14381,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -14752,7 +14414,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -14786,7 +14447,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -14820,7 +14480,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -14854,7 +14513,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -14888,7 +14546,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -14922,7 +14579,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -14956,7 +14612,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -14990,7 +14645,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -15024,7 +14678,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -15058,7 +14711,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -15092,7 +14744,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -15126,7 +14777,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -15160,7 +14810,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -15194,7 +14843,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -15228,7 +14876,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -15262,7 +14909,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -15296,7 +14942,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -15330,7 +14975,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -15364,7 +15008,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -15398,7 +15041,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -15432,7 +15074,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -15466,7 +15107,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -15500,7 +15140,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -15534,7 +15173,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -15568,7 +15206,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -15602,7 +15239,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -15636,7 +15272,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -15670,7 +15305,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.01), (0.2, 0.04), (0.3, 0.09), (0.4, 0.16), (0.5, 0.25),
@@ -15704,7 +15338,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -15738,7 +15371,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -15772,7 +15404,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 41.673,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.99), (0.2, 0.96), (0.3, 0.91), (0.4, 0.84), (0.5, 0.75),
@@ -17001,7 +16632,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17027,7 +16657,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17053,7 +16682,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17079,7 +16707,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17105,7 +16732,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17131,7 +16757,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17157,7 +16782,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17183,7 +16807,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17209,7 +16832,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17235,7 +16857,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17261,7 +16882,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17287,7 +16907,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17313,7 +16932,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17339,7 +16957,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17365,7 +16982,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17391,7 +17007,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17417,7 +17032,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17443,7 +17057,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17469,7 +17082,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17495,7 +17107,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17521,7 +17132,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17547,7 +17157,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17573,7 +17182,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17599,7 +17207,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17625,7 +17232,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17651,7 +17257,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17677,7 +17282,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17703,7 +17307,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17729,7 +17332,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17755,7 +17357,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17781,7 +17382,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17807,7 +17407,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17833,7 +17432,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17859,7 +17457,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17885,7 +17482,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17911,7 +17507,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 10.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17937,7 +17532,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -17963,7 +17557,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -17989,7 +17582,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18015,7 +17607,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18041,7 +17632,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18067,7 +17657,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18093,7 +17682,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18119,7 +17707,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18145,7 +17732,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18240,7 +17826,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18266,7 +17851,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18292,7 +17876,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18318,7 +17901,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18344,7 +17926,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18370,7 +17951,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18396,7 +17976,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18422,7 +18001,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18448,7 +18026,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18474,7 +18051,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18500,7 +18076,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18526,7 +18101,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18552,7 +18126,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18578,7 +18151,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18604,7 +18176,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18630,7 +18201,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18656,7 +18226,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18682,7 +18251,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18708,7 +18276,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18734,7 +18301,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18760,7 +18326,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18786,7 +18351,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18812,7 +18376,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18838,7 +18401,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18864,7 +18426,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18890,7 +18451,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18916,7 +18476,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18942,7 +18501,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -18968,7 +18526,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -18994,7 +18551,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19020,7 +18576,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19046,7 +18601,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19072,7 +18626,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19098,7 +18651,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19124,7 +18676,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19150,7 +18701,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19176,7 +18726,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19202,7 +18751,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19228,7 +18776,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19254,7 +18801,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19280,7 +18826,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19306,7 +18851,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19332,7 +18876,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19358,7 +18901,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19384,7 +18926,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19410,7 +18951,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19436,7 +18976,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19462,7 +19001,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19488,7 +19026,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19514,7 +19051,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19540,7 +19076,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19566,7 +19101,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19592,7 +19126,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.146, 0.69), (0.31, 0.408), (0.521, 0.164), (0.732, 0.052), (1.0, 0.0),
@@ -19618,7 +19151,6 @@ Sequence all_we_are {
           offset_seconds: -0.12,
           chase_seconds: 0.2,
           pulse_overlap: 20.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.146, 0.31), (0.31, 0.592), (0.521, 0.836), (0.732, 0.948), (1.0, 1.0),
@@ -19913,7 +19445,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.341,
-          section_width_pixels: 16,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           reverse: false,
           extend_to_start: false,
@@ -19942,7 +19473,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           reverse: false,
           extend_to_start: false,
@@ -20081,7 +19611,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.701,
-          section_width_pixels: 16,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           reverse: false,
           extend_to_start: false,
@@ -20132,7 +19661,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
           reverse: false,
           extend_to_start: false,
@@ -20367,7 +19895,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.278,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20397,7 +19924,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.278,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20427,7 +19953,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.278,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20457,7 +19982,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.278,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20487,7 +20011,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 47.449,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20517,7 +20040,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20547,7 +20069,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20577,7 +20098,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.113,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20607,7 +20127,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.113,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20637,7 +20156,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 7.144,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20667,7 +20185,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20697,7 +20214,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20727,7 +20243,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 47.449,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20757,7 +20272,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20787,7 +20301,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20817,7 +20330,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20847,7 +20359,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20877,7 +20388,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 18.829,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20907,7 +20417,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 18.829,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20937,7 +20446,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 12.255,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -20967,7 +20475,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 12.255,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -20997,7 +20504,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 12.255,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21027,7 +20533,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 12.255,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21057,7 +20562,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21087,7 +20591,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21117,7 +20620,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21147,7 +20649,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21177,7 +20678,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21207,7 +20707,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 39.473,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21237,7 +20736,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 39.473,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21267,7 +20765,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21297,7 +20794,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21327,7 +20823,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21357,7 +20852,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 11.791,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21387,7 +20881,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 11.791,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21417,7 +20910,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.052,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21447,7 +20939,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.052,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21477,7 +20968,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.384,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21507,7 +20997,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.384,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21537,7 +21026,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21567,7 +21055,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21597,7 +21084,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21627,7 +21113,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21657,7 +21142,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21687,7 +21171,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21717,7 +21200,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -21747,7 +21229,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21777,7 +21258,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -21921,7 +21401,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 7.144,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -22414,7 +21893,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 47.449,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -22491,7 +21969,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -22524,7 +22001,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -22557,7 +22033,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.113,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -22590,7 +22065,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.113,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -22645,7 +22119,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.567,
-          section_width_pixels: 16,
           chase_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
           reverse: false,
           extend_to_start: false,
@@ -22673,7 +22146,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -22706,7 +22178,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -22739,7 +22210,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
           reverse: false,
           extend_to_start: false,
@@ -22789,7 +22259,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 47.449,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -22822,7 +22291,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -22855,7 +22323,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -22888,7 +22355,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -22921,7 +22387,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -22954,7 +22419,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 18.829,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -22987,7 +22451,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 18.829,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23042,7 +22505,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.935,
-          section_width_pixels: 16,
           chase_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
           reverse: false,
           extend_to_start: false,
@@ -23114,7 +22576,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 100.0,
-          section_width_pixels: 1,
           chase_position: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
           reverse: false,
           extend_to_start: false,
@@ -23142,7 +22603,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23175,7 +22635,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23208,7 +22667,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 13.199,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23241,7 +22699,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23274,7 +22731,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 16.952,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23307,7 +22763,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 39.473,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23340,7 +22795,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 39.473,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23373,7 +22827,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23406,7 +22859,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23439,7 +22891,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 14.137,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23472,7 +22923,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 11.791,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23505,7 +22955,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 11.791,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23538,7 +22987,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.052,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23571,7 +23019,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.052,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23604,7 +23051,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.384,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23637,7 +23083,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 10.384,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23670,7 +23115,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23703,7 +23147,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23758,7 +23201,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23791,7 +23233,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23824,7 +23265,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23857,7 +23297,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23890,7 +23329,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -23923,7 +23361,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 22.582,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -23956,7 +23393,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 23.99,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
@@ -28241,7 +27677,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 30.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),
@@ -28355,7 +27790,6 @@ Sequence all_we_are {
           },
           gradient_mode: PerPulse,
           pulse_overlap: 34.451,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.1, 0.81), (0.2, 0.64), (0.3, 0.49), (0.4, 0.36), (0.5, 0.25),

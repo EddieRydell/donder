@@ -162,7 +162,6 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
                     ),
                 ),
                 ("pulse_overlap", Value::Float(12.0 + index as f32)),
-                ("section_width_pixels", Value::Int(3 + index as i32 % 4)),
                 ("chase_position", position.clone()),
                 ("reverse", Value::Bool(index % 4 == 0)),
                 ("extend_to_start", Value::Bool(true)),

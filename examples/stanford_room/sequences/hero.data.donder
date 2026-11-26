@@ -267,7 +267,6 @@ Sequence hero {
           offset_seconds: -0.07,
           chase_seconds: 0.4,
           pulse_overlap: 25.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963),
@@ -312,7 +311,6 @@ Sequence hero {
           offset_seconds: -0.07,
           chase_seconds: 0.4,
           pulse_overlap: 25.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963),
@@ -438,7 +436,6 @@ Sequence hero {
           offset_seconds: -0.1,
           chase_seconds: 0.35,
           pulse_overlap: 50.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963),
@@ -469,7 +466,6 @@ Sequence hero {
           offset_seconds: -0.1,
           chase_seconds: 0.35,
           pulse_overlap: 50.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 1.0), (0.207, 0.529), (0.401, 0.281), (0.579, 0.126), (0.778, 0.037),
@@ -500,7 +496,6 @@ Sequence hero {
           offset_seconds: -0.1,
           chase_seconds: 0.35,
           pulse_overlap: 50.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963),
@@ -658,7 +653,6 @@ Sequence hero {
           offset_seconds: -0.07,
           chase_seconds: 0.7,
           pulse_overlap: 25.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963),
@@ -703,7 +697,6 @@ Sequence hero {
           offset_seconds: -0.07,
           chase_seconds: 0.7,
           pulse_overlap: 25.0,
-          section_width_pixels: 1,
           chase_position: Curve {
             points: [
               (0.0, 0.0), (0.207, 0.471), (0.401, 0.719), (0.579, 0.874), (0.778, 0.963),
