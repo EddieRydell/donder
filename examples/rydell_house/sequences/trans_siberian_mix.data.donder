@@ -4949,6 +4949,7 @@ Sequence trans_siberian_mix {
         wreath_3,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 32.691736s, duration: 2.45s },
       content: Effect {
@@ -5104,7 +5105,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: clip_25,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 32.692s, duration: 11.531s },
       content: Effect {
         layer: default,
@@ -8376,6 +8377,7 @@ Sequence trans_siberian_mix {
         windows,
         wreath_2,
         grass,
+        house_number,
       ],
       placement: Timed { start: 44.222875s, duration: 2s },
       content: Effect {
@@ -8590,7 +8592,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: clip_46,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 44.223s, duration: 7.919959s },
       content: Effect {
         layer: default,
@@ -10599,7 +10601,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: clip_54,
       description: none,
-      targets: [left_pot, grass, mega_tree],
+      targets: [left_pot, grass, mega_tree, house_number],
       placement: Timed { start: 52.13748s, duration: 3.825779s },
       content: Effect {
         layer: default,
@@ -10913,6 +10915,7 @@ Sequence trans_siberian_mix {
         wreath_2,
         wreath_3,
         grass,
+        house_number,
       ],
       placement: Timed { start: 52.142834s, duration: 2s },
       content: Effect {
@@ -11888,7 +11891,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_1085,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 55.996149s, duration: 1.155846s },
       content: Effect {
         layer: default,
@@ -11903,7 +11906,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pin_wheel_5,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 55.996149s, duration: 3.803605s },
       content: Effect {
         layer: default,
@@ -12532,7 +12535,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pin_wheel_10,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 59.799754s, duration: 3.923312s },
       content: Effect {
         layer: default,
@@ -12567,7 +12570,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_1193,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 59.799754s, duration: 0.992043s },
       content: Effect {
         layer: default,
@@ -13155,7 +13158,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: clip_72,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 63.723065s, duration: 3.868691s },
       content: Effect {
         layer: default,
@@ -14204,6 +14207,7 @@ Sequence trans_siberian_mix {
         wreath_2,
         wreath_3,
         grass,
+        house_number,
       ],
       placement: Timed { start: 67.591554s, duration: 0.991946s },
       content: Effect {
@@ -14400,6 +14404,7 @@ Sequence trans_siberian_mix {
         trunk_fl,
         trunk_fr,
         grass,
+        house_number,
       ],
       placement: Timed { start: 67.591756s, duration: 1.928943s },
       content: Effect {
@@ -14688,6 +14693,7 @@ Sequence trans_siberian_mix {
         trunk_rings_1,
         trunk_rings_2,
         grass,
+        house_number,
       ],
       placement: Timed { start: 69.520698s, duration: 0.992013s },
       content: Effect {
@@ -14740,6 +14746,7 @@ Sequence trans_siberian_mix {
         trunk_fl,
         trunk_fr,
         grass,
+        house_number,
       ],
       placement: Timed { start: 69.520698s, duration: 1.756179s },
       content: Effect {
@@ -15071,6 +15078,7 @@ Sequence trans_siberian_mix {
         trunk_rings_1,
         trunk_rings_2,
         grass,
+        house_number,
       ],
       placement: Timed { start: 71.276877s, duration: 0.578991s },
       content: Effect {
@@ -15098,6 +15106,7 @@ Sequence trans_siberian_mix {
         trunk_fl,
         trunk_fr,
         grass,
+        house_number,
       ],
       placement: Timed { start: 71.276877s, duration: 0.962805s },
       content: Effect {
@@ -15308,6 +15317,7 @@ Sequence trans_siberian_mix {
         trunk_rings_1,
         trunk_rings_2,
         grass,
+        house_number,
       ],
       placement: Timed { start: 72.239682s, duration: 0.578991s },
       content: Effect {
@@ -15360,6 +15370,7 @@ Sequence trans_siberian_mix {
         trunk_fl,
         trunk_fr,
         grass,
+        house_number,
       ],
       placement: Timed { start: 72.239682s, duration: 0.925864s },
       content: Effect {
@@ -15570,6 +15581,7 @@ Sequence trans_siberian_mix {
         trunk_rings_1,
         trunk_rings_2,
         grass,
+        house_number,
       ],
       placement: Timed { start: 73.165546s, duration: 0.578991s },
       content: Effect {
@@ -15622,6 +15634,7 @@ Sequence trans_siberian_mix {
         trunk_fl,
         trunk_fr,
         grass,
+        house_number,
       ],
       placement: Timed { start: 73.165546s, duration: 0.995123s },
       content: Effect {
@@ -15832,6 +15845,7 @@ Sequence trans_siberian_mix {
         trunk_rings_1,
         trunk_rings_2,
         grass,
+        house_number,
       ],
       placement: Timed { start: 74.160669s, duration: 0.578991s },
       content: Effect {
@@ -15884,6 +15898,7 @@ Sequence trans_siberian_mix {
         trunk_fl,
         trunk_fr,
         grass,
+        house_number,
       ],
       placement: Timed { start: 74.160669s, duration: 1.073331s },
       content: Effect {
@@ -16549,6 +16564,7 @@ Sequence trans_siberian_mix {
         wreath_3,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 75.234s, duration: 0.83s },
       content: Effect {
@@ -16582,7 +16598,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: butterfly_39,
       description: none,
-      targets: [arch_tunnel, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 75.234s, duration: 15.496236s },
       content: Effect {
         layer: default,
@@ -18594,7 +18610,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_1890,
       description: none,
-      targets: [arch_tunnel, mega_tree, neighbor_trees, grass],
+      targets: [arch_tunnel, mega_tree, neighbor_trees, grass, house_number],
       placement: Timed { start: 82.912269s, duration: 0.83s },
       content: Effect {
         layer: default,
@@ -30069,7 +30085,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_4651,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 125.061908s, duration: 0.624978s },
       content: Effect {
         layer: default,
@@ -30104,7 +30120,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: clip_295,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 125.061908s, duration: 16.189253s },
       content: Effect {
         layer: default,
@@ -35776,7 +35792,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pin_wheel_13,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 141.259515s, duration: 6.467743s },
       content: Effect {
         layer: default,
@@ -40883,7 +40899,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: envelope_5,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 55.996149s, duration: 3.803605s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.965), (1.0, 1.0)] },
@@ -40895,7 +40911,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: envelope_6,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 59.799754s, duration: 3.923312s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.853)] },
@@ -40907,7 +40923,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: envelope_7,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 141.259515s, duration: 6.467743s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.5165), (1.0, 0.6999)] },
@@ -41330,10 +41346,40 @@ Sequence trans_siberian_mix {
       },
     },
     Clip {
+      name: fire_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 155.851861s, duration: 1.573078s },
+      content: Effect {
+        layer: grayscale,
+        scope: WholeTarget,
+        effect: effects.Fire,
+        params: {
+          height: Curve { points: [(0.0, 1.0), (1.0, 0.231)] },
+          hue_shift: Curve { points: [(0.0, 0.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
       name: fire_2,
       description: none,
       targets: [mega_tree, grass],
       placement: Timed { start: 157.424924s, duration: 1.322656s },
+      content: Effect {
+        layer: grayscale,
+        scope: WholeTarget,
+        effect: effects.Fire,
+        params: {
+          height: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          hue_shift: Curve { points: [(0.0, 0.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: fire_2_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 158.116424s, duration: 0.631156s },
       content: Effect {
         layer: grayscale,
         scope: WholeTarget,
@@ -41757,12 +41803,6 @@ Sequence trans_siberian_mix {
         params: {},
         position: (491.64105, 593.5149),
       },
-      OperatorNode {
-        name: grit,
-        operator: operators.Grit,
-        params: { grain: 0.6, hold_frames: 1, levels: 80, tear: 0.4 },
-        position: (860.21405, 116.66394),
-      },
     ],
     edges: [
       Edge { from: layers.top, to: top_mix.high },
@@ -41770,9 +41810,8 @@ Sequence trans_siberian_mix {
       Edge { from: layers.fade_on, to: fade_on_mix.dim },
       Edge { from: layers.default, to: fade_on_mix.source },
       Edge { from: layers.grayscale, to: grayscale.input },
-      Edge { from: top_mix, to: grit.input },
-      Edge { from: grayscale, to: grit.input },
-      Edge { from: grit, to: root },
+      Edge { from: top_mix, to: root },
+      Edge { from: grayscale, to: root },
     ],
   },
 }
