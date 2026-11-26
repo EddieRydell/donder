@@ -10684,6 +10684,523 @@ Sequence oklahoma {
         ],
       },
     },
+    Clip {
+      name: violin_wipe_e_332_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 37.6503s, duration: 0.8s },
+      content: Effect {
+        layer: default,
+        scope: PerFixture,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #f389ff), (1.0, #ff00e1)] },
+          pulse_width: 0.6,
+          direction_angle: 270.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.35, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_12_plus_2_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 3.986958915s, duration: 0.45s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 315.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_b_042_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 11.6024s, duration: 0.8127s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89a6ff), (1.0, #0060ff)],
+          },
+          pulse_width: 0.7,
+          direction_angle: 180.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_b_047_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 12.637s, duration: 0.6285s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89a6ff), (1.0, #0060ff)],
+          },
+          pulse_width: 0.7,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_c_059_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 16.1164s, duration: 0.45s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
+          },
+          pulse_width: 0.7,
+          direction_angle: 135.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_c_065_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 16.5815s, duration: 0.45s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 90.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_c_071_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 17.3404s, duration: 0.45s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
+          },
+          pulse_width: 0.7,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_c_080_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 18.1483s, duration: 0.5s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 225.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_c_090_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 19.4789s, duration: 0.45s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 180.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_c_098_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 20.0123s, duration: 0.5s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 180.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_d_115_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 24.3325s, duration: 0.45s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #ff8989), (1.0, #ff0000)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 135.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_d_121_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 24.699s, duration: 0.7901s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #ff8989), (1.0, #ff0000)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 90.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_e_174_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 32.1857s, duration: 0.7266s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #f389ff), (1.0, #ff00e1)],
+          },
+          pulse_width: 0.7,
+          direction_angle: 315.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_e_210_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 36.0228s, duration: 0.5s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #f389ff), (1.0, #ff00e1)],
+          },
+          pulse_width: 0.6,
+          direction_angle: 180.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_20_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 5.0267s, duration: 0.9s },
+      content: Effect {
+        layer: default,
+        scope: PerFixture,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
+          },
+          pulse_width: 0.8,
+          direction_angle: 270.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_wipe_c_084_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 18.6503s, duration: 0.9786s },
+      content: Effect {
+        layer: default,
+        scope: PerFixture,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
+          },
+          pulse_width: 0.8,
+          direction_angle: 270.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: melody_butterfly_2_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 0.118817399s, duration: 7.927183636s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Butterfly,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ff5a00), (0.35, #000000), (0.65, #ffe9a8), (1.0, #ff8a00)],
+          },
+          butterfly_type: Type1,
+          motion: Iterations { iterations: 1, direction: Backward },
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: mega_tree_b_pinwheel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 8.1295s, duration: 7.9869s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #0060ff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          ],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          motion: Iterations,
+          arms: 4,
+          turns: 1.3616,
+          thickness: 60.0,
+          blade_type: ThreeD,
+        },
+      },
+    },
+    Clip {
+      name: envelope_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 8.1295s, duration: 7.9869s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (0.9374, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: mega_tree_b_pinwheel_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: mega_tree_c_butterfly_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 16.1164s, duration: 8.0273s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Butterfly,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #00ffc3), (0.5, #89ffbc), (1.0, #4dff00)],
+          },
+          butterfly_type: Type2,
+          motion: Iterations { iterations: 2, direction: Forward },
+        },
+      },
+    },
+    Clip {
+      name: envelope_4_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 16.1164s, duration: 8.0273s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.0), (0.1246, 1.0), (0.9377, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: mega_tree_c_butterfly_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: mega_tree_d_fireworks_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 24.1437s, duration: 8.1463s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Fireworks,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ff8989)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ff5a00)] },
+          ],
+          source: MarkCollection,
+          explosion_marks: beats,
+          particle_life: 0.575,
+          fall: 2.0833333,
+        },
+      },
+    },
+    Clip {
+      name: envelope_7_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 24.1437s, duration: 8.1463s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.0), (0.1228, 1.0), (0.9386, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: mega_tree_d_fireworks_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: mega_tree_e_pinwheel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 32.29s, duration: 5s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #ff00e1)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #f389ff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #8a00ff)] },
+          ],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          motion: Iterations,
+          arms: 6,
+          turns: 1.587,
+          thickness: 50.0,
+          blade_type: InvertedThreeD,
+        },
+      },
+    },
+    Clip {
+      name: envelope_10_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 32.29s, duration: 5s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.0), (0.2, 1.0), (0.938, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: mega_tree_e_pinwheel_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: violin_wipe_e_332_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 37.6503s, duration: 0.8s },
+      content: Effect {
+        layer: default,
+        scope: PerFixture,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #f389ff), (1.0, #ff00e1)] },
+          pulse_width: 0.6,
+          direction_angle: 270.0,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.35, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
   ],
   graph: Graph {
     nodes: [

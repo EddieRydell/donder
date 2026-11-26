@@ -540,8 +540,8 @@ checked once when they compile; a show is trusted when it loads.
 - RadialWipe, FieldWipe and MarkFieldWipe.
 - Effects ported from Vixen 3: SetLevel, Alternating, Strobe, Candle, Twinkle,
   Dissolve, Pinwheel, Butterfly, Colorwash, Plasma, Bars, Border, Spiral,
-  Shockwave, Garlands, Curtain, Spirograph, Fire, Fireworks, Meteors and
-  Snowflakes. [Vixen effects](vixen_effects.md) maps Vixen's effects and
+  Shockwave, Garlands, Curtain, Spirograph, Fire, Fireworks, Meteors,
+  Snowflakes, Text, Ball and Shapes. [Vixen effects](vixen_effects.md) maps Vixen's effects and
   settings onto them.
 
 - **Spin** wraps a chase position extended by `revolutions` onto the strand.

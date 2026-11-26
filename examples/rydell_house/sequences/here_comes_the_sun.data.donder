@@ -93685,6 +93685,3265 @@ Sequence here_comes_the_sun {
         ],
       },
     },
+    Clip {
+      name: pulse_611_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 87.451284s, duration: 1.281429s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_690_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 89.35s, duration: 0.929s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_756_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 90.934789s, duration: 1.270419s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_9_tunnel,
+      description: none,
+      target: arch_tunnel_05,
+      placement: Timed { start: 77.146916s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_11_tunnel,
+      description: none,
+      target: arch_tunnel_06,
+      placement: Timed { start: 77.146916s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_13_tunnel,
+      description: none,
+      target: arch_tunnel_07,
+      placement: Timed { start: 77.361361s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_15_tunnel,
+      description: none,
+      target: arch_tunnel_08,
+      placement: Timed { start: 77.361361s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_14_tunnel,
+      description: none,
+      target: arch_tunnel_09,
+      placement: Timed { start: 77.361361s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_16_tunnel,
+      description: none,
+      target: arch_tunnel_10,
+      placement: Timed { start: 77.361361s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_10_tunnel,
+      description: none,
+      target: arch_tunnel_11,
+      placement: Timed { start: 77.146916s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: chase_12_tunnel,
+      description: none,
+      target: arch_tunnel_12,
+      placement: Timed { start: 77.146916s, duration: 1.134678s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Chase,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_overlap: 8.139,
+          section_width_pixels: 1,
+          chase_position: Curve {
+            points: [
+              (0.0, 0.0), (0.1, 0.19), (0.2, 0.36), (0.3, 0.51), (0.4, 0.64), (0.5, 0.75),
+              (0.6, 0.84), (0.7, 0.91), (0.8, 0.96), (0.9, 0.99), (1.0, 1.0),
+            ],
+          },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_115_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 24.008026s, duration: 1.125027s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.1707, #fff499), (0.3807, #ffe500)],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_151_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 26.732722s, duration: 1.125027s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.1707, #fff499), (0.3807, #ffe500)],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_798_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 92.333263s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_861_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 93.925121s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_949_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 100.696703s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1030_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 106.607594s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1804_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 174.103132s, duration: 1.063218s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1823_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 174.898399s, duration: 1.125027s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.1707, #fff499), (0.3807, #ffe500)],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1844_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 177.623096s, duration: 1.125027s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.1707, #fff499), (0.3807, #ffe500)],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pin_wheel_6_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_28_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_6_tunnel, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_29_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_6_tunnel, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_30_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_6_tunnel, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pin_wheel_11_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Standard,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_46_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_11_tunnel, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_47_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_11_tunnel, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_48_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_11_tunnel, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_36_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 150.22178s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.53,
+          center_y: 0.46,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_40_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 153.920314s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.43,
+          center_y: 0.35,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: pin_wheel_16_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_97_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_16_tunnel, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_98_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_16_tunnel, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_99_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_16_tunnel, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_46_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 163.207777s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.53,
+          center_y: 0.46,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_50_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 166.906311s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.43,
+          center_y: 0.35,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: pin_wheel_21_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_112_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_21_tunnel, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_113_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_21_tunnel, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_114_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_21_tunnel, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pulse_1782_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 173.063855s, duration: 0.470145s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_36_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 15.205s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.1707, #fff499), (0.3807, #ffe500)],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_66_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 18.911693s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.1707, #fff499), (0.3807, #ffe500)],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_101_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 22.756968s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.1707, #fff499), (0.3807, #ffe500)],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_951_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 100.696703s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1032_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 106.607594s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1113_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 112.476044s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1203_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 118.362197s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1784_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 173.441156s, duration: 1.063218s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_1_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.284254s, duration: 8.694982s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Spiral,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffe500)] },
+          ],
+          direction: Forward,
+          iterations: 1.0,
+          repeat: 1,
+          rotation: 51.0,
+          thickness: 89.3615,
+          grow: false,
+          shrink: false,
+          blend: false,
+          show_3d: true,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_5_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.284254s, duration: 8.694982s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.0), (0.2382, 1.0), (0.8571, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound { binding: ClipParam { clip: clip_1_grass, param: intensity }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: pin_wheel_1_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 23.912634s, duration: 3.709762s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 127.8,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_6_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 23.912634s, duration: 3.709762s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (0.8866, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_1_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_7_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 23.912634s, duration: 3.709762s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound { binding: ClipParam { clip: pin_wheel_1_grass, param: size }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_8_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 23.912634s, duration: 3.709762s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_1_grass, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_9_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 23.912634s, duration: 3.709762s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_1_grass, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pin_wheel_5_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 27.622396s, duration: 15.450689s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #ff0000)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (1.0, #ffffff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          ],
+          levels: [
+            Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+            Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+            Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+            Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+          ],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 5,
+          speed: 78.8,
+          thickness: 61.012886,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: Fan,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_22_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 27.622396s, duration: 15.450689s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.0), (0.9478, 0.0), (1.0, 1.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_5_grass, param: center_hub },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_23_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 27.622396s, duration: 15.450689s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound { binding: ClipParam { clip: pin_wheel_5_grass, param: size }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_24_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 27.622396s, duration: 15.450689s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.6101), (1.0, 0.633)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_5_grass, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_25_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 27.622396s, duration: 15.450689s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_5_grass, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: clip_2_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 43.074211s, duration: 9.016171s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Fireworks,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #0000ff), (1.0, #ffffff)] },
+          ],
+          color_type: Palette,
+          source: RandomExplosions,
+          explosion_marks: none,
+          explosions: 10,
+          random_reach: true,
+          reach: 30.0,
+          min_reach: 15.0,
+          max_reach: 60.0,
+          random_particles: true,
+          particles: 30,
+          min_particles: 32,
+          max_particles: 79,
+          particle_life: 0.345,
+          fall: 0.45,
+          intensity: 1.0,
+          random_seed: 47814.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_26_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 43.074211s, duration: 9.016171s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (0.914, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound { binding: ClipParam { clip: clip_2_grass, param: intensity }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: pin_wheel_6_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_28_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound { binding: ClipParam { clip: pin_wheel_6_grass, param: size }, window: (0.0, 1.0) },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_29_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_6_grass, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_30_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 51.907956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_6_grass, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pulse_308_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 55.67621s, duration: 0.840476s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_8_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 55.67621s, duration: 3.721342s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Plasma,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #000000)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffe500)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffe500)] },
+          ],
+          color_type: Normal,
+          plasma_style: 1,
+          speed: 10.0,
+          line_density: 3.0,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_389_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 59.397552s, duration: 0.840476s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_17_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 59.397552s, duration: 15.461993s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #00ff00), (0.7452, #00ff00)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Palette,
+          meteor_effect: Falling,
+          direction: 180,
+          speed: 14.0,
+          speed_variation: 12.0,
+          count: 10.0,
+          tail_length: 29.0,
+          random_brightness: false,
+          intensity: 1.0,
+          random_seed: 470406.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
+      name: envelope_43_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 59.397552s, duration: 15.461993s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (0.9035, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_17_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: clip_18_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 74.859545s, duration: 9.016171s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Fireworks,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.9825, #ffe500)] },
+          ],
+          color_type: Palette,
+          source: RandomExplosions,
+          explosion_marks: none,
+          explosions: 10,
+          random_reach: true,
+          reach: 30.0,
+          min_reach: 15.0,
+          max_reach: 60.0,
+          random_particles: true,
+          particles: 30,
+          min_particles: 32,
+          max_particles: 79,
+          particle_life: 0.345,
+          fall: 0.45,
+          intensity: 1.0,
+          random_seed: 73503.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_44_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 74.859545s, duration: 9.016171s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (0.914, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_18_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pin_wheel_11_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Standard,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_46_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_11_grass, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_47_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_11_grass, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_48_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 83.68303s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_11_grass, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pulse_612_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 87.451284s, duration: 1.281429s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_694_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 89.35s, duration: 0.929s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_760_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 90.934789s, duration: 1.270419s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: shockwave_2_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 96.752558s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.5845462,
+          center_y: 0.65,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_6_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 98.044015s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.55,
+          center_y: 0.33,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: clip_22_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 98.897871s, duration: 3.142032s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient {
+              space: LinearRgb,
+              stops: [
+                (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+                (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+              ],
+            },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Gradient,
+          meteor_effect: Falling,
+          direction: 180,
+          speed: 23.0,
+          speed_variation: 1.0,
+          count: 15.0,
+          tail_length: 21.0,
+          random_brightness: false,
+          intensity: 1.0,
+          random_seed: 115618.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
+      name: envelope_63_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 98.897871s, duration: 3.142032s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_22_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_8_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 102.740223s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.3,
+          center_y: 0.24,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_12_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 103.967641s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.4,
+          center_y: 0.57,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: clip_23_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 104.83217s, duration: 3.142032s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient {
+              space: LinearRgb,
+              stops: [
+                (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+                (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+              ],
+            },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Gradient,
+          meteor_effect: Falling,
+          direction: 180,
+          speed: 23.0,
+          speed_variation: 1.0,
+          count: 15.0,
+          tail_length: 21.0,
+          random_brightness: false,
+          intensity: 1.0,
+          random_seed: 624482.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
+      name: envelope_64_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 104.83217s, duration: 3.142032s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_23_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_14_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 108.525098s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.5845462,
+          center_y: 0.65,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_18_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 109.816555s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.55,
+          center_y: 0.33,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: clip_24_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 110.670411s, duration: 3.142032s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient {
+              space: LinearRgb,
+              stops: [
+                (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+                (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+              ],
+            },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Gradient,
+          meteor_effect: Falling,
+          direction: 1,
+          speed: 23.0,
+          speed_variation: 1.0,
+          count: 15.0,
+          tail_length: 21.0,
+          random_brightness: false,
+          intensity: 1.0,
+          random_seed: 161044.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
+      name: envelope_65_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 110.670411s, duration: 3.142032s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_24_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_20_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 114.475494s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.35,
+          center_y: 0.31,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_24_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 115.742212s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.65,
+          center_y: 0.39,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: clip_25_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 116.567442s, duration: 3.142032s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient {
+              space: LinearRgb,
+              stops: [
+                (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+                (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+              ],
+            },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Gradient,
+          meteor_effect: Falling,
+          direction: 180,
+          speed: 23.0,
+          speed_variation: 1.0,
+          count: 15.0,
+          tail_length: 21.0,
+          random_brightness: false,
+          intensity: 1.0,
+          random_seed: 51887.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
+      name: envelope_66_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 116.567442s, duration: 3.142032s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_25_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_26_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 120.264908s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.45,
+          center_y: 0.65,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_30_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 121.556366s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+              (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.69,
+          center_y: 0.53,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: clip_26_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 122.410222s, duration: 4.592342s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient {
+              space: LinearRgb,
+              stops: [
+                (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080),
+                (0.4836, #ffec53), (0.5996, #ffe82a), (0.7221, #ffe500),
+              ],
+            },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Gradient,
+          meteor_effect: Falling,
+          direction: 180,
+          speed: 23.0,
+          speed_variation: 1.0,
+          count: 15.0,
+          tail_length: 21.0,
+          random_brightness: false,
+          intensity: 1.0,
+          random_seed: 697980.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
+      name: envelope_67_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 122.410222s, duration: 4.592342s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_26_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_32_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 130.176285s, duration: 1.664522s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [(0.0, #ffffff), (0.814, #ffffff), (1.0, #000000)],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.03718)] },
+          width_curve: Curve { points: [(0.0, 0.09), (1.0, 0.09)] },
+          center_x: 0.5,
+          center_y: 0.5,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: butterfly_18_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 131.840807s, duration: 15.107534s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Butterfly,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (0.8845, #000000)] },
+          butterfly_type: Type1,
+          color_scheme: Gradient,
+          motion: Iterations { iterations: 1, direction: Forward },
+          repeat: 7,
+          background_chunks: 1,
+          background_skips: 2,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_81_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 131.840807s, duration: 15.107534s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.0), (0.05, 1.0), (0.94, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: butterfly_18_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: shockwave_33_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 147.399638s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.3,
+          center_y: 0.24,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_34_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 148.329571s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.55,
+          center_y: 0.33,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_35_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 149.297664s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.4,
+          center_y: 0.57,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_36_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 150.22178s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.53,
+          center_y: 0.46,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_37_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 151.171808s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.3,
+          center_y: 0.24,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_38_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 152.101741s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.27,
+          center_y: 0.54,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_39_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 153.037107s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.7,
+          center_y: 0.55,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_40_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 153.920314s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.43,
+          center_y: 0.35,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_41_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 154.873292s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.53,
+          center_y: 0.46,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_42_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 155.757866s, duration: 0.985233s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.3,
+          center_y: 0.68,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: pin_wheel_16_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_97_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_16_grass, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_98_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_16_grass, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_99_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 156.234515s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_16_grass, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pulse_1729_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 160.002769s, duration: 1.387887s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.9795, #000000)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: shockwave_44_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 161.315568s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.55,
+          center_y: 0.33,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_45_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 162.283661s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.4,
+          center_y: 0.57,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_46_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 163.207777s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.53,
+          center_y: 0.46,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_47_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 164.157805s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.3,
+          center_y: 0.24,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_48_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 165.087738s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.27,
+          center_y: 0.54,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_49_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 166.023104s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.7,
+          center_y: 0.55,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_50_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 166.906311s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.43,
+          center_y: 0.35,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_51_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 167.859289s, duration: 1.060322s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.53,
+          center_y: 0.46,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: shockwave_52_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 168.743862s, duration: 0.881986s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shockwave,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00), (1.0, #000000),
+            ],
+          },
+          radius_curve: Curve { points: [(0.0, 0.002), (1.0, 0.0139999995)] },
+          width_curve: Curve { points: [(0.0, 0.02), (1.0, 0.04)] },
+          center_x: 0.3,
+          center_y: 0.68,
+          acceleration: StrongOut,
+          blend_edges: true,
+          scaled_radius: false,
+        },
+      },
+    },
+    Clip {
+      name: pin_wheel_21_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_112_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_21_grass, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_113_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_21_grass, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_114_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 169.2956s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_21_grass, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: clip_27_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 173.063855s, duration: 1.715857s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Garlands,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          ],
+          direction: Up,
+          garland_type: Type0,
+          iterations: 1,
+          spacing: 10.0,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_127_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 173.063855s, duration: 1.715857s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (0.76, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_27_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: pin_wheel_26_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 174.779711s, duration: 3.768254s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pinwheel,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
+          color_type: Gradient,
+          motion: Speed,
+          arms: 1,
+          speed: 108.2,
+          thickness: 19.0,
+          size: 0.0,
+          twist: 63.0,
+          rotation: 100.0,
+          x_offset: 0.5,
+          y_offset: 0.5,
+          center_hub: 0.0,
+          offset_percentage: true,
+          blade_type: ThreeD,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_128_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 174.779711s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve {
+          points: [
+            (0.0, 0.0), (0.025, 0.1094), (0.05, 0.1875), (0.075, 0.2344), (0.1, 0.25), (1.0, 0.25),
+          ],
+        },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_26_grass, param: size },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_129_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 174.779711s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_26_grass, param: thickness },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: envelope_130_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 174.779711s, duration: 3.768254s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: pin_wheel_26_grass, param: twist },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: clip_28_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 178.547965s, duration: 5.623541s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Spiral,
+        params: {
+          colors: [
+            Gradient {
+              space: LinearRgb,
+              stops: [(0.0, #ffffff), (0.6072, #ffffff), (0.6449, #ffffff), (0.9929, #ffffff)],
+            },
+          ],
+          direction: Backwards,
+          iterations: 3.0,
+          repeat: 2,
+          rotation: 55.835,
+          thickness: 74.8913,
+          grow: false,
+          shrink: false,
+          blend: true,
+          show_3d: true,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: envelope_143_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 178.547965s, duration: 5.623541s },
+      content: Envelope {
+        curve: Curve { points: [(0.0, 1.0), (0.68, 1.0), (1.0, 0.0)] },
+        bindings: [
+          Bound {
+            binding: ClipParam { clip: clip_28_grass, param: intensity },
+            window: (0.0, 1.0),
+          },
+        ],
+      },
+    },
+    Clip {
+      name: spin_1_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 7.774978s, duration: 5.776198s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Spin,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4354, #ffe500)] },
+          gradient_mode: PerPulse,
+          pulse_overlap: 100.0,
+          section_width_pixels: 1,
+          chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          revolutions: 2,
+          reverse: false,
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_798_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 92.333263s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_861_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 93.925121s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1436_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 126.976255s, duration: 1.210819s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1461_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 128.533054s, duration: 0.431566s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1483_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 128.766333s, duration: 1.210819s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
   ],
   graph: Graph {
     nodes: [

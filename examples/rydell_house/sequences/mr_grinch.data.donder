@@ -54538,6 +54538,3058 @@ Sequence mr_grinch {
         },
       },
     },
+    Clip {
+      name: shapes_1,
+      description: none,
+      target: mega_tree,
+      placement: Timed { start: 54.2738411s, duration: 2.8342886s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shapes,
+        params: {
+          shape: Heart,
+          fill_colors: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #ff0000)] },
+          outline_colors: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          size: Curve { points: [(0.0, 0.0), (0.5021, 0.4), (1.0, 0.4)] },
+          angle: Curve {
+            points: [
+              (0.0, 0.2), (0.05, 0.162), (0.1, 0.128), (0.15, 0.098), (0.2, 0.072), (0.25, 0.05),
+              (0.3, 0.032), (0.35, 0.018), (0.4, 0.008), (0.45, 0.002), (0.5, 0.0), (1.0, 0.0),
+            ],
+          },
+          x_offset: Curve { points: [(0.0, 0.5298), (1.0, 0.5298)] },
+          y_offset: Curve { points: [(0.0, 0.3489), (0.5, 0.5), (1.0, 0.5)] },
+        },
+      },
+    },
+    Clip {
+      name: shapes_2,
+      description: none,
+      target: mega_tree,
+      placement: Timed { start: 57.1081297s, duration: 3.6768571s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shapes,
+        params: {
+          shape: Heart,
+          fill_colors: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          outline_colors: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          size: Curve { points: [(0.0, 0.4), (1.0, 0.4)] },
+          angle: Curve {
+            points: [
+              (0.0, 0.0), (0.05, 0.0), (0.1, 0.0), (0.15, 0.0), (0.2, 0.0), (0.25, 0.0), (0.3, 0.0),
+              (0.35, 0.0), (0.4, 0.0), (0.45, 0.0), (0.5, 0.0), (0.55, 0.0), (0.6, 0.0),
+              (0.65, 0.0), (0.7, 0.0), (0.75, 0.0), (0.8, 0.0), (0.85, 0.0), (0.9, 0.0),
+              (0.95, 0.0), (1.0, 0.0),
+            ],
+          },
+          x_offset: Curve { points: [(0.0, 0.5298), (1.0, 0.5298)] },
+          y_offset: Curve { points: [(0.0, 0.5), (1.0, 0.5)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1289_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 56.80369s, duration: 1.71944s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1944_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 83.860213s, duration: 0.531401s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.4991)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1948_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 84.391614s, duration: 0.992348s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.5037), (0.5572, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1975_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 86.368623s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2045_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 90.163397s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1678_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 71.393202s, duration: 0.759981s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_196_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 71.789831s, duration: 3.286364s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          minimum_level: 0.28,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 159.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_1887_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 80.847977s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1917_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 82.54169s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2051_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 90.988814s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2091_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 92.91836s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2139_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 97.1848s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2199_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 100.347112s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2247_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 102.848328s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_281_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 16.476422s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_355_tunnel,
+      description: none,
+      target: arch_tunnel,
+      placement: Timed { start: 19.362852s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_12_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 1.69s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_56_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 5.84s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_68_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 6.771425s, duration: 0.580514s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_11_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 7.202519s, duration: 2.937639s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          minimum_level: 0.5,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_108_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 10.140157s, duration: 0.580514s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_124_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 10.683501s, duration: 0.580514s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_147_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 11.899234s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_20_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 12.330328s, duration: 1.88491s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          minimum_level: 0.5,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 17.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_277_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 16.476422s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_341_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 19.159104s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_378_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 21.658412s, duration: 0.299951s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_25_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 21.713866s, duration: 1.350408s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          minimum_level: 0.5,
+          maximum_level: 0.83,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 25.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_404_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 23.009941s, duration: 0.286368s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_42_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 23.064274s, duration: 1.234951s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          minimum_level: 0.5,
+          maximum_level: 0.83,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 42.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_432_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 24.231308s, duration: 0.286368s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_442_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 24.502972s, duration: 0.306743s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_465_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 26.371783s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_491_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 27.438064s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_529_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 28.762426s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_567_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 30.05283s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_608_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 31.595644s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_682_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 32.592888s, duration: 0.383599s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_712_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 32.986801s, duration: 0.383599s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_752_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 34.752617s, duration: 0.17306s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0611, #ff0000), (0.9867, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_762_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 34.925677s, duration: 0.988052s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_802_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 36.273936s, duration: 0.727822s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_817_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 36.919138s, duration: 0.727822s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_841_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 37.883545s, duration: 1.293674s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #ff0000)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_867_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 39.109302s, duration: 0.727822s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #0000ff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_948_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 43.436224s, duration: 0.556307s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_961_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 43.918611s, duration: 0.556307s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1044_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 47.756264s, duration: 0.556307s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1053_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 48.892552s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1093_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 49.943082s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1153_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 51.604636s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1232_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 54.027288s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1261_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 55.302932s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1364_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 59.269221s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1399_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 60.39479s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1431_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 61.295245s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1455_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 62.238578s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1007, #dafffb), (0.1969, #b7fff9), (0.3085, #8ffff7),
+              (0.4267, #65fff5), (0.5646, #34fff2), (0.7112, #00ffef),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1497_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 63.707177s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1007, #dafffb), (0.1969, #b7fff9), (0.3085, #8ffff7),
+              (0.4267, #65fff5), (0.5646, #34fff2), (0.7112, #00ffef),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1514_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 64.3182s, duration: 1.35497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1007, #dafffb), (0.1969, #b7fff9), (0.3085, #8ffff7),
+              (0.4267, #65fff5), (0.5646, #34fff2), (0.7112, #00ffef),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1692_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 72.304377s, duration: 0.580556s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1708_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 73.504983s, duration: 1.202298s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1758_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 74.662711s, duration: 0.805669s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1784_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 75.584605s, duration: 1.191579s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1962_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 85.74688s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1982_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 86.589153s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2058_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 91.270312s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2083_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 92.206319s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2099_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 93.734495s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2131_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 96.542519s, duration: 1.021968s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2144_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 97.564487s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2173_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 98.792338s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2203_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 101.62363s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2244_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 102.848328s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2267_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 104.125702s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2291_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 105.001427s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2319_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 106.344644s, duration: 0.648711s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2340_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 106.93724s, duration: 0.383599s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2362_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 107.378395s, duration: 0.383599s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_1_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 0.18s, duration: 0.43s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.RadialWipe,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          shape: Circle,
+          pulse_length: 0.33,
+          center_x: 0.0,
+          center_y: 0.0,
+          reverse: false,
+          passes: 1,
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_3_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 0.82s, duration: 0.43s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.RadialWipe,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          shape: Circle,
+          pulse_length: 0.33,
+          center_x: 0.0,
+          center_y: 0.0,
+          reverse: false,
+          passes: 1,
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_17_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 1.69s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_61_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 5.84s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_78_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 6.7918s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_136_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 10.9418s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_152_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 11.899234s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_266_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 16.152s, duration: 0.5s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.5), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_281_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 16.476422s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_355_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 19.362852s, duration: 1.006277s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: shapes_1_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 54.2738411s, duration: 2.8342886s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shapes,
+        params: {
+          shape: Heart,
+          fill_colors: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #ff0000)] },
+          outline_colors: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          size: Curve { points: [(0.0, 0.0), (0.5021, 0.4), (1.0, 0.4)] },
+          angle: Curve {
+            points: [
+              (0.0, 0.2), (0.05, 0.162), (0.1, 0.128), (0.15, 0.098), (0.2, 0.072), (0.25, 0.05),
+              (0.3, 0.032), (0.35, 0.018), (0.4, 0.008), (0.45, 0.002), (0.5, 0.0), (1.0, 0.0),
+            ],
+          },
+          x_offset: Curve { points: [(0.0, 0.5298), (1.0, 0.5298)] },
+          y_offset: Curve { points: [(0.0, 0.3489), (0.5, 0.5), (1.0, 0.5)] },
+        },
+      },
+    },
+    Clip {
+      name: shapes_2_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 57.1081297s, duration: 3.6768571s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Shapes,
+        params: {
+          shape: Heart,
+          fill_colors: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          outline_colors: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
+          size: Curve { points: [(0.0, 0.4), (1.0, 0.4)] },
+          angle: Curve {
+            points: [
+              (0.0, 0.0), (0.05, 0.0), (0.1, 0.0), (0.15, 0.0), (0.2, 0.0), (0.25, 0.0), (0.3, 0.0),
+              (0.35, 0.0), (0.4, 0.0), (0.45, 0.0), (0.5, 0.0), (0.55, 0.0), (0.6, 0.0),
+              (0.65, 0.0), (0.7, 0.0), (0.75, 0.0), (0.8, 0.0), (0.85, 0.0), (0.9, 0.0),
+              (0.95, 0.0), (1.0, 0.0),
+            ],
+          },
+          x_offset: Curve { points: [(0.0, 0.5298), (1.0, 0.5298)] },
+          y_offset: Curve { points: [(0.0, 0.5), (1.0, 0.5)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1946_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 83.860213s, duration: 0.531401s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.4991)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1950_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 84.391614s, duration: 0.992348s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 0.5037), (0.5572, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1976_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 86.368623s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2047_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 90.163397s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_183_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.588786s, duration: 1.563214s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 26,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_184_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.588786s, duration: 1.563214s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 27,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_185_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.588786s, duration: 1.563214s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 28,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_186_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.588786s, duration: 1.563214s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 29,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_187_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.588786s, duration: 1.563214s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 30,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_188_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.588786s, duration: 1.563214s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 31,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_196_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.765373s, duration: 1.386627s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 20,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_197_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.765373s, duration: 1.386627s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 21,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_198_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.765373s, duration: 1.386627s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 22,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_199_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.765373s, duration: 1.386627s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 23,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_200_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.765373s, duration: 1.386627s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 24,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_201_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.765373s, duration: 1.386627s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 25,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_211_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 12,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_212_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 13,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_213_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 14,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_214_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 15,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_215_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 16,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_216_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 17,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_217_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 18,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_218_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 14.989503s, duration: 1.162497s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 19,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_226_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.200048s, duration: 0.951952s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 6,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_227_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.200048s, duration: 0.951952s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 7,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_228_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.200048s, duration: 0.951952s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 8,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_229_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.200048s, duration: 0.951952s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 9,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_230_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.200048s, duration: 0.951952s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 10,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_231_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.200048s, duration: 0.951952s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 11,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_238_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.437761s, duration: 0.714239s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 0,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_239_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.437761s, duration: 0.714239s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 1,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_240_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.437761s, duration: 0.714239s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 2,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_241_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.437761s, duration: 0.714239s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 3,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_242_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.437761s, duration: 0.714239s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 4,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_243_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 15.437761s, duration: 0.714239s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #00ff00)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.5)] },
+          bands: 32,
+          band: 5,
+          band_step: 32,
+        },
+      },
+    },
+    Clip {
+      name: pulse_19_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 2.66s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_31_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 3.5s, duration: 0.69s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_36_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 4.16s, duration: 0.88s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_43_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 5.21s, duration: 0.69s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_5_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 7.202519s, duration: 2.937639s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          minimum_level: 0.5,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 2.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_103_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 10.140157s, duration: 0.580514s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_14_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 12.330328s, duration: 1.88491s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
+          minimum_level: 0.5,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 10.0,
+        },
+      },
+    },
+    Clip {
+      name: clip_75_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 27.139234s, duration: 5.26676s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          minimum_level: 0.2,
+          maximum_level: 0.6,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 71.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_874_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 39.73086s, duration: 0.820269s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_122_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 39.73086s, duration: 3.623192s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          minimum_level: 0.5,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 300,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 102.0,
+        },
+      },
+    },
+    Clip {
+      name: wipe_11_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 48.495923s, duration: 1.284813s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Wipe,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e),
+              (0.5733, #ff3a3a), (0.6389, #ff2323), (0.7418, #ff0000),
+            ],
+          },
+          gradient_mode: PerPulse,
+          pulse_width: 0.33,
+          direction_angle: 180.0,
+          passes: 1,
+          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+          reverse: false,
+          extend_to_start: false,
+          extend_to_end: false,
+          pulse_shape: Curve { points: [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1122_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 50.672022s, duration: 1s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #ff0000)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1178_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 51.894068s, duration: 1s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #ff0000)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1211_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 53.158992s, duration: 1s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (0.4092, #ff0000)] },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_168_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 61.981305s, duration: 2.362622s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffff)] },
+          minimum_level: 0.35,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 139.0,
+        },
+      },
+    },
+    Clip {
+      name: clip_192_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 66.848049s, duration: 2.246553s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          minimum_level: 0.28,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 146.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_1645_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 69.292141s, duration: 0.727822s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1648_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 69.912766s, duration: 0.727822s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1678_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 71.393202s, duration: 0.759981s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: clip_196_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 71.789831s, duration: 3.286364s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Twinkle,
+        params: {
+          color_handling: GradientPerPulse,
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+          minimum_level: 0.28,
+          maximum_level: 1.0,
+          average_pulse_time_ms: 400,
+          pulse_time_variation: 0.3,
+          average_coverage: 0.5,
+          individual_elements: true,
+          random_seed: 159.0,
+        },
+      },
+    },
+    Clip {
+      name: pulse_1887_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 80.847977s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1917_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 82.54169s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c),
+              (0.5098, #4fff4f), (0.6477, #20ff20), (0.744, #00ff00),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2051_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 90.988814s, duration: 0.906591s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2091_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 92.91836s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2139_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 97.1848s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2199_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 100.347112s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_2247_tunnel_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 102.848328s, duration: 1.045947s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff),
+              (0.4196, #5858ff), (0.497, #3939ff), (0.6429, #0000ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_1411_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 60.694941s, duration: 0.776106s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient {
+            space: LinearRgb,
+            stops: [
+              (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff),
+              (0.5208, #9765ff), (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+            ],
+          },
+          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
+        },
+      },
+    },
   ],
   graph: Graph {
     nodes: [

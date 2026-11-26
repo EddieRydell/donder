@@ -1,8 +1,24 @@
+-- Whether the pixel is in the bands a Pulse or Chase lights: the target is cut
+-- into `bands` equal columns across x, and the effect lights column `band` and
+-- every `band_step`th column after it. One band, the default, is the whole
+-- target and skips the test.
+fn in_band(bands: int, band: int, band_step: int) -> bool {
+  if bands == 1 { true }
+  else {
+    let column = min(floor((pixel.x - target.min_x) / (target.max_x - target.min_x) * bands), bands - 1);
+    column >= band && (column - band) % band_step == 0
+  }
+}
+
 effect Pulse {
   param gradient: gradient;
   param pulse_shape: curve in 0.0..1.0;
+  param bands: int in 1..1000 = 1;
+  param band: int in 0..999 = 0;
+  param band_step: int in 1..1000 = 1;
 
   sample {
+    guard in_band(bands, band, band_step);
     gradient[progress] * clamp(pulse_shape[progress], 0.0, 1.0)
   }
 }
@@ -33,11 +49,16 @@ effect Chase {
   param extend_to_start: bool = false;
   param extend_to_end: bool = false;
   param pulse_shape: curve in 0.0..1.0;
+  param bands: int in 1..1000 = 1;
+  param band: int in 0..999 = 0;
+  param band_step: int in 1..1000 = 1;
 
   sample {
-    let item_count = ceil(target.count / section_width_pixels);
+    guard in_band(bands, band, band_step);
+    -- Split into bands, each band chases up its own column over the pixels it holds.
+    let item_count = if bands == 1 { ceil(target.count / section_width_pixels) } else { ceil(target.count / (bands * section_width_pixels)) };
     let item_index = floor(pixel.index / section_width_pixels);
-    let position = item_index / max(1.0, item_count - 1.0);
+    let position = if bands == 1 { item_index / max(1.0, item_count - 1.0) } else { (pixel.y - target.min_y) / (target.max_y - target.min_y) };
     let chase_value = if reverse { 1.0 - position } else { position };
     let pulse_duration = pulse_overlap / item_count;
     let hit = max(0.0, 1.0 - pulse_duration) * value_or(curve_first_crossing(chase_position, chase_value), chase_value);
@@ -1548,5 +1569,191 @@ effect Gradient {
     let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
     let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
     gradient[clamp((projection - projection_min) / span, 0.0, 1.0)]
+  }
+}
+
+-- Where character `k` of `message` starts, in the font's pixels: the first of
+-- 256 pixel columns that `char_index` puts at or past it, found in eight
+-- halving steps so it can fill a table.
+fn char_start(font: font, message: text, k: int) -> float {
+  let s = if char_index(font, message, 127.5) < k { 128.0 } else { 0.0 };
+  let s = if char_index(font, message, s + 63.5) < k { s + 64.0 } else { s };
+  let s = if char_index(font, message, s + 31.5) < k { s + 32.0 } else { s };
+  let s = if char_index(font, message, s + 15.5) < k { s + 16.0 } else { s };
+  let s = if char_index(font, message, s + 7.5) < k { s + 8.0 } else { s };
+  let s = if char_index(font, message, s + 3.5) < k { s + 4.0 } else { s };
+  let s = if char_index(font, message, s + 1.5) < k { s + 2.0 } else { s };
+  if char_index(font, message, s + 0.5) < k { s + 1.0 } else { s }
+}
+
+-- PIXEL: Text, one line in a font, still or moving Left, Right, Up or Down
+-- across the target `speed` times over the clip, entering at one side and
+-- leaving by the other, or stopping at the center with center_stop. Rotated
+-- mode stacks the characters one above another, each centered, like Vixen's
+-- Rotated text. `size` is the line height as a share of the target's height;
+-- the offsets move still text by shares of the target's width and height. The
+-- gradient runs across the target from left to right.
+effect Text {
+  param message: text = "Merry Christmas";
+  param font: font;
+  param gradient: gradient;
+  param text_mode: enum { Normal, Rotated } = Normal;
+  param movement: enum { None, Left, Right, Up, Down } = None;
+  param speed: float in 0.0..100.0 = 1.0;
+  param center_stop: bool = false;
+  param size: float in 0.01..10.0 = 0.5;
+  param x_offset: float in -1.0..1.0 = 0.0;
+  param y_offset: float in -1.0..1.0 = 0.0;
+  param intensity: float in 0.0..1.0 = 1.0;
+
+  sample {
+    let line = font_height(font);
+    let scale = line / (size * (target.max_y - target.min_y));
+    let w = (target.max_x - target.min_x) * scale;
+    let h = line / size;
+    let rotated = text_mode == Rotated;
+    let count = text_length(message);
+    -- Rotated characters' starts and widths; the widest sets the block's width.
+    let starts = table for k in 0..65 { if rotated { char_start(font, message, k) } else { 0.0 } };
+    let widths = table for k in 0..64 { if k + 1 < count { starts[k + 1] - starts[k] } else { text_width(font, message) - starts[k] } };
+    let block_w = if rotated { max for k in 0..min(count, 64) { widths[k] } } else { text_width(font, message) };
+    let block_h = if rotated { line * count } else { line };
+    let pass = (progress * speed) % 1.0;
+    let center_x = (w - block_w) / 2.0;
+    let center_y = (h - block_h) / 2.0;
+    let left =
+      if movement == Left { let at = w - pass * (block_w + w); if center_stop { max(at, center_x) } else { at } }
+      else if movement == Right { let at = pass * (block_w + w) - block_w; if center_stop { min(at, center_x) } else { at } }
+      else { center_x + x_offset * w };
+    let bottom =
+      if movement == Up { let at = pass * (block_h + h) - block_h; if center_stop { min(at, center_y) } else { at } }
+      else if movement == Down { let at = h - pass * (block_h + h); if center_stop { max(at, center_y) } else { at } }
+      else { center_y + y_offset * h };
+    let x = (pixel.x - target.min_x) * scale - left;
+    let y = (pixel.y - target.min_y) * scale - bottom;
+    let ink =
+      if rotated {
+        -- Character k is line k from the top.
+        let k = count - 1 - int(floor(y / line));
+        guard k >= 0 && k < count else 0.0;
+        let gx = starts[k] + x - (block_w - widths[k]) / 2.0;
+        guard char_index(font, message, gx) == k else 0.0;
+        glyph_coverage(font, message, gx, y - (count - 1 - k) * line)
+      } else { glyph_coverage(font, message, x, y) };
+    gradient[(pixel.x - target.min_x) / (target.max_x - target.min_x)] * (ink * intensity)
+  }
+}
+
+-- PIXEL: Balls bouncing off the frame's edges or wrapping around them, each
+-- from a random place at a random velocity; ball_count (a curve) sets how many
+-- are out, and a ball that joins mid-clip appears where its path has taken it.
+-- Speeds keep Vixen's 0..100 sliders: a speed of 50 crosses the frame's larger
+-- side once a second, and each ball's speed varies by up to half of
+-- speed_variation. `size` is the radius in hundredths of half the frame's
+-- smaller side. Solid balls are filled, Empty ones are rings edge_width frame
+-- units thick, Fade ones dim from the center out and Gradient ones run their
+-- gradient from the center out. Where balls overlap, the first one wins.
+effect Ball {
+  param colors: array<gradient>;
+  param ball_count: curve in 1.0..100.0;
+  param ball_type: enum { Bounce, Wrap } = Bounce;
+  param ball_fill: enum { Solid, Empty, Fade, Gradient } = Solid;
+  param size: float in 0.0..100.0 = 10.0;
+  param center_speed: float in 0.0..100.0 = 20.0;
+  param speed_variation: float in 0.0..100.0 = 5.0;
+  param edge_width: float in 1.0..40.0 = 1.0;
+  param intensity: float in 0.0..1.0 = 1.0;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
+
+  sample {
+    let w = frame_w();
+    let h = frame_h();
+    let radius = min(w, h) * size / 200.0;
+    let per_second = max(w, h) / 50.0;
+    -- Each ball's place: where its start and velocity have taken it, bounced
+    -- or wrapped at the edges.
+    let ball_x = table for i in 0..100 {
+      let key = rand(random_seed * 31.0 + i);
+      let speed = (center_speed + (rand(key + 0.1) - 0.5) * speed_variation) * per_second;
+      let travel = rand(key + 0.2) * w + (rand(key + 0.3) - 0.5) * 2.0 * rand(key + 0.4) * speed * time;
+      if ball_type == Wrap { (travel + radius) % (w + 2.0 * radius) - radius }
+      else { radius + ping_pong(travel - radius, w - 2.0 * radius) }
+    };
+    let ball_y = table for i in 0..100 {
+      let key = rand(random_seed * 31.0 + i);
+      let speed = (center_speed + (rand(key + 0.1) - 0.5) * speed_variation) * per_second;
+      let travel = rand(key + 0.5) * h + (rand(key + 0.6) - 0.5) * 2.0 * rand(key + 0.7) * speed * time;
+      if ball_type == Wrap { (travel + radius) % (h + 2.0 * radius) - radius }
+      else { radius + ping_pong(travel - radius, h - 2.0 * radius) }
+    };
+    let x = frame_x(scale_x);
+    let y = frame_y(scale_y);
+    first for i in 0..min(int(ball_count[progress]), 100) {
+      let dx = x - ball_x[i];
+      let dy = y - ball_y[i];
+      let d = sqrt(dx * dx + dy * dy);
+      guard
+        if ball_fill == Empty { d >= radius - edge_width && d < radius }
+        else if ball_fill == Fade { d <= radius * 0.9 }
+        else { d <= radius };
+      let c = colors[int(rand(random_seed * 31.0 + i + 0.8) * len(colors))];
+      if ball_fill == Gradient { c[d / radius] * intensity }
+      else if ball_fill == Fade { c[progress] * ((1.0 - d / radius) * intensity) }
+      else { c[progress] * intensity }
+    }
+  }
+}
+
+-- Whether the point (u, v) lies in a shape spanning -1..1.
+fn in_shape(shape: int, u: float, v: float) -> bool {
+  let hx = u * 1.15;
+  let hy = v * 1.15 + 0.1;
+  let a = hx * hx + hy * hy - 1.0;
+  if shape == 0 { u * u + v * v <= 1.0 }
+  else if shape == 1 { max(abs(u), abs(v)) <= 1.0 }
+  else if shape == 2 { abs(u) + abs(v) <= 1.0 }
+  else if shape == 3 { max(abs(u) * 1.7320508 + v, -v * 2.0) <= 1.0 }
+  -- The heart curve (x² + y² - 1)³ = x² y³, fitted to -1..1.
+  else { a * a * a <= hx * hx * hy * hy * hy }
+}
+
+-- PIXEL: Shapes, one geometric shape (Vixen's single still shape) at the
+-- frame's center moved by x_offset and y_offset (shares of the frame's width
+-- and height), as wide as `size` times the frame's smaller side and turned
+-- clockwise by `angle` degrees. The fill and outline colors run over the clip;
+-- the outline is outline_width frame units thick inside the shape's edge.
+effect Shapes {
+  param shape: enum { Circle, Square, Diamond, Triangle, Heart } = Circle;
+  param fill_colors: gradient;
+  param outline_colors: gradient;
+  param fill: bool = true;
+  param outline_width: float in 0.0..100.0 = 0.0;
+  param size: curve in 0.0..2.0;
+  param angle: curve in 0.0..360.0;
+  param x_offset: curve in -1.0..1.0;
+  param y_offset: curve in -1.0..1.0;
+  param intensity: float in 0.0..1.0 = 1.0;
+  param scale_x: float in 0.01..100.0 = 1.0;
+  param scale_y: float in 0.01..100.0 = 1.0;
+
+  sample {
+    let w = frame_w();
+    let h = frame_h();
+    let half = min(w, h) * size[progress] / 2.0;
+    let turn = angle[progress] * 0.017453292519943295;
+    let dx = frame_x(scale_x) - (w - 1.0) / 2.0 - x_offset[progress] * w;
+    let dy = frame_y(scale_y) - (h - 1.0) / 2.0 - y_offset[progress] * h;
+    -- The point in the shape's own turned frame, -1..1 across it.
+    let u = (dx * cos(turn) - dy * sin(turn)) / half;
+    let v = (dx * sin(turn) + dy * cos(turn)) / half;
+    let kind: int = if shape == Circle { 0 } else if shape == Square { 1 } else if shape == Diamond { 2 } else if shape == Triangle { 3 } else { 4 };
+    guard in_shape(kind, u, v);
+    -- On the outline when the shape shrunk by its width leaves the point out.
+    let inner = half / (half - outline_width);
+    let edge = !in_shape(kind, u * inner, v * inner);
+    guard edge || fill;
+    (if edge { outline_colors[progress] } else { fill_colors[progress] }) * intensity
   }
 }

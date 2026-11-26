@@ -2964,6 +2964,36 @@ Sequence noelodekirk {
         ],
       },
     },
+    Clip {
+      name: pulse_21_garage_wreath,
+      description: none,
+      target: above_garage_wreath,
+      placement: Timed { start: 18.79s, duration: 0.877s },
+      content: Effect {
+        layer: default_2,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+        },
+      },
+    },
+    Clip {
+      name: pulse_20_grass,
+      description: none,
+      target: grass,
+      placement: Timed { start: 18.79s, duration: 0.877s },
+      content: Effect {
+        layer: default_2,
+        scope: WholeTarget,
+        effect: effects.Pulse,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
+        },
+      },
+    },
   ],
   graph: Graph {
     nodes: [

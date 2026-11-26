@@ -16,6 +16,10 @@ converting a Vixen sequence.
 | Pinwheel, Butterfly, Colorwash, Plasma, Bars, Border, Spiral, Shockwave, Garlands, Curtain, Spirograph, Fire, Fireworks, Meteors, Snowflakes | the same names |
 | Pulse, Chase, Spin, Wipe | Pulse, Chase, Spin, Wipe; their parameters are Donder's, so read each definition |
 | Circle, Diamond and Burst wipes | RadialWipe, with `shape` |
+| Text | Text: `TextMode` is `text_mode`, `Direction` is `movement`; see below |
+| Balls | Ball, Bounce and Wrap with Solid, Empty, Fade and Gradient fills |
+| Shapes | Shapes: one still geometric shape (Circle, Square, Diamond, Triangle or Heart) |
+| Nutcracker Color Wash | Colorwash; see below |
 
 Each definition's comment lists the Vixen modes it covers. Modes no converted
 show has needed yet (mark-driven Strobe and Alternating, Bounce/Wrap movement,
@@ -62,6 +66,25 @@ A ported effect's parameters keep Vixen's names, except:
     `min_reach` and `max_reach`, and `random_velocity` is `random_reach`.
   - Vixen's random and rainbow colors in Pinwheel and Spirograph change every
     frame; the ports change them 20 times a second.
+- Text draws on the target's layout positions, not Vixen's grid of cells. A
+  Vixen font of `p` points has a line about `p × 96 / 72 × 1.15` cells high:
+  that is the `font`'s `height` in pixels, and `size` is that height over the
+  cells the target is tall in Vixen (a strand's pixels, a matrix's rows).
+  Arial and its kin become Liberation Sans Bold and Impact becomes Anton.
+  `Speed` is `speed`, the passes over the clip, and `CenterStop` is
+  `center_stop`; the first gradient of `Colors` is `gradient`.
+- Ball keeps Vixen's sliders: `size`, `center_speed`, `speed_variation` and
+  `edge_width` are the flat values of their curves, and `ball_count` is the
+  ball count curve over 100.
+- Shapes' size, angle and offset curves are Vixen's over 100: `size` maps
+  onto 0..2 of the smaller side, `angle` onto 0..360 degrees and the offsets
+  onto -1..1 of the width and height. The first fill and outline gradients run
+  over the clip; Vixen's stroke width is `outline_width`.
+- A Nutcracker Color Wash's state advances `Speed` each 50 ms frame and blends
+  through the palette's colors every 200, holding the last color after
+  `(colors - 1) × 200 × count` when its count is under 10. Its converted
+  `gradient` carries those times: a stop for each palette color at `10 k /
+  Speed` seconds, as a share of the clip.
 
 How the ports read their settings:
 
