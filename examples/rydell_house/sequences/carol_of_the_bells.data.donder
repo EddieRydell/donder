@@ -90126,6 +90126,21 @@ Sequence carol_of_the_bells {
       },
     },
     Clip {
+      name: color_wash_949_grass,
+      description: none,
+      targets: [grass],
+      placement: Timed { start: 65.442757s, duration: 0.840143s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Colorwash,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (0.8333, #000000)] },
+          vertical_fade: true,
+        },
+      },
+    },
+    Clip {
       name: color_wash_949_house_number,
       description: none,
       targets: [house_number],
@@ -90145,6 +90160,21 @@ Sequence carol_of_the_bells {
       description: none,
       targets: [spiral_trees, right_wall_top, far_left_wall_top, mega_tree, garage_matrix],
       placement: Timed { start: 64.2829005s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Colorwash,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (0.8333, #000000)] },
+          horizontal_fade: true,
+        },
+      },
+    },
+    Clip {
+      name: color_wash_950_grass,
+      description: none,
+      targets: [grass],
+      placement: Timed { start: 65.442757s, duration: 0.840143s },
       content: Effect {
         layer: default,
         scope: WholeTarget,

@@ -6050,7 +6050,7 @@ Sequence holy {
     Clip {
       name: butterfly_3,
       description: none,
-      targets: [arch_tunnel, mega_tree, neighbor_trees, house_number],
+      targets: [arch_tunnel, mega_tree, neighbor_trees, house_number, grass],
       placement: Timed { start: 100.793s, duration: 6.66s },
       content: Effect {
         layer: default,
@@ -6390,7 +6390,7 @@ Sequence holy {
     Clip {
       name: clip_262,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points, grass],
       placement: Timed { start: 125.98s, duration: 9.033s },
       content: Effect {
         layer: default,
@@ -7261,6 +7261,27 @@ Sequence holy {
       description: none,
       targets: [arch_tunnel, mega_tree, neighbor_trees],
       placement: Timed { start: 170.14s, duration: 5.17s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Butterfly,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #00ff00)] },
+          butterfly_type: Type1,
+          color_scheme: Gradient,
+          motion: Iterations { iterations: 8, direction: Forward },
+          repeat: 1,
+          background_chunks: 1,
+          background_skips: 2,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
+      name: butterfly_6_grass,
+      description: none,
+      targets: [grass],
+      placement: Timed { start: 174.099375s, duration: 1.160625s },
       content: Effect {
         layer: default,
         scope: WholeTarget,
@@ -10370,6 +10391,31 @@ Sequence holy {
       },
     },
     Clip {
+      name: clip_441_grass,
+      description: none,
+      targets: [grass],
+      placement: Timed { start: 187.23s, duration: 5.14838s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Fireworks,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          source: RandomExplosions,
+          explosion_marks: none,
+          explosions: 44,
+          reach: 0.0,
+          min_reach: 37.0,
+          max_reach: 370.0,
+          random_particles: false,
+          particles: 54,
+          particle_life: 0.851,
+          fall: 6.753733,
+          random_seed: 561525.0,
+        },
+      },
+    },
+    Clip {
       name: clip_441_house_number,
       description: none,
       targets: [house_number],
@@ -11997,6 +12043,30 @@ Sequence holy {
       },
     },
     Clip {
+      name: clip_505_grass,
+      description: none,
+      targets: [grass],
+      placement: Timed { start: 229.41s, duration: 0.93s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Palette,
+          speed: 25.0,
+          count: 33.16583,
+          tail_length: 8.0,
+          random_seed: 477587.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
       name: clip_506,
       description: none,
       targets: [middle_bushes],
@@ -12265,6 +12335,30 @@ Sequence holy {
       description: none,
       targets: [arch_tunnel, mega_tree, neighbor_trees, star_points],
       placement: Timed { start: 230s, duration: 7.5s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Spiral,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          ],
+          direction: Forward,
+          iterations: 9.0,
+          repeat: 1,
+          rotation: 53.333332,
+          thickness: 60.0,
+          blend: false,
+          show_3d: false,
+        },
+      },
+    },
+    Clip {
+      name: clip_517_grass,
+      description: none,
+      targets: [grass],
+      placement: Timed { start: 236.95s, duration: 0.55s },
       content: Effect {
         layer: default,
         scope: WholeTarget,

@@ -5216,7 +5216,7 @@ Sequence jing_jing_jing {
     Clip {
       name: pin_wheel_2,
       description: none,
-      targets: [mega_tree, house_number],
+      targets: [mega_tree, house_number, grass],
       placement: Timed { start: 21.965269s, duration: 2.170491s },
       content: Effect {
         layer: default,
@@ -12934,7 +12934,7 @@ Sequence jing_jing_jing {
     Clip {
       name: pin_wheel_4,
       description: none,
-      targets: [mega_tree, house_number],
+      targets: [mega_tree, house_number, grass],
       placement: Timed { start: 26.269286s, duration: 2.093531s },
       content: Effect {
         layer: default,
@@ -20840,7 +20840,7 @@ Sequence jing_jing_jing {
     Clip {
       name: pin_wheel_5,
       description: none,
-      targets: [garage_matrix, mega_tree, house_number],
+      targets: [garage_matrix, mega_tree, house_number, grass],
       placement: Timed { start: 30.548122s, duration: 2.173312s },
       content: Effect {
         layer: default,
@@ -37388,7 +37388,7 @@ Sequence jing_jing_jing {
     Clip {
       name: spin_21,
       description: none,
-      targets: [front_door, mega_tree, house_number],
+      targets: [front_door, mega_tree, house_number, grass],
       placement: Timed { start: 51.123173s, duration: 0.784913s },
       content: Effect {
         layer: default,
@@ -49482,6 +49482,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         wreaths,
         house_number,
+        grass,
       ],
       placement: Timed { start: 84.34347s, duration: 0.567316s },
       content: Effect {
@@ -53508,7 +53509,15 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2591,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_pair_03,
+        mega_tree_pair_04,
+        mega_tree_pair_13,
+        mega_tree_pair_14,
+        grass_1,
+        grass_2,
+        grass_5,
+      ],
       placement: Timed { start: 97.834794s, duration: 0.564324s },
       content: Effect {
         layer: default,
@@ -53574,7 +53583,14 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2603,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_pair_05,
+        mega_tree_pair_06,
+        mega_tree_pair_11,
+        mega_tree_pair_12,
+        grass_2,
+        grass_4,
+      ],
       placement: Timed { start: 97.900052s, duration: 0.564324s },
       content: Effect {
         layer: default,
@@ -53640,7 +53656,14 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2615,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_pair_07,
+        mega_tree_pair_08,
+        mega_tree_pair_09,
+        mega_tree_pair_10,
+        grass_3,
+        grass_4,
+      ],
       placement: Timed { start: 98.024042s, duration: 0.707892s },
       content: Effect {
         layer: default,
@@ -57101,7 +57124,7 @@ Sequence jing_jing_jing {
     Clip {
       name: wipe_1111,
       description: none,
-      targets: [garage_matrix, house_and_trees, mega_tree, star_rings],
+      targets: [garage_matrix, house_and_trees, mega_tree, star_rings, grass],
       placement: Timed { start: 110.507636s, duration: 0.591167s },
       content: Effect {
         layer: default,

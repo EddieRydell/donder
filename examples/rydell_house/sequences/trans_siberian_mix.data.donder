@@ -29278,7 +29278,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_522,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_03],
+      targets: [mega_tree_pair_02, mega_tree_pair_03, grass_1],
       placement: Timed { start: 119.17374s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29304,7 +29304,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_526,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_pair_01, grass_1],
       placement: Timed { start: 119.177033s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29330,7 +29330,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_528,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_pair_04, mega_tree_pair_05, mega_tree_pair_06, grass_2],
       placement: Timed { start: 119.398771s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29356,7 +29356,14 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_534,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_pair_07,
+        mega_tree_pair_08,
+        mega_tree_pair_09,
+        mega_tree_pair_10,
+        grass_3,
+        grass_4,
+      ],
       placement: Timed { start: 119.600349s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29382,7 +29389,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_542,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12, mega_tree_pair_13],
+      targets: [mega_tree_pair_11, mega_tree_pair_12, mega_tree_pair_13, grass_4, grass_5],
       placement: Timed { start: 119.783156s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29408,7 +29415,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_548,
       description: none,
-      targets: [mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16, grass_5],
       placement: Timed { start: 119.966631s, duration: 0.339043s },
       content: Effect {
         layer: default,
@@ -29434,7 +29441,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_554,
       description: none,
-      targets: [mega_tree_pair_14, mega_tree_pair_16],
+      targets: [mega_tree_pair_14, mega_tree_pair_16, grass_5],
       placement: Timed { start: 120.764116s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29460,7 +29467,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_558,
       description: none,
-      targets: [mega_tree_pair_15],
+      targets: [mega_tree_pair_15, grass_5],
       placement: Timed { start: 120.767408s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29486,7 +29493,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_560,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12, mega_tree_pair_13],
+      targets: [mega_tree_pair_11, mega_tree_pair_12, mega_tree_pair_13, grass_4, grass_5],
       placement: Timed { start: 120.989146s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29512,7 +29519,14 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_566,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_pair_07,
+        mega_tree_pair_08,
+        mega_tree_pair_09,
+        mega_tree_pair_10,
+        grass_3,
+        grass_4,
+      ],
       placement: Timed { start: 121.198482s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29538,7 +29552,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_574,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_pair_04, mega_tree_pair_05, mega_tree_pair_06, grass_2],
       placement: Timed { start: 121.389047s, duration: 0.339717s },
       content: Effect {
         layer: default,
@@ -29564,7 +29578,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_580,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03],
+      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03, grass_1],
       placement: Timed { start: 121.5877s, duration: 0.33938s },
       content: Effect {
         layer: default,

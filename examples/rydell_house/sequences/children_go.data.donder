@@ -6628,7 +6628,7 @@ Sequence children_go {
     Clip {
       name: clip_114,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, grass],
       placement: Timed { start: 22.625s, duration: 2.203125s },
       content: Effect {
         layer: default,

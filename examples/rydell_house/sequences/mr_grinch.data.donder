@@ -12367,6 +12367,7 @@ Sequence mr_grinch {
         mega_tree,
         spiral_trees,
         house_number,
+        grass,
       ],
       placement: Timed { start: 87.90154s, duration: 0.906591s },
       content: Effect {
