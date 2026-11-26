@@ -29,15 +29,16 @@ impl DesktopState {
             return self.device_transport_error(error);
         }
         let project = self.project_session();
-        let silent_duration = project
-            .as_ref()
-            .and_then(|project| {
-                sequence_id
-                    .as_ref()
-                    .and_then(|id| project.project().get::<donder_model::Sequence>(*id))
-            })
-            .filter(|sequence| matches!(sequence.audio, donder_model::SequenceAudio::None))
-            .map(|sequence| sequence.duration.as_seconds_f64());
+        let silent_duration = project.as_ref().and_then(|project| {
+            let sequence = sequence_id
+                .as_ref()
+                .and_then(|id| project.project().get::<donder_model::Sequence>(*id))?;
+            (matches!(sequence.audio, donder_model::SequenceAudio::None)
+                || project
+                    .audio_asset(&sequence.audio)
+                    .is_some_and(|asset| !asset.is_available()))
+            .then(|| sequence.duration.as_seconds_f64())
+        });
         let audio_transport = match silent_duration {
             Some(duration) => lock_unpoisoned(&self.audio).load_silent_sequence(duration),
             None => lock_unpoisoned(&self.audio).load(audio),

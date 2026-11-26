@@ -209,7 +209,7 @@ fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Res
         if let Some(next) = replace_prefix(&asset.relative_path, &plan.source, &plan.destination) {
             asset.relative_path = next;
         }
-        asset.absolute_path = root.join(&asset.relative_path);
+        asset.relocate(root.join(&asset.relative_path));
     }
     Ok(())
 }

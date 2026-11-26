@@ -43,6 +43,32 @@ use donder_model::{PixelRoute, PixelRouteId, PixelSpan};
 use donder_runtime_types::PixelEncoding;
 use donder_runtime_types::{Curve, CurvePoint, Gradient, GradientStop};
 use donder_runtime_types::{Identifier, Type};
+
+#[derive(Clone, Copy)]
+enum AssetKind {
+    Audio,
+    Font,
+    Image,
+}
+
+impl AssetKind {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Audio => "audio",
+            Self::Font => "font",
+            Self::Image => "image",
+        }
+    }
+
+    fn missing_message(self, path: &str) -> String {
+        let fallback = match self {
+            Self::Audio => "the sequence will play silently",
+            Self::Font => "effects will render blank text",
+            Self::Image => "effects will render black images",
+        };
+        format!("{} asset `{path}` is missing; {fallback}.", self.name())
+    }
+}
 use indexmap::IndexMap;
 
 use super::{DataDocument, Loader};
@@ -1135,7 +1161,9 @@ impl DomainResolver<'_> {
     ) -> Result<Sequence, LoadError> {
         let audio = match &sequence.audio {
             None => SequenceAudio::None,
-            Some(path) => SequenceAudio::Asset(self.asset(document, span, "audio", &path.0)?),
+            Some(path) => {
+                SequenceAudio::Asset(self.asset(document, span, AssetKind::Audio, &path.0)?)
+            }
         };
         let (mark_collections, marks) = Self::mark_collections(&sequence.marks);
         let (layers, layer_ids) = Self::layers(&sequence.layers);
@@ -1465,18 +1493,46 @@ impl DomainResolver<'_> {
             .unwrap_or_else(|| unreachable!("a resolved effect definition is stored"))
     }
 
-    /// The asset at `path`, which `document` references as `kind`.
+    /// The asset at `path`, which `document` references as `kind`. A missing
+    /// file remains typed and warns; invalid or inaccessible paths fail.
     fn asset(
         &self,
         document: &DocumentId,
         span: TextSpan,
-        kind: &str,
+        kind: AssetKind,
         path: &str,
     ) -> Result<AssetId, LoadError> {
         let root = &self.loader.workspace.root;
         let mut assets = self.loader.referenced_assets.borrow_mut();
-        crate::source::reference_asset(&mut assets, root, document, path)
-            .map_err(|error| self.invalid(document, span, format!("{kind} asset {path}: {error}")))
+        let first_reference_in_document = assets
+            .iter()
+            .find(|asset| asset.relative_path == camino::Utf8Path::new(path))
+            .is_none_or(|asset| !asset.referenced_by.contains(document));
+        let id =
+            crate::source::reference_asset(&mut assets, root, document, path).map_err(|error| {
+                self.invalid(
+                    document,
+                    span,
+                    format!("{} asset {path}: {error}", kind.name()),
+                )
+            })?;
+        let available = assets
+            .iter()
+            .find(|asset| asset.id == id)
+            .is_some_and(|asset| asset.is_available());
+        drop(assets);
+        if !available && first_reference_in_document {
+            self.loader
+                .diagnostics
+                .borrow_mut()
+                .push(crate::IoDiagnostic::warning(
+                    document.path().to_path_buf(),
+                    self.loader.range(document, span),
+                    crate::IoDiagnosticCode::IoRead,
+                    kind.missing_message(path),
+                ));
+        }
+        Ok(id)
     }
 
     /// Parameter values, typed by their declarations and written in
@@ -1680,7 +1736,7 @@ impl DomainResolver<'_> {
             (Type::Font, DataValue::Record(..)) => {
                 let font = self.decode::<types::FontValue>(document, value)?;
                 ParamValue::Font(Some(donder_model::FontFace {
-                    file: self.asset(document, value.span, "font", &font.file.0)?,
+                    file: self.asset(document, value.span, AssetKind::Font, &font.file.0)?,
                     height: font.height,
                 }))
             }
@@ -1688,7 +1744,7 @@ impl DomainResolver<'_> {
             (Type::Image, DataValue::Record(..)) => {
                 let image = self.decode::<types::ImageValue>(document, value)?;
                 ParamValue::Image(Some(donder_model::ImageSource {
-                    file: self.asset(document, value.span, "image", &image.file.0)?,
+                    file: self.asset(document, value.span, AssetKind::Image, &image.file.0)?,
                     size: image.size,
                 }))
             }

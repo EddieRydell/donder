@@ -13,6 +13,9 @@ use std::sync::Arc;
 pub(crate) struct DerivationPayload {
     project_epoch: u32,
     files: Vec<(Utf8PathBuf, Vec<Derivation>)>,
+    /// Results known without reading a file. They are not cached: a watcher
+    /// reload may make a previously missing asset available.
+    immediate: Vec<(Derivation, Derived)>,
 }
 
 /// Results the worker keeps by file and settings, so an undo, redo or reload
@@ -26,7 +29,7 @@ impl DerivedResults {
         &mut self,
         payload: DerivationPayload,
     ) -> (u32, Vec<(Derivation, Derived)>) {
-        let mut results = Vec::new();
+        let mut results = payload.immediate;
         for (path, derivations) in payload.files {
             // Asset ids differ between loads; the file and settings do not.
             let key = |derivation: &Derivation| (path.clone(), derivation.with_asset(AssetId(0)));
@@ -54,24 +57,35 @@ impl DesktopState {
     /// Derive the data `session`'s effects read that it has no result for.
     pub(super) fn schedule_derivations(&self, session: &ProjectSession) {
         let mut files: Vec<(Utf8PathBuf, Vec<Derivation>)> = Vec::new();
+        let mut immediate = Vec::new();
         for derivation in session.project().pending_derivations() {
             let Some(asset) = session.asset(derivation.asset()) else {
                 continue;
             };
-            match files
-                .iter_mut()
-                .find(|(path, _)| *path == asset.absolute_path)
-            {
+            let Some(path) = asset.available_path() else {
+                immediate.push((
+                    derivation,
+                    Derived::Failed(
+                        asset
+                            .unavailable_reason()
+                            .unwrap_or_else(|| unreachable!("the asset has no available path"))
+                            .into(),
+                    ),
+                ));
+                continue;
+            };
+            match files.iter_mut().find(|(existing, _)| existing == path) {
                 Some((_, derivations)) => derivations.push(derivation),
-                None => files.push((asset.absolute_path.clone(), vec![derivation])),
+                None => files.push((path.to_path_buf(), vec![derivation])),
             }
         }
-        if files.is_empty() {
+        if files.is_empty() && immediate.is_empty() {
             return;
         }
         self.derivations.schedule(DerivationPayload {
             project_epoch: self.snapshot().project_epoch,
             files,
+            immediate,
         });
     }
 
