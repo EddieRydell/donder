@@ -1940,7 +1940,7 @@ Layout layout {
       description: "The five-light house number on the front of the house.",
       definition: house_number,
       transform: Transform {
-        position: (1.2m, 8.6m, 0m),
+        position: (2m, 11.4m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
