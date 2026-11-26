@@ -643,6 +643,9 @@ fn validate_composition(
         (Placement::Played(_), Clock::Session) if clip.envelope().is_some() => {
             Err(ClipProblem::EnvelopePlayed)
         }
+        (Placement::Played(_), Clock::Session) if clip.targets.len() > 1 => {
+            Err(ClipProblem::PlayedTargets)
+        }
         (Placement::Played(_), Clock::Session) => Ok(()),
     };
     for clip in clips {
@@ -658,13 +661,13 @@ fn validate_composition(
                 if is_unchanged(clip) {
                     return Ok(());
                 }
-                validate_target(project, clip.target)?;
+                validate_targets(project, &clip.targets)?;
                 validate_params(project, &effect.definition, &effect.params, &mark_keys)
             }
             // An envelope's checks read the clips and nodes it binds.
             ClipContent::Envelope(envelope) => {
                 placement(clip)?;
-                validate_target(project, clip.target)?;
+                validate_targets(project, &clip.targets)?;
                 validate_envelope(project, composition, envelope).map_err(ClipProblem::Envelope)
             }
         };
@@ -739,12 +742,22 @@ fn validate_envelope(
 }
 
 /// A clip's target names a fixture or group of the project's layout.
-fn validate_target(
+fn validate_targets(
     project: &DonderProject,
-    target: crate::layout::FixtureId,
+    targets: &[crate::layout::FixtureId],
 ) -> Result<(), ClipProblem> {
-    if project.layout().fixture(target).is_none() {
+    if targets.is_empty() {
+        return Err(ClipProblem::NoTargets);
+    }
+    if targets
+        .iter()
+        .any(|&target| project.layout().fixture(target).is_none())
+    {
         return Err(ClipProblem::MissingTarget);
+    }
+    let mut seen = HashSet::new();
+    if !targets.iter().all(|target| seen.insert(target)) {
+        return Err(ClipProblem::RepeatedTarget);
     }
     Ok(())
 }

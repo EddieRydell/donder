@@ -157,7 +157,7 @@ Sequence show {
     Clip {
       name: defaults,
       description: none,
-      target: pixel,
+      targets: [pixel],
       placement: Timed { start: 0s, duration: 10s },
       content: Effect { layer: main, scope: PerFixture, effect: fx.Defaults, params: { level: 0.5 } },
     },

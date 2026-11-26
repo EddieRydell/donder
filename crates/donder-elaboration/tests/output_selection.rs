@@ -352,7 +352,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
         .unwrap()
         .id;
     for effect in &mut sequence.composition.clips {
-        std::sync::Arc::make_mut(effect).target = second;
+        std::sync::Arc::make_mut(effect).targets = vec![second];
     }
     let output = sequence
         .composition

@@ -138,10 +138,14 @@ impl CompositionProblem {
 impl ClipProblem {
     fn give_way(&self) -> Option<GiveWay> {
         match self {
-            Self::MissingLayer | Self::MissingTarget | Self::Definition(_) => Some(GiveWay::Remove),
+            Self::MissingLayer
+            | Self::MissingTarget
+            | Self::NoTargets
+            | Self::RepeatedTarget
+            | Self::Definition(_) => Some(GiveWay::Remove),
             Self::Region(region) => region.give_way(),
             Self::Param(problem) => problem.give_way(),
-            Self::NeverPlays | Self::EnvelopePlayed => None,
+            Self::NeverPlays | Self::EnvelopePlayed | Self::PlayedTargets => None,
             Self::Envelope(problem) => match problem {
                 EnvelopeProblem::InvalidCurve(_)
                 | EnvelopeProblem::CurveOutOfRange

@@ -516,7 +516,7 @@ Sequence layer_test {
     Clip {
       name: pulse,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 58.971401s, duration: 1s },
       content: Effect {
         layer: default,
@@ -531,7 +531,7 @@ Sequence layer_test {
     Clip {
       name: envelope,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 0s, duration: 249.753832s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.505), (0.103248, 0.787)] },
@@ -571,8 +571,10 @@ Sequence layer_test {
 - `Layer`: `name`, `description`, `color`, `enabled`. The first layer is the
   default layer, which new clips use and which cannot be deleted. Deleting
   another layer deletes its clips.
-- `Clip`: `name`, `description`, `target` (a fixture or group: what an effect
-  plays over, or the row an envelope is drawn in), `placement`, `content`.
+- `Clip`: `name`, `description`, `targets` (fixtures or groups, at least one
+  and none twice: what an effect plays over, each target on its own, or the
+  rows an envelope is drawn in; a console's played clip has one),
+  `placement`, `content`.
   `placement` is `Timed { start, duration }`, or, only for a console's effect,
   `Played { values }` for a clip its actions play. `content` is
   `Effect { layer, scope, effect, params }`, with `scope` `PerFixture` or
@@ -696,7 +698,7 @@ Console jam {
     Clip {
       name: background,
       description: "Pulses on every tapped beat.",
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Played { values: [] },
       content: Effect {
         layer: default,
@@ -713,7 +715,7 @@ Console jam {
     Clip {
       name: flash,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Played { values: [] },
       content: Effect {
         layer: default,
@@ -725,7 +727,7 @@ Console jam {
     Clip {
       name: wash,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Played { values: [] },
       content: Effect {
         layer: default,

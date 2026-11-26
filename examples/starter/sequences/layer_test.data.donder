@@ -25,7 +25,7 @@ Sequence layer_test {
     Clip {
       name: spin,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 58.979683s, duration: 1.341234s },
       content: Effect {
         layer: afterglow,
@@ -46,7 +46,7 @@ Sequence layer_test {
     Clip {
       name: pulse,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 58.971401s, duration: 1s },
       content: Effect {
         layer: default,
@@ -61,7 +61,7 @@ Sequence layer_test {
     Clip {
       name: spin_2,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 59.202995s, duration: 1.341234s },
       content: Effect {
         layer: afterglow,
@@ -82,7 +82,7 @@ Sequence layer_test {
     Clip {
       name: spin_3,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 64.321722s, duration: 2.728596s },
       content: Effect {
         layer: afterglow,
@@ -100,7 +100,7 @@ Sequence layer_test {
     Clip {
       name: pulse_2,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 64.2733s, duration: 0.45496s },
       content: Effect {
         layer: default,
@@ -115,7 +115,7 @@ Sequence layer_test {
     Clip {
       name: pulse_3,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 66.949971s, duration: 0.45496s },
       content: Effect {
         layer: default,
@@ -130,7 +130,7 @@ Sequence layer_test {
     Clip {
       name: pulse_4,
       description: none,
-      target: output_03,
+      targets: [output_03],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -145,7 +145,7 @@ Sequence layer_test {
     Clip {
       name: pulse_5,
       description: none,
-      target: output_04,
+      targets: [output_04],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -160,7 +160,7 @@ Sequence layer_test {
     Clip {
       name: pulse_6,
       description: none,
-      target: output_05,
+      targets: [output_05],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -175,7 +175,7 @@ Sequence layer_test {
     Clip {
       name: pulse_7,
       description: none,
-      target: output_06,
+      targets: [output_06],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -190,7 +190,7 @@ Sequence layer_test {
     Clip {
       name: pulse_8,
       description: none,
-      target: output_07,
+      targets: [output_07],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -205,7 +205,7 @@ Sequence layer_test {
     Clip {
       name: pulse_9,
       description: none,
-      target: output_08,
+      targets: [output_08],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -220,7 +220,7 @@ Sequence layer_test {
     Clip {
       name: pulse_10,
       description: none,
-      target: output_09,
+      targets: [output_09],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -235,7 +235,7 @@ Sequence layer_test {
     Clip {
       name: pulse_11,
       description: none,
-      target: output_10,
+      targets: [output_10],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -250,7 +250,7 @@ Sequence layer_test {
     Clip {
       name: pulse_12,
       description: none,
-      target: output_11,
+      targets: [output_11],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -265,7 +265,7 @@ Sequence layer_test {
     Clip {
       name: pulse_13,
       description: none,
-      target: output_12,
+      targets: [output_12],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -280,7 +280,7 @@ Sequence layer_test {
     Clip {
       name: pulse_14,
       description: none,
-      target: output_13,
+      targets: [output_13],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -295,7 +295,7 @@ Sequence layer_test {
     Clip {
       name: pulse_15,
       description: none,
-      target: output_14,
+      targets: [output_14],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -310,7 +310,7 @@ Sequence layer_test {
     Clip {
       name: pulse_16,
       description: none,
-      target: output_15,
+      targets: [output_15],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -325,7 +325,7 @@ Sequence layer_test {
     Clip {
       name: pulse_17,
       description: none,
-      target: output_16,
+      targets: [output_16],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -340,7 +340,7 @@ Sequence layer_test {
     Clip {
       name: pulse_18,
       description: none,
-      target: output_17,
+      targets: [output_17],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -355,7 +355,7 @@ Sequence layer_test {
     Clip {
       name: pulse_19,
       description: none,
-      target: output_18,
+      targets: [output_18],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -370,7 +370,7 @@ Sequence layer_test {
     Clip {
       name: pulse_20,
       description: none,
-      target: output_01,
+      targets: [output_01],
       placement: Timed { start: 58.316901s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -385,7 +385,7 @@ Sequence layer_test {
     Clip {
       name: pulse_21,
       description: none,
-      target: output_02,
+      targets: [output_02],
       placement: Timed { start: 58.645841s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -400,7 +400,7 @@ Sequence layer_test {
     Clip {
       name: pulse_22,
       description: none,
-      target: output_23,
+      targets: [output_23],
       placement: Timed { start: 58.316998s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -415,7 +415,7 @@ Sequence layer_test {
     Clip {
       name: pulse_23,
       description: none,
-      target: output_24,
+      targets: [output_24],
       placement: Timed { start: 58.645938s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -430,7 +430,7 @@ Sequence layer_test {
     Clip {
       name: pulse_24,
       description: none,
-      target: output_25,
+      targets: [output_25],
       placement: Timed { start: 58.316998s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -445,7 +445,7 @@ Sequence layer_test {
     Clip {
       name: pulse_25,
       description: none,
-      target: output_26,
+      targets: [output_26],
       placement: Timed { start: 58.645938s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -460,7 +460,7 @@ Sequence layer_test {
     Clip {
       name: pulse_26,
       description: none,
-      target: output_27,
+      targets: [output_27],
       placement: Timed { start: 58.316998s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -475,7 +475,7 @@ Sequence layer_test {
     Clip {
       name: pulse_27,
       description: none,
-      target: output_28,
+      targets: [output_28],
       placement: Timed { start: 58.645938s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -490,7 +490,7 @@ Sequence layer_test {
     Clip {
       name: pulse_28,
       description: none,
-      target: output_29,
+      targets: [output_29],
       placement: Timed { start: 58.316998s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -505,7 +505,7 @@ Sequence layer_test {
     Clip {
       name: pulse_29,
       description: none,
-      target: output_30,
+      targets: [output_30],
       placement: Timed { start: 58.645938s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -520,7 +520,7 @@ Sequence layer_test {
     Clip {
       name: pulse_30,
       description: none,
-      target: output_21,
+      targets: [output_21],
       placement: Timed { start: 58.316998s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -535,7 +535,7 @@ Sequence layer_test {
     Clip {
       name: pulse_31,
       description: none,
-      target: output_22,
+      targets: [output_22],
       placement: Timed { start: 58.645938s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -550,7 +550,7 @@ Sequence layer_test {
     Clip {
       name: pulse_32,
       description: none,
-      target: output_19,
+      targets: [output_19],
       placement: Timed { start: 58.316998s, duration: 0.726459s },
       content: Effect {
         layer: default,
@@ -565,7 +565,7 @@ Sequence layer_test {
     Clip {
       name: pulse_33,
       description: none,
-      target: output_20,
+      targets: [output_20],
       placement: Timed { start: 58.645938s, duration: 0.442291s },
       content: Effect {
         layer: default,
@@ -580,7 +580,7 @@ Sequence layer_test {
     Clip {
       name: wipe,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 0s, duration: 3s },
       content: Effect {
         layer: default,
@@ -597,7 +597,7 @@ Sequence layer_test {
     Clip {
       name: mark_wipe,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Timed { start: 4s, duration: 4s },
       content: Effect {
         layer: default,

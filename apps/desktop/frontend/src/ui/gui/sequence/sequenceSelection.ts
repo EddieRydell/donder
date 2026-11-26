@@ -17,7 +17,8 @@ import type { AutomationCurveDraft } from "./sequenceAutomationLayout";
 
 /** A clip being moved or resized. An envelope's content window is the span its
  * curve covers: a crop moves the clip over fixed content, a stretch moves both. */
-export type SequenceDraft = { id: number; startSeconds: number; durationSeconds: number; laneIndex: number; contentStartSeconds: number; contentDurationSeconds: number };
+/** A clip being dragged; `laneIndices` are the lanes its targets move to, in target order. */
+export type SequenceDraft = { id: number; startSeconds: number; durationSeconds: number; laneIndices: number[]; contentStartSeconds: number; contentDurationSeconds: number };
 
 /** The row a clip is drawn in: an envelope's own row below its target's effects. */
 export function clipRowKind(clip: GuiClip): SequenceRowKind {
@@ -129,7 +130,7 @@ export function buildSequenceClipLayout(
   const draftById = new Map(drafts.map((draft) => [draft.id, draft]));
   const visibleStartSeconds = viewport.scrollXSeconds;
   const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
-  // A clip shows on every lane of its target, including a draft's destination target.
+  // A clip shows on every lane of each of its targets, including a draft's destination targets.
   const byRow = new Map<string, LaneClip[]>();
   for (const authored of document.clips.filter(isTimed)) {
     const activeDraft = draftById.get(authored.id);
@@ -139,7 +140,7 @@ export function buildSequenceClipLayout(
     const clip = activeDraft === undefined ? original : clipFromDraft(document, original, activeDraft);
     if (!clipIntersectsTimeRange(clip, visibleStartSeconds, visibleEndSeconds)) continue;
     const content = { contentStartSeconds: activeDraft?.contentStartSeconds ?? clip.placement.startSeconds, contentDurationSeconds: activeDraft?.contentDurationSeconds ?? clip.placement.durationSeconds };
-    for (const laneIndex of lanesByTarget.get(clip.target.fixture) ?? []) {
+    for (const laneIndex of clip.targets.flatMap((target) => lanesByTarget.get(target.fixture) ?? [])) {
       const key = rowKey(laneIndex, clipRowKind(clip));
       if (!visibleRows.has(key)) continue;
       const rowClips = byRow.get(key);
@@ -192,12 +193,16 @@ function clipFromDraft(
   clip: TimedClip,
   draft: SequenceDraft
 ): TimedClip {
-  const draftLane = document.targets[draft.laneIndex];
+  const lanes = draft.laneIndices.map((index) => {
+    const lane = document.targets[index];
+    if (lane === undefined) throw new Error("Timeline target is missing.");
+    return lane;
+  });
   return {
     ...clip,
     placement: { type: "timed", startSeconds: draft.startSeconds, durationSeconds: draft.durationSeconds },
-    target: draftLane?.target ?? clip.target,
-    targetLabel: draftLane?.label ?? clip.targetLabel
+    targets: lanes.map((lane) => lane.target),
+    targetLabel: lanes.map((lane) => lane.label).join(", ")
   };
 }
 
@@ -400,22 +405,24 @@ export function clipSelectionGesture(document: SequenceGuiDocument, selection: E
   let maxTime = Infinity;
   let minLane = -Infinity;
   let maxLane = Infinity;
-  for (const { target, placement: clip } of moving) {
-    const lane = nearestLane(document, target, anchorLane);
-    if (lane < 0) throw new Error("Clip row target is missing.");
-    minLane = Math.max(minLane, -lane);
-    maxLane = Math.min(maxLane, document.targets.length - 1 - lane);
+  for (const { targets, placement: clip } of moving) {
+    for (const target of targets) {
+      const lane = nearestLane(document, target, anchorLane);
+      if (lane < 0) throw new Error("Clip row target is missing.");
+      minLane = Math.max(minLane, -lane);
+      maxLane = Math.min(maxLane, document.targets.length - 1 - lane);
+    }
     minTime = Math.max(minTime, edge === "right" ? MIN_CLIP_DURATION_SECONDS - clip.durationSeconds : -clip.startSeconds);
     maxTime = Math.min(maxTime, edge === "left" ? clip.durationSeconds - MIN_CLIP_DURATION_SECONDS : document.durationSeconds - clip.startSeconds - clip.durationSeconds);
   }
   const timeDeltaSeconds = moving.length === 0 ? 0 : clamp(requestedTimeDelta, minTime, maxTime);
   const laneDelta = edge === "none" && moving.length > 0 ? Math.trunc(clamp(requestedLaneDelta, minLane, maxLane)) : 0;
-  const clips = moving.map(({ id, target, placement: clip }): SequenceDraft => {
-    const laneIndex = nearestLane(document, target, anchorLane) + laneDelta;
+  const clips = moving.map(({ id, targets, placement: clip }): SequenceDraft => {
+    const laneIndices = targets.map((target) => nearestLane(document, target, anchorLane) + laneDelta);
     const timing = { startSeconds: clip.startSeconds + (edge === "right" ? 0 : timeDeltaSeconds), durationSeconds: clip.durationSeconds + (edge === "none" ? 0 : edge === "left" ? -timeDeltaSeconds : timeDeltaSeconds) };
     // A cropped envelope keeps its curve where it was; anything else carries its content along.
     const content = edge !== "none" && automationResize === "crop" ? clip : timing;
-    return { id, ...timing, laneIndex, contentStartSeconds: content.startSeconds, contentDurationSeconds: content.durationSeconds };
+    return { id, ...timing, laneIndices, contentStartSeconds: content.startSeconds, contentDurationSeconds: content.durationSeconds };
   });
   const edit = edge === "none"
     ? { type: "moveClips" as const, ids: selection.ids, timeDeltaSeconds, anchorLane, laneDelta }

@@ -128,7 +128,9 @@ pub(super) fn edit_sequence(
                     placement,
                     (effect, clip_scope(scope), &initial_color),
                 )?,
-                NewClipContent::Envelope => new_envelope(&draft.composition, target, placement)?,
+                NewClipContent::Envelope => {
+                    new_envelope(&draft.composition, vec![target], placement)?
+                }
             };
             draft.composition.clips.push(std::sync::Arc::new(clip));
         }
@@ -160,13 +162,13 @@ pub(super) fn edit_sequence(
 /// A new envelope of `composition` that rises from 0 to 1 and binds nothing.
 fn new_envelope(
     composition: &donder_model::Composition,
-    row: donder_model::FixtureId,
+    rows: Vec<donder_model::FixtureId>,
     placement: Placement,
 ) -> Result<Clip, GuiMutationError> {
     super::graph::new_clip(
         composition,
         "envelope",
-        row,
+        rows,
         placement,
         ClipContent::Envelope(Envelope {
             curve: Curve {
@@ -209,23 +211,25 @@ fn envelope_timing(
     session: &ProjectSession,
     sequence: &donder_model::Sequence,
     target: &AutomationTarget,
-) -> Result<(Placement, donder_model::FixtureId), GuiMutationError> {
+) -> Result<(Placement, Vec<donder_model::FixtureId>), GuiMutationError> {
     match target {
         AutomationTarget::ClipParam { clip_id, .. } => {
             let clip = sequence
                 .composition
                 .clip(*clip_id)
                 .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?;
-            Ok((clip.placement.clone(), clip.target))
+            Ok((clip.placement.clone(), clip.targets.clone()))
         }
         AutomationTarget::CompositionNodeParam { .. } => Ok((
             Placement::Timed {
                 start: super::checked_gui_time(0.0)?,
                 duration: sequence.duration.clone(),
             },
-            super::selection::target_for_lane(session, 0).ok_or_else(|| {
-                GuiMutationError::Invalid("Sequence has no target for automation.".into())
-            })?,
+            vec![
+                super::selection::target_for_lane(session, 0).ok_or_else(|| {
+                    GuiMutationError::Invalid("Sequence has no target for automation.".into())
+                })?,
+            ],
         )),
     }
 }

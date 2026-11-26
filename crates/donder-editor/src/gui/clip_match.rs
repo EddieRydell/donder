@@ -13,7 +13,7 @@ struct MatchClip<'a> {
     id: u32,
     start: f64,
     duration: f64,
-    target: &'a FixtureId,
+    targets: &'a [FixtureId],
     effect: Option<(&'a Effect, Vec<SequenceClipParam>)>,
 }
 
@@ -40,7 +40,7 @@ pub fn matching_sequence_clips(
             id: clip.id.0,
             start: seconds(super::model::timed(clip).0.as_nanos()),
             duration: seconds(super::model::timed(clip).1.as_nanos()),
-            target: &clip.target,
+            targets: &clip.targets,
             // Parameter values are projected only when a query compares them.
             effect: clip.effect().map(|effect| {
                 (
@@ -122,7 +122,7 @@ fn clips_match(seed: &MatchClip, candidate: &MatchClip, query: &SequenceClipMatc
             candidate.start + candidate.duration,
         )
         && within(criteria.duration, seed.duration, candidate.duration)
-        && (!criteria.same_lane || seed.target == candidate.target)
+        && (!criteria.same_lane || seed.targets == candidate.targets)
 }
 
 fn param_value<'a>(params: &'a [SequenceClipParam], name: &str) -> Option<&'a SequenceParamValue> {

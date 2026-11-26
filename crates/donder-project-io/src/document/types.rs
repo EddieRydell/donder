@@ -548,10 +548,10 @@ pub(crate) struct Layer {
 pub(crate) struct Clip {
     pub name: Name,
     pub description: Option<String>,
-    /// A fixture or group of the project's layout, by its name: what an
-    /// effect plays over, or the row an envelope is drawn in.
+    /// Fixtures or groups of the project's layout, by name: what an effect
+    /// plays over, each on its own, or the rows an envelope is drawn in.
     #[refers(Fixture)]
-    pub target: Reference,
+    pub targets: Vec<Reference>,
     pub placement: Placement,
     pub content: ClipContent,
 }

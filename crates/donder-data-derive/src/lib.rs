@@ -109,7 +109,10 @@ fn field_shapes(fields: &FieldsNamed) -> Tokens {
             .unwrap_or_else(|| unreachable!("named"))
             .to_string();
         let ty = &field.ty;
-        // `#[refers(Layer)]`: the field references what `Refers::Layer` names.
+        // `#[refers(Layer)]`: the field references what `Refers::Layer` names,
+        // or, on a `Vec`, lists such references.
+        let list = matches!(ty, syn::Type::Path(path)
+            if path.path.segments.last().is_some_and(|segment| segment.ident == "Vec"));
         match field
             .attrs
             .iter()
@@ -119,7 +122,12 @@ fn field_shapes(fields: &FieldsNamed) -> Tokens {
                 let target = attr
                     .parse_args::<Tokens>()
                     .unwrap_or_else(|error| error.to_compile_error());
-                quote!((#text, #schema::Shape::Reference(#schema::Refers::#target)))
+                let reference = quote!(#schema::Shape::Reference(#schema::Refers::#target));
+                if list {
+                    quote!((#text, #schema::Shape::List(::std::boxed::Box::new(#reference))))
+                } else {
+                    quote!((#text, #reference))
+                }
             }
             None => quote!((#text, <#ty as #schema::Data>::shape(schema))),
         }

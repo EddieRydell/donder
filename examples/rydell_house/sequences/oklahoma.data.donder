@@ -146,7 +146,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse,
       description: none,
-      target: trees_and_trunks,
+      targets: [trees_and_trunks],
       placement: Timed { start: 0.286814319s, duration: 7.842685681s },
       content: Effect {
         layer: default,
@@ -166,7 +166,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2,
       description: none,
-      target: trees_and_trunks,
+      targets: [trees_and_trunks],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Effect {
         layer: default,
@@ -186,7 +186,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2_2,
       description: none,
-      target: trees_and_trunks,
+      targets: [trees_and_trunks],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Effect {
         layer: default,
@@ -206,7 +206,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2_2_2,
       description: none,
-      target: trees_and_trunks,
+      targets: [trees_and_trunks],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Effect {
         layer: default,
@@ -226,7 +226,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2_2_2_2,
       description: none,
-      target: trees_and_trunks,
+      targets: [trees_and_trunks],
       placement: Timed { start: 32.29s, duration: 6.249470546s },
       content: Effect {
         layer: default,
@@ -246,7 +246,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_3,
       description: none,
-      target: trunk_fr,
+      targets: [trunk_fr, trunk_fl, trunk_br, trunk_bl],
       placement: Timed { start: 0s, duration: 8.1295s },
       content: Effect {
         layer: default,
@@ -266,7 +266,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2_3,
       description: none,
-      target: trunk_fr,
+      targets: [trunk_fr, trunk_fl, trunk_br, trunk_bl],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Effect {
         layer: default,
@@ -286,7 +286,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2_2_3,
       description: none,
-      target: trunk_fr,
+      targets: [trunk_fr, trunk_fl, trunk_br, trunk_bl],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Effect {
         layer: default,
@@ -306,7 +306,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2_2_2_3,
       description: none,
-      target: trunk_fr,
+      targets: [trunk_fr, trunk_fl, trunk_br, trunk_bl],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Effect {
         layer: default,
@@ -326,307 +326,7 @@ Sequence oklahoma {
     Clip {
       name: mark_pulse_2_2_2_2_2,
       description: none,
-      target: trunk_fr,
-      placement: Timed { start: 32.29s, duration: 6.640545998s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #f389ff), (0.248, #ff00e1)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_3_2,
-      description: none,
-      target: trunk_fl,
-      placement: Timed { start: 0s, duration: 8.1295s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #ffaa89), (0.248, #ff5200)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_3_2,
-      description: none,
-      target: trunk_fl,
-      placement: Timed { start: 8.1295s, duration: 7.9869s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #89a6ff), (0.248, #0060ff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_3_2,
-      description: none,
-      target: trunk_fl,
-      placement: Timed { start: 16.1164s, duration: 8.0273s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #89ffbc), (0.248, #00ffc3)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_2_3_2,
-      description: none,
-      target: trunk_fl,
-      placement: Timed { start: 24.1437s, duration: 8.1463s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #ff8989), (0.248, #ff0000)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_2_2_2_2,
-      description: none,
-      target: trunk_fl,
-      placement: Timed { start: 32.29s, duration: 6.640545998s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #f389ff), (0.248, #ff00e1)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_3_3,
-      description: none,
-      target: trunk_br,
-      placement: Timed { start: 0s, duration: 8.1295s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #ffaa89), (0.248, #ff5200)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_3_3,
-      description: none,
-      target: trunk_br,
-      placement: Timed { start: 8.1295s, duration: 7.9869s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #89a6ff), (0.248, #0060ff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_3_3,
-      description: none,
-      target: trunk_br,
-      placement: Timed { start: 16.1164s, duration: 8.0273s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #89ffbc), (0.248, #00ffc3)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_2_3_3,
-      description: none,
-      target: trunk_br,
-      placement: Timed { start: 24.1437s, duration: 8.1463s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #ff8989), (0.248, #ff0000)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_2_2_2_3,
-      description: none,
-      target: trunk_br,
-      placement: Timed { start: 32.29s, duration: 6.640545998s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #f389ff), (0.248, #ff00e1)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_3_4,
-      description: none,
-      target: trunk_bl,
-      placement: Timed { start: 0s, duration: 8.1295s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #ffaa89), (0.248, #ff5200)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_3_4,
-      description: none,
-      target: trunk_bl,
-      placement: Timed { start: 8.1295s, duration: 7.9869s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #89a6ff), (0.248, #0060ff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_3_4,
-      description: none,
-      target: trunk_bl,
-      placement: Timed { start: 16.1164s, duration: 8.0273s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #89ffbc), (0.248, #00ffc3)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_2_3_4,
-      description: none,
-      target: trunk_bl,
-      placement: Timed { start: 24.1437s, duration: 8.1463s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.MarkPulse,
-        params: {
-          beats: bars,
-          accent: Gradient { space: LinearRgb, stops: [(0.0, #ff8989), (0.248, #ff0000)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-          offset_seconds: -0.1,
-          decay_seconds: 1.0,
-          cluster_width_pixels: 1000,
-          clusters_per_mark: 100,
-        },
-      },
-    },
-    Clip {
-      name: mark_pulse_2_2_2_2_2_4,
-      description: none,
-      target: trunk_bl,
+      targets: [trunk_fr, trunk_fl, trunk_br, trunk_bl],
       placement: Timed { start: 32.29s, duration: 6.640545998s },
       content: Effect {
         layer: default,
@@ -646,7 +346,7 @@ Sequence oklahoma {
     Clip {
       name: wipe,
       description: none,
-      target: house,
+      targets: [house],
       placement: Timed { start: 39.167724066s, duration: 0.536713844s },
       content: Effect {
         layer: default,
@@ -665,67 +365,7 @@ Sequence oklahoma {
     Clip {
       name: wipe_2,
       description: none,
-      target: magnolia,
-      placement: Timed { start: 39.33019075s, duration: 0.725333987s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #fffb98), (0.271, #f8ff00)] },
-          pulse_width: 0.6,
-          direction_angle: 180.0,
-          wipe_position: Curve {
-            points: [(0.0, 1.0), (0.158, 0.578), (0.395, 0.229), (0.683, 0.082), (1.0, 0.0)],
-          },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: wipe_2_2,
-      description: none,
-      target: meteors,
-      placement: Timed { start: 39.33019075s, duration: 0.725333987s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #fffb98), (0.271, #f8ff00)] },
-          pulse_width: 0.6,
-          direction_angle: 180.0,
-          wipe_position: Curve {
-            points: [(0.0, 1.0), (0.158, 0.578), (0.395, 0.229), (0.683, 0.082), (1.0, 0.0)],
-          },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: wipe_2_3,
-      description: none,
-      target: plums,
-      placement: Timed { start: 39.33019075s, duration: 0.725333987s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #fffb98), (0.271, #f8ff00)] },
-          pulse_width: 0.6,
-          direction_angle: 180.0,
-          wipe_position: Curve {
-            points: [(0.0, 1.0), (0.158, 0.578), (0.395, 0.229), (0.683, 0.082), (1.0, 0.0)],
-          },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: wipe_2_4,
-      description: none,
-      target: trees_and_trunks,
+      targets: [magnolia, meteors, plums, trees_and_trunks],
       placement: Timed { start: 39.33019075s, duration: 0.725333987s },
       content: Effect {
         layer: default,
@@ -745,7 +385,7 @@ Sequence oklahoma {
     Clip {
       name: wipe_3,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 39.554394099s, duration: 5.388576397s },
       content: Effect {
         layer: default,
@@ -767,7 +407,7 @@ Sequence oklahoma {
     Clip {
       name: twinkle,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 40.511051018s, duration: 5.889101105s },
       content: Effect {
         layer: default,
@@ -784,7 +424,7 @@ Sequence oklahoma {
     Clip {
       name: pinwheel,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 45.890680448s, duration: 0.826474306s },
       content: Effect {
         layer: default,
@@ -808,7 +448,7 @@ Sequence oklahoma {
     Clip {
       name: melody_butterfly_1,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 0.118817399s, duration: 7.927183636s },
       content: Effect {
         layer: default,
@@ -828,7 +468,7 @@ Sequence oklahoma {
     Clip {
       name: melody_butterfly_2,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 0.118817399s, duration: 7.927183636s },
       content: Effect {
         layer: default,
@@ -848,7 +488,7 @@ Sequence oklahoma {
     Clip {
       name: melody_butterfly_3,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 0.118817399s, duration: 7.927183636s },
       content: Effect {
         layer: default,
@@ -868,7 +508,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_01,
       description: none,
-      target: house_outline,
+      targets: [house_outline],
       placement: Timed { start: 0.118817399s, duration: 0.95s },
       content: Effect {
         layer: default,
@@ -889,7 +529,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_02,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 0.7833s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -909,7 +549,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_03,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 0.9441s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -930,7 +570,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_04,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 1.533858915s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -951,7 +591,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_05,
       description: none,
-      target: star_rings,
+      targets: [star_rings],
       placement: Timed { start: 1.7815s, duration: 1s },
       content: Effect {
         layer: default,
@@ -972,7 +612,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_06,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 2.581s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -993,7 +633,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_07,
       description: none,
-      target: left_arches,
+      targets: [left_arches],
       placement: Timed { start: 2.7695s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1013,7 +653,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_08,
       description: none,
-      target: middle_arches,
+      targets: [middle_arches],
       placement: Timed { start: 2.9309s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1034,7 +674,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_09,
       description: none,
-      target: right_arches,
+      targets: [right_arches],
       placement: Timed { start: 3.1111s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1055,7 +695,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_10,
       description: none,
-      target: neighbor_trees,
+      targets: [neighbor_trees],
       placement: Timed { start: 3.2931s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1075,7 +715,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_11,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 3.5867s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -1096,7 +736,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_12,
       description: none,
-      target: peak_1,
+      targets: [peak_1],
       placement: Timed { start: 3.986958915s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -1117,7 +757,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_13,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 4.0813087s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -1138,7 +778,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_14,
       description: none,
-      target: peak_3,
+      targets: [peak_3],
       placement: Timed { start: 4.19408864s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -1159,7 +799,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_15,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 4.292298707s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -1180,7 +820,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_16,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 4.616529368s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1201,7 +841,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_17,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 4.616529368s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1222,7 +862,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_18,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 4.7906s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1243,7 +883,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_19,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 4.7906s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1264,7 +904,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_20,
       description: none,
-      target: star_rings,
+      targets: [star_rings, above_garage_wreath],
       placement: Timed { start: 5.0267s, duration: 0.9s },
       content: Effect {
         layer: default,
@@ -1285,7 +925,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_21,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 5.0267s, duration: 0.9s },
       content: Effect {
         layer: default,
@@ -1306,7 +946,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_22,
       description: none,
-      target: spiral_trees,
+      targets: [spiral_trees, stairs],
       placement: Timed { start: 5.7157s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1327,7 +967,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_23,
       description: none,
-      target: nativity,
+      targets: [nativity],
       placement: Timed { start: 5.7157s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1347,7 +987,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_24,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes, far_left_wall_top],
       placement: Timed { start: 6.07s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1367,7 +1007,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_25,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 6.07s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1388,7 +1028,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_26,
       description: none,
-      target: middle_bushes,
+      targets: [middle_bushes],
       placement: Timed { start: 6.21s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1409,7 +1049,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_27,
       description: none,
-      target: left_pilaster,
+      targets: [left_pilaster],
       placement: Timed { start: 6.21s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1430,7 +1070,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_28,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes, right_wall_top],
       placement: Timed { start: 6.355s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1451,7 +1091,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_29,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 6.355s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1472,7 +1112,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_30,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 6.607028506s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1493,7 +1133,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_31,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 6.607028506s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -1513,7 +1153,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_32,
       description: none,
-      target: plum_2,
+      targets: [plum_2, dads_mistake],
       placement: Timed { start: 6.773899138s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -1534,7 +1174,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_33,
       description: none,
-      target: radio_sign,
+      targets: [radio_sign],
       placement: Timed { start: 6.773899138s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -1555,7 +1195,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_34,
       description: none,
-      target: front_lines,
+      targets: [front_lines, small_spiral],
       placement: Timed { start: 7.2543s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1576,7 +1216,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_35,
       description: none,
-      target: penguin,
+      targets: [penguin],
       placement: Timed { start: 7.2543s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1597,7 +1237,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_36,
       description: none,
-      target: mailbox,
+      targets: [mailbox],
       placement: Timed { start: 7.2543s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -1618,7 +1258,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_on,
       description: "Last note of the opening line: the whole show wipes on and holds until the melody picks up again.",
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 7.5762s, duration: 1.155880405s },
       content: Effect {
         layer: default,
@@ -1636,7 +1276,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_b_pinwheel,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Effect {
         layer: default,
@@ -1659,7 +1299,7 @@ Sequence oklahoma {
     Clip {
       name: garage_matrix_b_butterfly,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Effect {
         layer: default,
@@ -1678,7 +1318,7 @@ Sequence oklahoma {
     Clip {
       name: arch_tunnel_b_butterfly,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Effect {
         layer: default,
@@ -1697,7 +1337,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_c_butterfly,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Effect {
         layer: default,
@@ -1716,7 +1356,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_c_flash,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, garage_matrix, arch_tunnel],
       placement: Timed { start: 16.1164s, duration: 1s },
       content: Effect {
         layer: default,
@@ -1731,7 +1371,7 @@ Sequence oklahoma {
     Clip {
       name: garage_matrix_c_pinwheel,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Effect {
         layer: default,
@@ -1754,24 +1394,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: garage_matrix_c_flash,
-      description: none,
-      target: garage_matrix,
-      placement: Timed { start: 16.1164s, duration: 1s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffc3)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: arch_tunnel_c_fireworks,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Effect {
         layer: default,
@@ -1791,24 +1416,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: arch_tunnel_c_flash,
-      description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 16.1164s, duration: 1s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ffc3)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: mega_tree_d_fireworks,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Effect {
         layer: default,
@@ -1830,7 +1440,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_d_flash,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, garage_matrix, arch_tunnel],
       placement: Timed { start: 24.1437s, duration: 1s },
       content: Effect {
         layer: default,
@@ -1845,7 +1455,7 @@ Sequence oklahoma {
     Clip {
       name: garage_matrix_d_butterfly,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Effect {
         layer: default,
@@ -1862,24 +1472,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: garage_matrix_d_flash,
-      description: none,
-      target: garage_matrix,
-      placement: Timed { start: 24.1437s, duration: 1s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: arch_tunnel_d_pinwheel,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Effect {
         layer: default,
@@ -1900,24 +1495,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: arch_tunnel_d_flash,
-      description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 24.1437s, duration: 1s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: mega_tree_e_pinwheel,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Effect {
         layer: default,
@@ -1941,7 +1521,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_e_flash,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, garage_matrix, arch_tunnel],
       placement: Timed { start: 32.29s, duration: 1s },
       content: Effect {
         layer: default,
@@ -1956,7 +1536,7 @@ Sequence oklahoma {
     Clip {
       name: garage_matrix_e_fireworks,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Effect {
         layer: default,
@@ -1976,24 +1556,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: garage_matrix_e_flash,
-      description: none,
-      target: garage_matrix,
-      placement: Timed { start: 32.29s, duration: 1s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff00e1)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: arch_tunnel_e_butterfly,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Effect {
         layer: default,
@@ -2010,24 +1575,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: arch_tunnel_e_flash,
-      description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 32.29s, duration: 1s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff00e1)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: melody_wipe_b_001,
       description: none,
-      target: peak_1,
+      targets: [peak_1],
       placement: Timed { start: 8.1295s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2048,7 +1598,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_002,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 8.1295s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2069,7 +1619,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_003,
       description: none,
-      target: wreath_1,
+      targets: [wreath_1],
       placement: Timed { start: 8.1295s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2090,7 +1640,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_004,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 8.3409s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2111,7 +1661,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_005,
       description: none,
-      target: window_2,
+      targets: [window_2],
       placement: Timed { start: 8.3409s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2132,7 +1682,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_006,
       description: none,
-      target: wreath_2,
+      targets: [wreath_2],
       placement: Timed { start: 8.3409s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2153,7 +1703,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_007,
       description: none,
-      target: peak_3,
+      targets: [peak_3],
       placement: Timed { start: 8.4701s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2173,7 +1723,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_008,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 8.4701s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2194,7 +1744,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_009,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3],
       placement: Timed { start: 8.4701s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2215,7 +1765,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_010,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 8.6857s, duration: 0.748s },
       content: Effect {
         layer: default,
@@ -2236,7 +1786,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_011,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 8.6857s, duration: 0.748s },
       content: Effect {
         layer: default,
@@ -2257,7 +1807,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_012,
       description: none,
-      target: inside_tree,
+      targets: [inside_tree],
       placement: Timed { start: 8.6857s, duration: 0.748s },
       content: Effect {
         layer: default,
@@ -2278,7 +1828,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_013,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 9.2837s, duration: 0.5634s },
       content: Effect {
         layer: default,
@@ -2299,7 +1849,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_014,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 9.2837s, duration: 0.5634s },
       content: Effect {
         layer: default,
@@ -2320,7 +1870,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_015,
       description: none,
-      target: inside_tree,
+      targets: [inside_tree],
       placement: Timed { start: 9.2837s, duration: 0.5634s },
       content: Effect {
         layer: default,
@@ -2340,7 +1890,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_016,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 9.6971s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2361,7 +1911,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_017,
       description: none,
-      target: left_magnolia,
+      targets: [left_magnolia],
       placement: Timed { start: 9.6971s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2382,7 +1932,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_018,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 9.6971s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2403,7 +1953,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_019,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 9.881s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2424,7 +1974,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_020,
       description: none,
-      target: right_magnolia,
+      targets: [right_magnolia],
       placement: Timed { start: 9.881s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2445,7 +1995,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_021,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 9.881s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2466,7 +2016,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_022,
       description: none,
-      target: left_magnolia,
+      targets: [left_magnolia],
       placement: Timed { start: 10.1899s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2487,7 +2037,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_023,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 10.1899s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2507,7 +2057,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_024,
       description: none,
-      target: left_magnolia_truck,
+      targets: [left_magnolia_truck],
       placement: Timed { start: 10.1899s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2528,7 +2078,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_025,
       description: none,
-      target: right_magnolia,
+      targets: [right_magnolia],
       placement: Timed { start: 10.3562s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2549,7 +2099,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_026,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 10.3562s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2570,7 +2120,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_027,
       description: none,
-      target: right_magnolia_truck,
+      targets: [right_magnolia_truck],
       placement: Timed { start: 10.3562s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2591,7 +2141,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_028,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 10.6655s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2612,7 +2162,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_029,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 10.6655s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2633,7 +2183,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_030,
       description: none,
-      target: left_roof,
+      targets: [left_roof],
       placement: Timed { start: 10.6655s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -2654,7 +2204,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_031,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 10.8417s, duration: 0.6138s },
       content: Effect {
         layer: default,
@@ -2674,7 +2224,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_032,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 10.8417s, duration: 0.6138s },
       content: Effect {
         layer: default,
@@ -2695,7 +2245,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_033,
       description: none,
-      target: right_roof,
+      targets: [right_roof],
       placement: Timed { start: 10.8417s, duration: 0.6138s },
       content: Effect {
         layer: default,
@@ -2716,7 +2266,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_034,
       description: none,
-      target: garage,
+      targets: [garage],
       placement: Timed { start: 11.3055s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2737,7 +2287,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_035,
       description: none,
-      target: above_garage,
+      targets: [above_garage],
       placement: Timed { start: 11.3055s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2758,7 +2308,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_036,
       description: none,
-      target: left_magnolia_truck,
+      targets: [left_magnolia_truck],
       placement: Timed { start: 11.3055s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -2779,7 +2329,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_037,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 11.6024s, duration: 0.8127s },
       content: Effect {
         layer: default,
@@ -2800,7 +2350,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_038,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 11.6024s, duration: 0.8127s },
       content: Effect {
         layer: default,
@@ -2821,7 +2371,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_039,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 11.6024s, duration: 0.8127s },
       content: Effect {
         layer: default,
@@ -2841,7 +2391,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_040,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 11.6024s, duration: 0.8127s },
       content: Effect {
         layer: default,
@@ -2862,7 +2412,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_041,
       description: none,
-      target: above_door,
+      targets: [above_door],
       placement: Timed { start: 11.6024s, duration: 0.8127s },
       content: Effect {
         layer: default,
@@ -2883,7 +2433,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_042,
       description: none,
-      target: front_door_wreath,
+      targets: [front_door_wreath, above_garage_wreath],
       placement: Timed { start: 11.6024s, duration: 0.8127s },
       content: Effect {
         layer: default,
@@ -2904,7 +2454,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_043,
       description: none,
-      target: middle_roof,
+      targets: [middle_roof],
       placement: Timed { start: 12.2651s, duration: 0.5219s },
       content: Effect {
         layer: default,
@@ -2925,7 +2475,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_044,
       description: none,
-      target: fran_window,
+      targets: [fran_window],
       placement: Timed { start: 12.2651s, duration: 0.5219s },
       content: Effect {
         layer: default,
@@ -2946,7 +2496,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_045,
       description: none,
-      target: wreath_2,
+      targets: [wreath_2],
       placement: Timed { start: 12.2651s, duration: 0.5219s },
       content: Effect {
         layer: default,
@@ -2967,7 +2517,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_046,
       description: none,
-      target: fran_window,
+      targets: [fran_window],
       placement: Timed { start: 12.637s, duration: 0.6285s },
       content: Effect {
         layer: default,
@@ -2988,7 +2538,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_047,
       description: none,
-      target: fran_wreath,
+      targets: [fran_wreath, above_garage_wreath],
       placement: Timed { start: 12.637s, duration: 0.6285s },
       content: Effect {
         layer: default,
@@ -3008,7 +2558,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_048,
       description: none,
-      target: middle_roof,
+      targets: [middle_roof],
       placement: Timed { start: 12.637s, duration: 0.6285s },
       content: Effect {
         layer: default,
@@ -3029,7 +2579,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_049,
       description: none,
-      target: house_outline,
+      targets: [house_outline],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3050,7 +2600,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_050,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3071,7 +2621,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_051,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3092,7 +2642,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_052,
       description: none,
-      target: star_rings,
+      targets: [star_rings],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3113,7 +2663,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_053,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3134,7 +2684,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_054,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3155,7 +2705,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_055,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3175,7 +2725,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_b_056,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 13.1155s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -3196,7 +2746,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_057,
       description: none,
-      target: above_garage,
+      targets: [above_garage],
       placement: Timed { start: 16.1164s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3217,7 +2767,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_058,
       description: none,
-      target: garage,
+      targets: [garage],
       placement: Timed { start: 16.1164s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3238,7 +2788,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_059,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3, above_garage_wreath],
       placement: Timed { start: 16.1164s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3259,7 +2809,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_060,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 16.4101s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3280,7 +2830,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_061,
       description: none,
-      target: peak_1,
+      targets: [peak_1],
       placement: Timed { start: 16.4101s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3301,7 +2851,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_062,
       description: none,
-      target: wreath_1,
+      targets: [wreath_1],
       placement: Timed { start: 16.4101s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3322,7 +2872,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_063,
       description: none,
-      target: window_2,
+      targets: [window_2],
       placement: Timed { start: 16.5815s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3342,7 +2892,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_064,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 16.5815s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3363,7 +2913,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_065,
       description: none,
-      target: wreath_2,
+      targets: [wreath_2, above_garage_wreath],
       placement: Timed { start: 16.5815s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3384,7 +2934,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_066,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 16.7288s, duration: 0.7616s },
       content: Effect {
         layer: default,
@@ -3405,7 +2955,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_067,
       description: none,
-      target: peak_3,
+      targets: [peak_3],
       placement: Timed { start: 16.7288s, duration: 0.7616s },
       content: Effect {
         layer: default,
@@ -3426,7 +2976,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_068,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3],
       placement: Timed { start: 16.7288s, duration: 0.7616s },
       content: Effect {
         layer: default,
@@ -3447,7 +2997,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_069,
       description: none,
-      target: inside_tree,
+      targets: [inside_tree],
       placement: Timed { start: 17.3404s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3468,7 +3018,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_070,
       description: none,
-      target: window_2,
+      targets: [window_2],
       placement: Timed { start: 17.3404s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3489,7 +3039,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_071,
       description: none,
-      target: bathroom_wreath,
+      targets: [bathroom_wreath, above_garage_wreath],
       placement: Timed { start: 17.3404s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3509,7 +3059,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_072,
       description: none,
-      target: left_roof,
+      targets: [left_roof],
       placement: Timed { start: 17.6403s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3530,7 +3080,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_073,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 17.6403s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3551,7 +3101,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_074,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 17.6403s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3572,7 +3122,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_075,
       description: none,
-      target: right_roof,
+      targets: [right_roof],
       placement: Timed { start: 17.8046s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3593,7 +3143,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_076,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 17.8046s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3614,7 +3164,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_077,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 17.8046s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3635,7 +3185,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_078,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 18.1483s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3656,7 +3206,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_079,
       description: none,
-      target: peak_1,
+      targets: [peak_1],
       placement: Timed { start: 18.1483s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3676,7 +3226,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_080,
       description: none,
-      target: wreath_1,
+      targets: [wreath_1, above_garage_wreath],
       placement: Timed { start: 18.1483s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3697,7 +3247,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_081,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 18.3263s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3718,7 +3268,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_082,
       description: none,
-      target: peak_3,
+      targets: [peak_3],
       placement: Timed { start: 18.3263s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3739,7 +3289,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_083,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3],
       placement: Timed { start: 18.3263s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -3760,7 +3310,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_084,
       description: none,
-      target: star_rings,
+      targets: [star_rings, above_garage_wreath],
       placement: Timed { start: 18.6503s, duration: 0.9786s },
       content: Effect {
         layer: default,
@@ -3781,7 +3331,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_085,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 18.6503s, duration: 0.9786s },
       content: Effect {
         layer: default,
@@ -3802,7 +3352,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_086,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 18.6503s, duration: 0.9786s },
       content: Effect {
         layer: default,
@@ -3823,7 +3373,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_087,
       description: none,
-      target: above_door,
+      targets: [above_door],
       placement: Timed { start: 18.6503s, duration: 0.9786s },
       content: Effect {
         layer: default,
@@ -3843,7 +3393,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_088,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 18.6503s, duration: 0.9786s },
       content: Effect {
         layer: default,
@@ -3864,7 +3414,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_089,
       description: none,
-      target: house_number,
+      targets: [house_number],
       placement: Timed { start: 18.6503s, duration: 0.9786s },
       content: Effect {
         layer: default,
@@ -3885,7 +3435,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_090,
       description: none,
-      target: wreath_1,
+      targets: [wreath_1, above_garage_wreath],
       placement: Timed { start: 19.4789s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3906,7 +3456,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_091,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 19.4789s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3927,7 +3477,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_092,
       description: none,
-      target: wreath_2,
+      targets: [wreath_2],
       placement: Timed { start: 19.6551s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3948,7 +3498,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_093,
       description: none,
-      target: window_2,
+      targets: [window_2],
       placement: Timed { start: 19.6551s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3969,7 +3519,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_094,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3],
       placement: Timed { start: 19.7221s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -3990,7 +3540,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_095,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 19.7221s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4010,7 +3560,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_096,
       description: none,
-      target: peak_1,
+      targets: [peak_1],
       placement: Timed { start: 20.0123s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4031,7 +3581,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_097,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 20.0123s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4052,7 +3602,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_098,
       description: none,
-      target: wreath_1,
+      targets: [wreath_1, above_garage_wreath],
       placement: Timed { start: 20.0123s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4073,7 +3623,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_099,
       description: none,
-      target: peak_3,
+      targets: [peak_3],
       placement: Timed { start: 20.1697s, duration: 0.95s },
       content: Effect {
         layer: default,
@@ -4094,7 +3644,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_100,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 20.1697s, duration: 0.95s },
       content: Effect {
         layer: default,
@@ -4115,7 +3665,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_101,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3],
       placement: Timed { start: 20.1697s, duration: 0.95s },
       content: Effect {
         layer: default,
@@ -4136,7 +3686,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_102,
       description: none,
-      target: house_outline,
+      targets: [house_outline],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4157,7 +3707,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_103,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4177,7 +3727,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_104,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4198,7 +3748,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_105,
       description: none,
-      target: star_rings,
+      targets: [star_rings],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4219,7 +3769,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_106,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4240,7 +3790,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_107,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4261,7 +3811,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_108,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4282,7 +3832,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_c_109,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 21.1451s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -4303,7 +3853,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_110,
       description: none,
-      target: left_roof,
+      targets: [left_roof],
       placement: Timed { start: 24.1437s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4324,7 +3874,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_111,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 24.1437s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4344,7 +3894,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_112,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 24.1437s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4365,7 +3915,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_113,
       description: none,
-      target: middle_roof,
+      targets: [middle_roof],
       placement: Timed { start: 24.3325s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4386,7 +3936,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_114,
       description: none,
-      target: fran_window,
+      targets: [fran_window],
       placement: Timed { start: 24.3325s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4407,7 +3957,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_115,
       description: none,
-      target: wreath_2,
+      targets: [wreath_2, above_garage_wreath],
       placement: Timed { start: 24.3325s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4428,7 +3978,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_116,
       description: none,
-      target: right_roof,
+      targets: [right_roof],
       placement: Timed { start: 24.527s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4449,7 +3999,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_117,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 24.527s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4470,7 +4020,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_118,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 24.527s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -4491,7 +4041,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_119,
       description: none,
-      target: above_garage,
+      targets: [above_garage],
       placement: Timed { start: 24.699s, duration: 0.7901s },
       content: Effect {
         layer: default,
@@ -4511,7 +4061,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_120,
       description: none,
-      target: garage,
+      targets: [garage],
       placement: Timed { start: 24.699s, duration: 0.7901s },
       content: Effect {
         layer: default,
@@ -4532,7 +4082,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_121,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3, above_garage_wreath],
       placement: Timed { start: 24.699s, duration: 0.7901s },
       content: Effect {
         layer: default,
@@ -4553,7 +4103,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_122,
       description: none,
-      target: house_number,
+      targets: [house_number],
       placement: Timed { start: 25.3391s, duration: 0.4799s },
       content: Effect {
         layer: default,
@@ -4574,7 +4124,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_123,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 25.3391s, duration: 0.4799s },
       content: Effect {
         layer: default,
@@ -4595,7 +4145,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_124,
       description: none,
-      target: above_door,
+      targets: [above_door],
       placement: Timed { start: 25.3391s, duration: 0.4799s },
       content: Effect {
         layer: default,
@@ -4616,7 +4166,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_125,
       description: none,
-      target: left_magnolia_truck,
+      targets: [left_magnolia_truck],
       placement: Timed { start: 25.669s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4637,7 +4187,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_126,
       description: none,
-      target: left_magnolia,
+      targets: [left_magnolia],
       placement: Timed { start: 25.669s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4658,7 +4208,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_127,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 25.669s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4678,7 +4228,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_128,
       description: none,
-      target: right_magnolia_truck,
+      targets: [right_magnolia_truck],
       placement: Timed { start: 25.8377s, duration: 0.5089s },
       content: Effect {
         layer: default,
@@ -4699,7 +4249,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_129,
       description: none,
-      target: right_magnolia,
+      targets: [right_magnolia],
       placement: Timed { start: 25.8377s, duration: 0.5089s },
       content: Effect {
         layer: default,
@@ -4720,7 +4270,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_130,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 25.8377s, duration: 0.5089s },
       content: Effect {
         layer: default,
@@ -4741,7 +4291,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_131,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 26.1966s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4762,7 +4312,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_132,
       description: none,
-      target: left_magnolia,
+      targets: [left_magnolia],
       placement: Timed { start: 26.1966s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4783,7 +4333,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_133,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 26.1966s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4804,7 +4354,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_134,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 26.3398s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4825,7 +4375,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_135,
       description: none,
-      target: right_magnolia,
+      targets: [right_magnolia],
       placement: Timed { start: 26.3398s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4845,7 +4395,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_136,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 26.3398s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -4866,7 +4416,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_137,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 26.6718s, duration: 0.7484s },
       content: Effect {
         layer: default,
@@ -4887,7 +4437,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_138,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 26.6718s, duration: 0.7484s },
       content: Effect {
         layer: default,
@@ -4908,7 +4458,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_139,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 26.6718s, duration: 0.7484s },
       content: Effect {
         layer: default,
@@ -4929,7 +4479,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_140,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 26.6718s, duration: 0.7484s },
       content: Effect {
         layer: default,
@@ -4950,7 +4500,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_141,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 26.6718s, duration: 0.7484s },
       content: Effect {
         layer: default,
@@ -4971,7 +4521,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_142,
       description: none,
-      target: inside_tree,
+      targets: [inside_tree],
       placement: Timed { start: 26.6718s, duration: 0.7484s },
       content: Effect {
         layer: default,
@@ -4992,7 +4542,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_143,
       description: none,
-      target: garage,
+      targets: [garage],
       placement: Timed { start: 27.2702s, duration: 0.4656s },
       content: Effect {
         layer: default,
@@ -5012,7 +4562,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_144,
       description: none,
-      target: above_garage,
+      targets: [above_garage],
       placement: Timed { start: 27.2702s, duration: 0.4656s },
       content: Effect {
         layer: default,
@@ -5033,7 +4583,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_145,
       description: none,
-      target: left_magnolia_truck,
+      targets: [left_magnolia_truck],
       placement: Timed { start: 27.2702s, duration: 0.4656s },
       content: Effect {
         layer: default,
@@ -5054,7 +4604,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_146,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 27.5858s, duration: 0.7044s },
       content: Effect {
         layer: default,
@@ -5075,7 +4625,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_147,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 27.5858s, duration: 0.7044s },
       content: Effect {
         layer: default,
@@ -5096,7 +4646,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_148,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 27.5858s, duration: 0.7044s },
       content: Effect {
         layer: default,
@@ -5117,7 +4667,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_149,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 27.5858s, duration: 0.7044s },
       content: Effect {
         layer: default,
@@ -5138,7 +4688,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_150,
       description: none,
-      target: above_door,
+      targets: [above_door],
       placement: Timed { start: 27.5858s, duration: 0.7044s },
       content: Effect {
         layer: default,
@@ -5159,7 +4709,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_151,
       description: none,
-      target: front_door_wreath,
+      targets: [front_door_wreath],
       placement: Timed { start: 27.5858s, duration: 0.7044s },
       content: Effect {
         layer: default,
@@ -5179,7 +4729,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_152,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 28.1402s, duration: 0.9239s },
       content: Effect {
         layer: default,
@@ -5200,7 +4750,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_153,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 28.1402s, duration: 0.9239s },
       content: Effect {
         layer: default,
@@ -5221,7 +4771,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_154,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 28.1402s, duration: 0.9239s },
       content: Effect {
         layer: default,
@@ -5242,7 +4792,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_155,
       description: none,
-      target: middle_roof,
+      targets: [middle_roof],
       placement: Timed { start: 28.1402s, duration: 0.9239s },
       content: Effect {
         layer: default,
@@ -5263,7 +4813,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_156,
       description: none,
-      target: fran_window,
+      targets: [fran_window],
       placement: Timed { start: 28.1402s, duration: 0.9239s },
       content: Effect {
         layer: default,
@@ -5284,7 +4834,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_157,
       description: none,
-      target: wreath_2,
+      targets: [wreath_2],
       placement: Timed { start: 28.1402s, duration: 0.9239s },
       content: Effect {
         layer: default,
@@ -5305,7 +4855,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_158,
       description: none,
-      target: fran_window,
+      targets: [fran_window],
       placement: Timed { start: 28.9141s, duration: 0.6997s },
       content: Effect {
         layer: default,
@@ -5326,7 +4876,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_159,
       description: none,
-      target: fran_wreath,
+      targets: [fran_wreath],
       placement: Timed { start: 28.9141s, duration: 0.6997s },
       content: Effect {
         layer: default,
@@ -5346,7 +4896,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_160,
       description: none,
-      target: middle_roof,
+      targets: [middle_roof],
       placement: Timed { start: 28.9141s, duration: 0.6997s },
       content: Effect {
         layer: default,
@@ -5367,7 +4917,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_161,
       description: none,
-      target: house_outline,
+      targets: [house_outline],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5388,7 +4938,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_162,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5409,7 +4959,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_163,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5430,7 +4980,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_164,
       description: none,
-      target: star_rings,
+      targets: [star_rings],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5451,7 +5001,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_165,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5472,7 +5022,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_166,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5493,7 +5043,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_167,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5513,7 +5063,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_d_168,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 29.4638s, duration: 1.15s },
       content: Effect {
         layer: default,
@@ -5534,7 +5084,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_169,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 32.1857s, duration: 0.7266s },
       content: Effect {
         layer: default,
@@ -5555,7 +5105,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_170,
       description: none,
-      target: left_magnolia_truck,
+      targets: [left_magnolia_truck],
       placement: Timed { start: 32.1857s, duration: 0.7266s },
       content: Effect {
         layer: default,
@@ -5576,7 +5126,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_171,
       description: none,
-      target: right_magnolia_truck,
+      targets: [right_magnolia_truck],
       placement: Timed { start: 32.1857s, duration: 0.7266s },
       content: Effect {
         layer: default,
@@ -5597,7 +5147,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_172,
       description: none,
-      target: above_garage,
+      targets: [above_garage],
       placement: Timed { start: 32.1857s, duration: 0.7266s },
       content: Effect {
         layer: default,
@@ -5618,7 +5168,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_173,
       description: none,
-      target: garage,
+      targets: [garage],
       placement: Timed { start: 32.1857s, duration: 0.7266s },
       content: Effect {
         layer: default,
@@ -5639,7 +5189,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_174,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3, above_garage_wreath],
       placement: Timed { start: 32.1857s, duration: 0.7266s },
       content: Effect {
         layer: default,
@@ -5660,7 +5210,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_175,
       description: none,
-      target: inside_tree,
+      targets: [inside_tree],
       placement: Timed { start: 32.7623s, duration: 0.5067s },
       content: Effect {
         layer: default,
@@ -5680,7 +5230,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_176,
       description: none,
-      target: window_2,
+      targets: [window_2],
       placement: Timed { start: 32.7623s, duration: 0.5067s },
       content: Effect {
         layer: default,
@@ -5701,7 +5251,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_177,
       description: none,
-      target: bathroom_wreath,
+      targets: [bathroom_wreath],
       placement: Timed { start: 32.7623s, duration: 0.5067s },
       content: Effect {
         layer: default,
@@ -5722,7 +5272,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_178,
       description: none,
-      target: left_magnolia,
+      targets: [left_magnolia],
       placement: Timed { start: 33.119s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5743,7 +5293,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_179,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 33.119s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5764,7 +5314,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_180,
       description: none,
-      target: left_magnolia_truck,
+      targets: [left_magnolia_truck],
       placement: Timed { start: 33.119s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5785,7 +5335,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_181,
       description: none,
-      target: right_magnolia,
+      targets: [right_magnolia],
       placement: Timed { start: 33.2802s, duration: 0.5386s },
       content: Effect {
         layer: default,
@@ -5806,7 +5356,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_182,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 33.2802s, duration: 0.5386s },
       content: Effect {
         layer: default,
@@ -5827,7 +5377,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_183,
       description: none,
-      target: right_magnolia_truck,
+      targets: [right_magnolia_truck],
       placement: Timed { start: 33.2802s, duration: 0.5386s },
       content: Effect {
         layer: default,
@@ -5847,7 +5397,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_184,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 33.6688s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5868,7 +5418,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_185,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 33.6688s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5889,7 +5439,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_186,
       description: none,
-      target: left_roof,
+      targets: [left_roof],
       placement: Timed { start: 33.6688s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5910,7 +5460,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_187,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 33.8319s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5931,7 +5481,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_188,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 33.8319s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5952,7 +5502,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_189,
       description: none,
-      target: right_roof,
+      targets: [right_roof],
       placement: Timed { start: 33.8319s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5973,7 +5523,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_190,
       description: none,
-      target: left_roof,
+      targets: [left_roof],
       placement: Timed { start: 34.1316s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -5994,7 +5544,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_191,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 34.1316s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6014,7 +5564,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_192,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 34.1316s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6035,7 +5585,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_193,
       description: none,
-      target: right_roof,
+      targets: [right_roof],
       placement: Timed { start: 34.3021s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6056,7 +5606,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_194,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 34.3021s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6077,7 +5627,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_195,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 34.3021s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6098,7 +5648,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_196,
       description: none,
-      target: above_door,
+      targets: [above_door],
       placement: Timed { start: 34.6401s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -6119,7 +5669,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_197,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 34.6401s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -6140,7 +5690,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_198,
       description: none,
-      target: house_number,
+      targets: [house_number],
       placement: Timed { start: 34.6401s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -6161,7 +5711,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_199,
       description: none,
-      target: house_number,
+      targets: [house_number],
       placement: Timed { start: 34.8636s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -6181,7 +5731,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_200,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 34.8636s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -6202,7 +5752,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_201,
       description: none,
-      target: above_door,
+      targets: [above_door],
       placement: Timed { start: 34.8636s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -6223,7 +5773,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_202,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 35.1325s, duration: 1.0403s },
       content: Effect {
         layer: default,
@@ -6244,7 +5794,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_203,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 35.1325s, duration: 1.0403s },
       content: Effect {
         layer: default,
@@ -6265,7 +5815,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_204,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 35.1325s, duration: 1.0403s },
       content: Effect {
         layer: default,
@@ -6286,7 +5836,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_205,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 35.1325s, duration: 1.0403s },
       content: Effect {
         layer: default,
@@ -6307,7 +5857,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_206,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 35.1325s, duration: 1.0403s },
       content: Effect {
         layer: default,
@@ -6328,7 +5878,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_207,
       description: none,
-      target: inside_tree,
+      targets: [inside_tree],
       placement: Timed { start: 35.1325s, duration: 1.0403s },
       content: Effect {
         layer: default,
@@ -6348,7 +5898,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_208,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 36.0228s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6369,7 +5919,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_209,
       description: none,
-      target: peak_1,
+      targets: [peak_1],
       placement: Timed { start: 36.0228s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6390,7 +5940,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_210,
       description: none,
-      target: wreath_1,
+      targets: [wreath_1, above_garage_wreath],
       placement: Timed { start: 36.0228s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6411,7 +5961,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_211,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 36.208s, duration: 0.7718s },
       content: Effect {
         layer: default,
@@ -6432,7 +5982,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_212,
       description: none,
-      target: peak_3,
+      targets: [peak_3],
       placement: Timed { start: 36.208s, duration: 0.7718s },
       content: Effect {
         layer: default,
@@ -6453,7 +6003,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_213,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3],
       placement: Timed { start: 36.208s, duration: 0.7718s },
       content: Effect {
         layer: default,
@@ -6474,7 +6024,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_214,
       description: none,
-      target: house_outline,
+      targets: [house_outline],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6495,7 +6045,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_215,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6515,7 +6065,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_216,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6536,7 +6086,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_217,
       description: none,
-      target: star_rings,
+      targets: [star_rings],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6557,7 +6107,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_218,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6578,7 +6128,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_219,
       description: none,
-      target: magnolia,
+      targets: [magnolia],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6599,7 +6149,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_220,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6620,7 +6170,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_e_221,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 36.8298s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -6641,7 +6191,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_222,
       description: none,
-      target: mailbox,
+      targets: [mailbox],
       placement: Timed { start: 13.1611s, duration: 0.639778919s },
       content: Effect {
         layer: default,
@@ -6662,7 +6212,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_223,
       description: none,
-      target: penguin,
+      targets: [penguin],
       placement: Timed { start: 13.1611s, duration: 0.639778919s },
       content: Effect {
         layer: default,
@@ -6682,7 +6232,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_224,
       description: none,
-      target: front_lines,
+      targets: [front_lines],
       placement: Timed { start: 13.1611s, duration: 0.639778919s },
       content: Effect {
         layer: default,
@@ -6703,7 +6253,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_225,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 13.650878919s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6724,7 +6274,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_226,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 13.650878919s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6745,7 +6295,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_227,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 13.650878919s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6766,7 +6316,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_228,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 13.8472s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6787,7 +6337,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_229,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 13.8472s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6808,7 +6358,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_230,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 13.8472s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6829,7 +6379,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_231,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 14.101319717s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6849,7 +6399,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_232,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 14.101319717s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6870,7 +6420,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_233,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 14.101319717s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6891,7 +6441,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_234,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 14.283544717s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6912,7 +6462,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_235,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 14.283544717s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6933,7 +6483,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_236,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 14.283544717s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6954,7 +6504,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_237,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 14.590638296s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6975,7 +6525,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_238,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 14.590638296s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -6996,7 +6546,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_239,
       description: none,
-      target: big_spiral,
+      targets: [big_spiral],
       placement: Timed { start: 14.590638296s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7016,7 +6566,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_240,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 14.795699397s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7037,7 +6587,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_241,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 14.795699397s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7058,7 +6608,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_242,
       description: none,
-      target: small_spiral,
+      targets: [small_spiral],
       placement: Timed { start: 14.795699397s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7079,7 +6629,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_243,
       description: none,
-      target: big_spiral,
+      targets: [big_spiral],
       placement: Timed { start: 15.138886286s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7100,7 +6650,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_244,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 15.138886286s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7121,7 +6671,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_245,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 15.138886286s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7142,7 +6692,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_246,
       description: none,
-      target: small_spiral,
+      targets: [small_spiral],
       placement: Timed { start: 15.193441482s, duration: 0.506615081s },
       content: Effect {
         layer: default,
@@ -7163,7 +6713,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_247,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 15.193441482s, duration: 0.506615081s },
       content: Effect {
         layer: default,
@@ -7183,7 +6733,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_248,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 15.193441482s, duration: 0.506615081s },
       content: Effect {
         layer: default,
@@ -7204,7 +6754,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_249,
       description: none,
-      target: all_arches,
+      targets: [all_arches],
       placement: Timed { start: 15.550056563s, duration: 0.566343437s },
       content: Effect {
         layer: default,
@@ -7225,7 +6775,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_250,
       description: none,
-      target: pilasters,
+      targets: [pilasters],
       placement: Timed { start: 15.550056563s, duration: 0.566343437s },
       content: Effect {
         layer: default,
@@ -7246,7 +6796,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_251,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 15.550056563s, duration: 0.566343437s },
       content: Effect {
         layer: default,
@@ -7267,7 +6817,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_252,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 15.550056563s, duration: 0.566343437s },
       content: Effect {
         layer: default,
@@ -7288,7 +6838,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_253,
       description: none,
-      target: bushes,
+      targets: [bushes],
       placement: Timed { start: 15.550056563s, duration: 0.566343437s },
       content: Effect {
         layer: default,
@@ -7309,7 +6859,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_254,
       description: none,
-      target: front_lines,
+      targets: [front_lines],
       placement: Timed { start: 15.550056563s, duration: 0.566343437s },
       content: Effect {
         layer: default,
@@ -7330,7 +6880,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_b_255,
       description: none,
-      target: stairs,
+      targets: [stairs],
       placement: Timed { start: 15.550056563s, duration: 0.566343437s },
       content: Effect {
         layer: default,
@@ -7350,7 +6900,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_256,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 20.7005s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7371,7 +6921,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_257,
       description: none,
-      target: left_arches,
+      targets: [left_arches],
       placement: Timed { start: 20.7005s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7392,7 +6942,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_258,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 20.7005s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7413,7 +6963,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_259,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 20.8248s, duration: 0.9099s },
       content: Effect {
         layer: default,
@@ -7434,7 +6984,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_260,
       description: none,
-      target: right_arches,
+      targets: [right_arches],
       placement: Timed { start: 20.8248s, duration: 0.9099s },
       content: Effect {
         layer: default,
@@ -7455,7 +7005,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_261,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 20.8248s, duration: 0.9099s },
       content: Effect {
         layer: default,
@@ -7476,7 +7026,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_262,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 21.5847s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7497,7 +7047,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_263,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 21.5847s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7517,7 +7067,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_264,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 21.5847s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7538,7 +7088,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_265,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 21.7721s, duration: 0.5228s },
       content: Effect {
         layer: default,
@@ -7559,7 +7109,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_266,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 21.7721s, duration: 0.5228s },
       content: Effect {
         layer: default,
@@ -7580,7 +7130,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_267,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 21.7721s, duration: 0.5228s },
       content: Effect {
         layer: default,
@@ -7601,7 +7151,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_268,
       description: none,
-      target: dads_mistake,
+      targets: [dads_mistake],
       placement: Timed { start: 22.1449s, duration: 0.6137s },
       content: Effect {
         layer: default,
@@ -7622,7 +7172,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_269,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 22.1449s, duration: 0.6137s },
       content: Effect {
         layer: default,
@@ -7643,7 +7193,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_270,
       description: none,
-      target: radio_sign,
+      targets: [radio_sign],
       placement: Timed { start: 22.1449s, duration: 0.6137s },
       content: Effect {
         layer: default,
@@ -7664,7 +7214,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_271,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 22.6086s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7684,7 +7234,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_272,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 22.6086s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7705,7 +7255,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_273,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 22.6086s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7726,7 +7276,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_274,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 22.7712s, duration: 0.5352s },
       content: Effect {
         layer: default,
@@ -7747,7 +7297,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_275,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 22.7712s, duration: 0.5352s },
       content: Effect {
         layer: default,
@@ -7768,7 +7318,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_276,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 22.7712s, duration: 0.5352s },
       content: Effect {
         layer: default,
@@ -7789,7 +7339,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_277,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 23.1564s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7810,7 +7360,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_278,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 23.1564s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7831,7 +7381,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_279,
       description: none,
-      target: big_spiral,
+      targets: [big_spiral],
       placement: Timed { start: 23.1564s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7851,7 +7401,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_280,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 23.2883s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7872,7 +7422,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_281,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 23.2883s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7893,7 +7443,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_282,
       description: none,
-      target: small_spiral,
+      targets: [small_spiral],
       placement: Timed { start: 23.2883s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -7914,7 +7464,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_283,
       description: none,
-      target: all_arches,
+      targets: [all_arches],
       placement: Timed { start: 23.6321s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -7935,7 +7485,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_284,
       description: none,
-      target: pilasters,
+      targets: [pilasters],
       placement: Timed { start: 23.6321s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -7956,7 +7506,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_285,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 23.6321s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -7977,7 +7527,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_286,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 23.6321s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -7998,7 +7548,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_287,
       description: none,
-      target: bushes,
+      targets: [bushes],
       placement: Timed { start: 23.6321s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8018,7 +7568,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_288,
       description: none,
-      target: front_lines,
+      targets: [front_lines],
       placement: Timed { start: 23.6321s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8039,7 +7589,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_c_289,
       description: none,
-      target: stairs,
+      targets: [stairs],
       placement: Timed { start: 23.6321s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8060,7 +7610,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_290,
       description: none,
-      target: big_spiral,
+      targets: [big_spiral],
       placement: Timed { start: 29.1658s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8081,7 +7631,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_291,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 29.1658s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8102,7 +7652,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_292,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 29.1658s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8123,7 +7673,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_293,
       description: none,
-      target: small_spiral,
+      targets: [small_spiral],
       placement: Timed { start: 29.3379s, duration: 0.936843437s },
       content: Effect {
         layer: default,
@@ -8144,7 +7694,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_294,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 29.3379s, duration: 0.936843437s },
       content: Effect {
         layer: default,
@@ -8165,7 +7715,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_295,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 29.3379s, duration: 0.936843437s },
       content: Effect {
         layer: default,
@@ -8185,7 +7735,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_296,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 30.124743437s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8206,7 +7756,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_297,
       description: none,
-      target: left_arches,
+      targets: [left_arches],
       placement: Timed { start: 30.124743437s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8227,7 +7777,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_298,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 30.124743437s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8248,7 +7798,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_299,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 30.255399706s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8269,7 +7819,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_300,
       description: none,
-      target: right_arches,
+      targets: [right_arches],
       placement: Timed { start: 30.255399706s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8290,7 +7840,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_301,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 30.255399706s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8311,7 +7861,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_302,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 30.598855344s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8332,7 +7882,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_303,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 30.598855344s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8352,7 +7902,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_304,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 30.598855344s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8373,7 +7923,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_305,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 30.782669514s, duration: 0.527530486s },
       content: Effect {
         layer: default,
@@ -8394,7 +7944,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_306,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 30.782669514s, duration: 0.527530486s },
       content: Effect {
         layer: default,
@@ -8415,7 +7965,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_307,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 30.782669514s, duration: 0.527530486s },
       content: Effect {
         layer: default,
@@ -8436,7 +7986,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_308,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 31.1602s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8457,7 +8007,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_309,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 31.1602s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8478,7 +8028,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_310,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 31.1602s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8499,7 +8049,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_311,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 31.289913729s, duration: 0.501486271s },
       content: Effect {
         layer: default,
@@ -8519,7 +8069,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_312,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 31.289913729s, duration: 0.501486271s },
       content: Effect {
         layer: default,
@@ -8540,7 +8090,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_313,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 31.289913729s, duration: 0.501486271s },
       content: Effect {
         layer: default,
@@ -8561,7 +8111,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_314,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 31.6414s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8582,7 +8132,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_315,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 31.6414s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8603,7 +8153,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_316,
       description: none,
-      target: big_spiral,
+      targets: [big_spiral],
       placement: Timed { start: 31.6414s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8624,7 +8174,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_317,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 31.815s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8645,7 +8195,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_318,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 31.815s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8666,7 +8216,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_319,
       description: none,
-      target: small_spiral,
+      targets: [small_spiral],
       placement: Timed { start: 31.815s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -8686,7 +8236,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_320,
       description: none,
-      target: all_arches,
+      targets: [all_arches],
       placement: Timed { start: 32.093756563s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8707,7 +8257,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_321,
       description: none,
-      target: pilasters,
+      targets: [pilasters],
       placement: Timed { start: 32.093756563s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8728,7 +8278,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_322,
       description: none,
-      target: far_left_wall_top,
+      targets: [far_left_wall_top],
       placement: Timed { start: 32.093756563s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8749,7 +8299,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_323,
       description: none,
-      target: right_wall_top,
+      targets: [right_wall_top],
       placement: Timed { start: 32.093756563s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8770,7 +8320,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_324,
       description: none,
-      target: bushes,
+      targets: [bushes],
       placement: Timed { start: 32.093756563s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8791,7 +8341,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_325,
       description: none,
-      target: front_lines,
+      targets: [front_lines],
       placement: Timed { start: 32.093756563s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8812,7 +8362,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_d_326,
       description: none,
-      target: stairs,
+      targets: [stairs],
       placement: Timed { start: 32.093756563s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -8833,7 +8383,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_327,
       description: none,
-      target: big_spiral,
+      targets: [big_spiral],
       placement: Timed { start: 37.1404s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -8850,7 +8400,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_328,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 37.1404s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -8868,7 +8418,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_329,
       description: none,
-      target: small_spiral,
+      targets: [small_spiral],
       placement: Timed { start: 37.3389s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -8886,7 +8436,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_330,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 37.3389s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -8904,7 +8454,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_331,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 37.6503s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -8922,7 +8472,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_332,
       description: none,
-      target: left_arches,
+      targets: [left_arches, arch_tunnel, grass],
       placement: Timed { start: 37.6503s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -8940,7 +8490,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_333,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 37.7844s, duration: 0.8276s },
       content: Effect {
         layer: default,
@@ -8958,7 +8508,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_334,
       description: none,
-      target: right_arches,
+      targets: [right_arches],
       placement: Timed { start: 37.7844s, duration: 0.8276s },
       content: Effect {
         layer: default,
@@ -8976,7 +8526,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_335,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 38.162s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -8993,7 +8543,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_336,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 38.162s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -9011,7 +8561,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_337,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 38.347s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -9029,7 +8579,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_338,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 38.347s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -9047,7 +8597,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_339,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 38.6201s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -9065,7 +8615,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_340,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 38.6201s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -9083,7 +8633,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_341,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 38.7909s, duration: 1.25s },
       content: Effect {
         layer: default,
@@ -9101,7 +8651,7 @@ Sequence oklahoma {
     Clip {
       name: violin_wipe_e_342,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 38.7909s, duration: 1.25s },
       content: Effect {
         layer: default,
@@ -9119,7 +8669,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_01_plus_1,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 0.118817399s, duration: 0.95s },
       content: Effect {
         layer: default,
@@ -9140,7 +8690,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_01_plus_2,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 0.118817399s, duration: 0.95s },
       content: Effect {
         layer: default,
@@ -9161,7 +8711,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_02_plus_1,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 0.7833s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9182,7 +8732,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_02_plus_2,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 0.7833s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9203,7 +8753,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_03_plus_1,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 0.9441s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9224,7 +8774,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_03_plus_2,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 0.9441s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9245,7 +8795,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_04_plus_1,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 1.533858915s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -9265,7 +8815,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_04_plus_2,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 1.533858915s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -9286,7 +8836,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_05_plus_1,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 1.7815s, duration: 1s },
       content: Effect {
         layer: default,
@@ -9307,7 +8857,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_05_plus_2,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 1.7815s, duration: 1s },
       content: Effect {
         layer: default,
@@ -9328,7 +8878,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_06_plus_1,
       description: none,
-      target: star_rings,
+      targets: [star_rings],
       placement: Timed { start: 2.581s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9349,7 +8899,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_06_plus_2,
       description: none,
-      target: wreaths,
+      targets: [wreaths],
       placement: Timed { start: 2.581s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9369,7 +8919,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_07_plus_1,
       description: none,
-      target: left_bushes,
+      targets: [left_bushes],
       placement: Timed { start: 2.7695s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9390,7 +8940,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_07_plus_2,
       description: none,
-      target: left_peacock,
+      targets: [left_peacock],
       placement: Timed { start: 2.7695s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9411,7 +8961,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_08_plus_1,
       description: none,
-      target: middle_bushes,
+      targets: [middle_bushes],
       placement: Timed { start: 2.9309s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9432,7 +8982,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_08_plus_2,
       description: none,
-      target: nativity,
+      targets: [nativity],
       placement: Timed { start: 2.9309s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9453,7 +9003,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_09_plus_1,
       description: none,
-      target: right_bushes,
+      targets: [right_bushes],
       placement: Timed { start: 3.1111s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9474,7 +9024,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_09_plus_2,
       description: none,
-      target: right_peacock,
+      targets: [right_peacock],
       placement: Timed { start: 3.1111s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -9495,7 +9045,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_10_plus_1,
       description: none,
-      target: spiral_trees,
+      targets: [spiral_trees],
       placement: Timed { start: 3.2931s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9516,7 +9066,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_10_plus_2,
       description: none,
-      target: radio_sign,
+      targets: [radio_sign],
       placement: Timed { start: 3.2931s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9537,7 +9087,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_11_plus_1,
       description: none,
-      target: meteors,
+      targets: [meteors],
       placement: Timed { start: 3.5867s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -9557,7 +9107,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_11_plus_2,
       description: none,
-      target: plums,
+      targets: [plums],
       placement: Timed { start: 3.5867s, duration: 0.8s },
       content: Effect {
         layer: default,
@@ -9578,7 +9128,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_12_plus_1,
       description: none,
-      target: window_1,
+      targets: [window_1],
       placement: Timed { start: 3.986958915s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -9599,7 +9149,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_12_plus_2,
       description: none,
-      target: wreath_1,
+      targets: [wreath_1, above_garage_wreath],
       placement: Timed { start: 3.986958915s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -9620,7 +9170,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_13_plus_1,
       description: none,
-      target: window_2,
+      targets: [window_2],
       placement: Timed { start: 4.0813087s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -9640,7 +9190,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_13_plus_2,
       description: none,
-      target: wreath_2,
+      targets: [wreath_2],
       placement: Timed { start: 4.0813087s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -9661,7 +9211,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_14_plus_1,
       description: none,
-      target: window_3,
+      targets: [window_3],
       placement: Timed { start: 4.19408864s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -9682,7 +9232,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_14_plus_2,
       description: none,
-      target: wreath_3,
+      targets: [wreath_3],
       placement: Timed { start: 4.19408864s, duration: 0.45s },
       content: Effect {
         layer: default,
@@ -9703,7 +9253,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_15_plus_1,
       description: none,
-      target: peak_2,
+      targets: [peak_2],
       placement: Timed { start: 4.292298707s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -9724,7 +9274,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_15_plus_2,
       description: none,
-      target: inside_tree,
+      targets: [inside_tree],
       placement: Timed { start: 4.292298707s, duration: 0.55s },
       content: Effect {
         layer: default,
@@ -9745,7 +9295,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_16_plus_1,
       description: none,
-      target: left_magnolia,
+      targets: [left_magnolia],
       placement: Timed { start: 4.616529368s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9765,7 +9315,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_16_plus_2,
       description: none,
-      target: plum_1,
+      targets: [plum_1],
       placement: Timed { start: 4.616529368s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9786,7 +9336,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_17_plus_1,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 4.616529368s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9807,7 +9357,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_17_plus_2,
       description: none,
-      target: far_left_pilaster,
+      targets: [far_left_pilaster],
       placement: Timed { start: 4.616529368s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9827,7 +9377,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_18_plus_1,
       description: none,
-      target: right_magnolia,
+      targets: [right_magnolia],
       placement: Timed { start: 4.7906s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9848,7 +9398,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_18_plus_2,
       description: none,
-      target: plum_2,
+      targets: [plum_2],
       placement: Timed { start: 4.7906s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9869,7 +9419,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_19_plus_1,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 4.7906s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9890,7 +9440,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_19_plus_2,
       description: none,
-      target: right_pilaster,
+      targets: [right_pilaster],
       placement: Timed { start: 4.7906s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -9911,7 +9461,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_20_plus_1,
       description: none,
-      target: house_lines,
+      targets: [house_lines],
       placement: Timed { start: 5.0267s, duration: 0.9s },
       content: Effect {
         layer: default,
@@ -9931,7 +9481,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_20_plus_2,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 5.0267s, duration: 0.9s },
       content: Effect {
         layer: default,
@@ -9952,7 +9502,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_21_plus_1,
       description: none,
-      target: left_magnolia_truck,
+      targets: [left_magnolia_truck],
       placement: Timed { start: 5.0267s, duration: 0.9s },
       content: Effect {
         layer: default,
@@ -9973,7 +9523,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_21_plus_2,
       description: none,
-      target: right_magnolia_truck,
+      targets: [right_magnolia_truck],
       placement: Timed { start: 5.0267s, duration: 0.9s },
       content: Effect {
         layer: default,
@@ -9994,7 +9544,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_22_plus_1,
       description: none,
-      target: neighbor_trees,
+      targets: [neighbor_trees],
       placement: Timed { start: 5.7157s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -10015,7 +9565,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_22_plus_2,
       description: none,
-      target: bushes,
+      targets: [bushes],
       placement: Timed { start: 5.7157s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -10034,30 +9584,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: melody_wipe_23_plus_1,
-      description: none,
-      target: stairs,
-      placement: Timed { start: 5.7157s, duration: 0.6s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
-          },
-          pulse_width: 0.7,
-          direction_angle: 90.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: melody_wipe_23_plus_2,
       description: none,
-      target: front_lines,
+      targets: [front_lines],
       placement: Timed { start: 5.7157s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -10078,7 +9607,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_24_plus_1,
       description: none,
-      target: left_arches,
+      targets: [left_arches],
       placement: Timed { start: 6.07s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10099,7 +9628,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_24_plus_2,
       description: none,
-      target: left_pot,
+      targets: [left_pot],
       placement: Timed { start: 6.07s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10118,29 +9647,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: melody_wipe_25_plus_1,
-      description: none,
-      target: far_left_wall_top,
-      placement: Timed { start: 6.07s, duration: 0.5s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
-          },
-          pulse_width: 0.6,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: melody_wipe_26_plus_1,
       description: none,
-      target: middle_arches,
+      targets: [middle_arches],
       placement: Timed { start: 6.21s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10160,7 +9669,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_26_plus_2,
       description: none,
-      target: nativity,
+      targets: [nativity],
       placement: Timed { start: 6.21s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10181,7 +9690,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_27_plus_1,
       description: none,
-      target: stairs,
+      targets: [stairs],
       placement: Timed { start: 6.21s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10202,7 +9711,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_28_plus_1,
       description: none,
-      target: right_arches,
+      targets: [right_arches],
       placement: Timed { start: 6.355s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10223,7 +9732,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_28_plus_2,
       description: none,
-      target: right_pot,
+      targets: [right_pot],
       placement: Timed { start: 6.355s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10242,30 +9751,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: melody_wipe_29_plus_1,
-      description: none,
-      target: right_wall_top,
-      placement: Timed { start: 6.355s, duration: 0.5s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 180.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: melody_wipe_30_plus_1,
       description: none,
-      target: l_meteors,
+      targets: [l_meteors],
       placement: Timed { start: 6.607028506s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10286,7 +9774,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_30_plus_2,
       description: none,
-      target: left_roof,
+      targets: [left_roof],
       placement: Timed { start: 6.607028506s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10307,7 +9795,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_31_plus_1,
       description: none,
-      target: windows,
+      targets: [windows],
       placement: Timed { start: 6.607028506s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10328,7 +9816,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_31_plus_2,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 6.607028506s, duration: 0.5s },
       content: Effect {
         layer: default,
@@ -10349,7 +9837,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_32_plus_1,
       description: none,
-      target: r_meteors,
+      targets: [r_meteors],
       placement: Timed { start: 6.773899138s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -10369,7 +9857,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_32_plus_2,
       description: none,
-      target: right_roof,
+      targets: [right_roof],
       placement: Timed { start: 6.773899138s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -10388,30 +9876,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: melody_wipe_33_plus_1,
-      description: none,
-      target: dads_mistake,
-      placement: Timed { start: 6.773899138s, duration: 0.65s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 270.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: melody_wipe_33_plus_2,
       description: none,
-      target: big_spiral,
+      targets: [big_spiral],
       placement: Timed { start: 6.773899138s, duration: 0.65s },
       content: Effect {
         layer: default,
@@ -10432,7 +9899,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_34_plus_1,
       description: none,
-      target: pilasters,
+      targets: [pilasters],
       placement: Timed { start: 7.2543s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -10453,7 +9920,7 @@ Sequence oklahoma {
     Clip {
       name: melody_wipe_34_plus_2,
       description: none,
-      target: nativity,
+      targets: [nativity],
       placement: Timed { start: 7.2543s, duration: 0.6s },
       content: Effect {
         layer: default,
@@ -10472,30 +9939,9 @@ Sequence oklahoma {
       },
     },
     Clip {
-      name: melody_wipe_35_plus_1,
-      description: none,
-      target: small_spiral,
-      placement: Timed { start: 7.2543s, duration: 0.6s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
-          },
-          pulse_width: 0.7,
-          direction_angle: 180.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
       name: envelope,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9374, 1.0), (1.0, 0.0)] },
@@ -10510,7 +9956,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_2,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9374, 1.0), (1.0, 0.0)] },
@@ -10525,7 +9971,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_3,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9374, 1.0), (1.0, 0.0)] },
@@ -10540,7 +9986,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_4,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1246, 1.0), (0.9377, 1.0), (1.0, 0.0)] },
@@ -10555,7 +10001,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_5,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1246, 1.0), (0.9377, 1.0), (1.0, 0.0)] },
@@ -10570,7 +10016,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_6,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1246, 1.0), (0.9377, 1.0), (1.0, 0.0)] },
@@ -10585,7 +10031,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_7,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1228, 1.0), (0.9386, 1.0), (1.0, 0.0)] },
@@ -10600,7 +10046,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_8,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1228, 1.0), (0.9386, 1.0), (1.0, 0.0)] },
@@ -10615,7 +10061,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_9,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1228, 1.0), (0.9386, 1.0), (1.0, 0.0)] },
@@ -10630,7 +10076,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_10,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree, grass],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.2, 1.0), (0.938, 1.0), (1.0, 0.0)] },
@@ -10645,7 +10091,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_11,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.2, 1.0), (0.938, 1.0), (1.0, 0.0)] },
@@ -10660,7 +10106,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_12,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.2, 1.0), (0.938, 1.0), (1.0, 0.0)] },
@@ -10675,530 +10121,13 @@ Sequence oklahoma {
     Clip {
       name: envelope_13,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 40.511051018s, duration: 5.889101105s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8899214, 0.0)] },
         bindings: [
           Bound { binding: ClipParam { clip: twinkle, param: maximum_level }, window: (0.0, 1.0) },
         ],
-      },
-    },
-    Clip {
-      name: violin_wipe_e_332_tunnel,
-      description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 37.6503s, duration: 0.8s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #f389ff), (1.0, #ff00e1)] },
-          pulse_width: 0.6,
-          direction_angle: 270.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.35, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_12_plus_2_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 3.986958915s, duration: 0.45s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 315.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_b_042_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 11.6024s, duration: 0.8127s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89a6ff), (1.0, #0060ff)],
-          },
-          pulse_width: 0.7,
-          direction_angle: 180.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_b_047_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 12.637s, duration: 0.6285s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89a6ff), (1.0, #0060ff)],
-          },
-          pulse_width: 0.7,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_c_059_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 16.1164s, duration: 0.45s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
-          },
-          pulse_width: 0.7,
-          direction_angle: 135.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_c_065_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 16.5815s, duration: 0.45s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 90.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_c_071_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 17.3404s, duration: 0.45s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
-          },
-          pulse_width: 0.7,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_c_080_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 18.1483s, duration: 0.5s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 225.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_c_090_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 19.4789s, duration: 0.45s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 180.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_c_098_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 20.0123s, duration: 0.5s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 180.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_d_115_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 24.3325s, duration: 0.45s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ff8989), (1.0, #ff0000)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 135.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_d_121_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 24.699s, duration: 0.7901s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ff8989), (1.0, #ff0000)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 90.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_e_174_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 32.1857s, duration: 0.7266s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #f389ff), (1.0, #ff00e1)],
-          },
-          pulse_width: 0.7,
-          direction_angle: 315.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_e_210_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 36.0228s, duration: 0.5s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #f389ff), (1.0, #ff00e1)],
-          },
-          pulse_width: 0.6,
-          direction_angle: 180.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_20_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 5.0267s, duration: 0.9s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #ffaa89), (1.0, #ff5200)],
-          },
-          pulse_width: 0.8,
-          direction_angle: 270.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_wipe_c_084_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 18.6503s, duration: 0.9786s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ffffff), (0.35, #89ffbc), (1.0, #00ffc3)],
-          },
-          pulse_width: 0.8,
-          direction_angle: 270.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.05, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: melody_butterfly_2_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 0.118817399s, duration: 7.927183636s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Butterfly,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #ff5a00), (0.35, #000000), (0.65, #ffe9a8), (1.0, #ff8a00)],
-          },
-          butterfly_type: Type1,
-          motion: Iterations { iterations: 1, direction: Backward },
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
-      name: mega_tree_b_pinwheel_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 8.1295s, duration: 7.9869s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pinwheel,
-        params: {
-          colors: [
-            Gradient { space: LinearRgb, stops: [(0.0, #0060ff)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          ],
-          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
-          motion: Iterations,
-          arms: 4,
-          turns: 1.3616,
-          thickness: 60.0,
-          blade_type: ThreeD,
-        },
-      },
-    },
-    Clip {
-      name: envelope_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 8.1295s, duration: 7.9869s },
-      content: Envelope {
-        curve: Curve { points: [(0.0, 1.0), (0.9374, 1.0), (1.0, 0.0)] },
-        bindings: [
-          Bound {
-            binding: ClipParam { clip: mega_tree_b_pinwheel_grass, param: intensity },
-            window: (0.0, 1.0),
-          },
-        ],
-      },
-    },
-    Clip {
-      name: mega_tree_c_butterfly_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 16.1164s, duration: 8.0273s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Butterfly,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #00ffc3), (0.5, #89ffbc), (1.0, #4dff00)],
-          },
-          butterfly_type: Type2,
-          motion: Iterations { iterations: 2, direction: Forward },
-        },
-      },
-    },
-    Clip {
-      name: envelope_4_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 16.1164s, duration: 8.0273s },
-      content: Envelope {
-        curve: Curve { points: [(0.0, 0.0), (0.1246, 1.0), (0.9377, 1.0), (1.0, 0.0)] },
-        bindings: [
-          Bound {
-            binding: ClipParam { clip: mega_tree_c_butterfly_grass, param: intensity },
-            window: (0.0, 1.0),
-          },
-        ],
-      },
-    },
-    Clip {
-      name: mega_tree_d_fireworks_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 24.1437s, duration: 8.1463s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Fireworks,
-        params: {
-          colors: [
-            Gradient { space: LinearRgb, stops: [(0.0, #ff0000)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #ff8989)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #ff5a00)] },
-          ],
-          source: MarkCollection,
-          explosion_marks: beats,
-          particle_life: 0.575,
-          fall: 2.0833333,
-        },
-      },
-    },
-    Clip {
-      name: envelope_7_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 24.1437s, duration: 8.1463s },
-      content: Envelope {
-        curve: Curve { points: [(0.0, 0.0), (0.1228, 1.0), (0.9386, 1.0), (1.0, 0.0)] },
-        bindings: [
-          Bound {
-            binding: ClipParam { clip: mega_tree_d_fireworks_grass, param: intensity },
-            window: (0.0, 1.0),
-          },
-        ],
-      },
-    },
-    Clip {
-      name: mega_tree_e_pinwheel_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 32.29s, duration: 5s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pinwheel,
-        params: {
-          colors: [
-            Gradient { space: LinearRgb, stops: [(0.0, #ff00e1)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #f389ff)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #8a00ff)] },
-          ],
-          levels: [Curve { points: [(0.0, 1.0), (1.0, 1.0)] }],
-          motion: Iterations,
-          arms: 6,
-          turns: 1.587,
-          thickness: 50.0,
-          blade_type: InvertedThreeD,
-        },
-      },
-    },
-    Clip {
-      name: envelope_10_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 32.29s, duration: 5s },
-      content: Envelope {
-        curve: Curve { points: [(0.0, 0.0), (0.2, 1.0), (0.938, 1.0), (1.0, 0.0)] },
-        bindings: [
-          Bound {
-            binding: ClipParam { clip: mega_tree_e_pinwheel_grass, param: intensity },
-            window: (0.0, 1.0),
-          },
-        ],
-      },
-    },
-    Clip {
-      name: violin_wipe_e_332_tunnel_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 37.6503s, duration: 0.8s },
-      content: Effect {
-        layer: default,
-        scope: PerFixture,
-        effect: effects.Wipe,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #f389ff), (1.0, #ff00e1)] },
-          pulse_width: 0.6,
-          direction_angle: 270.0,
-          wipe_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (0.35, 1.0), (1.0, 0.0)] },
-        },
       },
     },
   ],

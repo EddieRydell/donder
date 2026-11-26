@@ -16,31 +16,7 @@ Sequence noelodekirk {
     Clip {
       name: butterfly_1,
       description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 0s, duration: 14.048s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Butterfly,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #00ff00), (0.4683, #000000), (1.0, #0000ff)],
-          },
-          butterfly_type: Type1,
-          color_scheme: Gradient,
-          motion: Iterations { iterations: 7, direction: Forward },
-          repeat: 1,
-          background_chunks: 1,
-          background_skips: 2,
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
-      name: butterfly_2,
-      description: none,
-      target: neighbor_trees,
+      targets: [arch_tunnel, neighbor_trees],
       placement: Timed { start: 0s, duration: 14.048s },
       content: Effect {
         layer: default,
@@ -64,22 +40,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_1,
       description: none,
-      target: penguin_body,
-      placement: Timed { start: 0s, duration: 87.151s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_2,
-      description: none,
-      target: penguin_head,
+      targets: [penguin_body, penguin_head, penguin_left_wing, penguin_right_wing],
       placement: Timed { start: 0s, duration: 87.151s },
       content: Effect {
         layer: default,
@@ -94,7 +55,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_3,
       description: none,
-      target: penguin_left_foot,
+      targets: [penguin_left_foot, penguin_right_foot],
       placement: Timed { start: 0s, duration: 87.151s },
       content: Effect {
         layer: default,
@@ -102,51 +63,6 @@ Sequence noelodekirk {
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff9100)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_4,
-      description: none,
-      target: penguin_left_wing,
-      placement: Timed { start: 0s, duration: 87.151s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_5,
-      description: none,
-      target: penguin_right_foot,
-      placement: Timed { start: 0s, duration: 87.151s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff9100)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_6,
-      description: none,
-      target: penguin_right_wing,
-      placement: Timed { start: 0s, duration: 87.151s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
           pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
         },
       },
@@ -154,7 +70,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_7,
       description: none,
-      target: radio_1,
+      targets: [radio_1],
       placement: Timed { start: 0s, duration: 90.409s },
       content: Effect {
         layer: default,
@@ -169,22 +85,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_8,
       description: none,
-      target: radio_9_a,
-      placement: Timed { start: 0s, duration: 90.409s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #3b3b3b)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_9,
-      description: none,
-      target: radio_9_b,
+      targets: [radio_9_a, radio_9_b],
       placement: Timed { start: 0s, duration: 90.409s },
       content: Effect {
         layer: default,
@@ -199,7 +100,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_10,
       description: none,
-      target: radio_dot,
+      targets: [radio_dot],
       placement: Timed { start: 0s, duration: 90.409s },
       content: Effect {
         layer: default,
@@ -214,22 +115,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_11,
       description: none,
-      target: radio_f,
-      placement: Timed { start: 0s, duration: 90.409s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #101a4d)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_12,
-      description: none,
-      target: radio_m,
+      targets: [radio_f, radio_m],
       placement: Timed { start: 0s, duration: 90.409s },
       content: Effect {
         layer: default,
@@ -244,7 +130,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_1,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 0.081s, duration: 4.621s },
       content: Effect {
         layer: default,
@@ -265,7 +151,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_2,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 0.081s, duration: 4.621s },
       content: Effect {
         layer: default_2,
@@ -287,7 +173,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_13,
       description: none,
-      target: penguin_beak,
+      targets: [penguin_beak],
       placement: Timed { start: 0.081s, duration: 87.07s },
       content: Effect {
         layer: default,
@@ -302,7 +188,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_14,
       description: none,
-      target: penguin_belly,
+      targets: [penguin_belly],
       placement: Timed { start: 0.081s, duration: 87.07s },
       content: Effect {
         layer: default,
@@ -317,7 +203,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_3,
       description: none,
-      target: penguin,
+      targets: [penguin],
       placement: Timed { start: 0.510806s, duration: 86.238194s },
       content: Effect {
         layer: default,
@@ -339,7 +225,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_4,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 4.702s, duration: 2.489s },
       content: Effect {
         layer: default,
@@ -360,7 +246,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_5,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 4.702s, duration: 2.489s },
       content: Effect {
         layer: default_2,
@@ -382,7 +268,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_15,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 7.191s, duration: 4.071s },
       content: Effect {
         layer: default_2,
@@ -397,7 +283,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_6,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 7.191s, duration: 4.941s },
       content: Effect {
         layer: default,
@@ -419,7 +305,7 @@ Sequence noelodekirk {
     Clip {
       name: wipe_1,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 7.191s, duration: 4.941s },
       content: Effect {
         layer: default_2,
@@ -440,7 +326,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_7,
       description: none,
-      target: all_arches,
+      targets: [all_arches],
       placement: Timed { start: 11.34s, duration: 2.84s },
       content: Effect {
         layer: default,
@@ -467,7 +353,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_16,
       description: none,
-      target: all_arches,
+      targets: [all_arches],
       placement: Timed { start: 11.34s, duration: 2.278s },
       content: Effect {
         layer: default_2,
@@ -482,7 +368,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_17,
       description: none,
-      target: all_arches,
+      targets: [all_arches],
       placement: Timed { start: 13.83s, duration: 0.35s },
       content: Effect {
         layer: default_2,
@@ -497,7 +383,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_8,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 13.93s, duration: 4.181s },
       content: Effect {
         layer: default,
@@ -526,7 +412,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_9,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 14.048s, duration: 4.878327s },
       content: Effect {
         layer: default,
@@ -548,7 +434,7 @@ Sequence noelodekirk {
     Clip {
       name: butterfly_3,
       description: none,
-      target: garage_matrix,
+      targets: [garage_matrix, star_points],
       placement: Timed { start: 14.048s, duration: 5.619s },
       content: Effect {
         layer: default,
@@ -569,43 +455,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_18,
       description: none,
-      target: garage_matrix,
-      placement: Timed { start: 14.048s, duration: 2.152s },
-      content: Effect {
-        layer: default_2,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: butterfly_4,
-      description: none,
-      target: star_points,
-      placement: Timed { start: 14.048s, duration: 5.619s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Butterfly,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #00ff00), (1.0, #0000ff)] },
-          butterfly_type: Type1,
-          color_scheme: Gradient,
-          motion: Iterations { iterations: 1, direction: Forward },
-          repeat: 1,
-          background_chunks: 1,
-          background_skips: 2,
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
-      name: pulse_19,
-      description: none,
-      target: star_points,
+      targets: [garage_matrix, star_points],
       placement: Timed { start: 14.048s, duration: 2.152s },
       content: Effect {
         layer: default_2,
@@ -620,29 +470,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_10,
       description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 14.123241s, duration: 14.594285s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Garlands,
-        params: {
-          colors: [
-            Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-          ],
-          direction: Up,
-          garland_type: Type1,
-          iterations: 1,
-          spacing: 10.0,
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
-      name: clip_11,
-      description: none,
-      target: neighbor_trees,
+      targets: [arch_tunnel, neighbor_trees],
       placement: Timed { start: 14.123241s, duration: 14.594285s },
       content: Effect {
         layer: default,
@@ -664,22 +492,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_20,
       description: none,
-      target: garage_matrix,
-      placement: Timed { start: 18.79s, duration: 0.877s },
-      content: Effect {
-        layer: default_2,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_21,
-      description: none,
-      target: star_points,
+      targets: [garage_matrix, star_points, above_garage_wreath, grass],
       placement: Timed { start: 18.79s, duration: 0.877s },
       content: Effect {
         layer: default_2,
@@ -694,7 +507,7 @@ Sequence noelodekirk {
     Clip {
       name: wipe_2,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 19.831s, duration: 7.925s },
       content: Effect {
         layer: default,
@@ -715,28 +528,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_1,
       description: none,
-      target: above_garage,
-      placement: Timed { start: 22.76s, duration: 3.51s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Chase,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #989898)] },
-          gradient_mode: ThroughEffect,
-          pulse_overlap: 1.0,
-          chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          reverse: false,
-          extend_to_start: false,
-          extend_to_end: true,
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: chase_2,
-      description: none,
-      target: garage,
+      targets: [above_garage, garage],
       placement: Timed { start: 22.76s, duration: 3.51s },
       content: Effect {
         layer: default,
@@ -757,49 +549,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_3,
       description: none,
-      target: left_roof,
-      placement: Timed { start: 23.21s, duration: 3.51s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Chase,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #989898)] },
-          gradient_mode: ThroughEffect,
-          pulse_overlap: 1.0,
-          chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          reverse: false,
-          extend_to_start: false,
-          extend_to_end: true,
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: chase_4,
-      description: none,
-      target: right_roof,
-      placement: Timed { start: 23.21s, duration: 3.51s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Chase,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #989898)] },
-          gradient_mode: ThroughEffect,
-          pulse_overlap: 1.0,
-          chase_position: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-          reverse: false,
-          extend_to_start: false,
-          extend_to_end: true,
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: chase_5,
-      description: none,
-      target: windows,
+      targets: [left_roof, right_roof, windows],
       placement: Timed { start: 23.21s, duration: 3.51s },
       content: Effect {
         layer: default,
@@ -820,7 +570,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_6,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 23.38s, duration: 2.48s },
       content: Effect {
         layer: default,
@@ -841,7 +591,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_7,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 23.38s, duration: 3.01s },
       content: Effect {
         layer: default,
@@ -862,7 +612,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_8,
       description: none,
-      target: middle_roof,
+      targets: [middle_roof],
       placement: Timed { start: 23.91s, duration: 2.01s },
       content: Effect {
         layer: default,
@@ -883,7 +633,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_22,
       description: none,
-      target: fletch_peak,
+      targets: [fletch_peak],
       placement: Timed { start: 24.86s, duration: 1s },
       content: Effect {
         layer: default_2,
@@ -898,7 +648,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_23,
       description: none,
-      target: above_garage,
+      targets: [above_garage, garage],
       placement: Timed { start: 25.04s, duration: 1.23s },
       content: Effect {
         layer: default_2,
@@ -913,23 +663,8 @@ Sequence noelodekirk {
     Clip {
       name: pulse_24,
       description: none,
-      target: front_door,
+      targets: [front_door],
       placement: Timed { start: 25.04s, duration: 1.35s },
-      content: Effect {
-        layer: default_2,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_25,
-      description: none,
-      target: garage,
-      placement: Timed { start: 25.04s, duration: 1.23s },
       content: Effect {
         layer: default_2,
         scope: WholeTarget,
@@ -943,7 +678,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_26,
       description: none,
-      target: left_roof,
+      targets: [left_roof, right_roof, windows],
       placement: Timed { start: 25.04s, duration: 1.68s },
       content: Effect {
         layer: default_2,
@@ -958,38 +693,8 @@ Sequence noelodekirk {
     Clip {
       name: pulse_27,
       description: none,
-      target: middle_roof,
+      targets: [middle_roof],
       placement: Timed { start: 25.04s, duration: 0.88s },
-      content: Effect {
-        layer: default_2,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_28,
-      description: none,
-      target: right_roof,
-      placement: Timed { start: 25.04s, duration: 1.68s },
-      content: Effect {
-        layer: default_2,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_29,
-      description: none,
-      target: windows,
-      placement: Timed { start: 25.04s, duration: 1.68s },
       content: Effect {
         layer: default_2,
         scope: WholeTarget,
@@ -1003,7 +708,7 @@ Sequence noelodekirk {
     Clip {
       name: wipe_3,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 27.756s, duration: 4.023s },
       content: Effect {
         layer: default,
@@ -1024,29 +729,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_12,
       description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 30.08907s, duration: 14.800106s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Garlands,
-        params: {
-          colors: [
-            Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-          ],
-          direction: Up,
-          garland_type: Type1,
-          iterations: 1,
-          spacing: 10.0,
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
-      name: clip_13,
-      description: none,
-      target: neighbor_trees,
+      targets: [arch_tunnel, neighbor_trees],
       placement: Timed { start: 30.08907s, duration: 14.800106s },
       content: Effect {
         layer: default,
@@ -1068,7 +751,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_30,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 34.121s, duration: 2.189s },
       content: Effect {
         layer: default_2,
@@ -1083,7 +766,7 @@ Sequence noelodekirk {
     Clip {
       name: butterfly_5,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 34.121s, duration: 13.619s },
       content: Effect {
         layer: default,
@@ -1107,7 +790,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_9,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 35.155s, duration: 2.53s },
       content: Effect {
         layer: mask_and_fill,
@@ -1128,7 +811,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_14,
       description: none,
-      target: jesus,
+      targets: [jesus],
       placement: Timed { start: 35.371809s, duration: 4.69252s },
       content: Effect {
         layer: default,
@@ -1150,176 +833,18 @@ Sequence noelodekirk {
     Clip {
       name: pulse_31,
       description: none,
-      target: mega_tree_01,
+      targets: [
+        mega_tree_pair_01,
+        mega_tree_pair_02,
+        mega_tree_pair_03,
+        mega_tree_pair_04,
+        mega_tree_pair_05,
+        mega_tree_pair_06,
+      ],
       placement: Timed { start: 37.684845s, duration: 1.487s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_32,
-      description: none,
-      target: mega_tree_02,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_33,
-      description: none,
-      target: mega_tree_03,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_34,
-      description: none,
-      target: mega_tree_04,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_35,
-      description: none,
-      target: mega_tree_05,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_36,
-      description: none,
-      target: mega_tree_06,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_37,
-      description: none,
-      target: mega_tree_07,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_38,
-      description: none,
-      target: mega_tree_08,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_39,
-      description: none,
-      target: mega_tree_09,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_40,
-      description: none,
-      target: mega_tree_10,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_41,
-      description: none,
-      target: mega_tree_11,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_42,
-      description: none,
-      target: mega_tree_12,
-      placement: Timed { start: 37.684845s, duration: 1.487s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1330,7 +855,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_10,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 37.685s, duration: 1.487s },
       content: Effect {
         layer: mask_and_fill,
@@ -1351,7 +876,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_43,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 37.685s, duration: 4.192s },
       content: Effect {
         layer: default_2,
@@ -1366,7 +891,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_44,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 39.172s, duration: 2.705s },
       content: Effect {
         layer: mask_and_fill,
@@ -1381,7 +906,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_45,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 41.877s, duration: 2.685853s },
       content: Effect {
         layer: mask_and_fill,
@@ -1396,26 +921,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_46,
       description: none,
-      target: mega_tree_01,
+      targets: [mega_tree_pair_01],
       placement: Timed { start: 42.261912s, duration: 0.381088s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_47,
-      description: none,
-      target: mega_tree_02,
-      placement: Timed { start: 42.261912s, duration: 0.381088s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1426,26 +936,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_48,
       description: none,
-      target: mega_tree_01,
+      targets: [mega_tree_pair_01],
       placement: Timed { start: 42.643s, duration: 3.471s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_49,
-      description: none,
-      target: mega_tree_02,
-      placement: Timed { start: 42.643s, duration: 3.471s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1456,26 +951,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_50,
       description: none,
-      target: mega_tree_03,
+      targets: [mega_tree_pair_02],
       placement: Timed { start: 42.643s, duration: 0.383s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_51,
-      description: none,
-      target: mega_tree_04,
-      placement: Timed { start: 42.643s, duration: 0.383s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1486,26 +966,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_52,
       description: none,
-      target: mega_tree_03,
+      targets: [mega_tree_pair_02],
       placement: Timed { start: 43.026s, duration: 3.088s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_53,
-      description: none,
-      target: mega_tree_04,
-      placement: Timed { start: 43.026s, duration: 3.088s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1516,26 +981,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_54,
       description: none,
-      target: mega_tree_05,
+      targets: [mega_tree_pair_03],
       placement: Timed { start: 43.026s, duration: 0.587299s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_55,
-      description: none,
-      target: mega_tree_06,
-      placement: Timed { start: 43.026s, duration: 0.587299s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1546,26 +996,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_56,
       description: none,
-      target: mega_tree_05,
+      targets: [mega_tree_pair_03],
       placement: Timed { start: 43.613299s, duration: 2.500701s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_57,
-      description: none,
-      target: mega_tree_06,
-      placement: Timed { start: 43.613299s, duration: 2.500701s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1576,26 +1011,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_58,
       description: none,
-      target: mega_tree_07,
+      targets: [mega_tree_pair_04],
       placement: Timed { start: 43.613299s, duration: 0.178701s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_59,
-      description: none,
-      target: mega_tree_08,
-      placement: Timed { start: 43.613299s, duration: 0.178701s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1606,26 +1026,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_60,
       description: none,
-      target: mega_tree_07,
+      targets: [mega_tree_pair_04],
       placement: Timed { start: 43.792s, duration: 2.322s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_61,
-      description: none,
-      target: mega_tree_08,
-      placement: Timed { start: 43.792s, duration: 2.322s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1636,26 +1041,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_62,
       description: none,
-      target: mega_tree_09,
+      targets: [mega_tree_pair_05],
       placement: Timed { start: 43.792s, duration: 0.418399s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_63,
-      description: none,
-      target: mega_tree_10,
-      placement: Timed { start: 43.792s, duration: 0.418399s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1666,7 +1056,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_64,
       description: none,
-      target: fran_wreath,
+      targets: [fran_wreath],
       placement: Timed { start: 43.937883s, duration: 2.254826s },
       content: Effect {
         layer: default_2,
@@ -1681,26 +1071,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_65,
       description: none,
-      target: mega_tree_09,
+      targets: [mega_tree_pair_05],
       placement: Timed { start: 44.210399s, duration: 1.903601s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_66,
-      description: none,
-      target: mega_tree_10,
-      placement: Timed { start: 44.210399s, duration: 1.903601s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1711,26 +1086,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_67,
       description: none,
-      target: mega_tree_11,
+      targets: [mega_tree_pair_06],
       placement: Timed { start: 44.210399s, duration: 0.352454s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_68,
-      description: none,
-      target: mega_tree_12,
-      placement: Timed { start: 44.210399s, duration: 0.352454s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1741,7 +1101,7 @@ Sequence noelodekirk {
     Clip {
       name: chase_11,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 44.562853s, duration: 1.551147s },
       content: Effect {
         layer: mask_and_fill,
@@ -1762,26 +1122,11 @@ Sequence noelodekirk {
     Clip {
       name: pulse_69,
       description: none,
-      target: mega_tree_11,
+      targets: [mega_tree_pair_06],
       placement: Timed { start: 44.562853s, duration: 1.551147s },
       content: Effect {
         layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 1.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_70,
-      description: none,
-      target: mega_tree_12,
-      placement: Timed { start: 44.562853s, duration: 1.551147s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
+        scope: PerFixture,
         effect: effects.Pulse,
         params: {
           gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
@@ -1792,7 +1137,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_71,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 46.114s, duration: 1.626s },
       content: Effect {
         layer: mask_and_fill,
@@ -1807,7 +1152,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_72,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 46.192709s, duration: 1.547291s },
       content: Effect {
         layer: default_2,
@@ -1822,7 +1167,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_15,
       description: none,
-      target: arch_tunnel,
+      targets: [arch_tunnel, neighbor_trees],
       placement: Timed { start: 47.74s, duration: 14.17s },
       content: Effect {
         layer: default,
@@ -1844,7 +1189,7 @@ Sequence noelodekirk {
     Clip {
       name: shockwave_1,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 47.74s, duration: 3.75505s },
       content: Effect {
         layer: default,
@@ -1870,31 +1215,9 @@ Sequence noelodekirk {
       },
     },
     Clip {
-      name: clip_16,
-      description: none,
-      target: neighbor_trees,
-      placement: Timed { start: 47.74s, duration: 14.17s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Garlands,
-        params: {
-          colors: [
-            Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-          ],
-          direction: Down,
-          garland_type: Type1,
-          iterations: 6,
-          spacing: 10.0,
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
       name: pulse_73,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 47.74s, duration: 1.741s },
       content: Effect {
         layer: default_2,
@@ -1914,7 +1237,7 @@ Sequence noelodekirk {
     Clip {
       name: wipe_4,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 47.74s, duration: 2s },
       content: Effect {
         layer: mask_and_fill,
@@ -1936,7 +1259,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_74,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 47.74s, duration: 1.3s },
       content: Effect {
         layer: mask_and_fill,
@@ -1951,7 +1274,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_17,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 49.04s, duration: 2.624s },
       content: Effect {
         layer: mask_and_fill,
@@ -1973,7 +1296,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_75,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 49.74s, duration: 1.924s },
       content: Effect {
         layer: mask_and_fill,
@@ -1988,7 +1311,7 @@ Sequence noelodekirk {
     Clip {
       name: butterfly_6,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 51.49505s, duration: 4.55695s },
       content: Effect {
         layer: default,
@@ -2012,7 +1335,7 @@ Sequence noelodekirk {
     Clip {
       name: wipe_5,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 51.664s, duration: 0.859s },
       content: Effect {
         layer: mask_and_fill,
@@ -2034,7 +1357,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_76,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 51.664s, duration: 0.859s },
       content: Effect {
         layer: mask_and_fill,
@@ -2049,7 +1372,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_77,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 52.523s, duration: 3.529s },
       content: Effect {
         layer: mask_and_fill,
@@ -2064,7 +1387,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_18,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 52.523s, duration: 3.529s },
       content: Effect {
         layer: mask_and_fill,
@@ -2086,7 +1409,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_78,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 54.98s, duration: 1.072s },
       content: Effect {
         layer: default_2,
@@ -2101,7 +1424,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_79,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 56.052s, duration: 1.078s },
       content: Effect {
         layer: default_2,
@@ -2116,7 +1439,7 @@ Sequence noelodekirk {
     Clip {
       name: pin_wheel_1,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 56.052s, duration: 5.858s },
       content: Effect {
         layer: default,
@@ -2151,22 +1474,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_80,
       description: none,
-      target: middle_arches,
-      placement: Timed { start: 56.052s, duration: 3.031s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_81,
-      description: none,
-      target: right_arches,
+      targets: [middle_arches, right_arches],
       placement: Timed { start: 56.052s, duration: 3.031s },
       content: Effect {
         layer: mask_and_fill,
@@ -2181,7 +1489,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_82,
       description: none,
-      target: right_arches_08,
+      targets: [right_arches_08],
       placement: Timed { start: 56.052s, duration: 0.428s },
       content: Effect {
         layer: mask_and_fill,
@@ -2196,7 +1504,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_83,
       description: none,
-      target: right_arches_07,
+      targets: [right_arches_07],
       placement: Timed { start: 56.48s, duration: 0.43s },
       content: Effect {
         layer: mask_and_fill,
@@ -2211,7 +1519,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_84,
       description: none,
-      target: right_arches_06,
+      targets: [right_arches_06],
       placement: Timed { start: 56.91s, duration: 0.431s },
       content: Effect {
         layer: mask_and_fill,
@@ -2226,7 +1534,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_85,
       description: none,
-      target: right_arches_05,
+      targets: [right_arches_05],
       placement: Timed { start: 57.341s, duration: 0.407s },
       content: Effect {
         layer: mask_and_fill,
@@ -2241,7 +1549,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_86,
       description: none,
-      target: right_arches_04,
+      targets: [right_arches_04],
       placement: Timed { start: 57.748s, duration: 0.632s },
       content: Effect {
         layer: mask_and_fill,
@@ -2256,7 +1564,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_87,
       description: none,
-      target: right_arches_03,
+      targets: [right_arches_03],
       placement: Timed { start: 58.38s, duration: 0.703s },
       content: Effect {
         layer: mask_and_fill,
@@ -2271,22 +1579,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_88,
       description: none,
-      target: middle_arches,
-      placement: Timed { start: 59.083s, duration: 3.007s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_89,
-      description: none,
-      target: right_arches,
+      targets: [middle_arches, right_arches],
       placement: Timed { start: 59.083s, duration: 3.007s },
       content: Effect {
         layer: mask_and_fill,
@@ -2301,7 +1594,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_90,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 61.05s, duration: 0.86s },
       content: Effect {
         layer: default_2,
@@ -2316,7 +1609,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_91,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 61.91s, duration: 4.51s },
       content: Effect {
         layer: default_2,
@@ -2339,7 +1632,7 @@ Sequence noelodekirk {
     Clip {
       name: pin_wheel_2,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 61.91s, duration: 13.058s },
       content: Effect {
         layer: default,
@@ -2374,31 +1667,7 @@ Sequence noelodekirk {
     Clip {
       name: butterfly_7,
       description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 62.030529s, duration: 19.063541s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Butterfly,
-        params: {
-          gradient: Gradient {
-            space: LinearRgb,
-            stops: [(0.0, #00ff00), (0.4683, #000000), (1.0, #0000ff)],
-          },
-          butterfly_type: Type1,
-          color_scheme: Gradient,
-          motion: Iterations { iterations: 7, direction: Forward },
-          repeat: 1,
-          background_chunks: 1,
-          background_skips: 2,
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
-      name: butterfly_8,
-      description: none,
-      target: neighbor_trees,
+      targets: [arch_tunnel, neighbor_trees],
       placement: Timed { start: 62.030529s, duration: 19.063541s },
       content: Effect {
         layer: default,
@@ -2422,7 +1691,7 @@ Sequence noelodekirk {
     Clip {
       name: wipe_6,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 62.09s, duration: 0.842534s },
       content: Effect {
         layer: mask_and_fill,
@@ -2444,7 +1713,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_92,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 62.09s, duration: 0.842534s },
       content: Effect {
         layer: mask_and_fill,
@@ -2459,7 +1728,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_19,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 62.932534s, duration: 2.628466s },
       content: Effect {
         layer: mask_and_fill,
@@ -2482,7 +1751,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_93,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 62.932534s, duration: 2.628466s },
       content: Effect {
         layer: mask_and_fill,
@@ -2497,7 +1766,7 @@ Sequence noelodekirk {
     Clip {
       name: wipe_7,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 65.561s, duration: 0.859s },
       content: Effect {
         layer: mask_and_fill,
@@ -2519,7 +1788,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_94,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 65.561s, duration: 0.859s },
       content: Effect {
         layer: mask_and_fill,
@@ -2534,7 +1803,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_95,
       description: none,
-      target: mega_tree,
+      targets: [mega_tree],
       placement: Timed { start: 66.42s, duration: 3.65715s },
       content: Effect {
         layer: mask_and_fill,
@@ -2549,7 +1818,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_20,
       description: none,
-      target: star_points,
+      targets: [star_points],
       placement: Timed { start: 66.42s, duration: 2.628466s },
       content: Effect {
         layer: mask_and_fill,
@@ -2572,7 +1841,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_96,
       description: none,
-      target: right_arches,
+      targets: [right_arches],
       placement: Timed { start: 69.998742s, duration: 3.031s },
       content: Effect {
         layer: mask_and_fill,
@@ -2587,7 +1856,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_97,
       description: none,
-      target: right_arches_07,
+      targets: [right_arches_07],
       placement: Timed { start: 69.998742s, duration: 0.428s },
       content: Effect {
         layer: mask_and_fill,
@@ -2602,7 +1871,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_98,
       description: none,
-      target: middle_arches,
+      targets: [middle_arches],
       placement: Timed { start: 70.07715s, duration: 3.031s },
       content: Effect {
         layer: mask_and_fill,
@@ -2617,7 +1886,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_99,
       description: none,
-      target: right_arches_06,
+      targets: [right_arches_06],
       placement: Timed { start: 70.426742s, duration: 0.43s },
       content: Effect {
         layer: mask_and_fill,
@@ -2632,7 +1901,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_100,
       description: none,
-      target: right_arches_05,
+      targets: [right_arches_05],
       placement: Timed { start: 70.856742s, duration: 0.431s },
       content: Effect {
         layer: mask_and_fill,
@@ -2647,7 +1916,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_101,
       description: none,
-      target: right_arches_04,
+      targets: [right_arches_04],
       placement: Timed { start: 71.287742s, duration: 0.407s },
       content: Effect {
         layer: mask_and_fill,
@@ -2662,7 +1931,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_102,
       description: none,
-      target: right_arches_03,
+      targets: [right_arches_03],
       placement: Timed { start: 71.694742s, duration: 0.632s },
       content: Effect {
         layer: mask_and_fill,
@@ -2677,7 +1946,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_103,
       description: none,
-      target: right_arches_02,
+      targets: [right_arches_02],
       placement: Timed { start: 72.326742s, duration: 0.703s },
       content: Effect {
         layer: mask_and_fill,
@@ -2692,7 +1961,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_104,
       description: none,
-      target: right_arches,
+      targets: [right_arches],
       placement: Timed { start: 73.029742s, duration: 1.784258s },
       content: Effect {
         layer: mask_and_fill,
@@ -2707,22 +1976,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_105,
       description: none,
-      target: garage_matrix,
-      placement: Timed { start: 73.10815s, duration: 3.007s },
-      content: Effect {
-        layer: mask_and_fill,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0053), (0.1, 1.0), (1.0, 0.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_106,
-      description: none,
-      target: middle_arches,
+      targets: [garage_matrix, middle_arches],
       placement: Timed { start: 73.10815s, duration: 3.007s },
       content: Effect {
         layer: mask_and_fill,
@@ -2737,7 +1991,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_107,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 74.968s, duration: 2.532s },
       content: Effect {
         layer: default_2,
@@ -2752,7 +2006,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_21,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 74.968s, duration: 6.356s },
       content: Effect {
         layer: default,
@@ -2774,7 +2028,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_108,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 79.75s, duration: 1.574s },
       content: Effect {
         layer: default_2,
@@ -2789,7 +2043,7 @@ Sequence noelodekirk {
     Clip {
       name: butterfly_9,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 81.324s, duration: 7.122s },
       content: Effect {
         layer: default,
@@ -2810,7 +2064,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_109,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 81.324s, duration: 2.156s },
       content: Effect {
         layer: default_2,
@@ -2825,29 +2079,7 @@ Sequence noelodekirk {
     Clip {
       name: clip_22,
       description: none,
-      target: arch_tunnel,
-      placement: Timed { start: 81.622728s, duration: 4.924678s },
-      content: Effect {
-        layer: default,
-        scope: WholeTarget,
-        effect: effects.Garlands,
-        params: {
-          colors: [
-            Gradient { space: LinearRgb, stops: [(0.0, #00ff00)] },
-            Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
-          ],
-          direction: Down,
-          garland_type: Type1,
-          iterations: 2,
-          spacing: 10.0,
-          intensity: 1.0,
-        },
-      },
-    },
-    Clip {
-      name: clip_23,
-      description: none,
-      target: neighbor_trees,
+      targets: [arch_tunnel, neighbor_trees],
       placement: Timed { start: 81.622728s, duration: 4.924678s },
       content: Effect {
         layer: default,
@@ -2869,7 +2101,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_110,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 86.17s, duration: 2.276s },
       content: Effect {
         layer: default_2,
@@ -2884,7 +2116,7 @@ Sequence noelodekirk {
     Clip {
       name: envelope,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 56.052s, duration: 5.858s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.069), (1.0, 0.107122)] },
@@ -2896,7 +2128,7 @@ Sequence noelodekirk {
     Clip {
       name: envelope_2,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 56.052s, duration: 5.858s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.3286), (1.0, 0.3217)] },
@@ -2908,7 +2140,7 @@ Sequence noelodekirk {
     Clip {
       name: envelope_3,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 56.052s, duration: 5.858s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.2885), (1.0, 0.6099)] },
@@ -2920,7 +2152,7 @@ Sequence noelodekirk {
     Clip {
       name: envelope_4,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 56.052s, duration: 5.858s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.5069), (1.0, 0.5)] },
@@ -2932,7 +2164,7 @@ Sequence noelodekirk {
     Clip {
       name: envelope_5,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 61.91s, duration: 13.058s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.6147), (1.0, 0.8322)] },
@@ -2944,43 +2176,13 @@ Sequence noelodekirk {
     Clip {
       name: envelope_6,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Timed { start: 61.91s, duration: 13.058s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.5984), (1.0, 0.2985)] },
         bindings: [
           Bound { binding: ClipParam { clip: pin_wheel_2, param: x_offset }, window: (0.0, 1.0) },
         ],
-      },
-    },
-    Clip {
-      name: pulse_21_garage_wreath,
-      description: none,
-      target: above_garage_wreath,
-      placement: Timed { start: 18.79s, duration: 0.877s },
-      content: Effect {
-        layer: default_2,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
-      },
-    },
-    Clip {
-      name: pulse_20_grass,
-      description: none,
-      target: grass,
-      placement: Timed { start: 18.79s, duration: 0.877s },
-      content: Effect {
-        layer: default_2,
-        scope: WholeTarget,
-        effect: effects.Pulse,
-        params: {
-          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
-          pulse_shape: Curve { points: [(0.0, 0.0), (1.0, 1.0)] },
-        },
       },
     },
   ],

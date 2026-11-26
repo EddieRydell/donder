@@ -228,7 +228,10 @@ impl Loader {
             *target = item.id;
         };
         for clip in &mut sequence.composition.clips {
-            fixture(&mut std::sync::Arc::make_mut(clip).target);
+            std::sync::Arc::make_mut(clip)
+                .targets
+                .iter_mut()
+                .for_each(fixture);
         }
         Ok(sequence)
     }

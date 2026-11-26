@@ -169,7 +169,7 @@ fn set(
             }
         },
         (M::Clip(clip), Some(F::Target), V::Target { target }) => {
-            clip.target = target_from_gui(target);
+            clip.targets = vec![target_from_gui(target)];
         }
         (
             M::Clip(clip),

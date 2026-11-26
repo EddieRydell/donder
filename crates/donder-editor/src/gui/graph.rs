@@ -25,7 +25,7 @@ use crate::dto::{
 pub(super) fn new_clip(
     composition: &Composition,
     name: &str,
-    target: FixtureId,
+    targets: Vec<FixtureId>,
     placement: Placement,
     content: ClipContent,
 ) -> Result<Clip, GuiMutationError> {
@@ -38,7 +38,7 @@ pub(super) fn new_clip(
                 .any(|clip| clip.name.as_str() == candidate)
         }),
         description: None,
-        target,
+        targets,
         placement,
         content,
     })
@@ -60,7 +60,7 @@ pub(super) fn new_effect_clip(
     new_clip(
         composition,
         &effect_name,
-        target,
+        vec![target],
         placement,
         ClipContent::Effect(Effect {
             layer: layer.id.clone(),

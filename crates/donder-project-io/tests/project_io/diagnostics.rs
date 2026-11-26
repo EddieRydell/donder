@@ -530,7 +530,7 @@ fn wrong_reference_kind_names_both_kinds() {
 
 #[test]
 fn missing_fixture_and_layer_names_are_reported_at_the_name() {
-    let clip = "clips: [\n    Clip {\n      name: pulse,\n      description: none,\n      target: pixel,\n      placement: Timed { start: 0s, duration: 1s },\n      content: Effect { layer: base, scope: PerFixture, effect: fx.Flat, params: {} },\n    },\n  ]";
+    let clip = "clips: [\n    Clip {\n      name: pulse,\n      description: none,\n      targets: [pixel],\n      placement: Timed { start: 0s, duration: 1s },\n      content: Effect { layer: base, scope: PerFixture, effect: fx.Flat, params: {} },\n    },\n  ]";
     let sequence = format!(
         "import fx from <flat.donder>;\n\n{}",
         common::MINIMAL_SEQUENCE
@@ -538,7 +538,7 @@ fn missing_fixture_and_layer_names_are_reported_at_the_name() {
             .replace("clips: []", clip)
     );
     for (before, after, needle) in [
-        ("target: pixel", "target: gone", "gone"),
+        ("targets: [pixel]", "targets: [gone]", "gone"),
         ("layer: base, scope", "layer: lost, scope", "lost"),
     ] {
         let temp = tempfile::tempdir().unwrap();

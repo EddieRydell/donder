@@ -16,7 +16,7 @@ Console mpk_mini {
     Clip {
       name: mark_pulse,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Played { values: [] },
       content: Effect {
         layer: default,
@@ -36,7 +36,7 @@ Console mpk_mini {
     Clip {
       name: mark_field_wipe,
       description: none,
-      target: everything,
+      targets: [everything],
       placement: Played { values: [] },
       content: Effect {
         layer: default,

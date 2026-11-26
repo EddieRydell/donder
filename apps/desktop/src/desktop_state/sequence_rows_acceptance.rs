@@ -37,8 +37,8 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
         .find(|clip| clip.id.0 == timeline.effect)
         .unwrap();
     let automation = envelope(&moved, timeline.automation);
-    assert_eq!(clip.target.0, timeline.targets()[1].fixture);
-    assert_eq!(automation.target, clip.target);
+    assert_eq!(clip.targets[0].0, timeline.targets()[1].fixture);
+    assert_eq!(automation.targets, clip.targets);
     assert_eq!(
         automation.envelope(),
         envelope(&before, timeline.automation).envelope()
@@ -275,8 +275,8 @@ fn mixed_clipboard_remaps_bindings_and_is_one_undoable_persisted_edit() {
         .find(|clip| clip.id.0 == clip_ids[0])
         .unwrap();
     let automation = envelope(&pasted, automation_ids[0]);
-    assert_eq!(clip.target.0, target.fixture);
-    assert_eq!(automation.target, clip.target);
+    assert_eq!(clip.targets[0].0, target.fixture);
+    assert_eq!(automation.targets, clip.targets);
     assert!(
         matches!(&automation.envelope().unwrap().bindings[0].target, AutomationTarget::ClipParam { clip_id, .. } if clip_id == &clip.id)
     );
@@ -417,7 +417,7 @@ fn shared_members_have_a_lane_per_group_and_move_from_the_nearest_copy() {
             .iter()
             .find(|clip| clip.id.0 == timeline.effect)
             .unwrap()
-            .target
+            .targets[0]
             .0
     };
     let move_clip = |anchor_lane: usize, lane_delta| {

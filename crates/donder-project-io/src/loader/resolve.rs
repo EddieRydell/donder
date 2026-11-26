@@ -1234,7 +1234,11 @@ impl DomainResolver<'_> {
                 id,
                 name: name(&clip.name),
                 description: clip.description.clone(),
-                target: self.fixture_target(document, &clip.target)?,
+                targets: clip
+                    .targets
+                    .iter()
+                    .map(|target| self.fixture_target(document, target))
+                    .collect::<Result<_, _>>()?,
                 content,
                 placement: match &clip.placement {
                     types::Placement::Timed { start, duration } => Placement::Timed {

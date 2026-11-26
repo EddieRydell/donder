@@ -148,7 +148,7 @@ Sequence take_you_down {
     Clip {
       name: mark_pulse,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 57.383237252s, duration: 21.527042991s },
       content: Effect {
         layer: predrop_16ths,
@@ -169,7 +169,7 @@ Sequence take_you_down {
     Clip {
       name: wipe,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 78.721098125s, duration: 0.63232953s },
       content: Effect {
         layer: default,
@@ -189,7 +189,7 @@ Sequence take_you_down {
     Clip {
       name: mark_pulse_2,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 68.758991777s, duration: 10.293877659s },
       content: Effect {
         layer: predrop_snares,
@@ -211,7 +211,7 @@ Sequence take_you_down {
     Clip {
       name: pulse,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 79.433873158s, duration: 0.53476502s },
       content: Effect {
         layer: default,
@@ -226,7 +226,7 @@ Sequence take_you_down {
     Clip {
       name: mark_pulse_3,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 80.040648409s, duration: 21.62746935s },
       content: Effect {
         layer: default,
@@ -246,7 +246,7 @@ Sequence take_you_down {
     Clip {
       name: vixen_alternating,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 44.153180949s, duration: 5.92499999s },
       content: Effect {
         layer: default,
@@ -267,7 +267,7 @@ Sequence take_you_down {
     Clip {
       name: envelope,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 56.715087772s, duration: 22.702652045s },
       content: Envelope {
         curve: Curve {
@@ -282,7 +282,7 @@ Sequence take_you_down {
     Clip {
       name: envelope_2,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 56.818961559s, duration: 22.394494431s },
       content: Envelope {
         curve: Curve {
@@ -299,7 +299,7 @@ Sequence take_you_down {
     Clip {
       name: envelope_3,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 56.606261359s, duration: 23.022695851s },
       content: Envelope {
         curve: Curve {

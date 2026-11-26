@@ -236,7 +236,7 @@ Sequence hero {
     Clip {
       name: mark_pulse,
       description: none,
-      target: desk_leg_left,
+      targets: [desk_leg_left],
       placement: Timed { start: 67.82798s, duration: 9.960629s },
       content: Effect {
         layer: hue_shift,
@@ -255,7 +255,7 @@ Sequence hero {
     Clip {
       name: mark_chase,
       description: none,
-      target: desk_leg_left,
+      targets: [desk_leg_left],
       placement: Timed { start: 67.796455s, duration: 9.811603s },
       content: Effect {
         layer: hue_shift,
@@ -280,7 +280,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_2,
       description: none,
-      target: desk_leg_right,
+      targets: [desk_leg_right],
       placement: Timed { start: 67.850548s, duration: 9.960629s },
       content: Effect {
         layer: hue_shift,
@@ -299,7 +299,7 @@ Sequence hero {
     Clip {
       name: mark_chase_2,
       description: none,
-      target: desk_leg_right,
+      targets: [desk_leg_right],
       placement: Timed { start: 67.79187s, duration: 9.811603s },
       content: Effect {
         layer: hue_shift,
@@ -324,7 +324,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_3,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 67.866844s, duration: 0.404527s },
       content: Effect {
         layer: hue_shift,
@@ -343,7 +343,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_4,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 73.926605s, duration: 0.628821s },
       content: Effect {
         layer: hue_shift,
@@ -362,7 +362,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_5,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 70.753166s, duration: 0.398952s },
       content: Effect {
         layer: hue_shift,
@@ -381,7 +381,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_6,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 71.174309s, duration: 0.398952s },
       content: Effect {
         layer: hue_shift,
@@ -400,7 +400,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_7,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 77.093742s, duration: 0.47094s },
       content: Effect {
         layer: hue_shift,
@@ -419,7 +419,7 @@ Sequence hero {
     Clip {
       name: mark_chase_3,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 68.021805s, duration: 3.319892s },
       content: Effect {
         layer: hue_shift,
@@ -449,7 +449,7 @@ Sequence hero {
     Clip {
       name: mark_chase_4,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 71.359451s, duration: 3.094254s },
       content: Effect {
         layer: hue_shift,
@@ -479,7 +479,7 @@ Sequence hero {
     Clip {
       name: mark_chase_5,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 74.529404s, duration: 3.094254s },
       content: Effect {
         layer: hue_shift,
@@ -509,7 +509,7 @@ Sequence hero {
     Clip {
       name: mark_wipe,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 77.753281s, duration: 3.089171s },
       content: Effect {
         layer: hue_shift,
@@ -544,7 +544,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_8,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 77.54528s, duration: 0.362912s },
       content: Effect {
         layer: hue_shift,
@@ -563,7 +563,7 @@ Sequence hero {
     Clip {
       name: wipe,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 80.357948s, duration: 0.555424s },
       content: Effect {
         layer: default,
@@ -583,7 +583,7 @@ Sequence hero {
     Clip {
       name: wipe_2,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 80.357948s, duration: 0.555424s },
       content: Effect {
         layer: default,
@@ -603,7 +603,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_2,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 81.002533s, duration: 3.089171s },
       content: Effect {
         layer: hue_shift,
@@ -641,7 +641,7 @@ Sequence hero {
     Clip {
       name: mark_chase_6,
       description: none,
-      target: desk_leg_left,
+      targets: [desk_leg_left],
       placement: Timed { start: 80.674782s, duration: 10.348273s },
       content: Effect {
         layer: hue_shift,
@@ -666,7 +666,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_9,
       description: none,
-      target: desk_leg_left,
+      targets: [desk_leg_left],
       placement: Timed { start: 80.706306s, duration: 10.497299s },
       content: Effect {
         layer: hue_shift,
@@ -685,7 +685,7 @@ Sequence hero {
     Clip {
       name: mark_chase_7,
       description: none,
-      target: desk_leg_right,
+      targets: [desk_leg_right],
       placement: Timed { start: 80.637878s, duration: 10.348273s },
       content: Effect {
         layer: hue_shift,
@@ -710,7 +710,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_10,
       description: none,
-      target: desk_leg_right,
+      targets: [desk_leg_right],
       placement: Timed { start: 80.669403s, duration: 10.497299s },
       content: Effect {
         layer: hue_shift,
@@ -729,7 +729,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_11,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 80.783806s, duration: 0.42206s },
       content: Effect {
         layer: hue_shift,
@@ -748,7 +748,7 @@ Sequence hero {
     Clip {
       name: gradient,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 67.132805s, duration: 7.250016s },
       content: Effect {
         layer: gradient_base,
@@ -762,7 +762,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_3,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 84.245712s, duration: 1.468685s },
       content: Effect {
         layer: hue_shift,
@@ -800,7 +800,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_4,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 85.783058s, duration: 0.596427s },
       content: Effect {
         layer: hue_shift,
@@ -838,7 +838,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_5,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 86.3908s, duration: 0.764169s },
       content: Effect {
         layer: hue_shift,
@@ -876,7 +876,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_6,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 87.24556s, duration: 3.38715s },
       content: Effect {
         layer: hue_shift,
@@ -914,7 +914,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_7,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 90.460312s, duration: 3.41221s },
       content: Effect {
         layer: hue_shift,
@@ -949,7 +949,7 @@ Sequence hero {
     Clip {
       name: gradient_2,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 74.380547s, duration: 6.476666s },
       content: Effect {
         layer: gradient_base,
@@ -963,7 +963,7 @@ Sequence hero {
     Clip {
       name: gradient_3,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 80.822891s, duration: 13.161526s },
       content: Effect {
         layer: gradient_base,
@@ -977,7 +977,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 55.170227051s, duration: 3.231966257s },
       content: Effect {
         layer: buildup,
@@ -997,7 +997,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_8,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 55.073162079s, duration: 0.898833156s },
       content: Effect {
         layer: buildup,
@@ -1022,7 +1022,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_8_2_2,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 58.319702148s, duration: 0.898833156s },
       content: Effect {
         layer: buildup,
@@ -1047,7 +1047,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2_2,
       description: none,
-      target: desk_legs,
+      targets: [desk_legs],
       placement: Timed { start: 55.170227051s, duration: 3.198450327s },
       content: Effect {
         layer: buildup,
@@ -1067,7 +1067,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2_2_2,
       description: none,
-      target: desk_legs,
+      targets: [desk_legs],
       placement: Timed { start: 55.170227051s, duration: 6.575187683s },
       content: Effect {
         layer: buildup,
@@ -1087,7 +1087,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2_3,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 58.345867157s, duration: 3.374409199s },
       content: Effect {
         layer: buildup,
@@ -1106,7 +1106,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2_2_3,
       description: none,
-      target: desk_legs,
+      targets: [desk_legs],
       placement: Timed { start: 58.337490082s, duration: 3.41630435s },
       content: Effect {
         layer: buildup,
@@ -1126,7 +1126,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2_2_2_2,
       description: none,
-      target: desk_legs,
+      targets: [desk_legs],
       placement: Timed { start: 61.492107391s, duration: 5.766691208s },
       content: Effect {
         layer: buildup,
@@ -1146,7 +1146,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2_3_2,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 61.608932495s, duration: 3.18275547s },
       content: Effect {
         layer: buildup,
@@ -1165,7 +1165,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_9,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 64.650520325s, duration: 2.757999659s },
       content: Effect {
         layer: buildup,
@@ -1193,7 +1193,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_8_2_2_2,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 61.546455383s, duration: 0.898833156s },
       content: Effect {
         layer: buildup,
@@ -1218,7 +1218,7 @@ Sequence hero {
     Clip {
       name: mark_pulse_12_2_2_2_2_3,
       description: none,
-      target: desk_top,
+      targets: [desk_top],
       placement: Timed { start: 64.504119873s, duration: 2.782971621s },
       content: Effect {
         layer: buildup,
@@ -1238,7 +1238,7 @@ Sequence hero {
     Clip {
       name: mark_wipe_8_2_2_2_2,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 63.10534668s, duration: 0.898833156s },
       content: Effect {
         layer: buildup,
@@ -1263,7 +1263,7 @@ Sequence hero {
     Clip {
       name: envelope,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 61.125797272s, duration: 36.798931122s },
       content: Envelope {
         curve: Curve {
@@ -1290,7 +1290,7 @@ Sequence hero {
     Clip {
       name: envelope_2,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 64.443359s, duration: 39.604469s },
       content: Envelope {
         curve: Curve {
@@ -1309,7 +1309,7 @@ Sequence hero {
     Clip {
       name: envelope_3,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 54.79399537s, duration: 12.928729889s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.046), (0.7888914, 0.488), (0.9418507, 1.0), (1.0, 1.0)] },
@@ -1319,7 +1319,7 @@ Sequence hero {
     Clip {
       name: envelope_4,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 54.755928302s, duration: 12.916355382s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.744)] },

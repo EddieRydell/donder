@@ -82,7 +82,7 @@ function sequenceClipFields(document: SequenceGuiDocument): ClipFieldsAdapter {
     paramControl: (clip, param) => ({ automation: {
       target: { type: "clipParam", clipId: clip.id, param: param.name },
       envelopes,
-      canCreate: document.targets.some((lane) => targetsEqual(lane.target, clip.target))
+      canCreate: clip.targets.every((target) => document.targets.some((lane) => targetsEqual(lane.target, target)))
     } })
   };
 }

@@ -77,17 +77,21 @@ pub(crate) fn build(
                 .collect(),
         };
         let mut live = route.map(|route| crate::console::Live::new(route, clips.builder));
-        for clip in show.clips() {
+        // Each of a clip's targets plays its own copy of the clip.
+        for (clip, &authored_target) in show
+            .clips()
+            .flat_map(|clip| clip.clip().targets.iter().map(move |target| (clip, target)))
+        {
             let authored = clip.clip();
             let effect = clip.effect();
             // A dropped played clip keeps its voices, so commands still
             // address them, but plays in no layer.
-            let dropped = clips.drops(&effect.layer, authored.target);
+            let dropped = clips.drops(&effect.layer, authored_target);
             let timing = clip.timing();
             if dropped && timing.is_some() {
                 continue;
             }
-            let (target, pixel_count) = clips.target(authored.target, effect.scope);
+            let (target, pixel_count) = clips.target(authored_target, effect.scope);
             let duration = match (timing, &route) {
                 (Some((_, duration)), _) => Some(duration),
                 (None, Some(route)) => route.fixed_length(authored.id),

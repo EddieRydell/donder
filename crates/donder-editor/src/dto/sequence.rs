@@ -115,8 +115,9 @@ pub struct GuiClip {
     /// The clip's name, which envelopes and actions use.
     pub(crate) name: String,
     pub(crate) description: Option<String>,
-    /// What it plays over; an envelope's row.
-    pub(crate) target: FixtureTarget,
+    /// What it plays over, each target on its own; an envelope's rows.
+    pub(crate) targets: Vec<FixtureTarget>,
+    /// The targets' names, in order.
     pub(crate) target_label: String,
     pub(crate) placement: GuiPlacement,
     pub content: GuiClipContent,

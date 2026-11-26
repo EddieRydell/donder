@@ -61,7 +61,7 @@ A clip looks like this:
 Clip {
   name: chorus_pulse,
   description: none,
-  target: all_outputs,
+  targets: [all_outputs],
   placement: Timed { start: 58.97s, duration: 1s },
   content: Effect {
     layer: default,

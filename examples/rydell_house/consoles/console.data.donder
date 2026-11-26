@@ -11,7 +11,7 @@ Console console {
     Clip {
       name: radial_wipe_2,
       description: none,
-      target: house_and_trees,
+      targets: [house_and_trees],
       placement: Played { values: [] },
       content: Effect {
         layer: default,

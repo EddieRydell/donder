@@ -559,7 +559,11 @@ impl Encoder<'_> {
         Ok(types::Clip {
             name: name(&clip.name),
             description: clip.description.clone(),
-            target: self.fixture_target(clip.target),
+            targets: clip
+                .targets
+                .iter()
+                .map(|&target| self.fixture_target(target))
+                .collect(),
             placement: match &clip.placement {
                 Placement::Timed { start, duration } => types::Placement::Timed {
                     start: start.0,

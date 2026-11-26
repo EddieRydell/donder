@@ -82,7 +82,8 @@ fn sequence_clips(
             };
             Ok(Clip {
                 id: clip.id.0,
-                row: row(&clip.target, kind)?,
+                // A clip of several targets arranges in its first target's row.
+                row: row(&clip.targets[0], kind)?,
                 span: {
                     let (start, duration) = timed(clip);
                     Span::of(start, duration)

@@ -93,7 +93,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
                 .into_playback();
             let fixtures = project
                 .layout()
-                .members(authored.target)
+                .members(authored.targets[0])
                 .into_iter()
                 .map(|part| part.fixture.0)
                 .collect::<Vec<_>>();

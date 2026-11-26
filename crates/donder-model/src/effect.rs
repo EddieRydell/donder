@@ -21,8 +21,9 @@ pub struct Clip {
     /// Unique among its composition's clips; envelopes and actions name it.
     pub name: Identifier,
     pub description: Option<String>,
-    /// What the clip plays over; an envelope's row.
-    pub target: crate::layout::FixtureId,
+    /// What the clip plays over, each target on its own in the effect's
+    /// scope; an envelope's rows. Never empty, and never repeats a target.
+    pub targets: Vec<crate::layout::FixtureId>,
     pub placement: Placement,
     pub content: ClipContent,
 }

@@ -198,10 +198,15 @@ pub enum ClipProblem {
     NeverPlays,
     /// A console's envelope plays on the session's clock, so it has a start.
     EnvelopePlayed,
+    /// A console's played clip plays over one target: each press plays one
+    /// copy of it.
+    PlayedTargets,
     /// A value each copy takes from its press.
     Played(Identifier, PlayedProblem),
     Envelope(EnvelopeProblem),
     MissingTarget,
+    NoTargets,
+    RepeatedTarget,
     Definition(DefinitionProblem),
     Param(ParamProblem),
 }
@@ -482,7 +487,9 @@ impl ClipProblem {
             Self::Region(RegionProblem::StartBeyondClock) => Field::Start,
             Self::Region(_) => Field::Duration,
             Self::Definition(_) => Field::Definition,
-            Self::MissingTarget => Field::Target,
+            Self::MissingTarget | Self::NoTargets | Self::RepeatedTarget | Self::PlayedTargets => {
+                Field::Target
+            }
             Self::Param(problem) => Field::Param(problem.param().clone()),
         })
     }
@@ -749,7 +756,10 @@ impl fmt::Display for ClipProblem {
             }
             Self::MissingLayer => f.write_str("the clip's layer is missing"),
             Self::Region(problem) => problem.fmt(f),
-            Self::MissingTarget => f.write_str("the clip's target isn't in the layout"),
+            Self::MissingTarget => f.write_str("one of the clip's targets isn't in the layout"),
+            Self::NoTargets => f.write_str("the clip has no target"),
+            Self::PlayedTargets => f.write_str("a console's clip plays over one target"),
+            Self::RepeatedTarget => f.write_str("the clip lists a target twice"),
             Self::Definition(problem) => problem.fmt(f),
             Self::Param(problem) => problem.fmt(f),
         }

@@ -164,7 +164,7 @@ fn paste_clips(
         .composition
         .clips
         .iter()
-        .map(|clip| lane(&clip.target))
+        .map(|clip| clip.targets.iter().map(lane).collect::<Result<Vec<_>, _>>())
         .collect::<Result<Vec<_>, _>>()?;
     let min_start = pasted
         .composition
@@ -174,6 +174,7 @@ fn paste_clips(
         .fold(f64::INFINITY, f64::min);
     let min_lane = lanes
         .iter()
+        .flatten()
         .copied()
         .min()
         .ok_or_else(|| GuiMutationError::Invalid("Nothing to paste.".into()))?;
@@ -186,7 +187,12 @@ fn paste_clips(
     // Resolve every destination before mutation; never collapse distinct rows at the boundary.
     let destinations = lanes
         .iter()
-        .map(|&lane| destination(lane))
+        .map(|lanes| {
+            lanes
+                .iter()
+                .map(|&lane| destination(lane))
+                .collect::<Result<Vec<_>, _>>()
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let mut ids_after = IdAllocator::after(sequence.composition.clips.iter().map(|clip| clip.id.0));
     let id_map = pasted
@@ -197,7 +203,7 @@ fn paste_clips(
         .collect::<Result<BTreeMap<_, _>, GuiMutationError>>()?;
     let existing = sequence.composition.clips.len();
     let mut ids = Vec::new();
-    for (pasted_clip, target) in pasted.composition.clips.iter().zip(destinations) {
+    for (pasted_clip, targets) in pasted.composition.clips.iter().zip(destinations) {
         let mut clip = (**pasted_clip).clone();
         clip.id = id_map[&pasted_clip.id];
         clip.name = donder_language::unique_name(clip.name.as_str(), |name| {
@@ -210,7 +216,7 @@ fn paste_clips(
         *timed_mut(&mut clip).0 = super::checked_gui_time(
             anchor.time_seconds + timed(pasted_clip).0.as_seconds_f64() - min_start,
         )?;
-        clip.target = target;
+        clip.targets = targets;
         let placed = clip.clone();
         match &mut clip.content {
             ClipContent::Effect(effect) => {
@@ -370,7 +376,11 @@ pub(super) fn move_clip_selection(
     let sequence = &mut draft;
     for id in ids {
         let clip = clip_mut(sequence, *id)?;
-        clip.target = destination(&clip.target)?;
+        clip.targets = clip
+            .targets
+            .iter()
+            .map(destination)
+            .collect::<Result<_, _>>()?;
         let start = timed_mut(clip).0;
         *start = shifted_time(start, time_delta_seconds)?;
     }

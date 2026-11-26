@@ -606,8 +606,9 @@ export type GuiClip = {
 	/**  The clip's name, which envelopes and actions use. */
 	name: string,
 	description: string | null,
-	/**  What it plays over; an envelope's row. */
-	target: FixtureTarget,
+	/**  What it plays over, each target on its own; an envelope's rows. */
+	targets: FixtureTarget[],
+	/**  The targets' names, in order. */
 	targetLabel: string,
 	placement: GuiPlacement,
 	content: GuiClipContent,

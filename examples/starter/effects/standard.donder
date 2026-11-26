@@ -1,13 +1,8 @@
--- Whether the pixel is in the bands a Pulse or Chase lights: the target is cut
--- into `bands` equal columns across x, and the effect lights column `band` and
--- every `band_step`th column after it. One band, the default, is the whole
--- target and skips the test.
-fn in_band(bands: int, band: int, band_step: int) -> bool {
-  if bands == 1 { true }
-  else {
-    let column = min(floor((pixel.x - target.min_x) / (target.max_x - target.min_x) * bands), bands - 1);
-    column >= band && (column - band) % band_step == 0
-  }
+-- Whether the pixel is in the band a Pulse or Chase lights: the target is cut
+-- into `bands` equal columns across x, and the effect lights column `band`. One
+-- band, the default, is the whole target and skips the test.
+fn in_band(bands: int, band: int) -> bool {
+  bands == 1 || min(floor((pixel.x - target.min_x) / (target.max_x - target.min_x) * bands), bands - 1) == band
 }
 
 effect Pulse {
@@ -15,10 +10,9 @@ effect Pulse {
   param pulse_shape: curve in 0.0..1.0;
   param bands: int in 1..1000 = 1;
   param band: int in 0..999 = 0;
-  param band_step: int in 1..1000 = 1;
 
   sample {
-    guard in_band(bands, band, band_step);
+    guard in_band(bands, band);
     gradient[progress] * clamp(pulse_shape[progress], 0.0, 1.0)
   }
 }
@@ -34,10 +28,9 @@ effect Chase {
   param pulse_shape: curve in 0.0..1.0;
   param bands: int in 1..1000 = 1;
   param band: int in 0..999 = 0;
-  param band_step: int in 1..1000 = 1;
 
   sample {
-    guard in_band(bands, band, band_step);
+    guard in_band(bands, band);
     -- Split into bands, each band chases up its own column over the pixels it holds.
     let item_count = if bands == 1 { target.count } else { ceil(target.count / bands) };
     let position = if bands == 1 { pixel.index / max(1.0, item_count - 1.0) } else { (pixel.y - target.min_y) / (target.max_y - target.min_y) };
@@ -1317,15 +1310,12 @@ effect Fireworks {
 
 -- How far slot `key`'s meteors have travelled in all, in cells: Vixen's speed is
 -- two cells per second per unit, varied per slot, from a random start.
-fn slot_along(key: float, speed: float, variation: float, span: float) -> float {
-  time * (2.0 * speed + (rand(key + 0.1) - 0.5) * 2.0 * variation) + rand(key + 0.2) * span
-}
-
 -- PIXEL: Meteors falling, or rising, in one direction on a Strings or Locations
 -- grid. Paths run in lanes one cell apart across the direction, and each lane
 -- launches meteors one trip after another at a random speed, so a pixel checks
--- only the lanes it touches. About `count` slots of meteors share the lanes; a
--- trip shows with the slots' share of the lanes. A meteor's tail tapers by
+-- only the lanes it touches. About `count` slots of meteors share the lanes, at
+-- most 128 a lane; every lane runs the same slots from its own random offset,
+-- and a trip shows with the slots' share of the lanes. A meteor's tail tapers by
 -- tail_taper (default 1 -> 0). Default gradients red/lime/blue.
 effect Meteors {
   param colors: array<gradient>;
@@ -1381,9 +1371,14 @@ effect Meteors {
     -- Lanes across the direction, the slots of each, and the share of trips shown.
     let lanes = max(1.0, ceil(abs(uy) * w + abs(ux) * h));
     let slots = floor(1.0 + count * 1.99);
-    let per_lane = int(clamp(ceil(slots / lanes), 1.0, slots));
+    let per_lane = int(clamp(ceil(slots / lanes), 1.0, 128.0));
     let shown = slots / (lanes * per_lane);
     let half = 0.5 * max(abs(ux), abs(uy)) + 0.5 * min(abs(ux), abs(uy));
+    -- Each slot's key and how far it has travelled, once a frame.
+    let keys = table for j in 0..per_lane { rand(base + j) };
+    let travelled = table for j in 0..per_lane {
+      time * (2.0 * speed + (rand(keys[j] + 0.1) - 0.5) * 2.0 * speed_variation) + rand(keys[j] + 0.2) * span
+    };
     -- The pixel along the direction from the grid's center, and across it in lanes.
     let dx = x - w / 2.0;
     let dy = y - h / 2.0;
@@ -1392,24 +1387,25 @@ effect Meteors {
     let first_lane = floor(side - half);
     let touched = floor(side + half) - first_lane;
     -- The highest covering slot as slot * 4 + its tail fraction.
-    let code = last for i in 0..3 * per_lane {
-      let step = i // per_lane;
+    let code = max for step in 0..3 {
       let lane = first_lane + step;
-      guard step <= touched && lane >= 0.0 && lane < lanes;
-      let slot = lane * per_lane + i % per_lane;
-      let key = rand(base + slot);
-      let along = slot_along(key, speed, speed_variation, span);
-      let trip = floor(along / span);
-      let trip_key = rand(key + trip);
-      let behind = along - trip * span - span / 2.0 - ahead;
-      guard rand(trip_key + 0.35) < shown && behind > -0.5 && behind < tail - 0.5 && abs(side - lane - 0.5) <= half;
-      slot * 4.0 + clamp(behind / tail, 0.0, 0.999)
-    } else { -1.0 };
+      guard step <= touched && lane >= 0.0 && lane < lanes && abs(side - lane - 0.5) <= half;
+      let offset = rand(base + lane + 0.5) * span;
+      max for j in 0..per_lane {
+        let along = travelled[j] + offset;
+        let trip = floor(along / span);
+        let behind = along - trip * span - span / 2.0 - ahead;
+        guard behind > -0.5 && behind < tail - 0.5 && (shown >= 1.0 || rand(rand(keys[j] + trip + offset) + 0.35) < shown);
+        (lane * per_lane + j) * 4.0 + clamp(behind / tail, 0.0, 0.999)
+      }
+    };
     guard code >= 0.0;
     let slot = floor(code / 4.0);
     let fraction = code - slot * 4.0;
-    let key = rand(base + slot);
-    let trip_key = rand(key + floor(slot_along(key, speed, speed_variation, span) / span));
+    let lane = floor(slot / per_lane);
+    let j = int(slot - lane * per_lane);
+    let offset = rand(base + lane + 0.5) * span;
+    let trip_key = rand(keys[j] + floor((travelled[j] + offset) / span) + offset);
     let brightness = if random_brightness { 0.2 + rand(trip_key + 0.4) * 0.8 } else { 1.0 };
     let factor = brightness * value_or(tail_taper[fraction], 1.0) * intensity;
     let first = colors[int(rand(trip_key + 0.5) * len(colors))];
@@ -1585,59 +1581,130 @@ fn char_start(font: font, message: text, k: int) -> float {
 
 -- PIXEL: Text, one line in a font, still or moving Left, Right, Up or Down
 -- across the target `speed` times over the clip, entering at one side and
--- leaving by the other, or stopping at the center with center_stop. Rotated
--- mode stacks the characters one above another, each centered, like Vixen's
--- Rotated text. `size` is the line height as a share of the target's height;
--- the offsets move still text by shares of the target's width and height. The
--- gradient runs across the target from left to right.
+-- leaving by the other, or stopping at the center with center_stop; Bounce
+-- slides it from side to side `speed` times. Rotated mode stacks the characters
+-- one above another, each centered, like Vixen's Rotated text. `size` is the
+-- line height as a share of the target's height and `stretch` widens the
+-- glyphs; the offsets move still text by shares of the target's width and
+-- height. A wave bobs the letters by `wave` line heights along a wave
+-- `wave_length` line heights long that travels a wave length a second.
+-- An animation brings the letters in one after another over the first
+-- `animation_share` of the clip, `stagger` spreading their starts, and with
+-- animate_out takes them out the same way over the last share: flying from the
+-- right or left, dropping from above, rising from below, typed, or fading.
 effect Text {
   param message: text = "Merry Christmas";
   param font: font;
   param gradient: gradient;
   param text_mode: enum { Normal, Rotated } = Normal;
-  param movement: enum { None, Left, Right, Up, Down } = None;
+  param movement: enum { None, Left, Right, Up, Down, Bounce } = None;
   param speed: float in 0.0..100.0 = 1.0;
   param center_stop: bool = false;
   param size: float in 0.01..10.0 = 0.5;
   param x_offset: float in -1.0..1.0 = 0.0;
   param y_offset: float in -1.0..1.0 = 0.0;
   param intensity: float in 0.0..1.0 = 1.0;
+  param stretch: float in 0.1..10.0 = 1.0;
+  -- Where the gradient runs: across the target, through the clip, across the
+  -- text, one point per character in order or at random; Rainbow gives each
+  -- character its own hue, turning once every two seconds.
+  param color_mode: enum { AcrossTarget, ThroughEffect, AcrossText, PerCharacter, Random, Rainbow } = AcrossTarget;
+  param wave: float in 0.0..2.0 = 0.0;
+  param wave_length: float in 0.5..50.0 = 4.0;
+  param animation: enum { None, FlyLeft, FlyRight, Drop, Rise, Typewriter, Fade } = None;
+  param animate_out: bool = false;
+  param animation_share: float in 0.01..1.0 = 0.3;
+  param stagger: float in 0.0..0.9 = 0.6;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
 
   sample {
     let line = font_height(font);
     let scale = line / (size * (target.max_y - target.min_y));
-    let w = (target.max_x - target.min_x) * scale;
+    let w = (target.max_x - target.min_x) * scale / stretch;
     let h = line / size;
     let rotated = text_mode == Rotated;
     let count = text_length(message);
-    -- Rotated characters' starts and widths; the widest sets the block's width.
-    let starts = table for k in 0..65 { if rotated { char_start(font, message, k) } else { 0.0 } };
+    -- Characters' starts and widths; in Rotated mode the widest sets the block's width.
+    let starts = table for k in 0..65 { char_start(font, message, k) };
     let widths = table for k in 0..64 { if k + 1 < count { starts[k + 1] - starts[k] } else { text_width(font, message) - starts[k] } };
     let block_w = if rotated { max for k in 0..min(count, 64) { widths[k] } } else { text_width(font, message) };
     let block_h = if rotated { line * count } else { line };
     let pass = (progress * speed) % 1.0;
     let center_x = (w - block_w) / 2.0;
     let center_y = (h - block_h) / 2.0;
+    let room = w - block_w;
     let left =
       if movement == Left { let at = w - pass * (block_w + w); if center_stop { max(at, center_x) } else { at } }
       else if movement == Right { let at = pass * (block_w + w) - block_w; if center_stop { min(at, center_x) } else { at } }
+      else if movement == Bounce { min(room, 0.0) + ping_pong(progress * speed * 2.0 * abs(room), abs(room)) }
       else { center_x + x_offset * w };
+    let x = (pixel.x - target.min_x) * scale / stretch - left;
+    let bob = wave * line * sin(TAU * (x / (wave_length * line) - time));
     let bottom =
       if movement == Up { let at = pass * (block_h + h) - block_h; if center_stop { min(at, center_y) } else { at } }
       else if movement == Down { let at = h - pass * (block_h + h); if center_stop { max(at, center_y) } else { at } }
       else { center_y + y_offset * h };
-    let x = (pixel.x - target.min_x) * scale - left;
-    let y = (pixel.y - target.min_y) * scale - bottom;
-    let ink =
-      if rotated {
-        -- Character k is line k from the top.
-        let k = count - 1 - int(floor(y / line));
-        guard k >= 0 && k < count else 0.0;
-        let gx = starts[k] + x - (block_w - widths[k]) / 2.0;
-        guard char_index(font, message, gx) == k else 0.0;
-        glyph_coverage(font, message, gx, y - (count - 1 - k) * line)
-      } else { glyph_coverage(font, message, x, y) };
-    gradient[(pixel.x - target.min_x) / (target.max_x - target.min_x)] * (ink * intensity)
+    let y = (pixel.y - target.min_y) * scale - bottom - bob;
+    -- Each character's way in and out this frame, 0 before it starts and 1
+    -- once it has finished, eased; then how far it sits from its place and how
+    -- much of it shows.
+    let arrived = table for k in 0..64 {
+      let t = clamp((progress / animation_share - stagger * k / count) / (1.0 - stagger), 0.0, 1.0);
+      1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
+    };
+    let left_by = table for k in 0..64 {
+      let t = if animate_out { clamp(((progress - 1.0 + animation_share) / animation_share - stagger * k / count) / (1.0 - stagger), 0.0, 1.0) } else { 0.0 };
+      t * t * t
+    };
+    let dx = table for k in 0..64 {
+      if animation == FlyLeft { (1.0 - arrived[k]) * w - left_by[k] * w }
+      else if animation == FlyRight { left_by[k] * w - (1.0 - arrived[k]) * w }
+      else { 0.0 }
+    };
+    let dy = table for k in 0..64 {
+      if animation == Drop { (1.0 - arrived[k]) * h - left_by[k] * h }
+      else if animation == Rise { left_by[k] * h - (1.0 - arrived[k]) * h }
+      else { 0.0 }
+    };
+    let shown = table for k in 0..64 {
+      if animation == Typewriter { if arrived[k] > 0.0 && left_by[k] < 1.0 { 1.0 } else { 0.0 } }
+      else if animation == Fade { arrived[k] * (1.0 - left_by[k]) }
+      else { 1.0 }
+    };
+    -- The character the pixel is in, and its ink, as k * 2 + ink.
+    let code =
+      if animation == None {
+        let row = count - 1 - int(floor(y / line));
+        let k = if rotated { row } else { char_index(font, message, x) };
+        let ink =
+          if rotated {
+            -- Character k is line k from the top.
+            guard k >= 0 && k < count else 0.0;
+            let gx = starts[k] + x - (block_w - widths[k]) / 2.0;
+            guard char_index(font, message, gx) == k else 0.0;
+            glyph_coverage(font, message, gx, y - (count - 1 - k) * line)
+          } else { glyph_coverage(font, message, x, y) };
+        k * 2.0 + ink
+      } else {
+        max(0.0, max for k in 0..min(count, 64) {
+          let gx = (if rotated { starts[k] + x - (block_w - widths[k]) / 2.0 } else { x }) - dx[k];
+          let gy = y - dy[k] - (if rotated { (count - 1 - k) * line } else { 0.0 });
+          guard shown[k] > 0.0 && char_index(font, message, gx) == k;
+          let ink = glyph_coverage(font, message, gx, gy) * shown[k];
+          guard ink > 0.0;
+          k * 2.0 + ink
+        })
+      };
+    let k = floor(code / 2.0);
+    let level = (code - k * 2.0) * intensity;
+    match color_mode {
+      AcrossTarget => gradient[(pixel.x - target.min_x) / (target.max_x - target.min_x)] * level,
+      ThroughEffect => gradient[progress] * level,
+      AcrossText => gradient[if rotated { 1.0 - y / block_h } else { x / block_w }] * level,
+      PerCharacter => gradient[(k + 0.5) / count] * level,
+      Random => gradient[rand(random_seed * 31.0 + k)] * level,
+      Rainbow => hsv((k + 0.5) / count + time * 0.5, 1.0, level),
+    }
   }
 }
 

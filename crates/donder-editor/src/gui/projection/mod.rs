@@ -53,8 +53,13 @@ pub(super) fn project_clip(
         id: clip.id.0,
         name: clip.name.as_str().to_string(),
         description: clip.description.clone(),
-        target: target_to_gui(clip.target),
-        target_label: target_label(session, clip.target),
+        targets: clip.targets.iter().copied().map(target_to_gui).collect(),
+        target_label: clip
+            .targets
+            .iter()
+            .map(|&target| target_label(session, target))
+            .collect::<Vec<_>>()
+            .join(", "),
         content: match &clip.content {
             donder_model::ClipContent::Effect(effect) => GuiClipContent::Effect {
                 layer_id: effect.layer.0,

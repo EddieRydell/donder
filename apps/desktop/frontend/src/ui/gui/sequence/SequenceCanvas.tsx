@@ -265,7 +265,7 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
   const top = audioStripBottom + markRulerHeight;
   const targetMarkCollectionKey = activeMarkCollection(document.markCollections, activeMarkCollectionKey)?.name ?? null;
   const automationRowHeight = automationLaneRowHeight(initialSequenceLaneHeight(settings));
-  const envelopeTargets = useMemo(() => document.clips.filter((clip) => clip.content.type === "envelope").map((clip) => clip.target), [document.clips]);
+  const envelopeTargets = useMemo(() => document.clips.filter((clip) => clip.content.type === "envelope").flatMap((clip) => clip.targets), [document.clips]);
   // Group lanes collapse like folders in a file tree; their members and envelopes take no rows.
   const [collapsedGroups, saveCollapsedGroups] = useCollapsedGroups();
   const layoutRows = useCallback(
@@ -993,7 +993,7 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
     const edges = current.resize === "left" ? [startSeconds] : current.resize === "right" ? [end] : [startSeconds, end];
     const rowTarget = targetAtLane(document, current.resize === "none" ? destinationLane : current.laneIndex);
     // The peers are the unselected clips of the row the grabbed one lands in.
-    const peers = document.clips.filter(isTimed).filter((peer) => !selection.ids.includes(peer.id) && clipRowKind(peer) === clipRowKind(clip) && targetsEqual(peer.target, rowTarget));
+    const peers = document.clips.filter(isTimed).filter((peer) => !selection.ids.includes(peer.id) && clipRowKind(peer) === clipRowKind(clip) && peer.targets.some((target) => targetsEqual(target, rowTarget)));
     return roundToNanosecond(snapDeltaToTimes(edges, delta, [...markTimes, ...clipEdgeSnapTimes(peers.map((peer) => peer.placement))], viewport.pxPerSecond));
   };
 
@@ -1112,7 +1112,9 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
   };
   const paste = () => {
     const focused = document.clips.filter(isTimed).find((clip) => clip.id === focusedClipId(selected));
-    const lane = selectedLaneIndex ?? (focused === undefined ? -1 : nearestLane(document, focused.target, 0));
+    // A clip of several targets pastes from its first target's row.
+    const focusedTarget = focused?.targets[0];
+    const lane = selectedLaneIndex ?? (focusedTarget === undefined ? -1 : nearestLane(document, focusedTarget, 0));
     const markTime = selectedMark === null ? undefined : document.markCollections.find((collection) => collection.id === selectedMark.collectionId)?.marksSeconds[selectedMark.index];
     const timeSeconds = selectedTimeSeconds ?? focused?.placement.startSeconds ?? markTime ?? 0;
     void runGuiEditCommand((request) => commands.pasteSequence(request, { lane: lane < 0 ? null : lane, timeSeconds })).then((result) => {
@@ -1397,7 +1399,7 @@ export function SequenceCanvas({ document }: { document: SequenceGuiDocument }) 
           case "rowLabel": {
             const { row } = target;
             const laneTarget = targetAtLane(document, target.laneIndex);
-            const rowSelection: SequenceSelection = { type: "clips", ids: row === null ? [] : document.clips.filter((clip) => clipRowKind(clip) === row.kind && targetsEqual(clip.target, laneTarget)).map((clip) => clip.id) };
+            const rowSelection: SequenceSelection = { type: "clips", ids: row === null ? [] : document.clips.filter((clip) => clipRowKind(clip) === row.kind && clip.targets.some((target) => targetsEqual(target, laneTarget))).map((clip) => clip.id) };
             setSelectedLaneIndex(target.laneIndex);
             updateSequenceSelection(selectionCount(rowSelection) > 0 ? rowSelection : null);
             return;

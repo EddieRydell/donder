@@ -12,7 +12,7 @@ Console jam {
     Clip {
       name: background,
       description: "Pulses on every tapped beat.",
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Played { values: [] },
       content: Effect {
         layer: default,
@@ -29,7 +29,7 @@ Console jam {
     Clip {
       name: flash,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Played { values: [] },
       content: Effect {
         layer: default,
@@ -41,7 +41,7 @@ Console jam {
     Clip {
       name: wash,
       description: none,
-      target: all_outputs,
+      targets: [all_outputs],
       placement: Played { values: [] },
       content: Effect {
         layer: default,

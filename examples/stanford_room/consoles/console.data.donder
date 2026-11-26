@@ -13,7 +13,7 @@ Console console {
     Clip {
       name: chase,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Played {
         values: [PlayedValue { param: pulse_overlap, from: Velocity, window: (0.0, 1.0) }],
       },

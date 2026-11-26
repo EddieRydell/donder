@@ -5303,7 +5303,7 @@ Project rydell_house {
     Route {
       target: above_garage_wreath_seeds,
       pixels: none,
-      reverse: false,
+      reverse: true,
       controller: controllers.garage_wreath_controller,
       port: "Seeds",
       start: Channel { channel: 0 },
@@ -5315,7 +5315,7 @@ Project rydell_house {
     Route {
       target: above_garage_wreath_bulbs,
       pixels: none,
-      reverse: false,
+      reverse: true,
       controller: controllers.garage_wreath_controller,
       port: "Bulbs",
       start: Channel { channel: 900 },
@@ -5327,7 +5327,7 @@ Project rydell_house {
     Route {
       target: above_garage_wreath_bullets,
       pixels: none,
-      reverse: false,
+      reverse: true,
       controller: controllers.garage_wreath_controller,
       port: "Bullets",
       start: Channel { channel: 1050 },

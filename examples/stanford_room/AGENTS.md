@@ -36,7 +36,7 @@ A clip plays one effect on one target over a span of time:
 Clip {
   name: chorus_pulse,
   description: "Big hit on the drop.",
-  target: desk_leg_left,
+  targets: [desk_leg_left],
   placement: Timed { start: 67.82798s, duration: 9.960629s },
   content: Effect {
     layer: hue_shift,

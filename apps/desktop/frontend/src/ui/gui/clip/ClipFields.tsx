@@ -68,15 +68,17 @@ export function ClipFields({ clips, details, adapter }: { clips: GuiClip[]; deta
   const mixed = { value: MIXED, label: "Multiple", disabled: true } as const;
   const options = <T extends string>(value: T | null, all: SelectOption<T>[]) => value === null ? [mixed, ...all] : all;
   const layerId = common(clips, (clip) => String(effectOf(clip).layerId));
-  const fixture = common(clips, (clip) => String(clip.target.fixture));
+  // A clip of several targets shows them as one choice; choosing a lane sets that single target.
+  const targetKey = (clip: (typeof clips)[number]) => clip.targets.map((target) => target.fixture).join(",");
+  const fixture = common(clips, targetKey);
   const scope = common(clips, (clip) => effectOf(clip).scope);
   const timed = clips.flatMap((clip) => clip.placement.type === "timed" ? [clip.placement] : []);
   const startSeconds = timed.length === clips.length ? common(clips, (clip) => clip.placement.type === "timed" ? clip.placement.startSeconds : 0) : null;
   const durationSeconds = timed.length === clips.length ? common(clips, (clip) => clip.placement.type === "timed" ? clip.placement.durationSeconds : 0) : null;
   const targets: SelectOption<string>[] = [
-    ...clips.filter((clip, index) => clips.findIndex((other) => other.target.fixture === clip.target.fixture) === index
-      && !document.targets.some((lane) => lane.target.fixture === clip.target.fixture))
-      .map((clip) => ({ value: String(clip.target.fixture), label: clip.targetLabel, disabled: true })),
+    ...clips.filter((clip, index) => clips.findIndex((other) => targetKey(other) === targetKey(clip)) === index
+      && !document.targets.some((lane) => String(lane.target.fixture) === targetKey(clip)))
+      .map((clip) => ({ value: targetKey(clip), label: clip.targetLabel, disabled: true })),
     ...document.targets.filter((lane, index) => document.targets.findIndex((other) => other.target.fixture === lane.target.fixture) === index)
       .map((lane) => ({ value: String(lane.target.fixture), label: `${INDENT.repeat(lane.depth)}${lane.label}` }))
   ];

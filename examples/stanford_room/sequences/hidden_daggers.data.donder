@@ -16,7 +16,7 @@ Sequence hidden_daggers {
     Clip {
       name: pulse,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 168.546646118s, duration: 0.148064598s },
       content: Effect {
         layer: default,
@@ -31,7 +31,7 @@ Sequence hidden_daggers {
     Clip {
       name: spin,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 168.565917969s, duration: 1s },
       content: Effect {
         layer: layer_1,
@@ -50,7 +50,7 @@ Sequence hidden_daggers {
     Clip {
       name: gradient,
       description: none,
-      target: desk,
+      targets: [desk],
       placement: Timed { start: 168.565109253s, duration: 1s },
       content: Effect {
         layer: gradient,
