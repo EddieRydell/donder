@@ -468,7 +468,7 @@ Sequence oklahoma {
     Clip {
       name: melody_butterfly_2,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 0.118817399s, duration: 7.927183636s },
       content: Effect {
         layer: default,
@@ -1276,7 +1276,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_b_pinwheel,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Effect {
         layer: default,
@@ -1337,7 +1337,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_c_butterfly,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Effect {
         layer: default,
@@ -1356,7 +1356,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_c_flash,
       description: none,
-      targets: [mega_tree, garage_matrix, arch_tunnel],
+      targets: [mega_tree, garage_matrix, arch_tunnel, house_number],
       placement: Timed { start: 16.1164s, duration: 1s },
       content: Effect {
         layer: default,
@@ -1418,7 +1418,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_d_fireworks,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Effect {
         layer: default,
@@ -1440,7 +1440,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_d_flash,
       description: none,
-      targets: [mega_tree, garage_matrix, arch_tunnel],
+      targets: [mega_tree, garage_matrix, arch_tunnel, house_number],
       placement: Timed { start: 24.1437s, duration: 1s },
       content: Effect {
         layer: default,
@@ -1497,7 +1497,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_e_pinwheel,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Effect {
         layer: default,
@@ -1521,7 +1521,7 @@ Sequence oklahoma {
     Clip {
       name: mega_tree_e_flash,
       description: none,
-      targets: [mega_tree, garage_matrix, arch_tunnel],
+      targets: [mega_tree, garage_matrix, arch_tunnel, house_number],
       placement: Timed { start: 32.29s, duration: 1s },
       content: Effect {
         layer: default,
@@ -9941,7 +9941,7 @@ Sequence oklahoma {
     Clip {
       name: envelope,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 8.1295s, duration: 7.9869s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9374, 1.0), (1.0, 0.0)] },
@@ -9986,7 +9986,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_4,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 16.1164s, duration: 8.0273s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1246, 1.0), (0.9377, 1.0), (1.0, 0.0)] },
@@ -10031,7 +10031,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_7,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 24.1437s, duration: 8.1463s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1228, 1.0), (0.9386, 1.0), (1.0, 0.0)] },
@@ -10076,7 +10076,7 @@ Sequence oklahoma {
     Clip {
       name: envelope_10,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 32.29s, duration: 5s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.2, 1.0), (0.938, 1.0), (1.0, 0.0)] },

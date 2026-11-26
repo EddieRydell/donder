@@ -8396,7 +8396,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_82,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 19.727539s, duration: 3.895122s },
       content: Effect {
         layer: default,
@@ -10076,7 +10076,7 @@ Sequence tiny_tree {
     Clip {
       name: chase_300,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 23.609115s, duration: 1.262855s },
       content: Effect {
         layer: default,
@@ -11254,7 +11254,7 @@ Sequence tiny_tree {
     Clip {
       name: pulse_120,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 24.87197s, duration: 0.685313s },
       content: Effect {
         layer: default,
@@ -11657,7 +11657,7 @@ Sequence tiny_tree {
     Clip {
       name: chase_399,
       description: none,
-      targets: [mega_tree, garage_matrix],
+      targets: [mega_tree, garage_matrix, house_number],
       placement: Timed { start: 25.557284s, duration: 1.420815s },
       content: Effect {
         layer: default,
@@ -11715,7 +11715,7 @@ Sequence tiny_tree {
     Clip {
       name: chase_402,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 25.557284s, duration: 1.420815s },
       content: Effect {
         layer: default,
@@ -12979,7 +12979,7 @@ Sequence tiny_tree {
     Clip {
       name: pulse_151,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 26.978098s, duration: 1.014396s },
       content: Effect {
         layer: default,
@@ -13513,7 +13513,7 @@ Sequence tiny_tree {
     Clip {
       name: chase_521,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 27.992494s, duration: 1.262855s },
       content: Effect {
         layer: default,
@@ -16626,7 +16626,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_143,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 35.073199s, duration: 1.919323s },
       content: Effect {
         layer: default,
@@ -17629,6 +17629,7 @@ Sequence tiny_tree {
         windows,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 37.030792s, duration: 0.910366s },
       content: Effect {
@@ -17749,7 +17750,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_144,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 37.458264s, duration: 1.619955s },
       content: Effect {
         layer: default,
@@ -17771,7 +17772,7 @@ Sequence tiny_tree {
     Clip {
       name: wipe_53,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 37.458264s, duration: 1.124625s },
       content: Effect {
         layer: default,
@@ -18706,6 +18707,7 @@ Sequence tiny_tree {
         windows,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 40.844198s, duration: 0.910366s },
       content: Effect {
@@ -18823,7 +18825,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_186,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 41.27167s, duration: 1.124625s },
       content: Effect {
         layer: default,
@@ -18910,7 +18912,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_196,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 41.27167s, duration: 1.612851s },
       content: Effect {
         layer: default,
@@ -20595,7 +20597,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_219,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 42.730093s, duration: 1.812475s },
       content: Effect {
         layer: default,
@@ -22346,6 +22348,7 @@ Sequence tiny_tree {
         windows,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 46.495896s, duration: 2.469576s },
       content: Effect {
@@ -22436,6 +22439,7 @@ Sequence tiny_tree {
         trunk_fr,
         windows,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 47.548569s, duration: 2.155472s },
       content: Effect {
@@ -22526,6 +22530,7 @@ Sequence tiny_tree {
         trunk_fr,
         windows,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 48.253181s, duration: 2.002665s },
       content: Effect {
@@ -22692,7 +22697,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_223,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 50.449462s, duration: 1.812475s },
       content: Effect {
         layer: default,
@@ -38116,7 +38121,7 @@ Sequence tiny_tree {
     Clip {
       name: chase_1400,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 83.192056s, duration: 1.262855s },
       content: Effect {
         layer: default,
@@ -38950,7 +38955,7 @@ Sequence tiny_tree {
     Clip {
       name: pulse_331,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 84.454911s, duration: 0.685313s },
       content: Effect {
         layer: default,
@@ -39507,7 +39512,16 @@ Sequence tiny_tree {
     Clip {
       name: chase_1482,
       description: none,
-      targets: [mega_tree, garage_matrix, arch_tunnel, house_outline, windows, trees, spiral_trees],
+      targets: [
+        mega_tree,
+        garage_matrix,
+        arch_tunnel,
+        house_outline,
+        windows,
+        trees,
+        spiral_trees,
+        house_number,
+      ],
       placement: Timed { start: 85.140224s, duration: 1.420815s },
       content: Effect {
         layer: default,
@@ -39674,7 +39688,7 @@ Sequence tiny_tree {
     Clip {
       name: chase_1493,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.140224s, duration: 1.420815s },
       content: Effect {
         layer: default,
@@ -40699,7 +40713,7 @@ Sequence tiny_tree {
     Clip {
       name: pulse_364,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 86.561039s, duration: 1.014396s },
       content: Effect {
         layer: default,
@@ -41283,7 +41297,7 @@ Sequence tiny_tree {
     Clip {
       name: chase_1599,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 87.575435s, duration: 1.262855s },
       content: Effect {
         layer: default,
@@ -45239,6 +45253,7 @@ Sequence tiny_tree {
         windows,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 96.588394s, duration: 0.910366s },
       content: Effect {
@@ -45359,7 +45374,7 @@ Sequence tiny_tree {
     Clip {
       name: wipe_257,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 97.015866s, duration: 1.124625s },
       content: Effect {
         layer: default,
@@ -45388,7 +45403,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_476,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 97.015866s, duration: 1.619955s },
       content: Effect {
         layer: default,
@@ -46316,6 +46331,7 @@ Sequence tiny_tree {
         windows,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 100.4018s, duration: 0.910366s },
       content: Effect {
@@ -46464,7 +46480,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_519,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 100.829272s, duration: 1.124625s },
       content: Effect {
         layer: default,
@@ -46520,7 +46536,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_528,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 100.829272s, duration: 1.612851s },
       content: Effect {
         layer: default,
@@ -48205,7 +48221,7 @@ Sequence tiny_tree {
     Clip {
       name: clip_551,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 102.287695s, duration: 1.812475s },
       content: Effect {
         layer: default,
@@ -49978,6 +49994,7 @@ Sequence tiny_tree {
         windows,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 106.053498s, duration: 2.469576s },
       content: Effect {
@@ -50068,6 +50085,7 @@ Sequence tiny_tree {
         trunk_fr,
         windows,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 107.106171s, duration: 2.155472s },
       content: Effect {
@@ -50158,6 +50176,7 @@ Sequence tiny_tree {
         trunk_fr,
         windows,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 107.810783s, duration: 2.002665s },
       content: Effect {
@@ -53991,7 +54010,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 19.727539s, duration: 3.895122s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1044, 1.0), (0.6948, 1.0), (1.0, 0.0)] },
@@ -54003,7 +54022,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_3,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 35.073199s, duration: 1.919323s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1086, 1.0), (0.8023, 1.0), (1.0, 0.0)] },
@@ -54015,7 +54034,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_4,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 37.458264s, duration: 1.619955s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.67, 1.0), (1.0, 0.0)] },
@@ -54039,7 +54058,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_7,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 41.27167s, duration: 1.612851s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.7032, 1.0), (1.0, 0.0)] },
@@ -54063,7 +54082,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_9,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 42.730093s, duration: 1.812475s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)] },
@@ -54087,7 +54106,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_11,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 50.449462s, duration: 1.812475s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)] },
@@ -54123,7 +54142,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_14,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 97.015866s, duration: 1.619955s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.67, 1.0), (1.0, 0.0)] },
@@ -54147,7 +54166,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_17,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 100.829272s, duration: 1.612851s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.7032, 1.0), (1.0, 0.0)] },
@@ -54171,7 +54190,7 @@ Sequence tiny_tree {
     Clip {
       name: envelope_19,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 102.287695s, duration: 1.812475s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8065, 1.0), (1.0, 0.0)] },

@@ -6049,7 +6049,7 @@ Sequence rainbow {
     Clip {
       name: color_wash_2,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 32.44824s, duration: 0.95888s },
       content: Effect {
         layer: default,
@@ -6207,7 +6207,7 @@ Sequence rainbow {
     Clip {
       name: color_wash_3,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 35.01248s, duration: 0.95888s },
       content: Effect {
         layer: default,
@@ -21238,7 +21238,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_34,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 86.307s, duration: 1.156s },
       content: Effect {
         layer: default,
@@ -21280,7 +21280,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_37,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 87.783s, duration: 1.156s },
       content: Effect {
         layer: default,
@@ -21343,7 +21343,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_41,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 89.26s, duration: 1.156s },
       content: Effect {
         layer: default,
@@ -21406,7 +21406,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_45,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 90.64s, duration: 1.156s },
       content: Effect {
         layer: default,
@@ -21469,7 +21469,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_49,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 92.06s, duration: 1.156s },
       content: Effect {
         layer: default,
@@ -22256,7 +22256,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_106,
       description: none,
-      targets: [inside_tree, mega_tree, grass],
+      targets: [inside_tree, mega_tree, grass, house_number],
       placement: Timed { start: 94.883s, duration: 1.213s },
       content: Effect {
         layer: default,
@@ -22771,7 +22771,7 @@ Sequence rainbow {
     Clip {
       name: envelope_25,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 86.307s, duration: 1.156s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -22795,7 +22795,7 @@ Sequence rainbow {
     Clip {
       name: envelope_28,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 87.783s, duration: 1.156s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -22831,7 +22831,7 @@ Sequence rainbow {
     Clip {
       name: envelope_32,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 89.26s, duration: 1.156s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -22867,7 +22867,7 @@ Sequence rainbow {
     Clip {
       name: envelope_36,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 90.64s, duration: 1.156s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -22903,7 +22903,7 @@ Sequence rainbow {
     Clip {
       name: envelope_40,
       description: none,
-      targets: [inside_tree, mega_tree],
+      targets: [inside_tree, mega_tree, house_number],
       placement: Timed { start: 92.06s, duration: 1.156s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -22945,7 +22945,7 @@ Sequence rainbow {
     Clip {
       name: envelope_44,
       description: none,
-      targets: [inside_tree, mega_tree, grass],
+      targets: [inside_tree, mega_tree, grass, house_number],
       placement: Timed { start: 94.883s, duration: 1.213s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },

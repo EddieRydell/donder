@@ -4619,7 +4619,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_2,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 11.990849s, duration: 1.477991s },
       content: Effect {
         layer: default,
@@ -5002,7 +5002,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_4,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 12.773862s, duration: 1.493345s },
       content: Effect {
         layer: default,
@@ -5832,7 +5832,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_6,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 13.683785s, duration: 1.472525s },
       content: Effect {
         layer: default,
@@ -6384,7 +6384,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_8,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 14.543565s, duration: 1.125698s },
       content: Effect {
         layer: default,
@@ -11364,7 +11364,7 @@ Sequence most_wonderful_time {
     Clip {
       name: pulse_155,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, star_points, yard],
+      targets: [arch_tunnel, garage_matrix, mega_tree, star_points, yard, house_number],
       placement: Timed { start: 26.063177s, duration: 1.00733s },
       content: Effect {
         layer: default,
@@ -11385,7 +11385,7 @@ Sequence most_wonderful_time {
     Clip {
       name: butterfly_3,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard, house_number],
       placement: Timed { start: 26.063177s, duration: 1.73118s },
       content: Effect {
         layer: default,
@@ -12386,7 +12386,7 @@ Sequence most_wonderful_time {
     Clip {
       name: pulse_161,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, star_points, yard],
+      targets: [arch_tunnel, garage_matrix, mega_tree, star_points, yard, house_number],
       placement: Timed { start: 27.794357s, duration: 1.047825s },
       content: Effect {
         layer: default,
@@ -12408,7 +12408,7 @@ Sequence most_wonderful_time {
     Clip {
       name: butterfly_8,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard, house_number],
       placement: Timed { start: 27.794357s, duration: 1.754349s },
       content: Effect {
         layer: default,
@@ -15863,7 +15863,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_9,
       description: none,
-      targets: [garage_matrix, mega_tree, arch_tunnel, grass],
+      targets: [garage_matrix, mega_tree, arch_tunnel, grass, house_number],
       placement: Timed { start: 33.147344s, duration: 1.477991s },
       content: Effect {
         layer: default,
@@ -16051,7 +16051,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_11,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 33.930357s, duration: 1.493344s },
       content: Effect {
         layer: default,
@@ -16495,7 +16495,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_13,
       description: none,
-      targets: [garage_matrix, mega_tree, arch_tunnel, grass],
+      targets: [garage_matrix, mega_tree, arch_tunnel, grass, house_number],
       placement: Timed { start: 34.790136s, duration: 1.522669s },
       content: Effect {
         layer: default,
@@ -17207,7 +17207,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_15,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 35.700059s, duration: 1.125699s },
       content: Effect {
         layer: default,
@@ -28262,7 +28262,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_18,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 70.332465s, duration: 1.622513s },
       content: Effect {
         layer: default,
@@ -29074,7 +29074,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_20,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 71.205075s, duration: 1.643051s },
       content: Effect {
         layer: default,
@@ -30487,7 +30487,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_22,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 72.064854s, duration: 1.658405s },
       content: Effect {
         layer: default,
@@ -32569,7 +32569,7 @@ Sequence most_wonderful_time {
     Clip {
       name: shockwave_24,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 72.970693s, duration: 1.627698s },
       content: Effect {
         layer: default,
@@ -34834,6 +34834,7 @@ Sequence most_wonderful_time {
         star_points,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 85.589313s, duration: 0.663203s },
       content: Effect {
@@ -36490,7 +36491,7 @@ Sequence most_wonderful_time {
     Clip {
       name: wipe_734,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, grass],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, grass, house_number],
       placement: Timed { start: 88.28353s, duration: 0.627897s },
       content: Effect {
         layer: default,
@@ -36618,7 +36619,7 @@ Sequence most_wonderful_time {
     Clip {
       name: clip_446,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 88.28353s, duration: 3.552824s },
       content: Effect {
         layer: default,
@@ -36648,7 +36649,7 @@ Sequence most_wonderful_time {
     Clip {
       name: wipe_753,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 88.76747s, duration: 0.627897s },
       content: Effect {
         layer: default,
@@ -36749,7 +36750,7 @@ Sequence most_wonderful_time {
     Clip {
       name: clip_447,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 89.239606s, duration: 0.627897s },
       content: Effect {
         layer: default,
@@ -36908,7 +36909,7 @@ Sequence most_wonderful_time {
     Clip {
       name: clip_466,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 89.723545s, duration: 0.433141s },
       content: Effect {
         layer: default,
@@ -37206,7 +37207,7 @@ Sequence most_wonderful_time {
     Clip {
       name: wipe_772,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 90.036335s, duration: 0.627897s },
       content: Effect {
         layer: default,
@@ -37307,7 +37308,7 @@ Sequence most_wonderful_time {
     Clip {
       name: wipe_791,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 90.496668s, duration: 0.627897s },
       content: Effect {
         layer: default,
@@ -37408,7 +37409,7 @@ Sequence most_wonderful_time {
     Clip {
       name: clip_485,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 90.951099s, duration: 0.627897s },
       content: Effect {
         layer: default,
@@ -37563,7 +37564,7 @@ Sequence most_wonderful_time {
     Clip {
       name: wipe_810,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 91.47635s, duration: 0.627897s },
       content: Effect {
         layer: default,
@@ -38948,7 +38949,7 @@ Sequence most_wonderful_time {
     Clip {
       name: pin_wheel_58,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 95.402758s, duration: 3.587215s },
       content: Effect {
         layer: default,
@@ -40764,7 +40765,7 @@ Sequence most_wonderful_time {
     Clip {
       name: clip_581,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 102.468505s, duration: 5.331757s },
       content: Effect {
         layer: default,
@@ -48409,7 +48410,7 @@ Sequence most_wonderful_time {
     Clip {
       name: pin_wheel_67,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 114.896914s, duration: 4.065114s },
       content: Effect {
         layer: default,
@@ -49366,7 +49367,7 @@ Sequence most_wonderful_time {
     Clip {
       name: clip_829,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 118.838929s, duration: 1.74437s },
       content: Effect {
         layer: default,
@@ -52464,6 +52465,66 @@ Sequence most_wonderful_time {
       description: none,
       targets: [mega_tree, grass],
       placement: Timed { start: 129.549475s, duration: 10.728617s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Fireworks,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          color_type: Standard,
+          source: RandomExplosions,
+          explosion_marks: none,
+          explosions: 89,
+          random_reach: false,
+          reach: 32.5,
+          min_reach: 32.5,
+          max_reach: 325.0,
+          random_particles: true,
+          particles: 40,
+          min_particles: 50,
+          max_particles: 83,
+          particle_life: 0.7475,
+          fall: 4.577083,
+          intensity: 1.0,
+          random_seed: 33576.0,
+        },
+      },
+    },
+    Clip {
+      name: clip_971_house_number_2,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 132.835728s, duration: 0.652782s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Fireworks,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          color_type: Standard,
+          source: RandomExplosions,
+          explosion_marks: none,
+          explosions: 89,
+          random_reach: false,
+          reach: 32.5,
+          min_reach: 32.5,
+          max_reach: 325.0,
+          random_particles: true,
+          particles: 40,
+          min_particles: 50,
+          max_particles: 83,
+          particle_life: 0.7475,
+          fall: 4.577083,
+          intensity: 1.0,
+          random_seed: 33576.0,
+        },
+      },
+    },
+    Clip {
+      name: clip_971_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 136.424077s, duration: 0.701156s },
       content: Effect {
         layer: default,
         scope: WholeTarget,
@@ -61174,7 +61235,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_41,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard, house_number],
       placement: Timed { start: 26.063177s, duration: 1.73118s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9014, 1.0), (1.0, 0.0)] },
@@ -61186,7 +61247,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_46,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, yard, house_number],
       placement: Timed { start: 27.794357s, duration: 1.754349s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.7798, 1.0), (1.0, 0.0)] },
@@ -61700,7 +61761,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_131,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 95.402758s, duration: 3.587215s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1143, 1.0), (0.8996, 1.0), (1.0, 0.0)] },
@@ -61753,7 +61814,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_135,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 102.468505s, duration: 5.331757s },
       content: Envelope {
         curve: Curve {
@@ -61807,7 +61868,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_144,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 114.896914s, duration: 4.065114s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1161, 1.0), (0.9033, 1.0), (1.0, 0.0)] },
@@ -61831,7 +61892,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_154,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 118.838929s, duration: 1.74437s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.1032, 1.0), (0.8904, 1.0), (1.0, 0.0)] },
@@ -62936,7 +62997,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_336,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 114.896914s, duration: 4.065114s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.5778), (1.0, 0.3969)] },
@@ -62948,7 +63009,7 @@ Sequence most_wonderful_time {
     Clip {
       name: envelope_337,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 114.896914s, duration: 4.065114s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.235), (1.0, 0.2031)] },

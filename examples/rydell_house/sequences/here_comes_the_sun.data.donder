@@ -1021,7 +1021,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_1,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 15.284254s, duration: 8.694982s },
       content: Effect {
         layer: default,
@@ -1385,7 +1385,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_1,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 23.912634s, duration: 3.709762s },
       content: Effect {
         layer: default,
@@ -1504,7 +1504,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 24.664076s, duration: 2.958321s },
       content: Effect {
         layer: default,
@@ -1605,7 +1605,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_3,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 25.355134s, duration: 2.267263s },
       content: Effect {
         layer: default,
@@ -1742,7 +1742,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_4,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 26.066319s, duration: 1.556077s },
       content: Effect {
         layer: default,
@@ -1880,7 +1880,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_5,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 27.622396s, duration: 15.450689s },
       content: Effect {
         layer: default,
@@ -2896,7 +2896,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_2,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 43.074211s, duration: 9.016171s },
       content: Effect {
         layer: default,
@@ -2929,7 +2929,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_3,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 43.074211s, duration: 9.016171s },
       content: Effect {
         layer: default,
@@ -3580,7 +3580,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_6,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 51.907956s, duration: 3.768254s },
       content: Effect {
         layer: default,
@@ -3697,7 +3697,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_7,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 52.659398s, duration: 3.016813s },
       content: Effect {
         layer: default,
@@ -3792,7 +3792,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_8,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 53.350456s, duration: 2.325755s },
       content: Effect {
         layer: default,
@@ -3887,7 +3887,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_9,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.061641s, duration: 1.614569s },
       content: Effect {
         layer: default,
@@ -4000,7 +4000,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_10,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.766118s, duration: 0.910092s },
       content: Effect {
         layer: default,
@@ -4043,6 +4043,7 @@ Sequence here_comes_the_sun {
         right_wall_top,
         stairs,
         grass,
+        house_number,
       ],
       placement: Timed { start: 55.67621s, duration: 0.840476s },
       content: Effect {
@@ -4093,6 +4094,7 @@ Sequence here_comes_the_sun {
         right_wall_top,
         stairs,
         grass,
+        house_number,
       ],
       placement: Timed { start: 55.67621s, duration: 3.721342s },
       content: Effect {
@@ -4674,6 +4676,7 @@ Sequence here_comes_the_sun {
         right_wall_top,
         stairs,
         grass,
+        house_number,
       ],
       placement: Timed { start: 59.397552s, duration: 0.840476s },
       content: Effect {
@@ -4715,7 +4718,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_17,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 59.397552s, duration: 15.461993s },
       content: Effect {
         layer: default,
@@ -5615,7 +5618,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_18,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 74.859545s, duration: 9.016171s },
       content: Effect {
         layer: default,
@@ -5648,7 +5651,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_19,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 74.859545s, duration: 9.016171s },
       content: Effect {
         layer: default,
@@ -6720,7 +6723,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_11,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 83.68303s, duration: 3.768254s },
       content: Effect {
         layer: default,
@@ -6833,7 +6836,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_12,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 84.434472s, duration: 3.016813s },
       content: Effect {
         layer: default,
@@ -6925,7 +6928,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_13,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.12553s, duration: 2.325755s },
       content: Effect {
         layer: default,
@@ -7017,7 +7020,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_14,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.836715s, duration: 1.614569s },
       content: Effect {
         layer: default,
@@ -7140,7 +7143,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_15,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 86.541192s, duration: 0.910092s },
       content: Effect {
         layer: default,
@@ -7179,6 +7182,7 @@ Sequence here_comes_the_sun {
         star_points,
         arch_tunnel,
         grass,
+        house_number,
       ],
       placement: Timed { start: 87.451284s, duration: 1.281429s },
       content: Effect {
@@ -7466,7 +7470,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pulse_690,
       description: none,
-      targets: [garage_matrix, mega_tree, star_points, arch_tunnel, grass],
+      targets: [garage_matrix, mega_tree, star_points, arch_tunnel, grass, house_number],
       placement: Timed { start: 89.35s, duration: 0.929s },
       content: Effect {
         layer: default,
@@ -7510,6 +7514,7 @@ Sequence here_comes_the_sun {
         trees_and_trunks,
         windows,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 89.826s, duration: 1.393s },
       content: Effect {
@@ -7640,6 +7645,7 @@ Sequence here_comes_the_sun {
         wreaths,
         arch_tunnel,
         grass,
+        house_number,
       ],
       placement: Timed { start: 90.934789s, duration: 1.270419s },
       content: Effect {
@@ -7690,7 +7696,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_21,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 90.934789s, duration: 2.989211s },
       content: Effect {
         layer: default,
@@ -9410,7 +9416,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_1,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 96.752558s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -10386,7 +10392,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_3,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 97.403623s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -11362,7 +11368,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_5,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 98.044015s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -12787,7 +12793,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_7,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 102.740223s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -12814,7 +12820,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_9,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 103.284556s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -13790,7 +13796,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_11,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 103.967641s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -16161,7 +16167,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_13,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 108.525098s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -17137,7 +17143,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_15,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 109.176163s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -18113,7 +18119,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_17,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 109.816555s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -19618,7 +19624,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_19,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 114.475494s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -19645,7 +19651,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_21,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 115.082707s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -20621,7 +20627,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_23,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 115.742212s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -23075,7 +23081,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_25,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 120.264908s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -24051,7 +24057,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_27,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 120.915974s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -25027,7 +25033,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_29,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 121.556366s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -25193,7 +25199,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_26,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 122.410222s, duration: 4.592342s },
       content: Effect {
         layer: default,
@@ -25809,7 +25815,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pulse_1413,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 126.511648s, duration: 1.408744s },
       content: Effect {
         layer: default,
@@ -26138,7 +26144,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_32,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 130.176285s, duration: 1.664522s },
       content: Effect {
         layer: default,
@@ -26373,6 +26379,7 @@ Sequence here_comes_the_sun {
         right_wall_top,
         stairs,
         star_rings,
+        house_number,
       ],
       placement: Timed { start: 131.840807s, duration: 15.107534s },
       content: Effect {
@@ -27117,7 +27124,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_33,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 147.399638s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27288,7 +27295,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_34,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 148.329571s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27367,7 +27374,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_35,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 149.297664s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27457,7 +27464,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_36,
       description: none,
-      targets: [mega_tree, arch_tunnel, grass],
+      targets: [mega_tree, arch_tunnel, grass, house_number],
       placement: Timed { start: 150.22178s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27586,7 +27593,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_37,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 151.171808s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27655,7 +27662,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_38,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 152.101741s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27724,7 +27731,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_39,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 153.037107s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27793,7 +27800,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_40,
       description: none,
-      targets: [mega_tree, arch_tunnel, grass],
+      targets: [mega_tree, arch_tunnel, grass, house_number],
       placement: Timed { start: 153.920314s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27923,7 +27930,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_41,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 154.873292s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -27994,7 +28001,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_42,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 155.757866s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -28021,7 +28028,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_16,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.234515s, duration: 3.768254s },
       content: Effect {
         layer: default,
@@ -28138,7 +28145,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_17,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.985957s, duration: 3.016813s },
       content: Effect {
         layer: default,
@@ -28233,7 +28240,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_18,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 157.677015s, duration: 2.325755s },
       content: Effect {
         layer: default,
@@ -28328,7 +28335,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_19,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 158.388201s, duration: 1.614569s },
       content: Effect {
         layer: default,
@@ -28441,7 +28448,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_20,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 159.092677s, duration: 0.910092s },
       content: Effect {
         layer: default,
@@ -28470,7 +28477,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pulse_1729,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 160.002769s, duration: 1.387887s },
       content: Effect {
         layer: default,
@@ -28485,7 +28492,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_43,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 160.460724s, duration: 0.985233s },
       content: Effect {
         layer: default,
@@ -28656,7 +28663,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_44,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 161.315568s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -28746,7 +28753,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_45,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 162.283661s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -28836,7 +28843,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_46,
       description: none,
-      targets: [mega_tree, arch_tunnel, grass],
+      targets: [mega_tree, arch_tunnel, grass, house_number],
       placement: Timed { start: 163.207777s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -28863,7 +28870,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_47,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 164.157805s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -29034,7 +29041,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_48,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 165.087738s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -29103,7 +29110,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_49,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 166.023104s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -29130,7 +29137,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_50,
       description: none,
-      targets: [mega_tree, arch_tunnel, grass],
+      targets: [mega_tree, arch_tunnel, grass, house_number],
       placement: Timed { start: 166.906311s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -29259,7 +29266,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_51,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 167.859289s, duration: 1.060322s },
       content: Effect {
         layer: default,
@@ -29328,7 +29335,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: shockwave_52,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 168.743862s, duration: 0.881986s },
       content: Effect {
         layer: default,
@@ -29355,7 +29362,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_21,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 169.2956s, duration: 3.768254s },
       content: Effect {
         layer: default,
@@ -29468,7 +29475,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_22,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.047042s, duration: 3.016813s },
       content: Effect {
         layer: default,
@@ -29560,7 +29567,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_23,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.7381s, duration: 2.325755s },
       content: Effect {
         layer: default,
@@ -29652,7 +29659,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_24,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 171.449286s, duration: 1.614569s },
       content: Effect {
         layer: default,
@@ -29775,7 +29782,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_25,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 172.153762s, duration: 0.910092s },
       content: Effect {
         layer: default,
@@ -29804,7 +29811,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_27,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 173.063855s, duration: 1.715857s },
       content: Effect {
         layer: default,
@@ -29826,7 +29833,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pulse_1782,
       description: none,
-      targets: [mega_tree, arch_tunnel],
+      targets: [mega_tree, arch_tunnel, house_number],
       placement: Timed { start: 173.063855s, duration: 0.470145s },
       content: Effect {
         layer: default,
@@ -29985,7 +29992,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_26,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 174.779711s, duration: 3.768254s },
       content: Effect {
         layer: default,
@@ -30068,7 +30075,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_27,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 175.531153s, duration: 3.016813s },
       content: Effect {
         layer: default,
@@ -30169,7 +30176,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_28,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.222211s, duration: 2.325755s },
       content: Effect {
         layer: default,
@@ -30288,7 +30295,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_29,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.933397s, duration: 1.614569s },
       content: Effect {
         layer: default,
@@ -30429,7 +30436,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pin_wheel_30,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 177.637873s, duration: 0.910092s },
       content: Effect {
         layer: default,
@@ -30466,7 +30473,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: clip_28,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 178.547965s, duration: 5.623541s },
       content: Effect {
         layer: default,
@@ -30495,7 +30502,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: pulse_1845,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 178.547965s, duration: 0.650397s },
       content: Effect {
         layer: default,
@@ -31339,7 +31346,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_5,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 15.284254s, duration: 8.694982s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.2382, 1.0), (0.8571, 1.0), (1.0, 0.0)] },
@@ -31351,7 +31358,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_6,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 23.912634s, duration: 3.709762s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8866, 1.0), (1.0, 0.0)] },
@@ -31363,7 +31370,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_7,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 23.912634s, duration: 3.709762s },
       content: Envelope {
         curve: Curve {
@@ -31379,7 +31386,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_8,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 23.912634s, duration: 3.709762s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31391,7 +31398,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_9,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 23.912634s, duration: 3.709762s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31403,7 +31410,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_10,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 24.664076s, duration: 2.958321s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8866, 1.0), (1.0, 0.0)] },
@@ -31415,7 +31422,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_11,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 24.664076s, duration: 2.958321s },
       content: Envelope {
         curve: Curve {
@@ -31431,7 +31438,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_12,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 24.664076s, duration: 2.958321s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31443,7 +31450,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_13,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 24.664076s, duration: 2.958321s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31455,7 +31462,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_14,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 25.355134s, duration: 2.267263s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8866, 1.0), (1.0, 0.0)] },
@@ -31467,7 +31474,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_15,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 25.355134s, duration: 2.267263s },
       content: Envelope {
         curve: Curve {
@@ -31483,7 +31490,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_16,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 25.355134s, duration: 2.267263s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31495,7 +31502,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_17,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 25.355134s, duration: 2.267263s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31507,7 +31514,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_18,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 26.066319s, duration: 1.556077s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.8866, 1.0), (1.0, 0.0)] },
@@ -31519,7 +31526,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_19,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 26.066319s, duration: 1.556077s },
       content: Envelope {
         curve: Curve {
@@ -31535,7 +31542,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_20,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 26.066319s, duration: 1.556077s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31547,7 +31554,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_21,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 26.066319s, duration: 1.556077s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31559,7 +31566,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_22,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 27.622396s, duration: 15.450689s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.9478, 0.0), (1.0, 1.0)] },
@@ -31571,7 +31578,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_23,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 27.622396s, duration: 15.450689s },
       content: Envelope {
         curve: Curve {
@@ -31587,7 +31594,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_24,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 27.622396s, duration: 15.450689s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.6101), (1.0, 0.633)] },
@@ -31599,7 +31606,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_25,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 27.622396s, duration: 15.450689s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31611,7 +31618,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_26,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 43.074211s, duration: 9.016171s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.914, 1.0), (1.0, 0.0)] },
@@ -31623,7 +31630,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_27,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 43.074211s, duration: 9.016171s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.914, 1.0), (1.0, 0.0)] },
@@ -31635,7 +31642,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_28,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 51.907956s, duration: 3.768254s },
       content: Envelope {
         curve: Curve {
@@ -31651,7 +31658,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_29,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 51.907956s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31663,7 +31670,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_30,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 51.907956s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31675,7 +31682,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_31,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 52.659398s, duration: 3.016813s },
       content: Envelope {
         curve: Curve {
@@ -31691,7 +31698,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_32,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 52.659398s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31703,7 +31710,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_33,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 52.659398s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31715,7 +31722,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_34,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 53.350456s, duration: 2.325755s },
       content: Envelope {
         curve: Curve {
@@ -31731,7 +31738,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_35,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 53.350456s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31743,7 +31750,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_36,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 53.350456s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31755,7 +31762,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_37,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.061641s, duration: 1.614569s },
       content: Envelope {
         curve: Curve {
@@ -31771,7 +31778,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_38,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.061641s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31783,7 +31790,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_39,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.061641s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31795,7 +31802,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_40,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.766118s, duration: 0.910092s },
       content: Envelope {
         curve: Curve {
@@ -31811,7 +31818,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_41,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.766118s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31823,7 +31830,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_42,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 54.766118s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31835,7 +31842,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_43,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 59.397552s, duration: 15.461993s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9035, 1.0), (1.0, 0.0)] },
@@ -31847,7 +31854,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_44,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 74.859545s, duration: 9.016171s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.914, 1.0), (1.0, 0.0)] },
@@ -31859,7 +31866,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_45,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 74.859545s, duration: 9.016171s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.914, 1.0), (1.0, 0.0)] },
@@ -31871,7 +31878,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_46,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 83.68303s, duration: 3.768254s },
       content: Envelope {
         curve: Curve {
@@ -31887,7 +31894,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_47,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 83.68303s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31899,7 +31906,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_48,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 83.68303s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31911,7 +31918,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_49,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 84.434472s, duration: 3.016813s },
       content: Envelope {
         curve: Curve {
@@ -31927,7 +31934,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_50,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 84.434472s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31939,7 +31946,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_51,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 84.434472s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31951,7 +31958,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_52,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.12553s, duration: 2.325755s },
       content: Envelope {
         curve: Curve {
@@ -31967,7 +31974,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_53,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.12553s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -31979,7 +31986,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_54,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.12553s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -31991,7 +31998,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_55,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.836715s, duration: 1.614569s },
       content: Envelope {
         curve: Curve {
@@ -32007,7 +32014,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_56,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.836715s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32019,7 +32026,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_57,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 85.836715s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32031,7 +32038,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_58,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 86.541192s, duration: 0.910092s },
       content: Envelope {
         curve: Curve {
@@ -32047,7 +32054,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_59,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 86.541192s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32059,7 +32066,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_60,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 86.541192s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32083,7 +32090,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_62,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 90.934789s, duration: 2.989211s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.78, 1.0), (1.0, 0.0)] },
@@ -32143,7 +32150,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_67,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 122.410222s, duration: 4.592342s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
@@ -32180,6 +32187,7 @@ Sequence here_comes_the_sun {
         right_wall_top,
         stairs,
         star_rings,
+        house_number,
       ],
       placement: Timed { start: 131.840807s, duration: 15.107534s },
       content: Envelope {
@@ -32216,7 +32224,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_97,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.234515s, duration: 3.768254s },
       content: Envelope {
         curve: Curve {
@@ -32232,7 +32240,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_98,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.234515s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32244,7 +32252,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_99,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.234515s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32256,7 +32264,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_100,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.985957s, duration: 3.016813s },
       content: Envelope {
         curve: Curve {
@@ -32272,7 +32280,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_101,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.985957s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32284,7 +32292,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_102,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 156.985957s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32296,7 +32304,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_103,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 157.677015s, duration: 2.325755s },
       content: Envelope {
         curve: Curve {
@@ -32312,7 +32320,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_104,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 157.677015s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32324,7 +32332,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_105,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 157.677015s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32336,7 +32344,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_106,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 158.388201s, duration: 1.614569s },
       content: Envelope {
         curve: Curve {
@@ -32352,7 +32360,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_107,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 158.388201s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32364,7 +32372,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_108,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 158.388201s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32376,7 +32384,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_109,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 159.092677s, duration: 0.910092s },
       content: Envelope {
         curve: Curve {
@@ -32392,7 +32400,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_110,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 159.092677s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32404,7 +32412,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_111,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 159.092677s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32416,7 +32424,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_112,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 169.2956s, duration: 3.768254s },
       content: Envelope {
         curve: Curve {
@@ -32432,7 +32440,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_113,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 169.2956s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32444,7 +32452,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_114,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 169.2956s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32456,7 +32464,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_115,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.047042s, duration: 3.016813s },
       content: Envelope {
         curve: Curve {
@@ -32472,7 +32480,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_116,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.047042s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32484,7 +32492,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_117,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.047042s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32496,7 +32504,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_118,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.7381s, duration: 2.325755s },
       content: Envelope {
         curve: Curve {
@@ -32512,7 +32520,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_119,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.7381s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32524,7 +32532,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_120,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 170.7381s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32536,7 +32544,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_121,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 171.449286s, duration: 1.614569s },
       content: Envelope {
         curve: Curve {
@@ -32552,7 +32560,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_122,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 171.449286s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32564,7 +32572,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_123,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 171.449286s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32576,7 +32584,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_124,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 172.153762s, duration: 0.910092s },
       content: Envelope {
         curve: Curve {
@@ -32592,7 +32600,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_125,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 172.153762s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32604,7 +32612,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_126,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 172.153762s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32616,7 +32624,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_127,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 173.063855s, duration: 1.715857s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.76, 1.0), (1.0, 0.0)] },
@@ -32628,7 +32636,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_128,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 174.779711s, duration: 3.768254s },
       content: Envelope {
         curve: Curve {
@@ -32644,7 +32652,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_129,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 174.779711s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32656,7 +32664,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_130,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 174.779711s, duration: 3.768254s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32668,7 +32676,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_131,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 175.531153s, duration: 3.016813s },
       content: Envelope {
         curve: Curve {
@@ -32684,7 +32692,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_132,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 175.531153s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32696,7 +32704,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_133,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 175.531153s, duration: 3.016813s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32708,7 +32716,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_134,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.222211s, duration: 2.325755s },
       content: Envelope {
         curve: Curve {
@@ -32724,7 +32732,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_135,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.222211s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32736,7 +32744,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_136,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.222211s, duration: 2.325755s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32748,7 +32756,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_137,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.933397s, duration: 1.614569s },
       content: Envelope {
         curve: Curve {
@@ -32764,7 +32772,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_138,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.933397s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32776,7 +32784,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_139,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 176.933397s, duration: 1.614569s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32788,7 +32796,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_140,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 177.637873s, duration: 0.910092s },
       content: Envelope {
         curve: Curve {
@@ -32804,7 +32812,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_141,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 177.637873s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.19), (1.0, 0.08)] },
@@ -32816,7 +32824,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_142,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 177.637873s, duration: 0.910092s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.63), (1.0, 0.7239)] },
@@ -32828,7 +32836,7 @@ Sequence here_comes_the_sun {
     Clip {
       name: envelope_143,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 178.547965s, duration: 5.623541s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.68, 1.0), (1.0, 0.0)] },

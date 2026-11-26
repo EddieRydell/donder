@@ -249,6 +249,7 @@ Sequence mr_grinch {
         neighbor_trees,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 1.69s, duration: 0.88s },
       content: Effect {
@@ -427,6 +428,7 @@ Sequence mr_grinch {
         neighbor_trees,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 5.84s, duration: 0.88s },
       content: Effect {
@@ -489,6 +491,7 @@ Sequence mr_grinch {
         garage,
         mega_tree,
         grass,
+        house_number,
       ],
       placement: Timed { start: 6.7918s, duration: 0.88s },
       content: Effect {
@@ -957,6 +960,7 @@ Sequence mr_grinch {
         garage,
         mega_tree,
         grass,
+        house_number,
       ],
       placement: Timed { start: 10.9418s, duration: 0.88s },
       content: Effect {
@@ -1018,6 +1022,7 @@ Sequence mr_grinch {
         mega_tree,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 11.899234s, duration: 0.88s },
       content: Effect {
@@ -1697,6 +1702,7 @@ Sequence mr_grinch {
         arch_tunnel,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 16.476422s, duration: 1.006277s },
       content: Effect {
@@ -1923,6 +1929,7 @@ Sequence mr_grinch {
         spiral_trees,
         arch_tunnel,
         grass,
+        house_number,
       ],
       placement: Timed { start: 19.362852s, duration: 1.006277s },
       content: Effect {
@@ -4866,6 +4873,7 @@ Sequence mr_grinch {
         meteors,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 32.436682s, duration: 0.383599s },
       content: Effect {
@@ -4949,7 +4957,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_94,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 32.436682s, duration: 0.156207s },
       content: Effect {
         layer: intensity,
@@ -4993,6 +5001,7 @@ Sequence mr_grinch {
         trees_and_trunks,
         yard,
         above_garage_wreath,
+        house_number,
       ],
       placement: Timed { start: 32.592888s, duration: 0.383599s },
       content: Effect {
@@ -5076,7 +5085,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_98,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 32.592888s, duration: 0.203748s },
       content: Effect {
         layer: intensity,
@@ -5119,6 +5128,7 @@ Sequence mr_grinch {
         meteors,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 32.796636s, duration: 0.383599s },
       content: Effect {
@@ -5202,7 +5212,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_102,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 32.796636s, duration: 0.190165s },
       content: Effect {
         layer: intensity,
@@ -5246,6 +5256,7 @@ Sequence mr_grinch {
         trees_and_trunks,
         yard,
         above_garage_wreath,
+        house_number,
       ],
       placement: Timed { start: 32.986801s, duration: 0.383599s },
       content: Effect {
@@ -5329,7 +5340,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_106,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 32.986801s, duration: 0.251289s },
       content: Effect {
         layer: intensity,
@@ -5372,6 +5383,7 @@ Sequence mr_grinch {
         meteors,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 33.23809s, duration: 0.383599s },
       content: Effect {
@@ -8584,7 +8596,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_159,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 55.645963s, duration: 5.139024s },
       content: Effect {
         layer: mask,
@@ -9795,6 +9807,7 @@ Sequence mr_grinch {
         plums,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 64.650511s, duration: 0.383599s },
       content: Effect {
@@ -9847,7 +9860,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_178,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 64.650511s, duration: 0.156207s },
       content: Effect {
         layer: intensity,
@@ -9891,6 +9904,7 @@ Sequence mr_grinch {
         plums,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 64.806718s, duration: 0.383599s },
       content: Effect {
@@ -9974,7 +9988,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_182,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 64.806718s, duration: 0.203748s },
       content: Effect {
         layer: intensity,
@@ -10049,6 +10063,7 @@ Sequence mr_grinch {
         plums,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 65.010465s, duration: 0.383599s },
       content: Effect {
@@ -10101,7 +10116,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_186,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 65.010465s, duration: 0.190165s },
       content: Effect {
         layer: intensity,
@@ -10145,6 +10160,7 @@ Sequence mr_grinch {
         plums,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 65.20063s, duration: 0.383599s },
       content: Effect {
@@ -10228,7 +10244,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_190,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 65.20063s, duration: 0.251289s },
       content: Effect {
         layer: intensity,
@@ -10272,6 +10288,7 @@ Sequence mr_grinch {
         plums,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 65.45192s, duration: 0.383599s },
       content: Effect {
@@ -12232,6 +12249,7 @@ Sequence mr_grinch {
         spiral_trees,
         arch_tunnel,
         grass,
+        house_number,
       ],
       placement: Timed { start: 86.368623s, duration: 0.906591s },
       content: Effect {
@@ -12348,6 +12366,7 @@ Sequence mr_grinch {
         garage_matrix,
         mega_tree,
         spiral_trees,
+        house_number,
       ],
       placement: Timed { start: 87.90154s, duration: 0.906591s },
       content: Effect {
@@ -13743,6 +13762,7 @@ Sequence mr_grinch {
         trees_and_trunks,
         yard,
         above_garage_wreath,
+        house_number,
       ],
       placement: Timed { start: 106.93724s, duration: 0.383599s },
       content: Effect {
@@ -13828,7 +13848,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_219,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 106.93724s, duration: 0.230454s },
       content: Effect {
         layer: mask,
@@ -13871,6 +13891,7 @@ Sequence mr_grinch {
         meteors,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 107.167694s, duration: 0.383599s },
       content: Effect {
@@ -13956,7 +13977,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_222,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 107.167694s, duration: 0.210701s },
       content: Effect {
         layer: mask,
@@ -14000,6 +14021,7 @@ Sequence mr_grinch {
         trees_and_trunks,
         yard,
         above_garage_wreath,
+        house_number,
       ],
       placement: Timed { start: 107.378395s, duration: 0.383599s },
       content: Effect {
@@ -14085,7 +14107,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_225,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 107.378395s, duration: 0.172898s },
       content: Effect {
         layer: mask,
@@ -14180,7 +14202,7 @@ Sequence mr_grinch {
     Clip {
       name: clip_228,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 107.551294s, duration: 0.202412s },
       content: Effect {
         layer: mask,
@@ -14223,6 +14245,7 @@ Sequence mr_grinch {
         meteors,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 107.562758s, duration: 0.383599s },
       content: Effect {
@@ -14256,6 +14279,7 @@ Sequence mr_grinch {
         meteors,
         trees_and_trunks,
         yard,
+        house_number,
       ],
       placement: Timed { start: 107.753706s, duration: 0.383599s },
       content: Effect {
@@ -15638,7 +15662,7 @@ Sequence mr_grinch {
     Clip {
       name: shapes_1,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 54.2738411s, duration: 2.8342886s },
       content: Effect {
         layer: default,
@@ -15663,7 +15687,7 @@ Sequence mr_grinch {
     Clip {
       name: shapes_2,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 57.1081297s, duration: 3.6768571s },
       content: Effect {
         layer: default,

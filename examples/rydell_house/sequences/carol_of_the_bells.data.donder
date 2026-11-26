@@ -23049,6 +23049,7 @@ Sequence carol_of_the_bells {
         star_points,
         grass,
         garage_matrix,
+        house_number,
       ],
       placement: Timed { start: 61.290529s, duration: 1.444623s },
       content: Effect {
@@ -24799,7 +24800,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1320,
       description: none,
-      targets: [mega_tree, garage_matrix],
+      targets: [mega_tree, garage_matrix, house_number],
       placement: Timed { start: 67.631432s, duration: 3.205892s },
       content: Effect {
         layer: default,
@@ -25821,7 +25822,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: wipe_1019,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 71.898062s, duration: 0.357738s },
       content: Effect {
         layer: default,
@@ -83356,7 +83357,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_5730,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 125.911094s, duration: 2.287219s },
       content: Effect {
         layer: default,
@@ -90125,10 +90126,40 @@ Sequence carol_of_the_bells {
       },
     },
     Clip {
+      name: color_wash_949_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 65.442757s, duration: 0.840143s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Colorwash,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (0.8333, #000000)] },
+          vertical_fade: true,
+        },
+      },
+    },
+    Clip {
       name: color_wash_950,
       description: none,
       targets: [spiral_trees, right_wall_top, far_left_wall_top, mega_tree, garage_matrix],
       placement: Timed { start: 64.2829005s, duration: 2s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Colorwash,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ff0000), (0.8333, #000000)] },
+          horizontal_fade: true,
+        },
+      },
+    },
+    Clip {
+      name: color_wash_950_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 65.442757s, duration: 0.840143s },
       content: Effect {
         layer: default,
         scope: WholeTarget,
@@ -90276,7 +90307,14 @@ Sequence carol_of_the_bells {
     Clip {
       name: color_wash_980,
       description: none,
-      targets: [far_left_wall_top, mega_tree, right_wall_top, spiral_trees, garage_matrix],
+      targets: [
+        far_left_wall_top,
+        mega_tree,
+        right_wall_top,
+        spiral_trees,
+        garage_matrix,
+        house_number,
+      ],
       placement: Timed { start: 66.593833s, duration: 2s },
       content: Effect {
         layer: default,
@@ -90291,7 +90329,14 @@ Sequence carol_of_the_bells {
     Clip {
       name: color_wash_981,
       description: none,
-      targets: [far_left_wall_top, mega_tree, right_wall_top, spiral_trees, garage_matrix],
+      targets: [
+        far_left_wall_top,
+        mega_tree,
+        right_wall_top,
+        spiral_trees,
+        garage_matrix,
+        house_number,
+      ],
       placement: Timed { start: 66.593833s, duration: 2s },
       content: Effect {
         layer: default,
@@ -90440,7 +90485,14 @@ Sequence carol_of_the_bells {
     Clip {
       name: color_wash_1011,
       description: none,
-      targets: [mega_tree, spiral_trees, far_left_wall_top, right_wall_top, garage_matrix],
+      targets: [
+        mega_tree,
+        spiral_trees,
+        far_left_wall_top,
+        right_wall_top,
+        garage_matrix,
+        house_number,
+      ],
       placement: Timed { start: 68.805523s, duration: 2s },
       content: Effect {
         layer: default,
@@ -90455,7 +90507,14 @@ Sequence carol_of_the_bells {
     Clip {
       name: color_wash_1013,
       description: none,
-      targets: [far_left_wall_top, spiral_trees, mega_tree, right_wall_top, garage_matrix],
+      targets: [
+        far_left_wall_top,
+        spiral_trees,
+        mega_tree,
+        right_wall_top,
+        garage_matrix,
+        house_number,
+      ],
       placement: Timed { start: 68.805523s, duration: 2s },
       content: Effect {
         layer: default,
@@ -93820,7 +93879,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_94_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 2.478639s, duration: 0.905542503s },
       content: Effect {
         layer: default,
@@ -93846,7 +93905,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_103_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 3.527365s, duration: 0.940148503s },
       content: Effect {
         layer: default,
@@ -93872,7 +93931,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_154_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 4.706655s, duration: 0.939132503s },
       content: Effect {
         layer: default,
@@ -93898,7 +93957,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_170_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 5.788971s, duration: 0.926709503s },
       content: Effect {
         layer: default,
@@ -93924,7 +93983,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_212_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 6.980683s, duration: 0.926709503s },
       content: Effect {
         layer: default,
@@ -93950,7 +94009,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_257_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 8.066722s, duration: 0.910563503s },
       content: Effect {
         layer: default,
@@ -94028,7 +94087,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_354_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 11.443618s, duration: 0.951134503s },
       content: Effect {
         layer: default,
@@ -94054,7 +94113,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_391_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 12.535764s, duration: 0.928881503s },
       content: Effect {
         layer: default,
@@ -94080,7 +94139,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_420_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 13.698595s, duration: 0.957762503s },
       content: Effect {
         layer: default,
@@ -94106,7 +94165,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_454_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 14.789508s, duration: 0.933967503s },
       content: Effect {
         layer: default,
@@ -94132,7 +94191,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_500_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 15.991254s, duration: 0.879836503s },
       content: Effect {
         layer: default,
@@ -94158,7 +94217,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_545_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 17.086742s, duration: 0.905612503s },
       content: Effect {
         layer: default,
@@ -94236,7 +94295,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_690_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 20.418511s, duration: 0.909582503s },
       content: Effect {
         layer: default,
@@ -94262,7 +94321,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_698_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 21.471277s, duration: 0.930087503s },
       content: Effect {
         layer: default,
@@ -94288,7 +94347,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_753_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 22.639753s, duration: 0.949945503s },
       content: Effect {
         layer: default,
@@ -94314,7 +94373,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_781_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 23.773953s, duration: 0.885638503s },
       content: Effect {
         layer: default,
@@ -94340,7 +94399,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_809_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 24.924595s, duration: 0.917504503s },
       content: Effect {
         layer: default,
@@ -94366,7 +94425,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_856_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 25.99982s, duration: 0.921377503s },
       content: Effect {
         layer: default,
@@ -94444,7 +94503,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_945_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 29.376716s, duration: 0.961947503s },
       content: Effect {
         layer: default,
@@ -94470,7 +94529,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_974_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 30.468862s, duration: 0.939694503s },
       content: Effect {
         layer: default,
@@ -94496,7 +94555,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1024_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 31.631692s, duration: 0.968577503s },
       content: Effect {
         layer: default,
@@ -94522,7 +94581,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1056_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 32.722606s, duration: 0.947556503s },
       content: Effect {
         layer: default,
@@ -94548,7 +94607,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1087_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 33.899817s, duration: 0.937613503s },
       content: Effect {
         layer: default,
@@ -94574,7 +94633,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1131_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 35.01984s, duration: 0.925479503s },
       content: Effect {
         layer: default,

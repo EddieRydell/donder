@@ -12858,6 +12858,7 @@ Sequence ding_dong {
         garage_matrix,
         mega_tree,
         grass,
+        house_number,
       ],
       placement: Timed { start: 33.836281s, duration: 1.048393s },
       content: Effect {
@@ -13133,6 +13134,7 @@ Sequence ding_dong {
         garage_matrix,
         mega_tree,
         grass,
+        house_number,
       ],
       placement: Timed { start: 34.884674s, duration: 1.260976s },
       content: Effect {
@@ -13469,6 +13471,7 @@ Sequence ding_dong {
         upper_right_front_line,
         windows,
         grass,
+        house_number,
       ],
       placement: Timed { start: 36.145649s, duration: 0.474885s },
       content: Effect {
@@ -54834,6 +54837,7 @@ Sequence ding_dong {
         star_rings,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 99.580252s, duration: 0.810176s },
       content: Effect {
@@ -55059,7 +55063,7 @@ Sequence ding_dong {
     Clip {
       name: spin_11,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 99.580252s, duration: 3.942051s },
       content: Effect {
         layer: default,
@@ -56683,6 +56687,7 @@ Sequence ding_dong {
         stairs,
         star_rings,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 103.317904s, duration: 0.809803s },
       content: Effect {
@@ -57118,7 +57123,7 @@ Sequence ding_dong {
     Clip {
       name: spin_57,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 103.318461s, duration: 3.97997s },
       content: Effect {
         layer: default,
@@ -58641,6 +58646,7 @@ Sequence ding_dong {
         stairs,
         star_rings,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 107.003503s, duration: 0.810277s },
       content: Effect {
@@ -59044,7 +59050,7 @@ Sequence ding_dong {
     Clip {
       name: spin_91,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 107.00406s, duration: 4.022323s },
       content: Effect {
         layer: default,
@@ -60630,6 +60636,7 @@ Sequence ding_dong {
         stairs,
         star_rings,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 110.741731s, duration: 0.809803s },
       content: Effect {
@@ -61008,7 +61015,7 @@ Sequence ding_dong {
     Clip {
       name: spin_126,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 110.741813s, duration: 3.845126s },
       content: Effect {
         layer: default,

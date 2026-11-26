@@ -5216,7 +5216,7 @@ Sequence jing_jing_jing {
     Clip {
       name: pin_wheel_2,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 21.965269s, duration: 2.170491s },
       content: Effect {
         layer: default,
@@ -12934,7 +12934,7 @@ Sequence jing_jing_jing {
     Clip {
       name: pin_wheel_4,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 26.269286s, duration: 2.093531s },
       content: Effect {
         layer: default,
@@ -20840,7 +20840,7 @@ Sequence jing_jing_jing {
     Clip {
       name: pin_wheel_5,
       description: none,
-      targets: [garage_matrix, mega_tree],
+      targets: [garage_matrix, mega_tree, house_number],
       placement: Timed { start: 30.548122s, duration: 2.173312s },
       content: Effect {
         layer: default,
@@ -28050,7 +28050,7 @@ Sequence jing_jing_jing {
     Clip {
       name: pin_wheel_7,
       description: none,
-      targets: [garage_matrix, mega_tree, grass],
+      targets: [garage_matrix, mega_tree, grass, house_number],
       placement: Timed { start: 34.769348s, duration: 2.093531s },
       content: Effect {
         layer: default,
@@ -37388,7 +37388,7 @@ Sequence jing_jing_jing {
     Clip {
       name: spin_21,
       description: none,
-      targets: [front_door, mega_tree],
+      targets: [front_door, mega_tree, house_number],
       placement: Timed { start: 51.123173s, duration: 0.784913s },
       content: Effect {
         layer: default,
@@ -39806,7 +39806,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_1,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 60.564574s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -39936,7 +39936,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_2,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 60.746916s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40067,7 +40067,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_3,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 60.996517s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40198,7 +40198,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_4,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 61.351609s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40328,7 +40328,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_5,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 61.522749s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40458,7 +40458,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_6,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 61.800375s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40589,7 +40589,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_7,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 62.176882s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40719,7 +40719,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_8,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 62.332809s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40849,7 +40849,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_9,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 62.576207s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -40979,7 +40979,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_10,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 62.834818s, duration: 0.464194s },
       content: Effect {
         layer: default,
@@ -41110,7 +41110,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_11,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 63.218931s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -41241,7 +41241,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_12,
       description: none,
-      targets: [mega_tree],
+      targets: [mega_tree, house_number],
       placement: Timed { start: 63.420496s, duration: 0.429967s },
       content: Effect {
         layer: default,
@@ -41371,7 +41371,7 @@ Sequence jing_jing_jing {
     Clip {
       name: shockwave_13,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 63.660091s, duration: 0.959162s },
       content: Effect {
         layer: default,
@@ -43526,6 +43526,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 72.758245s, duration: 0.236375s },
       content: Effect {
@@ -43599,6 +43600,7 @@ Sequence jing_jing_jing {
         trunk_br,
         trunk_fl,
         trunk_fr,
+        house_number,
       ],
       placement: Timed { start: 72.844818s, duration: 0.236375s },
       content: Effect {
@@ -43676,6 +43678,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 72.967006s, duration: 0.393851s },
       content: Effect {
@@ -49478,6 +49481,7 @@ Sequence jing_jing_jing {
         trunk_fl,
         trunk_fr,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 84.34347s, duration: 0.567316s },
       content: Effect {
@@ -49569,6 +49573,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 84.790221s, duration: 0.567316s },
       content: Effect {
@@ -49659,6 +49664,7 @@ Sequence jing_jing_jing {
         trunk_fl,
         trunk_fr,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 85.183053s, duration: 0.567316s },
       content: Effect {
@@ -49752,6 +49758,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 85.583589s, duration: 0.567316s },
       content: Effect {
@@ -49844,6 +49851,7 @@ Sequence jing_jing_jing {
         trunk_fl,
         trunk_fr,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 85.968719s, duration: 0.590424s },
       content: Effect {
@@ -49937,6 +49945,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 86.230607s, duration: 0.782989s },
       content: Effect {
@@ -50055,7 +50064,7 @@ Sequence jing_jing_jing {
     Clip {
       name: wipe_816,
       description: none,
-      targets: [front_lines, house_outline, mega_tree, pilasters, trees, windows],
+      targets: [front_lines, house_outline, mega_tree, pilasters, trees, windows, house_number],
       placement: Timed { start: 86.700466s, duration: 0.66745s },
       content: Effect {
         layer: default,
@@ -50148,6 +50157,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 87.023975s, duration: 0.42867s },
       content: Effect {
@@ -50226,6 +50236,7 @@ Sequence jing_jing_jing {
         trunk_fl,
         trunk_fr,
         wreaths,
+        house_number,
       ],
       placement: Timed { start: 87.24735s, duration: 0.351644s },
       content: Effect {
@@ -50317,6 +50328,7 @@ Sequence jing_jing_jing {
         trunk_fr,
         wreaths,
         grass,
+        house_number,
       ],
       placement: Timed { start: 87.416807s, duration: 1.460818s },
       content: Effect {
@@ -50910,7 +50922,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_238,
       description: none,
-      targets: [garage_matrix, mega_tree, arch_tunnel, grass],
+      targets: [garage_matrix, mega_tree, arch_tunnel, grass, house_number],
       placement: Timed { start: 91.230684s, duration: 0.445005s },
       content: Effect {
         layer: default,
@@ -50985,6 +50997,7 @@ Sequence jing_jing_jing {
         upper_wall_bushes,
         above_garage_wreath,
         grass,
+        house_number,
       ],
       placement: Timed { start: 91.726645s, duration: 0.366696s },
       content: Effect {
@@ -52689,7 +52702,7 @@ Sequence jing_jing_jing {
     Clip {
       name: spin_127,
       description: none,
-      targets: [front_door, mega_tree, grass],
+      targets: [front_door, mega_tree, grass, house_number],
       placement: Timed { start: 95.845423s, duration: 1.211413s },
       content: Effect {
         layer: default,
@@ -53152,6 +53165,7 @@ Sequence jing_jing_jing {
         stairs,
         star_points,
         grass,
+        house_number,
       ],
       placement: Timed { start: 97.15606s, duration: 0.333037s },
       content: Effect {

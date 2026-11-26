@@ -1540,7 +1540,7 @@ Sequence holy {
     Clip {
       name: clip_66,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points, house_number],
       placement: Timed { start: 20.353s, duration: 6.145s },
       content: Effect {
         layer: default,
@@ -3154,7 +3154,7 @@ Sequence holy {
     Clip {
       name: clip_108,
       description: none,
-      targets: [arch_tunnel, mega_tree, neighbor_trees, grass],
+      targets: [arch_tunnel, mega_tree, neighbor_trees, grass, house_number],
       placement: Timed { start: 81.078125s, duration: 8.234375s },
       content: Effect {
         layer: default,
@@ -4650,7 +4650,7 @@ Sequence holy {
     Clip {
       name: clip_184,
       description: none,
-      targets: [arch_tunnel, mega_tree, neighbor_trees, grass],
+      targets: [arch_tunnel, mega_tree, neighbor_trees, grass, house_number],
       placement: Timed { start: 89.59375s, duration: 8.234375s },
       content: Effect {
         layer: default,
@@ -6050,7 +6050,7 @@ Sequence holy {
     Clip {
       name: butterfly_3,
       description: none,
-      targets: [arch_tunnel, mega_tree, neighbor_trees],
+      targets: [arch_tunnel, mega_tree, neighbor_trees, house_number],
       placement: Timed { start: 100.793s, duration: 6.66s },
       content: Effect {
         layer: default,
@@ -7278,6 +7278,27 @@ Sequence holy {
       },
     },
     Clip {
+      name: butterfly_6_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 174.099375s, duration: 1.160625s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Butterfly,
+        params: {
+          gradient: Gradient { space: LinearRgb, stops: [(0.0, #ffffff), (1.0, #00ff00)] },
+          butterfly_type: Type1,
+          color_scheme: Gradient,
+          motion: Iterations { iterations: 8, direction: Forward },
+          repeat: 1,
+          background_chunks: 1,
+          background_skips: 2,
+          intensity: 1.0,
+        },
+      },
+    },
+    Clip {
       name: butterfly_9,
       description: none,
       targets: [star_points],
@@ -7316,7 +7337,15 @@ Sequence holy {
     Clip {
       name: pulse_38,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points, grass],
+      targets: [
+        arch_tunnel,
+        garage_matrix,
+        mega_tree,
+        neighbor_trees,
+        star_points,
+        grass,
+        house_number,
+      ],
       placement: Timed { start: 175.32s, duration: 11.4s },
       content: Effect {
         layer: default,
@@ -10165,7 +10194,15 @@ Sequence holy {
     Clip {
       name: pulse_44,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points, grass],
+      targets: [
+        arch_tunnel,
+        garage_matrix,
+        mega_tree,
+        neighbor_trees,
+        star_points,
+        grass,
+        house_number,
+      ],
       placement: Timed { start: 186.72s, duration: 0.51s },
       content: Effect {
         layer: default,
@@ -10312,6 +10349,31 @@ Sequence holy {
       description: none,
       targets: [mega_tree],
       placement: Timed { start: 187.23s, duration: 19.6s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Fireworks,
+        params: {
+          colors: [Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] }],
+          source: RandomExplosions,
+          explosion_marks: none,
+          explosions: 44,
+          reach: 0.0,
+          min_reach: 37.0,
+          max_reach: 370.0,
+          random_particles: false,
+          particles: 54,
+          particle_life: 0.851,
+          fall: 6.753733,
+          random_seed: 561525.0,
+        },
+      },
+    },
+    Clip {
+      name: clip_441_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 187.23s, duration: 5.14838s },
       content: Effect {
         layer: default,
         scope: WholeTarget,
@@ -11223,6 +11285,30 @@ Sequence holy {
       description: none,
       targets: [mega_tree, grass],
       placement: Timed { start: 206.83s, duration: 22.58s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Meteors,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #0000ff)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          ],
+          tail_taper: Curve { points: [(0.0, 1.0), (1.0, 0.0)] },
+          color_type: Palette,
+          speed: 25.0,
+          count: 33.16583,
+          tail_length: 8.0,
+          random_seed: 477587.0,
+          positioning: Strings { orientation: Vertical, string_count: 32, string_length: 50 },
+        },
+      },
+    },
+    Clip {
+      name: clip_477_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 206.83s, duration: 1.27s },
       content: Effect {
         layer: default,
         scope: WholeTarget,
@@ -12199,6 +12285,30 @@ Sequence holy {
       },
     },
     Clip {
+      name: clip_517_house_number,
+      description: none,
+      targets: [house_number],
+      placement: Timed { start: 236.95s, duration: 0.55s },
+      content: Effect {
+        layer: default,
+        scope: WholeTarget,
+        effect: effects.Spiral,
+        params: {
+          colors: [
+            Gradient { space: LinearRgb, stops: [(0.0, #008000)] },
+            Gradient { space: LinearRgb, stops: [(0.0, #ffffff)] },
+          ],
+          direction: Forward,
+          iterations: 9.0,
+          repeat: 1,
+          rotation: 53.333332,
+          thickness: 60.0,
+          blend: false,
+          show_3d: false,
+        },
+      },
+    },
+    Clip {
       name: clip_518,
       description: none,
       targets: [garage_matrix],
@@ -12315,7 +12425,7 @@ Sequence holy {
     Clip {
       name: clip_526,
       description: none,
-      targets: [mega_tree, grass],
+      targets: [mega_tree, grass, house_number],
       placement: Timed { start: 237.5s, duration: 8.95s },
       content: Effect {
         layer: default,
@@ -12674,7 +12784,7 @@ Sequence holy {
     Clip {
       name: pulse_75,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points, house_number],
       placement: Timed { start: 245.36s, duration: 2s },
       content: Effect {
         layer: default,
@@ -12929,7 +13039,7 @@ Sequence holy {
     Clip {
       name: envelope,
       description: none,
-      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points],
+      targets: [arch_tunnel, garage_matrix, mega_tree, neighbor_trees, star_points, house_number],
       placement: Timed { start: 20.353s, duration: 6.145s },
       content: Envelope {
         curve: Curve { points: [(0.0, 0.0), (0.0369, 1.0), (0.9581, 1.0), (1.0, 0.0)] },
