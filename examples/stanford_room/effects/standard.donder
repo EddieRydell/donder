@@ -1592,6 +1592,7 @@ fn char_start(font: font, message: text, k: int) -> float {
 -- `animation_share` of the clip, `stagger` spreading their starts, and with
 -- animate_out takes them out the same way over the last share: flying from the
 -- right or left, dropping from above, rising from below, typed, or fading.
+-- Text is crisp unless `crisp` is off: each pixel fully lit or dark.
 effect Text {
   param message: text = "Merry Christmas";
   param font: font;
@@ -1616,6 +1617,9 @@ effect Text {
   param animation_share: float in 0.01..1.0 = 0.3;
   param stagger: float in 0.0..0.9 = 0.6;
   param random_seed: float in 0.0..1000000.0 = 0.0;
+  -- Crisp text lights a pixel fully or not at all, by whether the glyph
+  -- covers at least half of it; otherwise edges shade by coverage.
+  param crisp: bool = true;
 
   sample {
     let line = font_height(font);
@@ -1684,13 +1688,14 @@ effect Text {
             guard char_index(font, message, gx) == k else 0.0;
             glyph_coverage(font, message, gx, y - (count - 1 - k) * line)
           } else { glyph_coverage(font, message, x, y) };
-        k * 2.0 + ink
+        k * 2.0 + (if crisp { if ink >= 0.5 { 1.0 } else { 0.0 } } else { ink })
       } else {
         max(0.0, max for k in 0..min(count, 64) {
           let gx = (if rotated { starts[k] + x - (block_w - widths[k]) / 2.0 } else { x }) - dx[k];
           let gy = y - dy[k] - (if rotated { (count - 1 - k) * line } else { 0.0 });
           guard shown[k] > 0.0 && char_index(font, message, gx) == k;
-          let ink = glyph_coverage(font, message, gx, gy) * shown[k];
+          let coverage = glyph_coverage(font, message, gx, gy);
+          let ink = (if crisp { if coverage >= 0.5 { 1.0 } else { 0.0 } } else { coverage }) * shown[k];
           guard ink > 0.0;
           k * 2.0 + ink
         })
