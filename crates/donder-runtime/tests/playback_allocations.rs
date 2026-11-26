@@ -6,8 +6,8 @@ use std::cell::Cell;
 use std::sync::Arc;
 
 use donder_language::compiler::{
-    CompiledDefinition, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
-    compile_script, program_values,
+    CompiledDefinition, Instance, Invocation, ParamDecl, ProgramConstants, compile_script,
+    program_values,
 };
 use donder_runtime::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
 use donder_runtime_types::{BoundProgram, Type, Value};
@@ -655,22 +655,15 @@ operator Scatter {
 }";
 
 /// A value an author might supply for a parameter without a default.
-fn authored_value(ty: &Type, range: Option<ParamRange>) -> Value {
-    let (min, max) = match range {
-        Some(ParamRange::Float { min, max }) => (min, max),
-        _ => (0.0, 1.0),
-    };
+fn authored_value(ty: &Type) -> Value {
     match ty {
-        Type::Curve => Value::Curve(curve(
-            &[
-                (0.0, 0.0),
-                (0.12, 1.0),
-                (0.45, 0.35),
-                (0.78, 0.8),
-                (1.0, 0.0),
-            ]
-            .map(|(position, value)| (position, min + (max - min) * value)),
-        )),
+        Type::Curve => Value::Curve(curve(&[
+            (0.0, 0.0),
+            (0.12, 1.0),
+            (0.45, 0.35),
+            (0.78, 0.8),
+            (1.0, 0.0),
+        ])),
         Type::Gradient => Value::Gradient(Arc::new(Gradient {
             space: donder_runtime_types::GradientSpace::LinearRgb,
             stops: [
@@ -688,7 +681,8 @@ fn authored_value(ty: &Type, range: Option<ParamRange>) -> Value {
         Type::Marks => Value::Marks(Arc::new(Marks::new(
             (0..32).map(|index| SampleDuration::from_ticks(100_000 + index * 250_000)),
         ))),
-        Type::Array(item) => Value::Array(vec![authored_value(item, None); 3].into()),
+        Type::Font => Value::Font(Arc::new(playback::font())),
+        Type::Array(item) => Value::Array(vec![authored_value(item); 3].into()),
         ty => panic!("starter parameters of type {ty:?} have defaults"),
     }
 }
@@ -700,7 +694,7 @@ fn authored_values(params: &[ParamDecl]) -> Vec<Value> {
             param
                 .default
                 .clone()
-                .unwrap_or_else(|| authored_value(&param.ty, param.range))
+                .unwrap_or_else(|| authored_value(&param.ty))
         })
         .collect();
     program_values(params, declared, &[])

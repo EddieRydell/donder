@@ -9,7 +9,7 @@ use super::playback;
 use super::std;
 use crate::dsl::bytecode::{BytecodeProgram, ContextRead, Instruction, SignalPixel, instructions};
 use crate::dsl::{NoSignals, RunContext, STRIP, Strip, StripSignals};
-use donder_language::compiler::{CompiledDefinition, ParamDecl, ParamRange, compile_script};
+use donder_language::compiler::{CompiledDefinition, ParamDecl, compile_script};
 use donder_runtime_types::bytecode::listing;
 use donder_runtime_types::{BoundProgram, Type, Value};
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration};
@@ -234,19 +234,13 @@ fn assert_same(
     }
 }
 
-fn ranged_curve(range: Option<ParamRange>, variant: usize) -> Value {
-    let (min, max) = match range {
-        Some(ParamRange::Float { min, max }) => (min, max),
-        _ => (0.0, 1.0),
-    };
+/// A curve over its normalized 0..1 values, which automation maps onto the declared range.
+fn curve(variant: usize) -> Value {
     let peak = [0.8, 0.6, 0.45][variant % 3];
     Value::Curve(
         Curve {
             points: [(0.0, 0.0), (0.35, peak), (0.7, 0.3), (1.0, 1.0)]
-                .map(|(position, value)| CurvePoint {
-                    position,
-                    value: min + (max - min) * value,
-                })
+                .map(|(position, value)| CurvePoint { position, value })
                 .into(),
         }
         .into(),
@@ -272,16 +266,17 @@ fn gradient(variant: usize) -> Value {
 }
 
 /// A value for a parameter without a default.
-fn required(ty: &Type, range: Option<ParamRange>, variant: usize) -> Value {
+fn required(ty: &Type, variant: usize) -> Value {
     match ty {
-        Type::Curve => ranged_curve(range, variant),
+        Type::Curve => curve(variant),
         Type::Gradient => gradient(variant),
+        Type::Font => Value::Font(playback::font().into()),
         Type::Marks => marks(&[
             500_000, 1_200_000, 3_000_000, 3_010_000, 4_400_000, 6_050_000,
         ]),
         Type::Array(item) => Value::Array(
             (0..3)
-                .map(|variant| required(item, None, variant))
+                .map(|variant| required(item, variant))
                 .collect::<Vec<_>>()
                 .into(),
         ),
@@ -293,7 +288,7 @@ fn value(param: &ParamDecl) -> Value {
     param
         .default
         .clone()
-        .unwrap_or_else(|| required(&param.ty, param.range, 0))
+        .unwrap_or_else(|| required(&param.ty, 0))
 }
 
 /// The other options of an enum parameter, or the other value of a bool.

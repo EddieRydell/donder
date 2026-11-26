@@ -5,8 +5,8 @@ use donder_language::compiler::{
 };
 use donder_runtime::{PreparedShow, ShowBuilder, SignalHandle, TargetHandle};
 use donder_runtime_types::{
-    BindingError, BoundProgram, Color, FixtureGeometry, OutputEncoding, PixelEncoding, SampleTime,
-    SequenceTiming, TargetGeometry, TargetScope, Value,
+    BindingError, BoundProgram, Color, FixtureGeometry, Font, Glyph, OutputEncoding, PixelEncoding,
+    SampleTime, SequenceTiming, TargetGeometry, TargetScope, Value,
 };
 use std::num::NonZeroU32;
 
@@ -170,5 +170,33 @@ pub fn assert_frames_close(left: &[Color], right: &[Color], what: &str) {
             close(a.red, b.red) && close(a.green, b.green) && close(a.blue, b.blue),
             "{what}: pixel {index}: {a:?} != {b:?}"
         );
+    }
+}
+
+/// A 6-pixel font of printable ASCII: each glyph is a 3 by 5 block whose
+/// coverage ramps across it, one pixel apart from the next.
+pub fn font() -> Font {
+    const WIDTH: u32 = 3;
+    const HEIGHT: u32 = 5;
+    let bitmap: Vec<u8> = (0..WIDTH * HEIGHT)
+        .map(|index| (64 + index * 12) as u8)
+        .collect();
+    let glyphs: Vec<Glyph> = (32..127u32)
+        .enumerate()
+        .map(|(index, code)| Glyph {
+            code,
+            advance: 4.0,
+            left: 0,
+            top: 1,
+            width: if code == 32 { 0 } else { WIDTH },
+            height: if code == 32 { 0 } else { HEIGHT },
+            offset: index as u32 * WIDTH * HEIGHT,
+        })
+        .collect();
+    let coverage: Vec<u8> = glyphs.iter().flat_map(|_| bitmap.iter().copied()).collect();
+    Font {
+        height: 6.0,
+        glyphs: glyphs.into(),
+        coverage: coverage.into(),
     }
 }
