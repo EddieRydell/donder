@@ -5396,5 +5396,17 @@ Project rydell_house {
       brightness: 1.0,
       dither: false,
     },
+    Route {
+      target: bench,
+      pixels: none,
+      reverse: false,
+      controller: controllers.bench,
+      port: "1",
+      start: Channel { channel: 0 },
+      encoding: Rgb { order: (0, 1, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+      dither: false,
+    },
   ],
 }
