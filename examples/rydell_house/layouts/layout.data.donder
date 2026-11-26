@@ -753,6 +753,7 @@ Layout layout {
         spiral_trees,
         neighbor_trees,
         penguin,
+        bench,
       ],
     },
     Group {
@@ -3860,6 +3861,16 @@ Layout layout {
       definition: grass_5,
       transform: Transform {
         position: (-2.011m, -1.5m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: bench,
+      description: "The 32-light bench, on the old megatree Advatek (.242) output 1, between the front right and back right trees.",
+      definition: bench,
+      transform: Transform {
+        position: (2.72m, 6.87m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -20336,6 +20347,56 @@ FixtureDefinition grass_5 {
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 0.1317, count: 3 },
+    },
+  ],
+}
+
+FixtureDefinition bench {
+  description: "A rectangle of 32 lights: 13 up each long side, 3 across each short side, wired from the top left corner, counterclockwise.",
+  shapes: [
+    Shape {
+      name: left_side,
+      diameter: 0.043m,
+      reverse: false,
+      transform: Transform {
+        position: (0m, 0.585m, 0m),
+        rotation: (0.0, 0.0, 270.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+      geometry: Line { length: 0.54, count: 13 },
+    },
+    Shape {
+      name: bottom,
+      diameter: 0.043m,
+      reverse: false,
+      transform: Transform {
+        position: (0.045m, 0m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+      geometry: Line { length: 0.09, count: 3 },
+    },
+    Shape {
+      name: right_side,
+      diameter: 0.043m,
+      reverse: false,
+      transform: Transform {
+        position: (0.18m, 0.045m, 0m),
+        rotation: (0.0, 0.0, 90.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+      geometry: Line { length: 0.54, count: 13 },
+    },
+    Shape {
+      name: top,
+      diameter: 0.043m,
+      reverse: false,
+      transform: Transform {
+        position: (0.135m, 0.63m, 0m),
+        rotation: (0.0, 0.0, 180.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+      geometry: Line { length: 0.09, count: 3 },
     },
   ],
 }

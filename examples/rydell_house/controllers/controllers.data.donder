@@ -478,3 +478,18 @@ Controller grass {
     ports: [Port { name: "1", description: none }],
   },
 }
+
+Controller bench {
+  description: "Advatek PixLite 16 (the old megatree controller): output 1 is the bench",
+  protocol: E131 {
+    sender_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.242" },
+    start_universe: 230,
+    universes: 1,
+    channels: 510,
+    fseq_channel: 102703,
+    ports: [Port { name: "1", description: none }],
+  },
+}
