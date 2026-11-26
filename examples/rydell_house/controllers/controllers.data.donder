@@ -248,7 +248,7 @@ Controller garage_wreath_controller {
     start_universe: 239,
     universes: 4,
     channels: 510,
-    fseq_channel: none,
+    fseq_channel: 107293,
     ports: [
       Port { name: "Seeds", description: "The 300-pixel outer seed ring." },
       Port { name: "Bulbs", description: "The 50-pixel middle bulb ring." },
@@ -474,7 +474,7 @@ Controller grass {
     start_universe: 1,
     universes: 12,
     channels: 510,
-    fseq_channel: none,
+    fseq_channel: 109843,
     ports: [Port { name: "1", description: none }],
   },
 }
