@@ -13,7 +13,7 @@ import type { SequenceClipLayout } from "./sequenceSelection";
 
 type DecodedClipRaster = {
   revision: number;
-  image: CanvasImageSource;
+  image: ImageBitmap;
   byteLength: number;
   lastUsed: number;
 };
@@ -108,7 +108,10 @@ export function useSequenceClipRasters(document: SequenceGuiDocument, visibleCli
 let openRasters: RasterCache | null = null;
 
 function rasterCache(documentKey: string): RasterCache {
-  if (openRasters?.documentKey !== documentKey) openRasters = newRasterCache(documentKey);
+  if (openRasters?.documentKey !== documentKey) {
+    for (const decoded of openRasters?.decoded.values() ?? []) decoded.image.close();
+    openRasters = newRasterCache(documentKey);
+  }
   return openRasters;
 }
 
@@ -140,6 +143,8 @@ function newRasterCache(documentKey: string): RasterCache {
 function forgetDecoded(cache: RasterCache, clipId: number): boolean {
   const decoded = cache.decoded.get(clipId);
   if (decoded === undefined) return false;
+  // A bitmap holds its pixels outside the JS heap until it is closed.
+  decoded.image.close();
   cache.decoded.delete(clipId);
   cache.decodedBytes -= decoded.byteLength;
   return true;
@@ -170,7 +175,10 @@ function scheduleDecode(cache: RasterCache, published: () => void) {
       if (performance.now() - started > CLIP_RASTER_DECODE_FRAME_BUDGET_MS) break;
       try {
         const image = await decodeClipRaster(raster);
-        if (cache.known.get(raster.clipId)?.revision !== raster.revision) continue;
+        if (cache.known.get(raster.clipId)?.revision !== raster.revision) {
+          image.close();
+          continue;
+        }
         forgetDecoded(cache, raster.clipId);
         const byteLength = raster.columns * raster.rows * 4;
         cache.decoded.set(raster.clipId, { revision: raster.revision, image, byteLength, lastUsed: cache.access++ });
@@ -209,7 +217,7 @@ export function drawClipRaster(ctx: CanvasRenderingContext2D, raster: DecodedCli
   ctx.imageSmoothingEnabled = true;
 }
 
-async function decodeClipRaster(payload: SequenceClipRaster): Promise<CanvasImageSource> {
+async function decodeClipRaster(payload: SequenceClipRaster): Promise<ImageBitmap> {
   const response = await fetch(convertFileSrc(payload.pixelsRgbaToken, "donder-raster"));
   if (!response.ok) throw new Error(`Raster pixel fetch failed with ${response.status}.`);
   const pixels = new Uint8ClampedArray(await response.arrayBuffer());
