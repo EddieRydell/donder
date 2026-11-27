@@ -57,6 +57,9 @@ pub struct SequenceImportReport {
     pub left_out: BTreeMap<(String, LeftOut), usize>,
     /// Layer mixes played by the brightest channel instead, by mix name.
     pub mixed_by_max: BTreeMap<String, usize>,
+    /// Value curves of types the importer cannot evaluate, by type; their
+    /// sliders keep their own values.
+    pub unknown_curves: BTreeMap<String, usize>,
     /// Shader files played by a general likeness, by file name.
     pub general_shaders: BTreeMap<String, usize>,
     /// Rows with effects the mapping does not place, and their effect counts.
@@ -74,6 +77,8 @@ pub enum LeftOut {
     NoLikeness,
     /// Distorts the layers under it.
     Distortion,
+    /// Starts at or after the song ends, or lasts no time.
+    Empty,
 }
 
 impl fmt::Display for LeftOut {
@@ -83,6 +88,7 @@ impl fmt::Display for LeftOut {
             Self::NothingToUnmask => "unmasks layers with nothing playing under it",
             Self::NoLikeness => "has no likeness in Donder",
             Self::Distortion => "distorts the layers under it, which Donder does not do",
+            Self::Empty => "starts after the sequence ends or lasts no time",
         })
     }
 }
@@ -124,6 +130,15 @@ impl fmt::Display for SequenceImportReport {
             )?;
             for (file, count) in &self.general_shaders {
                 writeln!(f, "  {file}: {count}")?;
+            }
+        }
+        if !self.unknown_curves.is_empty() {
+            writeln!(
+                f,
+                "Value curves of types not evaluated, their sliders held at their own values:"
+            )?;
+            for (kind, count) in &self.unknown_curves {
+                writeln!(f, "  {kind}: {count}")?;
             }
         }
         if !self.unmapped.is_empty() {

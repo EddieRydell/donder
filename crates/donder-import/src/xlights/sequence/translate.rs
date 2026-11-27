@@ -7,6 +7,12 @@ use super::{LeftOut, SequenceImportReport};
 use donder_runtime_types::{Color, TargetScope};
 use std::time::Duration;
 
+const WHITE: Color = Color {
+    red: 1.0,
+    green: 1.0,
+    blue: 1.0,
+};
+
 /// A likeness in `effects/xlights.donder`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Port {
@@ -157,6 +163,10 @@ fn mix(settings: &Settings) -> (Mix, &str) {
     };
     (mix, name)
 }
+
+/// How many samples a tint takes across a clip: fine enough that a tint
+/// ending partway shows its edge within a short step.
+const TINT_SAMPLES: usize = 48;
 
 /// How many samples a curve sampled from xLights takes across a clip.
 const CURVE_SAMPLES: usize = 24;
@@ -323,23 +333,15 @@ fn shared(placed: &Placed) -> Params {
             Value::Float(settings.float("T_TEXTCTRL_Fadeout", 0.0)),
         ),
         // Untinted; an unmasking effect above replaces it.
-        (
-            "tint",
-            Value::Gradient(vec![(
-                0.0,
-                Color {
-                    red: 1.0,
-                    green: 1.0,
-                    blue: 1.0,
-                },
-            )]),
-        ),
+        ("tint", Value::Gradient(vec![(0.0, WHITE)])),
     ]);
     params
 }
 
-/// The effect's own color over its span, as an `On` or `Color Wash` unmasked
-/// by the layers under it shows it, at `samples` times from `from` to `to`.
+/// The hue and saturation an `On` or `Color Wash` gives the layers under it
+/// that unmask it, at full value: `2 is Unmask` keeps those layers'
+/// brightness. (`2 is True Unmask` shows the upper effect at its own
+/// brightness; it is imported the same way.)
 fn tint_color(placed: &Placed, at: Duration) -> Color {
     let span = placed
         .end
@@ -348,48 +350,27 @@ fn tint_color(placed: &Placed, at: Duration) -> Color {
         .max(1e-6);
     let t = (at.saturating_sub(placed.start).as_secs_f32() / span).clamp(0.0, 1.0);
     let colors = placed.palette.colors_or_white();
-    let settings = &placed.settings;
-    let (color, level) = match placed.name {
+    let color = match placed.name {
         EffectName::ColorWash => {
-            let cycles = settings.float("E_TEXTCTRL_ColorWash_Cycles", 1.0).max(0.01);
-            let position = (t * cycles).fract();
-            (blend(&colors, position, t), 1.0)
+            let cycles = placed
+                .settings
+                .float("E_TEXTCTRL_ColorWash_Cycles", 1.0)
+                .max(0.01);
+            blend(&colors, (t * cycles).fract(), t)
         }
-        _ => {
-            let start = settings.float("E_TEXTCTRL_Eff_On_Start", 100.0) / 100.0;
-            let end = settings.float("E_TEXTCTRL_Eff_On_End", 100.0) / 100.0;
-            (colors[0].at(t), start + (end - start) * t)
-        }
+        _ => colors[0].at(t),
     };
-    let fade_in = settings.float("T_TEXTCTRL_Fadein", 0.0);
-    let fade_out = settings.float("T_TEXTCTRL_Fadeout", 0.0);
-    let seconds = t * span;
-    let rise = if fade_in > 0.0 {
-        (seconds / fade_in).min(1.0)
-    } else {
-        1.0
-    };
-    let fall = if fade_out > 0.0 {
-        ((span - seconds) / fade_out).min(1.0)
-    } else {
-        1.0
-    };
-    // `2 is Unmask` keeps the brightness of the layers under it and takes
-    // only the hue and saturation of this effect; `2 is True Unmask` takes
-    // its color whole.
-    let (mixing, _) = mix(settings);
     let peak = color.red.max(color.green).max(color.blue);
-    let level = if mixing == Mix::TrueUnmask {
-        (level * rise * fall * placed.palette.brightness()).max(0.0)
-    } else if peak > 0.0 {
-        1.0 / peak
+    // Black has no hue: it unmasks as white.
+    let scale = if peak > 0.0 { 1.0 / peak } else { 0.0 };
+    if peak > 0.0 {
+        Color {
+            red: color.red * scale,
+            green: color.green * scale,
+            blue: color.blue * scale,
+        }
     } else {
-        0.0
-    };
-    Color {
-        red: (color.red * level).min(1.0),
-        green: (color.green * level).min(1.0),
-        blue: (color.blue * level).min(1.0),
+        WHITE
     }
 }
 
@@ -428,6 +409,13 @@ pub(crate) fn row(
     let mut unmasks = Vec::new();
     for (layer, effects) in row.layers.iter().enumerate() {
         for placed in effects {
+            for curve in placed
+                .settings
+                .unknown_curves()
+                .chain(placed.palette.unknown_curves())
+            {
+                *report.unknown_curves.entry(curve).or_default() += 1;
+            }
             let (mixing, mix_name) = mix(&placed.settings);
             let source = placed.source_name.clone();
             if matches!(mixing, Mix::Unmask | Mix::TrueUnmask)
@@ -442,7 +430,6 @@ pub(crate) fn row(
                     if mixing != Mix::Normal {
                         *report.mixed_by_max.entry(mix_name.to_owned()).or_default() += 1;
                     }
-                    *report.played.entry(source.clone()).or_default() += 1;
                     clips.push(Translated {
                         port,
                         params,
@@ -459,30 +446,53 @@ pub(crate) fn row(
             }
         }
     }
-    for unmask in unmasks {
-        let (from, to) = (unmask.placed.start, unmask.placed.end);
-        let mut tinted_any = false;
-        for clip in clips.iter_mut().filter(|clip| clip.layer > unmask.layer) {
-            let overlap = clip.end.min(to).saturating_sub(clip.start.max(from));
-            let span = clip.end.saturating_sub(clip.start);
-            if span.is_zero() || overlap.as_secs_f32() < span.as_secs_f32() * 0.5 {
-                continue;
-            }
-            let stops = (0..=CURVE_SAMPLES)
-                .map(|i| {
-                    let t = i as f32 / CURVE_SAMPLES as f32;
-                    let at = clip.start + span.mul_f32(t);
-                    (t, tint_color(unmask.placed, at.clamp(from, to)))
-                })
-                .collect::<Vec<_>>();
+    // Each clip under unmasking effects takes, at each moment, the tint of
+    // the topmost one playing then, as xLights mixes them bottom up; where
+    // none plays, the tint is black and the clip keeps its own color.
+    let mut used = vec![false; unmasks.len()];
+    for clip in &mut clips {
+        let span = clip.end.saturating_sub(clip.start);
+        let over = unmasks
+            .iter()
+            .enumerate()
+            .filter(|(_, unmask)| {
+                unmask.layer < clip.layer
+                    && unmask.placed.start < clip.end
+                    && unmask.placed.end > clip.start
+            })
+            .collect::<Vec<_>>();
+        if span.is_zero() || over.is_empty() {
+            continue;
+        }
+        let mut covered = false;
+        let stops = (0..=TINT_SAMPLES)
+            .map(|i| {
+                let t = i as f32 / TINT_SAMPLES as f32;
+                let at = clip.start + span.mul_f32(t);
+                let top = over
+                    .iter()
+                    .filter(|(_, unmask)| unmask.placed.start <= at && at <= unmask.placed.end)
+                    .min_by_key(|(_, unmask)| unmask.layer);
+                match top {
+                    Some((index, unmask)) => {
+                        used[*index] = true;
+                        covered = true;
+                        (t, tint_color(unmask.placed, at))
+                    }
+                    None => (t, Color::BLACK),
+                }
+            })
+            .collect::<Vec<_>>();
+        if covered {
             clip.params
                 .retain(|(name, _)| *name != "tinted" && *name != "tint");
             clip.params.push(("tinted", Value::Bool(true)));
             clip.params.push(("tint", Value::Gradient(stops)));
-            tinted_any = true;
         }
+    }
+    for (unmask, used) in unmasks.iter().zip(used) {
         let source = unmask.placed.source_name.clone();
-        if tinted_any {
+        if used {
             *report.tinting.entry(source).or_default() += 1;
         } else {
             *report

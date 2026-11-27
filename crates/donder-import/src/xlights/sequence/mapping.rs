@@ -36,8 +36,15 @@ impl Mapping {
                 .filter(|target| !target.is_empty())
                 .map(str::to_owned)
                 .collect::<Vec<_>>();
+            let row = row.trim().to_owned();
+            if rows.iter().any(|(name, _)| *name == row) {
+                return Err(ImportError::Sequence(format!(
+                    "{path}, line {}: the row {row} is mapped twice.",
+                    number + 1
+                )));
+            }
             if !targets.is_empty() {
-                rows.push((row.trim().to_owned(), targets));
+                rows.push((row, targets));
             }
         }
         Ok(Self { rows })
@@ -46,7 +53,7 @@ impl Mapping {
     pub(crate) fn targets(&self, row: &str) -> Option<&[String]> {
         self.rows
             .iter()
-            .find(|(name, _)| name == row)
+            .find(|(name, _)| name == row.trim())
             .map(|(_, targets)| targets.as_slice())
     }
 }

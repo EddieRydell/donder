@@ -7,9 +7,10 @@
 -- Every likeness shares four settings:
 -- - `brightness`, the palette's brightness slider, 1 being 100%;
 -- - `fade_in` and `fade_out`, the layer's fades, in seconds;
--- - `tinted` and `tint`: an xLights `On` or `Color Wash` above the effect that
---   shows it only where it is lit (`2 is Unmask`) colors it instead, with the
---   tint over the clip at the effect's own brightness.
+-- - `tinted` and `tint`: xLights `On` and `Color Wash` effects above the effect
+--   that show it only where it is lit (`2 is Unmask`) color it instead: the
+--   tint over the clip gives the hue and saturation, the effect its
+--   brightness, and where the tint is black the effect keeps its own color.
 
 -- The effect's level this frame: its brightness faded in and out.
 fn xl_level(brightness: float, fade_in: float, fade_out: float) -> float {
@@ -18,9 +19,12 @@ fn xl_level(brightness: float, fade_in: float, fade_out: float) -> float {
   brightness * rise * fall
 }
 
--- The color an effect draws: its own, or the tint at its own brightness.
+-- The color an effect draws: its own; or, tinted, the tint's hue and
+-- saturation at its own brightness where the tint is lit, crossfading back to
+-- its own color as the tint goes dark.
 fn xl_out(own: color, tinted: bool, tint: color, level: float) -> color {
-  if tinted { tint * (intensity(own) * level) } else { own * level }
+  let colored = if tinted { mix(own, hsv(hue(tint), saturation(tint), intensity(own)), clamp(intensity(tint), 0.0, 1.0)) } else { own };
+  colored * level
 }
 
 -- Where the pixel is across (x) and up (y) the buffer xLights draws an

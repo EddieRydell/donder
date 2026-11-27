@@ -48,6 +48,14 @@ impl Settings {
         })
     }
 
+    /// The types of the active value curves the importer cannot evaluate.
+    pub(crate) fn unknown_curves(&self) -> impl Iterator<Item = String> + '_ {
+        self.0
+            .iter()
+            .filter(|(key, _)| key.contains("VALUECURVE"))
+            .filter_map(|(_, value)| unknown_curve(value))
+    }
+
     /// The value curve set on `key`'s slider, when it is active: xLights
     /// writes it as `E_VALUECURVE_<name>` beside `E_SLIDER_<name>` or
     /// `E_TEXTCTRL_<name>`.
@@ -69,24 +77,67 @@ pub(crate) struct ValueCurve {
     points: Vec<(f32, f32)>,
     /// Whether the slider's values were divided to fit the curve (`RV`).
     real_values: bool,
+    /// Whether a parabola is scaled between P3 and P4 (`SE`).
+    ends: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum CurveKind {
     Flat,
     Ramp,
-    RampUp,
-    RampDown,
     RampUpDown,
+    RampUpDownHold,
     Saw,
     Square,
     Sine,
     AbsSine,
-    Parabolic,
-    Logarithmic,
-    Exponential,
+    ParabolicDown,
+    ParabolicUp,
+    LogarithmicUp,
+    LogarithmicDown,
+    ExponentialUp,
+    ExponentialDown,
     Custom,
     Random,
+}
+
+impl CurveKind {
+    /// The curve types xLights names that the importer evaluates.
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "Flat" => Self::Flat,
+            "Ramp" => Self::Ramp,
+            "Ramp Up/Down" => Self::RampUpDown,
+            "Ramp Up/Down Hold" => Self::RampUpDownHold,
+            "Saw Tooth" => Self::Saw,
+            "Square" => Self::Square,
+            "Sine" => Self::Sine,
+            "Abs Sine" => Self::AbsSine,
+            "Parabolic Down" => Self::ParabolicDown,
+            "Parabolic Up" => Self::ParabolicUp,
+            "Logarithmic Up" => Self::LogarithmicUp,
+            "Logarithmic Down" => Self::LogarithmicDown,
+            "Exponential Up" => Self::ExponentialUp,
+            "Exponential Down" => Self::ExponentialDown,
+            "Custom" => Self::Custom,
+            "Random" => Self::Random,
+            _ => return None,
+        })
+    }
+}
+
+/// The type of an active value curve the importer cannot evaluate, if
+/// `text` is one.
+pub(crate) fn unknown_curve(text: &str) -> Option<String> {
+    let fields = text
+        .split('|')
+        .filter_map(|field| field.split_once('='))
+        .collect::<HashMap<_, _>>();
+    if fields.get("Active").copied() != Some("TRUE") {
+        return None;
+    }
+    let name = fields.get("Type").copied().unwrap_or("Flat");
+    CurveKind::parse(name).is_none().then(|| name.to_owned())
 }
 
 impl ValueCurve {
@@ -104,23 +155,9 @@ impl ValueCurve {
                 .and_then(|value| value.parse::<f32>().ok())
                 .unwrap_or(default)
         };
-        let kind = match fields.get("Type").copied().unwrap_or("Flat") {
-            "Flat" => CurveKind::Flat,
-            "Ramp" => CurveKind::Ramp,
-            "Ramp Up" => CurveKind::RampUp,
-            "Ramp Down" => CurveKind::RampDown,
-            "Ramp Up/Down" => CurveKind::RampUpDown,
-            "Saw Tooth" => CurveKind::Saw,
-            "Square" => CurveKind::Square,
-            "Sine" => CurveKind::Sine,
-            "Abs Sine" => CurveKind::AbsSine,
-            "Parabolic Down" | "Parabolic Up" => CurveKind::Parabolic,
-            "Logarithmic Up" | "Logarithmic Down" => CurveKind::Logarithmic,
-            "Exponential Up" | "Exponential Down" => CurveKind::Exponential,
-            "Custom" => CurveKind::Custom,
-            "Random" => CurveKind::Random,
-            _ => CurveKind::Flat,
-        };
+        // A type the importer cannot evaluate is counted in the report and
+        // its slider's own value used instead.
+        let kind = CurveKind::parse(fields.get("Type").copied().unwrap_or("Flat"))?;
         let points = fields
             .get("Values")
             .map(|values| {
@@ -145,6 +182,7 @@ impl ValueCurve {
             ],
             points,
             real_values: fields.get("RV").copied() == Some("TRUE"),
+            ends: fields.get("SE").copied() == Some("Y"),
         })
     }
 
@@ -163,12 +201,38 @@ impl ValueCurve {
         let [p1, p2, p3, p4] = self.p;
         let value = match self.kind {
             CurveKind::Flat => real(p1),
-            CurveKind::Ramp
-            | CurveKind::Logarithmic
-            | CurveKind::Exponential
-            | CurveKind::Random => real(p1) + (real(p2) - real(p1)) * t,
-            CurveKind::RampUp => t,
-            CurveKind::RampDown => 1.0 - t,
+            CurveKind::Ramp | CurveKind::Random => real(p1) + (real(p2) - real(p1)) * t,
+            CurveKind::RampUpDownHold => {
+                let hold = p3 / 100.0;
+                let (rise, fall) = (0.5 - 0.5 * hold, 0.5 + 0.5 * hold);
+                if t < rise {
+                    real(p1) + (real(p2) - real(p1)) * t / rise.max(f32::EPSILON)
+                } else if t <= fall {
+                    real(p2)
+                } else {
+                    real(p2) + (real(p1) - real(p2)) * (t - fall) / (1.0 - fall).max(f32::EPSILON)
+                }
+            }
+            // xLights' generators: the shape's coefficient from P1 as written,
+            // its offset from P2 in the slider's units.
+            CurveKind::LogarithmicUp => {
+                let a = if p1 == 0.0 { 0.04 } else { p1 / 25.0 };
+                (real(p2) * 100.0 - 50.0) / 50.0 + (a + a * t).ln() + 1.0
+            }
+            CurveKind::LogarithmicDown => {
+                let a = if p1 == 0.0 { 0.1 } else { p1 / 10.0 };
+                (real(p2) * 100.0 - 50.0) / 50.0 + 1.5 - (a * t - 1.0).exp2()
+            }
+            CurveKind::ExponentialUp | CurveKind::ExponentialDown => {
+                let a = if p1 == 0.0 { 0.1 } else { p1 / 10.0 };
+                let rise = (a * t).exp_m1() / a.exp_m1();
+                let shape = if self.kind == CurveKind::ExponentialUp {
+                    rise
+                } else {
+                    1.0 - rise
+                };
+                (real(p2) * 100.0 - 50.0) / 50.0 + shape
+            }
             CurveKind::RampUpDown => {
                 if t < 0.5 {
                     real(p1) + (real(p2) - real(p1)) * t * 2.0
@@ -201,9 +265,19 @@ impl ValueCurve {
                     center + r.sin() * p2.max(1.0) / 200.0 + 0.5
                 }
             }
-            CurveKind::Parabolic => {
+            CurveKind::ParabolicDown | CurveKind::ParabolicUp => {
                 let a = if p1 == 0.0 { 1.0 } else { p1 };
-                a * (t - 0.5) * (t - 0.5) + real(p2)
+                let a = if self.kind == CurveKind::ParabolicUp {
+                    -a
+                } else {
+                    a
+                };
+                let y = a * (t - 0.5) * (t - 0.5) + real(p2);
+                if self.ends {
+                    real(p3) + y * (real(p4) - real(p3))
+                } else {
+                    y
+                }
             }
             CurveKind::Custom => match self.points.as_slice() {
                 [] => real(p1),
@@ -317,13 +391,31 @@ pub(crate) struct Palette {
 }
 
 impl Palette {
-    pub(crate) fn parse(text: &str) -> Self {
+    /// The palette, or why one of its checked colors cannot be read.
+    pub(crate) fn parse(text: &str) -> Result<Self, String> {
         let settings = Settings::parse(text);
-        let colors = (1..=8)
-            .filter(|index| settings.bool(&format!("C_CHECKBOX_Palette{index}"), false))
-            .filter_map(|index| palette_color(settings.text(&format!("C_BUTTON_Palette{index}"))?))
-            .collect();
-        Self { colors, settings }
+        let mut colors = Vec::new();
+        for index in 1..=8 {
+            if !settings.bool(&format!("C_CHECKBOX_Palette{index}"), false) {
+                continue;
+            }
+            let button = settings
+                .text(&format!("C_BUTTON_Palette{index}"))
+                .ok_or_else(|| format!("palette color {index} is checked but has no color"))?;
+            colors.push(
+                palette_color(button)
+                    .ok_or_else(|| format!("palette color {index} is not a color: {button}"))?,
+            );
+        }
+        Ok(Self { colors, settings })
+    }
+
+    /// A palette with no colors.
+    pub(crate) fn empty() -> Self {
+        Self {
+            colors: Vec::new(),
+            settings: Settings::default(),
+        }
     }
 
     /// The palette's colors, or white when none is checked, as xLights
@@ -334,6 +426,12 @@ impl Palette {
         } else {
             self.colors.clone()
         }
+    }
+
+    /// The types of the palette's active value curves the importer cannot
+    /// evaluate.
+    pub(crate) fn unknown_curves(&self) -> impl Iterator<Item = String> + '_ {
+        self.settings.unknown_curves()
     }
 
     /// Brightness in 0..4 (xLights' slider goes to 400%).

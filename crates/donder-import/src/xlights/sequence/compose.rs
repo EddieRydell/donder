@@ -3,7 +3,7 @@
 use super::mapping::Mapping;
 use super::translate::{self, Value};
 use super::xsq::XSequence;
-use super::{SequenceImportOptions, SequenceImportReport, XLIGHTS_EFFECTS};
+use super::{LeftOut, SequenceImportOptions, SequenceImportReport, XLIGHTS_EFFECTS};
 use crate::setup::ImportError;
 use donder_language::compiler::{DeclarationKind, ParamDecl, ParamRange};
 use donder_language::{DonderDuration, DonderTime};
@@ -21,18 +21,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// The layout's fixtures and groups, by name.
-fn targets(session: &ProjectSession) -> Vec<(String, FixtureId)> {
+fn targets(session: &ProjectSession) -> Result<Vec<(String, FixtureId)>, ImportError> {
     let project = session.project();
-    project
+    let layout = project
         .get::<donder_model::Layout>(project.root().layout)
-        .map(|layout| {
-            layout
-                .fixtures
-                .iter()
-                .map(|fixture| (fixture.name.as_str().to_owned(), fixture.id))
-                .collect()
-        })
-        .unwrap_or_default()
+        .ok_or_else(|| ImportError::Sequence("The project has no layout to play on.".into()))?;
+    Ok(layout
+        .fixtures
+        .iter()
+        .map(|fixture| (fixture.name.as_str().to_owned(), fixture.id))
+        .collect())
 }
 
 /// The names of the layout's groups and then its fixtures, for the user
@@ -65,7 +63,10 @@ fn identifier(text: &str, fallback: &str) -> Identifier {
         }
     }
     let name = name.trim_end_matches('_');
-    let name = if name.starts_with(|c: char| c.is_ascii_alphabetic()) {
+    // The data language reads these words as values, not names.
+    let name = if matches!(name, "none" | "true" | "false") {
+        format!("{name}_{fallback}")
+    } else if name.starts_with(|c: char| c.is_ascii_alphabetic()) {
         name.to_owned()
     } else {
         format!("{fallback}_{name}")
@@ -189,7 +190,7 @@ pub(crate) fn build(
     mapping: &Mapping,
     options: &SequenceImportOptions,
 ) -> Result<SequenceImportReport, ImportError> {
-    let layout = targets(session);
+    let layout = targets(session)?;
     let by_name = layout.iter().cloned().collect::<HashMap<_, _>>();
     let unknown = mapping
         .rows
@@ -299,14 +300,19 @@ pub(crate) fn build(
                     param_value(effect, param, value, &track_marks)?,
                 ));
             }
-            let clip_name = unique(identifier(&translated.port.clip_name(), "clip"), &mut names);
             let duration = translated
                 .end
                 .min(sequence.duration)
                 .saturating_sub(translated.start);
             if duration.is_zero() {
+                *report
+                    .left_out
+                    .entry((translated.source.clone(), LeftOut::Empty))
+                    .or_default() += 1;
                 continue;
             }
+            *report.played.entry(translated.source.clone()).or_default() += 1;
+            let clip_name = unique(identifier(&translated.port.clip_name(), "clip"), &mut names);
             clips.push(Arc::new(Clip {
                 id: ClipId(clips.len() as u32),
                 name: clip_name,
@@ -365,6 +371,11 @@ pub(crate) fn build(
         Ok::<_, donder_project_io::SessionEditError>(document)
     })?;
     if let Some(audio) = &options.audio {
+        if !candidate.source().project_root().join(audio).is_file() {
+            return Err(ImportError::Sequence(format!(
+                "The project has no audio file {audio}; give its path from the project's folder."
+            )));
+        }
         let asset = candidate
             .reference_asset(&document, audio)
             .map_err(|error| ImportError::Sequence(format!("Audio file {audio}: {error}")))?;

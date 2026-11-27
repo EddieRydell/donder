@@ -167,7 +167,12 @@ fn root(path: &Utf8Path) -> Result<Element, ImportError> {
     let sequences = package
         .file_names()
         .filter_map(Result::ok)
-        .filter(|name| name.ends_with(".xsq") && !name.starts_with("__MACOSX/"))
+        .filter(|name| {
+            Utf8Path::new(name)
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("xsq"))
+                && !name.starts_with("__MACOSX/")
+        })
         .map(|name| name.into_owned())
         .collect::<Vec<_>>();
     let [name] = sequences.as_slice() else {
@@ -218,16 +223,18 @@ pub(crate) fn read(path: &Utf8Path) -> Result<XSequence, ImportError> {
         .map(|palettes| {
             palettes
                 .children("ColorPalette")
-                .map(|palette| Rc::new(Palette::parse(&palette.text)))
-                .collect::<Vec<_>>()
+                .map(|palette| Palette::parse(&palette.text).map(Rc::new))
+                .collect::<Result<Vec<_>, _>>()
         })
+        .transpose()
+        .map_err(|message| invalid(&message))?
         .unwrap_or_default();
     let reader = Reader {
         path,
         settings,
         palettes,
         no_settings: Rc::new(Settings::default()),
-        no_palette: Rc::new(Palette::parse("")),
+        no_palette: Rc::new(Palette::empty()),
     };
     let effects = root
         .child("ElementEffects")
