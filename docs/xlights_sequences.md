@@ -57,6 +57,9 @@ import.
   curve becomes a gradient over the clip. The brightness slider is
   `brightness`, and the layer's fade in and fade out are `fade_in` and
   `fade_out` in seconds.
+- Value curves are evaluated as xLights does; a curve of a type the importer
+  does not evaluate is counted in the report and its slider keeps its own
+  value.
 - Value curves on sliders a likeness takes as a curve (Shockwave's center,
   Pinwheel's speed, thickness and arm size, a shader's speed and offsets,
   and others) are kept; other sliders take the curve's value at the start.
@@ -81,10 +84,12 @@ effect's layer method. An imported sequence plays every clip on one layer,
 where clips combine by their brightest channel, except:
 
 - An `On` or `Color Wash` that the layers under it unmask (`2 is Unmask`)
-  colors them instead of playing: each clip under it that it covers for at
-  least half its length gets `tinted` and a `tint` over the clip, the upper
-  effect's hue and saturation at the clip's own brightness (`2 is True Unmask`
-  takes its color whole). One with nothing under it in its row is left out.
+  colors them instead of playing. Each clip under one gets `tinted` and a
+  `tint` over the clip: at each moment, the hue and saturation of the topmost
+  unmasking effect playing then, at the clip's own brightness, as xLights
+  mixes layers bottom up. Where none plays the tint is black and the clip
+  keeps its own color. `2 is True Unmask` is imported the same way. One with
+  nothing under it in its row is left out.
 - Every other mix (Additive, Brightness, Layered, the masks and reveals) plays
   by the brightest channel, and the report counts each. Layer blur and the
   transitions other than fades are left out.
