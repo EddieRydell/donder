@@ -44,3 +44,5 @@ pages with relative paths.
   onto the effect library.
 - [Profile import](profile_import.md): a new project from an xLights or Vixen
   profile's layout, controllers and routes.
+- [xLights sequences](xlights_sequences.md): an xLights sequence mapped onto a
+  project's fixtures.

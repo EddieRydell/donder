@@ -86,6 +86,7 @@ uuid = { version = "1.29.3", features = ["v4"] }
 zstd = "0.14.0"
 wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "dx12", "metal", "gles", "vulkan", "wgsl", "webgl", "webgpu"] }
 winit = "0.30.13"
+zip = { version = "9.8.2", default-features = false, features = ["deflate-flate2"] }
 
 # Tests load and compile whole projects; unoptimized code makes them several
 # times slower than the extra build time costs.

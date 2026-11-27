@@ -15,6 +15,7 @@ donder-project-io.workspace = true
 donder-runtime-types.workspace = true
 glam.workspace = true
 quick-xml.workspace = true
+zip.workspace = true
 donder-workspace-hack.workspace = true
 
 [dev-dependencies]

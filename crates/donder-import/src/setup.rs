@@ -40,6 +40,8 @@ pub enum ImportError {
     NotEmpty,
     /// The imported objects do not make a valid project.
     Project(String),
+    /// An xLights sequence cannot be imported as it is mapped.
+    Sequence(String),
     /// Pixels must be some positive distance apart.
     PixelSpacing(f64),
     /// The xLights layout's ruler measures in units xLights does not name.
@@ -91,6 +93,7 @@ impl fmt::Display for ImportError {
                 f,
                 "The layout's ruler measures in units {units}, which xLights does not name; set --pixel-spacing instead."
             ),
+            Self::Sequence(message) => f.write_str(message),
             Self::Project(message) => {
                 write!(f, "The imported profile is not a valid project: {message}")
             }

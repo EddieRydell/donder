@@ -5,7 +5,8 @@ and routes of an xLights or Vixen profile. `donder -p <new project>
 import <folder>` does the same into a project whose layout, controllers and routes are still empty;
 the folder's contents say which program it is from. Sequences, effects and
 preview backgrounds are not imported; a Vixen profile's curve and gradient
-libraries are.
+libraries are. An xLights sequence is imported on its own, onto any project's
+fixtures: see [xLights sequences](xlights_sequences.md).
 
 The importer is `crates/donder-import`. Each source has a reader that
 reproduces what that program loads, and one builder makes the result the

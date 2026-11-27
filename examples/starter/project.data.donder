@@ -1,4 +1,5 @@
 import effects from <effects/standard.donder>;
+import xlights from <effects/xlights.donder>;
 import operators from <operators/standard.donder>;
 import layouts from <layouts/outputs.data.donder>;
 import devices from <input_devices/keyboard.data.donder>;

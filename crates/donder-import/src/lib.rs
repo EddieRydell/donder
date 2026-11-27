@@ -1,5 +1,5 @@
 //! Import a profile's layout, controllers and routes, from xLights or Vixen,
-//! into a Donder project.
+//! into a Donder project, and an xLights sequence onto its fixtures.
 //!
 //! Each source's reader turns its profile into the fixtures, controllers and
 //! groups of [`setup`], whose pixels sit where the source draws them, in
@@ -32,6 +32,10 @@ pub use report::{
     SkippedGroup, TYPICAL_PIXEL_SPACING, Unrouted, UnroutedReason,
 };
 pub use setup::ImportError;
+pub use xlights::sequence::{
+    LeftOut, SequenceImport, SequenceImportOptions, SequenceImportReport, XLIGHTS_EFFECTS,
+    import_sequence,
+};
 
 /// The program a profile folder comes from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

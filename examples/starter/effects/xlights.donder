@@ -1,0 +1,662 @@
+-- Likenesses of xLights effects, for sequences imported from xLights with
+-- `donder import-sequence` (docs/xlights_sequences.md). Each takes its xLights
+-- settings under their xLights names, in xLights' own units, and draws on the
+-- target as xLights draws on a model's buffer: x across it left to right and
+-- y up it, each 0..1 of the target's extent.
+--
+-- Every likeness shares four settings:
+-- - `brightness`, the palette's brightness slider, 1 being 100%;
+-- - `fade_in` and `fade_out`, the layer's fades, in seconds;
+-- - `tinted` and `tint`: an xLights `On` or `Color Wash` above the effect that
+--   shows it only where it is lit (`2 is Unmask`) colors it instead, with the
+--   tint over the clip at the effect's own brightness.
+
+-- The effect's level this frame: its brightness faded in and out.
+fn xl_level(brightness: float, fade_in: float, fade_out: float) -> float {
+  let rise = if fade_in > 0.0 { clamp(time / fade_in, 0.0, 1.0) } else { 1.0 };
+  let fall = if fade_out > 0.0 { clamp((duration - time) / fade_out, 0.0, 1.0) } else { 1.0 };
+  brightness * rise * fall
+}
+
+-- The color an effect draws: its own, or the tint at its own brightness.
+fn xl_out(own: color, tinted: bool, tint: color, level: float) -> color {
+  if tinted { tint * (intensity(own) * level) } else { own * level }
+}
+
+-- Where the pixel is across the target, 0 at its left and 1 at its right.
+fn xl_u() -> float {
+  if target.max_x > target.min_x { (pixel.x - target.min_x) / (target.max_x - target.min_x) } else { 0.5 }
+}
+
+-- Where the pixel is up the target, 0 at its bottom and 1 at its top.
+fn xl_v() -> float {
+  if target.max_y > target.min_y { (pixel.y - target.min_y) / (target.max_y - target.min_y) } else { 0.5 }
+}
+
+-- The target's width over its height, as an xLights buffer's.
+fn xl_aspect() -> float {
+  let w = target.max_x - target.min_x;
+  let h = target.max_y - target.min_y;
+  if w > 0.0 && h > 0.0 { w / h } else { 1.0 }
+}
+
+-- Value noise in 0..1 on a grid of unit cells, smooth between them.
+fn xl_noise(x: float, y: float, seed: float) -> float {
+  let ix = floor(x);
+  let iy = floor(y);
+  let fx = x - ix;
+  let fy = y - iy;
+  let sx = fx * fx * (3.0 - 2.0 * fx);
+  let sy = fy * fy * (3.0 - 2.0 * fy);
+  let a = rand(ix * 57.0 + iy * 131.0 + seed);
+  let b = rand(ix * 57.0 + 57.0 + iy * 131.0 + seed);
+  let c = rand(ix * 57.0 + iy * 131.0 + 131.0 + seed);
+  let d = rand(ix * 57.0 + 57.0 + iy * 131.0 + 131.0 + seed);
+  mix(mix(a, b, sx), mix(c, d, sx), sy)
+}
+
+-- Four octaves of value noise, in 0..1.
+fn xl_fbm(x: float, y: float, seed: float) -> float {
+  (xl_noise(x, y, seed) * 0.5333 + xl_noise(x * 2.0, y * 2.0, seed + 7.0) * 0.2667
+    + xl_noise(x * 4.0, y * 4.0, seed + 13.0) * 0.1333 + xl_noise(x * 8.0, y * 8.0, seed + 29.0) * 0.0667)
+}
+
+-- xLights' GetMultiColorBlend: the palette's colors spread over 0..1 and
+-- blended between neighbors, each read at the clip's progress; circular
+-- palettes blend the last color back into the first.
+fn xl_blend_index(position: float, count: int, circular: bool) -> float {
+  let steps = if circular { count } else { max(count - 1, 1) };
+  clamp(position, 0.0, 1.0) * steps
+}
+
+-- ON: one color, its level ramping from start to end, `cycles` times over
+-- the clip; shimmer blanks every other frame.
+effect On {
+  param colors: array<gradient>;
+  param start_level: float in 0.0..1.0 = 1.0;
+  param end_level: float in 0.0..1.0 = 1.0;
+  param cycles: float in 0.0..100.0 = 1.0;
+  param shimmer: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    -- Shimmer shows the second color on odd frames, or nothing with one color.
+    let odd = shimmer && frame % 2 == 1;
+    guard !(odd && len(colors) < 2);
+    let t = if cycles > 0.0 { (progress * cycles) % 1.0 } else { progress };
+    let level = start_level + (end_level - start_level) * t;
+    let c = colors[if odd { 1 } else { 0 }][progress];
+    xl_out(c * level, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- COLOR WASH: the palette blended over the clip, `cycles` times, optionally
+-- fading toward the left and right or top and bottom edges (or, reversed,
+-- toward the middle).
+effect ColorWash {
+  param colors: array<gradient>;
+  param cycles: float in 0.0..100.0 = 1.0;
+  param horizontal_fade: bool = false;
+  param vertical_fade: bool = false;
+  param reverse_fades: bool = false;
+  param shimmer: bool = false;
+  param circular: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    guard !(shimmer && frame % 2 == 1);
+    let count = len(colors);
+    let index = xl_blend_index((progress * cycles) % 1.0, count, circular);
+    let i = floor(index);
+    let c = mix(colors[int(i) % count][progress], colors[int(i + 1.0) % count][progress], index - i);
+    let h = abs(xl_u() - 0.5) * 2.0;
+    let v = abs(xl_v() - 0.5) * 2.0;
+    let fade_h = if horizontal_fade { if reverse_fades { h } else { 1.0 - h } } else { 1.0 };
+    let fade_v = if vertical_fade { if reverse_fades { v } else { 1.0 - v } } else { 1.0 };
+    xl_out(c * (fade_h * fade_v), tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- xLights' `calcAccel` of a 0..1 position: 0 is linear, positive speeds up
+-- and negative slows down.
+fn xl_accelerate(t: float, acceleration: float) -> float {
+  let pct = (abs(acceleration) - 1.0) / 9.0;
+  let a1 = pct * 5.0 + (1.0 - pct) * 1.5;
+  let a2 = 1.5 + t * a1;
+  let fa = pct * a2 + (1.0 - pct) * a1;
+  if acceleration > 0.0 { pow(t, fa) }
+  else if acceleration < 0.0 { 1.0 - pow(1.0 - t, a1) }
+  else { t }
+}
+
+-- SHOCKWAVE: a ring from `center_x`, `center_y` (percent of the target's
+-- width and height) growing from the start radius to the end one and
+-- changing from the start width to the end one; scaled, radii are in 200ths
+-- and widths in 100ths of the target's longer side. Its color runs through
+-- the palette over each cycle.
+effect Shockwave {
+  param colors: array<gradient>;
+  param center_x: curve in 0.0..100.0;
+  param center_y: curve in 0.0..100.0;
+  param start_radius: float in 0.0..750.0 = 1.0;
+  param end_radius: float in 0.0..750.0 = 10.0;
+  param start_width: float in 0.0..255.0 = 5.0;
+  param end_width: float in 0.0..255.0 = 10.0;
+  param acceleration: float in -10.0..10.0 = 0.0;
+  param cycles: float in 1.0..100.0 = 1.0;
+  param blend_edges: bool = true;
+  param scale: bool = true;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let t = xl_accelerate((progress * cycles) % 1.0, acceleration);
+    let aspect = xl_aspect();
+    let w = if aspect >= 1.0 { 100.0 } else { 100.0 * aspect };
+    let h = if aspect >= 1.0 { 100.0 / aspect } else { 100.0 };
+    let dx = xl_u() * w - center_x[progress] / 100.0 * w;
+    let dy = xl_v() * h - center_y[progress] / 100.0 * h;
+    -- Unscaled, xLights counts pixels; a target is taken as 100 across.
+    let radius_unit = if scale { 0.5 } else { 1.0 };
+    let radius = (start_radius + (end_radius - start_radius) * t) * radius_unit;
+    let half_width = max((start_width + (end_width - start_width) * t) / 2.0, 0.25);
+    let distance = abs(sqrt(dx * dx + dy * dy) - radius);
+    guard distance <= half_width;
+    let count = len(colors);
+    let index = xl_blend_index(t, count, false);
+    let i = floor(index);
+    let c = mix(colors[int(i)][progress], colors[int(i + 1.0)][progress], index - i);
+    let edge = if blend_edges { 1.0 - distance / half_width } else { 1.0 };
+    xl_out(c * edge, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- SINGLE STRAND: chases `chase_size` percent long running `rotations` times
+-- along the target over the clip, the palette's first color at the head; or
+-- skips, bands of lit pixels stepping along. `axis` is the way the chase runs:
+-- through the pixels in order (xLights' single-line buffers), across the
+-- target, down or up it; or, for a single line turned on its side, lighting
+-- the whole target.
+effect SingleStrand {
+  param colors: array<gradient>;
+  param mode: enum { Chase, Skips } = Chase;
+  param chase_type: enum { LeftRight, RightLeft, BounceFromLeft, BounceFromRight, DualChase, FromMiddle, ToMiddle } = LeftRight;
+  param rainbow: bool = false;
+  param chases: int in 1..20 = 1;
+  param chase_size: float in 1.0..100.0 = 10.0;
+  param rotations: float in 0.0..50.0 = 1.0;
+  param offset: float in -500.0..500.0 = 0.0;
+  param fade: enum { None, Head, Tail, HeadAndTail } = None;
+  param band_size: int in 1..20 = 1;
+  param skip_size: int in 0..20 = 1;
+  param start_position: int in 1..20 = 1;
+  param advance: int in 0..100 = 0;
+  param skip_right: bool = false;
+  param axis: enum { Line, Across, Down, Up, Whole } = Line;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let u =
+      if axis == Line { pixel.fraction }
+      else if axis == Across { xl_u() }
+      else if axis == Down { 1.0 - xl_v() }
+      else if axis == Up { xl_v() }
+      else { 0.0 };
+    let count = len(colors);
+    guard mode != Skips || axis != Whole;
+    let lit =
+      if mode == Skips {
+        -- Bands of `band_size` pixels, `skip_size` apart, stepping a band
+        -- `advance` times over the clip; each band the palette's next color.
+        let place = if skip_right { target.count - 1 - pixel.index } else { pixel.index };
+        let step = floor(progress * (advance + 1) * 0.99) * band_size;
+        let period = band_size + skip_size;
+        let k = (place - (start_position - 1) - step) % (period * max(count, 1));
+        if k % period < band_size { 1.0 + floor(k / period) } else { 0.0 }
+      } else if axis == Whole { 1.0 }
+      else {
+        let size = chase_size / 100.0;
+        let travel = (progress * rotations + offset / 100.0) % 1.0;
+        let bounce = chase_type == BounceFromLeft || chase_type == BounceFromRight;
+        let along =
+          if chase_type == RightLeft || chase_type == BounceFromRight || chase_type == FromMiddle { 1.0 - u }
+          else { u };
+        let along = if chase_type == FromMiddle || chase_type == ToMiddle { min(along, 1.0 - along) * 2.0 } else { along };
+        -- The tail's place behind the head of the nearest chase, 0 at the head.
+        last for k in 0..chases {
+          let head =
+            if bounce { (1.0 - abs(travel * 2.0 - 1.0)) * (1.0 + size) }
+            else if chases > 1 { (travel + k / chases) % 1.0 }
+            else { travel * (1.0 + size) };
+          let behind = head - along;
+          let behind = if chase_type == DualChase { min(behind, head - (1.0 - u)) } else { behind };
+          guard behind >= 0.0 && behind < size;
+          1.0 + behind / size
+        } else { 0.0 }
+      };
+    guard lit > 0.0;
+    let place = lit - 1.0;
+    let level =
+      if mode == Skips || axis == Whole { 1.0 }
+      else if fade == Head { 1.0 - place }
+      else if fade == Tail { place }
+      else if fade == HeadAndTail { 1.0 - abs(place - 0.5) * 2.0 }
+      else { 1.0 };
+    let index = if mode == Skips { int(place) % count } else { min(int(place * count), count - 1) };
+    let c = if rainbow { hsv(place, 1.0, 1.0) } else { colors[index][progress] };
+    xl_out(c * level, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- PINWHEEL, xLights' new render method: `arms` arms turning about a center
+-- `center_x`, `center_y` (-100..100 across the target), `arm_size` percent of
+-- half the target's diagonal long, each `thickness` percent of the space
+-- between arms, bent by `twist` degrees from hub to tip and turning
+-- `speed` × 20 degrees a second. Sweep blades fade from their leading edge;
+-- 3D blades fade toward their edges. `flip_vertical` turns the picture
+-- upside down, as xLights' buffer transform does.
+effect Pinwheel {
+  param colors: array<gradient>;
+  param arms: int in 1..20 = 3;
+  param arm_size: float in 0.0..400.0 = 100.0;
+  param twist: float in -360.0..360.0 = 0.0;
+  param thickness: float in 0.0..100.0 = 0.0;
+  param speed: float in 0.0..50.0 = 10.0;
+  param offset: float in 0.0..360.0 = 0.0;
+  param clockwise: bool = true;
+  param center_x: float in -100.0..100.0 = 0.0;
+  param center_y: float in -100.0..100.0 = 0.0;
+  param blade: enum { Flat, ThreeD, InvertedThreeD, Sweep } = Flat;
+  param flip_vertical: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let aspect = xl_aspect();
+    let w = if aspect >= 1.0 { 100.0 } else { 100.0 * aspect };
+    let h = if aspect >= 1.0 { 100.0 / aspect } else { 100.0 };
+    let v = if flip_vertical { 1.0 - xl_v() } else { xl_v() };
+    let x1 = xl_u() * w - center_x * w / 200.0 - w / 2.0;
+    let y1 = v * h - center_y * h / 200.0 - h / 2.0;
+    let r = sqrt(x1 * x1 + y1 * y1);
+    let max_r = sqrt(w * w + h * h) / 2.0 * arm_size / 100.0;
+    guard r > 0.0 && r <= max_r;
+    let turned = time * speed * 20.0;
+    let separation = floor(360.0 / arms);
+    let tmax = max(thickness, 1.0) / 100.0 * separation;
+    let theta = atan2(x1, y1) * 57.29577951308232 + r / max_r * twist;
+    let theta = (if clockwise { turned + theta } else { turned - theta }) + tmax / 2.0 + offset + 540.0;
+    let theta = (theta % 360.0 + 360.0) % 360.0;
+    let t2 = theta % separation;
+    guard t2 <= tmax;
+    let round = t2 / tmax;
+    let arm = int(theta / separation) % arms;
+    let away = abs(t2 - tmax / 2.0) * 2.0;
+    let level =
+      if blade == ThreeD { (tmax - away) / tmax }
+      else if blade == InvertedThreeD { away / tmax }
+      else if blade == Sweep { 1.0 - round }
+      else { 1.0 };
+    let count = len(colors);
+    xl_out(colors[(arm + 1) % count][progress] * level, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- GALAXY: a spiral arm from the start radius to the end one over
+-- `revolutions` degrees from `start_angle`, drawn head first over the clip
+-- with a tail `100 - duration_percent` percent of the spiral long, widening
+-- from the start width to the end one; scaled, radii are in 200ths and widths
+-- in 100ths of the target's longer side. The head is the palette's first
+-- color, blending to the last along the tail.
+effect Galaxy {
+  param colors: array<gradient>;
+  param center_x: float in 0.0..100.0 = 50.0;
+  param center_y: float in 0.0..100.0 = 50.0;
+  param start_radius: float in 0.0..250.0 = 1.0;
+  param end_radius: float in 0.0..250.0 = 10.0;
+  param start_angle: float in 0.0..360.0 = 0.0;
+  param revolutions: float in 0.0..3600.0 = 1440.0;
+  param start_width: float in 0.0..255.0 = 5.0;
+  param end_width: float in 0.0..255.0 = 5.0;
+  param duration_percent: float in 0.0..100.0 = 20.0;
+  param acceleration: float in -10.0..10.0 = 0.0;
+  param reverse: bool = false;
+  param blend_edges: bool = true;
+  param scale: bool = true;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    guard revolutions > 0.0;
+    let aspect = xl_aspect();
+    let w = if aspect >= 1.0 { 100.0 } else { 100.0 * aspect };
+    let h = if aspect >= 1.0 { 100.0 / aspect } else { 100.0 };
+    let dx = xl_u() * w - center_x / 100.0 * w;
+    let dy = xl_v() * h - center_y / 100.0 * h;
+    let rho = sqrt(dx * dx + dy * dy);
+    let radius_unit = if scale { 0.5 } else { 1.0 };
+    let theta = atan2(dx, dy) * 57.29577951308232;
+    let base = (((if reverse { -theta } else { theta }) - start_angle) % 360.0 + 360.0) % 360.0;
+    let p = xl_accelerate(progress, acceleration);
+    let tail = revolutions * (1.0 - min(duration_percent / 100.0, 0.99));
+    let tail_end = (revolutions + tail) * p - tail;
+    let head_end = tail_end + tail;
+    let count = len(colors);
+    let column = max(1.0, tail / count);
+    -- The arm passes the pixel's direction once a turn; the nearest pass wins.
+    let best = max for k in 0..10 {
+      let i = base + k * 360.0;
+      guard i >= max(0.0, tail_end) && i <= min(head_end, revolutions);
+      let pct = i / revolutions;
+      let rc = (end_radius * pct + start_radius * (1.0 - pct)) * radius_unit;
+      let hw = max((end_width * pct + start_width * (1.0 - pct)) / 2.0, 0.25);
+      let distance = abs(rho - rc);
+      guard distance <= hw;
+      let alpha = if blend_edges { 1.0 - distance / hw } else { 1.0 };
+      -- Packed: the level in the whole part, the place along the tail after it.
+      floor(alpha * 1000.0) + clamp((head_end - i) / column / 16.0, 0.0, 0.999)
+    };
+    guard best >= 1.0;
+    let alpha = floor(best) / 1000.0;
+    let cv = (best - floor(best)) * 16.0;
+    let ci = floor(cv);
+    let c = mix(colors[int(ci)][progress], colors[min(int(ci) + 1, count - 1)][progress], cv - ci);
+    xl_out(c * alpha, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- WAVE: `waves` sine, triangle or square waves across the target,
+-- `thickness` percent of half its height thick and `height` percent tall,
+-- moving `speed` × 20 degrees a second.
+effect Wave {
+  param colors: array<gradient>;
+  param wave_type: enum { Sine, Triangle, Square, DecayingSine } = Sine;
+  param fill: enum { None, Rainbow, Palette } = None;
+  param mirror: bool = false;
+  param waves: float in 0.0..10.0 = 2.5;
+  param thickness: float in 0.0..100.0 = 5.0;
+  param height: float in 0.0..100.0 = 50.0;
+  param speed: float in 0.0..50.0 = 10.0;
+  param y_offset: float in -250.0..250.0 = 0.0;
+  param right_to_left: bool = true;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let state = time * speed * 20.0;
+    let degrees = xl_u() * waves * 360.0 + (if right_to_left { state } else { -state });
+    let s = sin(degrees * 0.017453292519943295);
+    let amplitude = if wave_type == DecayingSine { max(0.0, 0.5 - state / 4.0 / 100.0) } else { 0.5 };
+    let center =
+      if wave_type == Triangle { 0.5 + (1.0 - abs(((degrees / 360.0) % 1.0 + 1.0) % 1.0 * 4.0 - 2.0) - 0.5) * height / 100.0 }
+      else if wave_type == Square { 0.5 + (if s > 0.0 { 1.0 } else { -1.0 }) * height / 200.0 }
+      else { 0.5 + amplitude * height / 100.0 * s };
+    let half = max(0.5 * thickness / 100.0, 0.01);
+    let v = xl_v() - y_offset / 200.0;
+    let low = center - half;
+    let high = center + half;
+    let inside = (v >= low && v <= high) || (mirror && v >= 1.0 - high && v <= 1.0 - low);
+    guard inside;
+    let k = clamp((v - low) / (high - low), 0.0, 1.0);
+    let count = len(colors);
+    let index = xl_blend_index(k, count, false);
+    let i = floor(index);
+    let c =
+      if fill == Rainbow { hsv(k, 1.0, 1.0) }
+      else if fill == Palette { mix(colors[int(i)][progress], colors[int(i + 1.0)][progress], index - i) }
+      else { colors[0][progress] };
+    xl_out(c, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- A shader's clock, xLights' TIME: from `lead_in` seconds, running at the
+-- speed curve's percent; pass `curve_integral(speed, progress)`.
+fn xl_shader_time(rate: float, lead_in: float) -> float {
+  lead_in + rate * duration / 100.0
+}
+
+-- Where a shader samples the pixel, 0..1 across and up the target, as
+-- xLights' `xl_FragNormCoord`: moved by the offsets (-100..100 shifts half the
+-- target) and zoomed by `zoom` (-100..100) about the middle.
+fn xl_shader_x(zoom: float, offset_x: float) -> float {
+  (xl_u() - offset_x / 200.0 - 0.5) / xl_shader_zoom(zoom) + 0.5
+}
+fn xl_shader_y(zoom: float, offset_y: float) -> float {
+  (xl_v() - offset_y / 200.0 - 0.5) / xl_shader_zoom(zoom) + 0.5
+}
+fn xl_shader_zoom(zoom: float) -> float {
+  if zoom < 0.0 { max(1.0 - abs(zoom) / 100.0, 0.01) } else { 1.0 + 9.0 * zoom / 100.0 }
+}
+
+-- One step of Continua's loop: the point turned and the sums it adds.
+fn continua_c(x: float, y: float, t: float, i: float, b: float) -> float { sin(x + t * i / 18.0) + b + y + 4.0 }
+fn continua_d(x: float, y: float, t: float, i: float, a: float) -> float { cos(y + t * i / 20.0) + x + a + 3.0 }
+fn continua_e(x: float, y: float, t: float, i: float, e: float) -> float { sin(y + t * i / 17.5) + x - e + 1.0 }
+
+-- SHADER "Continua Variation" (mojovideotech, after Zerothehero's Corrente
+-- Continua): eight turning, folding sums of waves read as red, green and blue
+-- through logarithms; its eight passes written out.
+effect ShaderContinua {
+  param colors: array<gradient>;
+  param speed: curve in -2000.0..2000.0;
+  param zoom: float in -100.0..100.0 = 0.0;
+  param offset_x: curve in -100.0..100.0;
+  param offset_y: curve in -100.0..100.0;
+  param lead_in: float in 0.0..10000.0 = 0.0;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
+    let t = tm * 12.0;
+    let turn = -tm * 0.005 * TAU;
+    let ct = cos(turn);
+    let st = sin(turn);
+    let di = 0.5772156649;
+    let dh = 0.69314718;
+    let px = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 27.0 * xl_aspect();
+    let py = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 27.0;
+    -- i = -4
+    let qx = ct * px + st * py; let qy = -st * px + ct * py;
+    let x = qx * di - qy * dh * 0.125; let y = qx * di * 0.125 + qy * dh;
+    let c = continua_c(x, y, t, -4.0, 0.0); let d = continua_d(x, y, t, -4.0, 0.0); let e = continua_e(x, y, t, -4.0, 0.0);
+    let a = -0.25 / (c * c); let b = 0.5 / (d * d); let e = e + 0.125;
+    -- i = -3
+    let px = ct * qx + st * qy; let py = -st * qx + ct * qy;
+    let x = px * di - py * dh * 0.125; let y = px * di * 0.125 + py * dh;
+    let c = continua_c(x, y, t, -3.0, b); let d = continua_d(x, y, t, -3.0, a); let e = continua_e(x, y, t, -3.0, e);
+    let a = a - 0.25 / (c * c); let b = b + 0.5 / (d * d); let e = e + 0.125;
+    -- i = -2
+    let qx = ct * px + st * py; let qy = -st * px + ct * py;
+    let x = qx * di - qy * dh * 0.125; let y = qx * di * 0.125 + qy * dh;
+    let c = continua_c(x, y, t, -2.0, b); let d = continua_d(x, y, t, -2.0, a); let e = continua_e(x, y, t, -2.0, e);
+    let a = a - 0.25 / (c * c); let b = b + 0.5 / (d * d); let e = e + 0.125;
+    -- i = -1
+    let px = ct * qx + st * qy; let py = -st * qx + ct * qy;
+    let x = px * di - py * dh * 0.125; let y = px * di * 0.125 + py * dh;
+    let c = continua_c(x, y, t, -1.0, b); let d = continua_d(x, y, t, -1.0, a); let e = continua_e(x, y, t, -1.0, e);
+    let a = a - 0.25 / (c * c); let b = b + 0.5 / (d * d); let e = e + 0.125;
+    -- i = 0
+    let qx = ct * px + st * py; let qy = -st * px + ct * py;
+    let x = qx * di - qy * dh * 0.125; let y = qx * di * 0.125 + qy * dh;
+    let c = continua_c(x, y, t, 0.0, b); let d = continua_d(x, y, t, 0.0, a); let e = continua_e(x, y, t, 0.0, e);
+    let a = a - 0.25 / (c * c); let b = b + 0.5 / (d * d); let e = e + 0.125;
+    -- i = 1
+    let px = ct * qx + st * qy; let py = -st * qx + ct * qy;
+    let x = px * di - py * dh * 0.125; let y = px * di * 0.125 + py * dh;
+    let c = continua_c(x, y, t, 1.0, b); let d = continua_d(x, y, t, 1.0, a); let e = continua_e(x, y, t, 1.0, e);
+    let a = a - 0.25 / (c * c); let b = b + 0.5 / (d * d); let e = e + 0.125;
+    -- i = 2
+    let qx = ct * px + st * py; let qy = -st * px + ct * py;
+    let x = qx * di - qy * dh * 0.125; let y = qx * di * 0.125 + qy * dh;
+    let c = continua_c(x, y, t, 2.0, b); let d = continua_d(x, y, t, 2.0, a); let e = continua_e(x, y, t, 2.0, e);
+    let a = a - 0.25 / (c * c); let b = b + 0.5 / (d * d); let e = e + 0.125;
+    -- i = 3
+    let px = ct * qx + st * qy; let py = -st * qx + ct * qy;
+    let x = px * di - py * dh * 0.125; let y = px * di * 0.125 + py * dh;
+    let c = continua_c(x, y, t, 3.0, b); let d = continua_d(x, y, t, 3.0, a); let e = continua_e(x, y, t, 3.0, e);
+    let a = a - 0.25 / (c * c); let b = b + 0.5 / (d * d); let e = e + 0.125;
+    let red = value_or(log(-e + a + b - 1.0) / 8.0 - 0.2, 0.0);
+    let green = value_or(log(-e - a - b - 1.0) / 8.0 - 0.2, 0.0);
+    let blue = value_or(log(e - a + b - 1.0) / 5.0 - 0.1, 0.0);
+    let own = rgb(clamp(red, 0.0, 1.0), clamp(green, 0.0, 1.0), clamp(blue, 0.0, 1.0));
+    xl_out(own, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- SHADER "Black Cherry Cosmos" and "BlackCherryCosmos2+" (mojovideotech, after
+-- Kali's Star Nest), a likeness: slow nebula clouds drifting and turning in
+-- cherry and violet, with a scatter of stars.
+effect ShaderCosmos {
+  param colors: array<gradient>;
+  param speed: curve in -2000.0..2000.0;
+  param zoom: float in -100.0..100.0 = 0.0;
+  param offset_x: curve in -100.0..100.0;
+  param offset_y: curve in -100.0..100.0;
+  param lead_in: float in 0.0..10000.0 = 0.0;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
+    let turn = 0.9 + tm * 0.04;
+    let x0 = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 6.0 * xl_aspect();
+    let y0 = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 6.0;
+    let x = x0 * cos(turn) - y0 * sin(turn) + tm * 0.3;
+    let y = x0 * sin(turn) + y0 * cos(turn) + tm * 0.2;
+    let cloud = xl_fbm(x, y, 3.0);
+    let dust = xl_fbm(x * 2.3 + 11.0, y * 2.3 - tm * 0.1, 17.0);
+    let glow = pow(clamp(cloud * 1.6 - 0.45, 0.0, 1.0), 2.0);
+    let star = if rand(floor(x * 9.0) * 37.0 + floor(y * 9.0) * 113.0) > 0.985 { 1.0 } else { 0.0 };
+    let own = rgb(0.75, 0.08, 0.32) * glow + rgb(0.35, 0.1, 0.65) * (dust * glow) + rgb(1.0, 0.9, 1.0) * (star * 0.8);
+    xl_out(own, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- SHADER "Vortex V2" (mojovideotech's ParticularVortex), a likeness: a dim
+-- field split into `stripes` turning wedges, each sending streaks out from
+-- the middle at its own pace; green and blue scaled by `color_g` and `color_b`.
+effect ShaderVortex {
+  param colors: array<gradient>;
+  param speed: curve in -2000.0..2000.0;
+  param zoom: float in -100.0..100.0 = 0.0;
+  param offset_x: curve in -100.0..100.0;
+  param offset_y: curve in -100.0..100.0;
+  param lead_in: float in 0.0..10000.0 = 0.0;
+  param stripes: float in 0.0..60.0 = 29.0;
+  param rotation: float in 0.0..1.0 = 0.5;
+  param color_g: float in 0.0..1.0 = 0.0;
+  param color_b: float in 0.0..1.0 = 0.0;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let tm = xl_shader_time(curve_integral(speed, progress), lead_in) * 0.1;
+    let x = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 2.0;
+    let y = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 2.0 / xl_aspect();
+    let r = sqrt(x * x + y * y);
+    let turns = atan2(y, x) / TAU + tm * (0.213 - rotation) / TAU;
+    let wedge = floor((turns % 1.0 + 1.0) % 1.0 * max(stripes, 1.0));
+    let pace = 0.5 + rand(wedge * 7.13);
+    let streak = fract(r * 1.5 - tm * pace * 3.0 + rand(wedge));
+    let meteor = pow(1.0 - streak, 6.0) * rand(wedge * 3.7 + 1.0);
+    let level = clamp(0.2 + meteor, 0.0, 1.0);
+    let own = rgb(level, level * color_g, level * color_b);
+    xl_out(own, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- SHADER "Euro Vision Triangle Starfield", a likeness: stars streaming out
+-- from the middle, in the palette's colors.
+effect ShaderStarfield {
+  param colors: array<gradient>;
+  param speed: curve in -2000.0..2000.0;
+  param zoom: float in -100.0..100.0 = 0.0;
+  param offset_x: curve in -100.0..100.0;
+  param offset_y: curve in -100.0..100.0;
+  param lead_in: float in 0.0..10000.0 = 0.0;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
+    let x = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 2.0 * xl_aspect();
+    let y = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 2.0;
+    let r = sqrt(x * x + y * y);
+    let ray = floor((atan2(y, x) / TAU + 0.5) * 48.0);
+    let level = max for k in 0..3 {
+      let lane = ray * 3.0 + k;
+      let place = fract(rand(lane * 1.7) + tm * (0.3 + rand(lane * 5.3) * 0.7));
+      let distance = abs(r - place * 1.5);
+      guard distance < 0.06;
+      (1.0 - distance / 0.06) * place
+    };
+    guard level > 0.0;
+    let count = len(colors);
+    let own = colors[int(rand(ray) * count)][progress] * level;
+    xl_out(own, tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- SHADER, any other: drifting, turning clouds in the palette's colors.
+effect Shader {
+  param colors: array<gradient>;
+  param speed: curve in -2000.0..2000.0;
+  param zoom: float in -100.0..100.0 = 0.0;
+  param offset_x: curve in -100.0..100.0;
+  param offset_y: curve in -100.0..100.0;
+  param lead_in: float in 0.0..10000.0 = 0.0;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param tint: gradient;
+
+  sample {
+    let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
+    let x = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 4.0 * xl_aspect() + tm * 0.2;
+    let y = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 4.0 - tm * 0.1;
+    let cloud = xl_fbm(x, y, 5.0);
+    let count = len(colors);
+    let index = xl_blend_index(fract(cloud * 2.0 + tm * 0.05), count, true);
+    let i = floor(index);
+    let c = mix(colors[int(i) % count][progress], colors[int(i + 1.0) % count][progress], index - i);
+    xl_out(c * smoothstep(0.3, 0.7, cloud), tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}

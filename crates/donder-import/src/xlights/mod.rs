@@ -9,6 +9,7 @@ pub(crate) mod models;
 pub(crate) mod networks;
 mod placement;
 pub(crate) mod read;
+pub(crate) mod sequence;
 mod submodels;
 
 use crate::fit::{Ellipse, Pixel};

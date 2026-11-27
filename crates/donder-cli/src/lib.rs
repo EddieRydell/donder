@@ -69,6 +69,22 @@ enum Command {
         #[arg(long)]
         preview: Option<String>,
     },
+    /// Play an xLights sequence (`.xsq` or `.xsqz`) on this project's fixtures as a new
+    /// sequence, through a mapping of its rows to fixtures and groups. Without
+    /// a mapping file, writes one to fill in.
+    ImportSequence {
+        /// The `.xsq` file, or an `.xsqz` package holding one.
+        xsq: Utf8PathBuf,
+        /// The new sequence's name.
+        #[arg(long)]
+        name: String,
+        /// Which fixtures and groups each xLights row plays on.
+        #[arg(long)]
+        map: Utf8PathBuf,
+        /// The song, relative to the project root.
+        #[arg(long)]
+        audio: Option<String>,
+    },
     /// Write the generated effect-language builtin reference.
     Builtins { output: Utf8PathBuf },
     /// Stream test patterns to the project's E1.31 and Art-Net controllers,
@@ -195,6 +211,34 @@ pub fn run(cli: Cli) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
             donder_project_io::save_project(&session).map_err(|error| error.to_string())?;
             print!("{report}");
+            Ok(())
+        }
+        Command::ImportSequence {
+            xsq,
+            name,
+            map,
+            audio,
+        } => {
+            let mut session = load(&cli.path)?;
+            let options = donder_import::SequenceImportOptions {
+                sequence: xsq,
+                mapping: map,
+                name,
+                audio,
+            };
+            match donder_import::import_sequence(&mut session, &options)
+                .map_err(|error| error.to_string())?
+            {
+                donder_import::SequenceImport::MappingStarted(path) => {
+                    println!(
+                        "Wrote {path}: put each xLights row's targets after its name, then import again."
+                    );
+                }
+                donder_import::SequenceImport::Imported(report) => {
+                    donder_project_io::save_project(&session).map_err(|error| error.to_string())?;
+                    print!("{report}");
+                }
+            }
             Ok(())
         }
         Command::Builtins { output } => {
