@@ -119,7 +119,12 @@ fn gradient(stops: &[(f32, Color)]) -> Gradient {
 }
 
 /// The value as the parameter `param` takes it, held inside its range.
-fn param_value(effect: &str, param: &ParamDecl, value: &Value) -> Result<ParamValue, ImportError> {
+fn param_value(
+    effect: &str,
+    param: &ParamDecl,
+    value: &Value,
+    track_marks: &HashMap<String, MarkCollectionId>,
+) -> Result<ParamValue, ImportError> {
     let name = param.name.as_str();
     let wrong = || mismatch(effect, name, "takes another kind of value for");
     let float_range = match param.range {
@@ -137,6 +142,8 @@ fn param_value(effect: &str, param: &ParamDecl, value: &Value) -> Result<ParamVa
             _ => ParamValue::Int(*value),
         },
         (Type::Bool, Value::Bool(value)) => ParamValue::Bool(*value),
+        // A track the sequence lacks marks nothing, as in xLights.
+        (Type::Marks, Value::Marks(track)) => ParamValue::Marks(track_marks.get(track).copied()),
         (Type::Enum(options), Value::Option(option)) => {
             let option = options
                 .iter()
@@ -206,6 +213,56 @@ pub(crate) fn build(
     let definitions = session.project().reusable::<ScriptDefinition>().clone();
 
     let mut report = SequenceImportReport::default();
+
+    // Each layer of each timing track is a mark collection: for lyrics, the
+    // phrases, words and phonemes.
+    let mut mark_names = HashSet::new();
+    let mut marks = Vec::new();
+    // xLights reads a timing track's marks only when it has one layer.
+    let mut track_marks = HashMap::new();
+    for track in &sequence.timings {
+        let base = identifier(&track.name, "timing");
+        for (index, layer) in track.layers.iter().enumerate() {
+            if layer.is_empty() {
+                continue;
+            }
+            let name = if track.layers.len() == 1 {
+                unique(base.clone(), &mut mark_names)
+            } else {
+                unique(
+                    identifier(&format!("{}_{}", base.as_str(), index + 1), "timing"),
+                    &mut mark_names,
+                )
+            };
+            let id = MarkCollectionId(marks.len() as u32);
+            if track.layers.len() == 1 {
+                track_marks.insert(track.name.clone(), id);
+            }
+            marks.push(MarkCollection {
+                id,
+                name,
+                description: Some(format!(
+                    "xLights timing track {}, layer {}.",
+                    track.name,
+                    index + 1
+                )),
+                display_color: Color::from_bytes([0x38, 0xbd, 0xf8]),
+                marks: layer
+                    .iter()
+                    .filter(|label| label.start < sequence.duration)
+                    .map(|label| Mark {
+                        time: time(label.start),
+                        duration: DonderDuration(
+                            label.end.min(sequence.duration).saturating_sub(label.start),
+                        ),
+                        label: (!label.text.trim().is_empty()).then(|| label.text.clone()),
+                    })
+                    .collect(),
+            });
+        }
+    }
+    report.mark_collections = marks.len();
+
     let mut clips = Vec::new();
     let mut names = HashSet::new();
     for row in &sequence.rows {
@@ -220,7 +277,7 @@ pub(crate) fn build(
             .iter()
             .filter_map(|target| by_name.get(target).copied())
             .collect::<Vec<_>>();
-        for translated in translate::row(row, sequence.frame, &mut report) {
+        for translated in translate::row(row, sequence.frame, sequence.version, &mut report) {
             let effect = translated.port.name();
             let id = library.get(effect).copied().ok_or_else(|| {
                 ImportError::Sequence(format!(
@@ -237,7 +294,10 @@ pub(crate) fn build(
                     .iter()
                     .find(|param| param.name.as_str() == *param_name)
                     .ok_or_else(|| mismatch(effect, param_name, "has no parameter"))?;
-                params.push((param.name.clone(), param_value(effect, param, value)?));
+                params.push((
+                    param.name.clone(),
+                    param_value(effect, param, value, &track_marks)?,
+                ));
             }
             let clip_name = unique(identifier(&translated.port.clip_name(), "clip"), &mut names);
             let duration = translated
@@ -271,49 +331,6 @@ pub(crate) fn build(
         }
     }
     report.clips = clips.len();
-
-    // Each layer of each timing track is a mark collection: for lyrics, the
-    // phrases, words and phonemes.
-    let mut mark_names = HashSet::new();
-    let mut marks = Vec::new();
-    for track in &sequence.timings {
-        let base = identifier(&track.name, "timing");
-        for (index, layer) in track.layers.iter().enumerate() {
-            if layer.is_empty() {
-                continue;
-            }
-            let name = if track.layers.len() == 1 {
-                unique(base.clone(), &mut mark_names)
-            } else {
-                unique(
-                    identifier(&format!("{}_{}", base.as_str(), index + 1), "timing"),
-                    &mut mark_names,
-                )
-            };
-            marks.push(MarkCollection {
-                id: MarkCollectionId(marks.len() as u32),
-                name,
-                description: Some(format!(
-                    "xLights timing track {}, layer {}.",
-                    track.name,
-                    index + 1
-                )),
-                display_color: Color::from_bytes([0x38, 0xbd, 0xf8]),
-                marks: layer
-                    .iter()
-                    .filter(|label| label.start < sequence.duration)
-                    .map(|label| Mark {
-                        time: time(label.start),
-                        duration: DonderDuration(
-                            label.end.min(sequence.duration).saturating_sub(label.start),
-                        ),
-                        label: (!label.text.trim().is_empty()).then(|| label.text.clone()),
-                    })
-                    .collect(),
-            });
-        }
-    }
-    report.mark_collections = marks.len();
 
     let mut composition = Composition::default(Color::from_bytes([0x38, 0xbd, 0xf8]));
     composition.marks = marks;

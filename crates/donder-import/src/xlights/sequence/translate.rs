@@ -23,6 +23,19 @@ pub(crate) enum Port {
     ShaderStarfield,
     /// Any other shader: drifting, turning clouds in the palette's colors.
     Shader,
+    Morph,
+    Ripple,
+    Lightning,
+    Spirals,
+    Shape,
+    VuMeter,
+    Meteors,
+    Garlands,
+    Fan,
+    Bars,
+    Twinkle,
+    Fire,
+    Butterfly,
 }
 
 impl Port {
@@ -41,6 +54,19 @@ impl Port {
             Self::ShaderVortex => "ShaderVortex",
             Self::ShaderStarfield => "ShaderStarfield",
             Self::Shader => "Shader",
+            Self::Morph => "Morph",
+            Self::Ripple => "Ripple",
+            Self::Lightning => "Lightning",
+            Self::Spirals => "Spirals",
+            Self::Shape => "Shape",
+            Self::VuMeter => "VuMeter",
+            Self::Meteors => "Meteors",
+            Self::Garlands => "Garlands",
+            Self::Fan => "Fan",
+            Self::Bars => "Bars",
+            Self::Twinkle => "Twinkle",
+            Self::Fire => "Fire",
+            Self::Butterfly => "Butterfly",
         }
     }
 
@@ -59,6 +85,19 @@ impl Port {
             | Self::ShaderVortex
             | Self::ShaderStarfield
             | Self::Shader => "shader".into(),
+            Self::Morph => "morph".into(),
+            Self::Ripple => "ripple".into(),
+            Self::Lightning => "lightning".into(),
+            Self::Spirals => "spirals".into(),
+            Self::Shape => "shape".into(),
+            Self::VuMeter => "vu_meter".into(),
+            Self::Meteors => "meteors".into(),
+            Self::Garlands => "garlands".into(),
+            Self::Fan => "fan".into(),
+            Self::Bars => "bars".into(),
+            Self::Twinkle => "twinkle".into(),
+            Self::Fire => "fire".into(),
+            Self::Butterfly => "butterfly".into(),
         }
     }
 }
@@ -72,6 +111,8 @@ pub(crate) enum Value {
     Option(&'static str),
     Gradient(Vec<(f32, Color)>),
     Gradients(Vec<Vec<(f32, Color)>>),
+    /// The mark collection made from the timing track of this name.
+    Marks(String),
     /// `(position, value)` in the parameter's own units.
     Curve(Vec<(f32, f32)>),
 }
@@ -174,29 +215,104 @@ fn palette_gradients(palette: &Palette) -> Value {
     Value::Gradients(palette.colors_or_white().iter().map(gradient).collect())
 }
 
-/// Effects drawn on each model of a group on its own, by buffer style.
-fn scope(settings: &Settings) -> TargetScope {
-    if settings
-        .choice("B_CHOICE_BufferStyle", "Default")
-        .starts_with("Per Model")
-    {
-        TargetScope::PerFixture
-    } else {
-        TargetScope::WholeTarget
-    }
+/// How an xLights buffer lays out the target: the likenesses' `space`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Space {
+    Layout,
+    Line,
+    MemberColumns,
+    StrandColumns,
+    MemberRows,
+    StrandRows,
 }
 
-/// Whether the buffer lays the models' pixels end to end in one line.
-fn single_line(settings: &Settings) -> bool {
-    settings
-        .choice("B_CHOICE_BufferStyle", "Default")
-        .ends_with("Single Line")
+/// An xLights buffer transform: the likenesses' `turn`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Turn {
+    None,
+    Half,
+    FlipVertical,
+    FlipHorizontal,
+    Clockwise,
+    Counterclockwise,
+}
+
+/// Where an effect draws: on each member or the whole target, the buffer's
+/// layout and its transform.
+struct Buffer {
+    scope: TargetScope,
+    space: Space,
+    turn: Turn,
+}
+
+impl Buffer {
+    fn read(settings: &Settings) -> Self {
+        use Space::*;
+        let style = settings.choice("B_CHOICE_BufferStyle", "Default");
+        // `Per Model <style>` draws `<style>` on each member of the group.
+        let (scope, style) = match style.strip_prefix("Per Model ") {
+            Some(style) => (TargetScope::PerFixture, style),
+            None => (TargetScope::WholeTarget, style),
+        };
+        let (scope, space) = match style {
+            "Single Line" => (scope, Line),
+            "Horizontal Per Model" => (scope, MemberColumns),
+            "Vertical Per Model" => (scope, MemberRows),
+            "Horizontal Per Model/Strand" | "Horizontal Per Strand" => (scope, StrandColumns),
+            "Vertical Per Model/Strand" | "Vertical Per Strand" => (scope, StrandRows),
+            // Members overlaid or stacked one above another each fill the
+            // buffer's width: much as each draws on its own.
+            "Overlay - Centered"
+            | "Overlay - Scaled"
+            | "Vertical Stack"
+            | "Vertical Stack - Scaled" => (TargetScope::PerFixture, Layout),
+            _ => (scope, Layout),
+        };
+        let turn = match settings.choice("B_CHOICE_BufferTransform", "None") {
+            "Rotate 180" => Turn::Half,
+            "Flip Vertical" => Turn::FlipVertical,
+            "Flip Horizontal" => Turn::FlipHorizontal,
+            "Rotate CW 90" | "Rotate CW 90 Flip Horizontal" => Turn::Clockwise,
+            "Rotate CC 90" | "Rotate CC 90 Flip Horizontal" => Turn::Counterclockwise,
+            _ => Turn::None,
+        };
+        Self { scope, space, turn }
+    }
+
+    fn params(&self) -> Params {
+        let space = match self.space {
+            Space::Layout => "Layout",
+            Space::Line => "Line",
+            Space::MemberColumns => "MemberColumns",
+            Space::StrandColumns => "StrandColumns",
+            Space::MemberRows => "MemberRows",
+            Space::StrandRows => "StrandRows",
+        };
+        let turn = match self.turn {
+            Turn::None => "None",
+            Turn::Half => "HalfTurn",
+            Turn::FlipVertical => "FlipVertical",
+            Turn::FlipHorizontal => "FlipHorizontal",
+            Turn::Clockwise => "Clockwise",
+            Turn::Counterclockwise => "Counterclockwise",
+        };
+        vec![
+            ("space", Value::Option(space)),
+            ("turn", Value::Option(turn)),
+        ]
+    }
+
+    /// Whether the buffer is one pixel wide: a single line turned on its side.
+    fn one_wide(&self) -> bool {
+        self.space == Space::Line && matches!(self.turn, Turn::Clockwise | Turn::Counterclockwise)
+    }
 }
 
 /// The settings every likeness shares.
 fn shared(placed: &Placed) -> Params {
     let settings = &placed.settings;
-    vec![
+    let mut params = Buffer::read(settings).params();
+    params.extend([
         ("brightness", Value::Float(placed.palette.brightness())),
         (
             "fade_in",
@@ -218,7 +334,8 @@ fn shared(placed: &Placed) -> Params {
                 },
             )]),
         ),
-    ]
+    ]);
+    params
 }
 
 /// The effect's own color over its span, as an `On` or `Color Wash` unmasked
@@ -304,6 +421,7 @@ struct Unmask<'a> {
 pub(crate) fn row(
     row: &Row,
     frame: Duration,
+    version: (u32, u32),
     report: &mut SequenceImportReport,
 ) -> Vec<Translated> {
     let mut clips = Vec::new();
@@ -318,7 +436,7 @@ pub(crate) fn row(
                 unmasks.push(Unmask { placed, layer });
                 continue;
             }
-            match translate(placed, frame, report) {
+            match translate(placed, frame, version, report) {
                 Ok(params) => {
                     let (port, params) = params;
                     if mixing != Mix::Normal {
@@ -328,7 +446,7 @@ pub(crate) fn row(
                     clips.push(Translated {
                         port,
                         params,
-                        scope: scope(&placed.settings),
+                        scope: Buffer::read(&placed.settings).scope,
                         start: placed.start,
                         end: placed.end,
                         layer,
@@ -380,6 +498,7 @@ pub(crate) fn row(
 fn translate(
     placed: &Placed,
     frame: Duration,
+    version: (u32, u32),
     report: &mut SequenceImportReport,
 ) -> Result<(Port, Params), LeftOut> {
     let s = &placed.settings;
@@ -500,23 +619,18 @@ fn translate(
                 "To Middle" | "Static To Middle" => "ToMiddle",
                 _ => "LeftRight",
             };
-            let fade = match s.choice("E_CHOICE_Fade_Type", "None") {
+            // Before xLights 2024.15 the fade was a 3D fade checkbox, on
+            // meaning from the head.
+            let legacy_fade = if s.bool("E_CHECKBOX_Chase_3dFade1", false) {
+                "From Head"
+            } else {
+                "None"
+            };
+            let fade = match s.choice("E_CHOICE_Fade_Type", legacy_fade) {
                 "From Head" => "Head",
                 "From Tail" => "Tail",
                 "Head and Tail" | "Middle" => "HeadAndTail",
                 _ => "None",
-            };
-            // A single line turned on its side is one pixel wide, so the
-            // chase lights all of it; a turned buffer chases up or down it.
-            let transform = s.choice("B_CHOICE_BufferTransform", "None");
-            let turned_cw = transform.starts_with("Rotate CW 90");
-            let turned_cc = transform.starts_with("Rotate CC 90");
-            let axis = match (single_line(s), turned_cw, turned_cc) {
-                (true, true, _) | (true, _, true) => "Whole",
-                (true, false, false) => "Line",
-                (false, true, _) => "Down",
-                (false, _, true) => "Up",
-                (false, false, false) => "Across",
             };
             params.extend([
                 ("colors", palette_gradients(&placed.palette)),
@@ -563,7 +677,7 @@ fn translate(
                     "skip_right",
                     Value::Bool(s.choice("E_CHOICE_Skips_Direction", "Left") == "Right"),
                 ),
-                ("axis", Value::Option(axis)),
+                ("whole", Value::Bool(Buffer::read(s).one_wide())),
             ]);
             Port::SingleStrand
         }
@@ -576,7 +690,7 @@ fn translate(
                 ),
                 (
                     "arm_size",
-                    Value::Float(slider(s, "Pinwheel_ArmSize", 100.0).first(1.0)),
+                    Value::Curve(slider(s, "Pinwheel_ArmSize", 100.0).curve(1.0)),
                 ),
                 (
                     "twist",
@@ -584,11 +698,11 @@ fn translate(
                 ),
                 (
                     "thickness",
-                    Value::Float(slider(s, "Pinwheel_Thickness", 0.0).first(1.0)),
+                    Value::Curve(slider(s, "Pinwheel_Thickness", 0.0).curve(1.0)),
                 ),
                 (
                     "speed",
-                    Value::Float(slider(s, "Pinwheel_Speed", 10.0).first(1.0)),
+                    Value::Curve(slider(s, "Pinwheel_Speed", 10.0).curve(1.0)),
                 ),
                 (
                     "offset",
@@ -605,13 +719,6 @@ fn translate(
                 (
                     "center_y",
                     Value::Float(slider(s, "PinwheelYC", 0.0).first(1.0)),
-                ),
-                (
-                    "flip_vertical",
-                    Value::Bool(matches!(
-                        s.choice("B_CHOICE_BufferTransform", "None"),
-                        "Flip Vertical" | "Rotate 180"
-                    )),
                 ),
                 (
                     "blade",
@@ -735,6 +842,372 @@ fn translate(
                 ),
             ]);
             Port::Wave
+        }
+        EffectName::Morph => {
+            let n = |name: &str, default: f32| Value::Float(slider(s, name, default).first(1.0));
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                ("start_x1", n("Morph_Start_X1", 0.0)),
+                ("start_y1", n("Morph_Start_Y1", 0.0)),
+                ("start_x2", n("Morph_Start_X2", 100.0)),
+                ("start_y2", n("Morph_Start_Y2", 0.0)),
+                ("end_x1", n("Morph_End_X1", 0.0)),
+                ("end_y1", n("Morph_End_Y1", 100.0)),
+                ("end_x2", n("Morph_End_X2", 100.0)),
+                ("end_y2", n("Morph_End_Y2", 100.0)),
+                ("start_length", n("MorphStartLength", 1.0)),
+                ("end_length", n("MorphEndLength", 1.0)),
+                ("duration_percent", n("MorphDuration", 20.0)),
+                ("acceleration", n("MorphAccel", 0.0)),
+            ]);
+            Port::Morph
+        }
+        EffectName::Ripple => {
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "thickness",
+                    Value::Int(slider(s, "Ripple_Thickness", 3.0).first(1.0) as i32),
+                ),
+                (
+                    "cycles",
+                    Value::Float(slider(s, "Ripple_Cycles", 1.0).first(1.0)),
+                ),
+                (
+                    "center_x",
+                    Value::Float(slider(s, "Ripple_XC", 0.0).first(1.0)),
+                ),
+                (
+                    "center_y",
+                    Value::Float(slider(s, "Ripple_YC", 0.0).first(1.0)),
+                ),
+                (
+                    "implode",
+                    Value::Bool(s.choice("E_CHOICE_Ripple_Movement", "Explode") == "Implode"),
+                ),
+                ("three_d", Value::Bool(s.bool("E_CHECKBOX_Ripple3D", false))),
+            ]);
+            Port::Ripple
+        }
+        EffectName::Lightning => {
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "bolts",
+                    Value::Int(slider(s, "Number_Bolts", 10.0).first(1.0) as i32),
+                ),
+                (
+                    "segments",
+                    Value::Int(slider(s, "Number_Segments", 5.0).first(1.0) as i32),
+                ),
+                (
+                    "forked",
+                    Value::Bool(s.bool("E_CHECKBOX_ForkedLightning", false)),
+                ),
+                (
+                    "top_x",
+                    Value::Float(slider(s, "Lightning_TopX", 0.0).first(1.0)),
+                ),
+                (
+                    "top_y",
+                    Value::Float(slider(s, "Lightning_TopY", 0.0).first(1.0)),
+                ),
+                (
+                    "drift",
+                    Value::Float(s.float("E_SLIDER_Lightning_BOTX", 0.0)),
+                ),
+                (
+                    "width",
+                    Value::Int(s.float("E_SLIDER_Lightning_WIDTH", 1.0) as i32),
+                ),
+                (
+                    "down",
+                    Value::Bool(s.choice("E_CHOICE_Lightning_Direction", "Up") == "Down"),
+                ),
+            ]);
+            Port::Lightning
+        }
+        EffectName::Spirals => {
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "repeats",
+                    Value::Int(slider(s, "Spirals_Count", 1.0).first(1.0) as i32),
+                ),
+                // Rotation is used as the slider's raw number, 20 for 2.0.
+                (
+                    "rotation",
+                    Value::Curve(slider(s, "Spirals_Rotation", 20.0).curve(1.0)),
+                ),
+                (
+                    "thickness",
+                    Value::Curve(slider(s, "Spirals_Thickness", 50.0).curve(1.0)),
+                ),
+                (
+                    "movement",
+                    Value::Float(slider(s, "Spirals_Movement", 1.0).first(1.0)),
+                ),
+                (
+                    "three_d",
+                    Value::Bool(s.bool("E_CHECKBOX_Spirals_3D", false)),
+                ),
+            ]);
+            Port::Spirals
+        }
+        EffectName::Shape => {
+            let shapes = slider(s, "Shape_Count", 5.0).curve(1.0);
+            let most = shapes
+                .iter()
+                .map(|(_, count)| *count)
+                .fold(1.0_f32, f32::max);
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "star",
+                    Value::Bool(s.choice("E_CHOICE_Shape_ObjectToDraw", "Circle") == "Star"),
+                ),
+                (
+                    "points",
+                    Value::Int(s.float("E_SLIDER_Shape_Points", 5.0) as i32),
+                ),
+                (
+                    "thickness",
+                    Value::Float(slider(s, "Shape_Thickness", 1.0).first(1.0)),
+                ),
+                ("shapes", Value::Curve(shapes)),
+                ("most", Value::Int(most.ceil() as i32)),
+                (
+                    "start_size",
+                    Value::Float(slider(s, "Shape_StartSize", 1.0).first(1.0)),
+                ),
+                (
+                    "lifetime",
+                    Value::Float(slider(s, "Shape_Lifetime", 5.0).first(1.0)),
+                ),
+                (
+                    "growth",
+                    Value::Float(slider(s, "Shape_Growth", 10.0).first(1.0)),
+                ),
+                (
+                    "random_initial",
+                    Value::Bool(s.bool("E_CHECKBOX_Shape_RandomInitial", true)),
+                ),
+                (
+                    "fade_away",
+                    Value::Bool(s.bool("E_CHECKBOX_Shape_FadeAway", true)),
+                ),
+            ]);
+            Port::Shape
+        }
+        EffectName::VuMeter => {
+            let kind = match s.choice("E_CHOICE_VUMeter_Type", "Waveform") {
+                "Timing Event Pulse Color" => "Pulse",
+                "Timing Event Bar" => "Bar",
+                _ => return Err(LeftOut::NoLikeness),
+            };
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "beats",
+                    Value::Marks(s.choice("E_CHOICE_VUMeter_TimingTrack", "").to_owned()),
+                ),
+                ("kind", Value::Option(kind)),
+                (
+                    "bars",
+                    Value::Int(s.float("E_SLIDER_VUMeter_Bars", 6.0) as i32),
+                ),
+            ]);
+            Port::VuMeter
+        }
+        EffectName::Meteors => {
+            let motion = match s.choice("E_CHOICE_Meteors_Effect", "Down") {
+                "Up" => "Up",
+                "Left" => "Left",
+                "Right" => "Right",
+                "Implode" => "Implode",
+                "Explode" => "Explode",
+                _ => "Down",
+            };
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                ("motion", Value::Option(motion)),
+                (
+                    "amount",
+                    Value::Float(slider(s, "Meteors_Count", 10.0).first(1.0)),
+                ),
+                (
+                    "length",
+                    Value::Float(slider(s, "Meteors_Length", 25.0).first(1.0)),
+                ),
+                (
+                    "speed",
+                    Value::Curve(slider(s, "Meteors_Speed", 10.0).curve(1.0)),
+                ),
+                (
+                    "x_offset",
+                    Value::Float(slider(s, "Meteors_XOffset", 0.0).first(1.0)),
+                ),
+                (
+                    "y_offset",
+                    Value::Float(slider(s, "Meteors_YOffset", 0.0).first(1.0)),
+                ),
+            ]);
+            Port::Meteors
+        }
+        EffectName::Garlands => {
+            let direction = match s.choice("E_CHOICE_Garlands_Direction", "Up") {
+                "Down" | "Down then Up" => "Down",
+                "Left" | "Left then Right" => "Left",
+                "Right" | "Right then Left" => "Right",
+                _ => "Up",
+            };
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "spacing",
+                    Value::Float(slider(s, "Garlands_Spacing", 10.0).first(1.0)),
+                ),
+                (
+                    "cycles",
+                    Value::Float(slider(s, "Garlands_Cycles", 1.0).first(1.0)),
+                ),
+                (
+                    "garland_type",
+                    Value::Int(s.float("E_SLIDER_Garlands_Type", 0.0) as i32),
+                ),
+                ("direction", Value::Option(direction)),
+            ]);
+            Port::Garlands
+        }
+        EffectName::Fan => {
+            let curve =
+                |name: &str, default: f32| Value::Curve(slider(s, name, default).curve(1.0));
+            let n = |name: &str, default: f32| Value::Float(slider(s, name, default).first(1.0));
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                ("center_x", curve("Fan_CenterX", 50.0)),
+                ("center_y", curve("Fan_CenterY", 50.0)),
+                ("start_radius", curve("Fan_Start_Radius", 1.0)),
+                ("end_radius", curve("Fan_End_Radius", 50.0)),
+                ("start_angle", n("Fan_Start_Angle", 0.0)),
+                ("revolutions", n("Fan_Revolutions", 720.0)),
+                (
+                    "blades",
+                    Value::Int(slider(s, "Fan_Num_Blades", 3.0).first(1.0) as i32),
+                ),
+                ("blade_width", n("Fan_Blade_Width", 50.0)),
+                ("blade_angle", n("Fan_Blade_Angle", 90.0)),
+                (
+                    "elements",
+                    Value::Int(slider(s, "Fan_Num_Elements", 1.0).first(1.0) as i32),
+                ),
+                ("element_width", n("Fan_Element_Width", 100.0)),
+                ("duration_percent", n("Fan_Duration", 80.0)),
+                ("acceleration", n("Fan_Accel", 0.0)),
+                (
+                    "reverse",
+                    Value::Bool(s.bool("E_CHECKBOX_Fan_Reverse", false)),
+                ),
+                (
+                    "blend_edges",
+                    Value::Bool(s.bool("E_CHECKBOX_Fan_Blend_Edges", true)),
+                ),
+                // Before 2025.04 a fan's radii were pixels, and xLights loads
+                // a file from then without the setting as unscaled.
+                (
+                    "scale",
+                    Value::Bool(s.bool("E_CHECKBOX_Fan_Scale", version >= (2025, 4))),
+                ),
+            ]);
+            Port::Fan
+        }
+        EffectName::Bars => {
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "repeats",
+                    Value::Int(slider(s, "Bars_BarCount", 1.0).first(1.0) as i32),
+                ),
+                (
+                    "cycles",
+                    Value::Float(slider(s, "Bars_Cycles", 1.0).first(1.0)),
+                ),
+                (
+                    "gradient_bars",
+                    Value::Bool(s.bool("E_CHECKBOX_Bars_Gradient", false)),
+                ),
+                ("three_d", Value::Bool(s.bool("E_CHECKBOX_Bars_3D", false))),
+                (
+                    "down",
+                    Value::Bool(s.choice("E_CHOICE_Bars_Direction", "up") == "down"),
+                ),
+            ]);
+            Port::Bars
+        }
+        EffectName::Twinkle => {
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "density",
+                    Value::Curve(slider(s, "Twinkle_Count", 3.0).curve(1.0)),
+                ),
+                (
+                    "steps",
+                    Value::Int(slider(s, "Twinkle_Steps", 30.0).first(1.0) as i32),
+                ),
+                (
+                    "strobe",
+                    Value::Bool(s.bool("E_CHECKBOX_Twinkle_Strobe", false)),
+                ),
+            ]);
+            Port::Twinkle
+        }
+        EffectName::Fire => {
+            let location = match s.choice("E_CHOICE_Fire_Location", "Bottom") {
+                "Top" => "Top",
+                "Left" => "Left",
+                "Right" => "Right",
+                _ => "Bottom",
+            };
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "height",
+                    Value::Float(slider(s, "Fire_Height", 50.0).first(1.0)),
+                ),
+                (
+                    "hue_shift",
+                    Value::Float(slider(s, "Fire_HueShift", 0.0).first(1.0)),
+                ),
+                (
+                    "growth_cycles",
+                    Value::Float(slider(s, "Fire_GrowthCycles", 0.0).first(1.0)),
+                ),
+                ("location", Value::Option(location)),
+            ]);
+            Port::Fire
+        }
+        EffectName::Butterfly => {
+            params.extend([
+                ("colors", palette_gradients(&placed.palette)),
+                (
+                    "chunks",
+                    Value::Int(slider(s, "Butterfly_Chunks", 1.0).first(1.0) as i32),
+                ),
+                (
+                    "skip",
+                    Value::Int(slider(s, "Butterfly_Skip", 2.0).first(1.0) as i32),
+                ),
+                (
+                    "speed",
+                    Value::Float(slider(s, "Butterfly_Speed", 10.0).first(1.0)),
+                ),
+                (
+                    "reverse",
+                    Value::Bool(s.choice("E_CHOICE_Butterfly_Direction", "Normal") == "Reverse"),
+                ),
+            ]);
+            Port::Butterfly
         }
         EffectName::Shader => {
             let file = s.text("E_0FILEPICKERCTRL_IFS").unwrap_or_default();

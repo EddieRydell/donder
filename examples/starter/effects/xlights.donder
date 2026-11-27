@@ -23,21 +23,91 @@ fn xl_out(own: color, tinted: bool, tint: color, level: float) -> color {
   if tinted { tint * (intensity(own) * level) } else { own * level }
 }
 
--- Where the pixel is across the target, 0 at its left and 1 at its right.
-fn xl_u() -> float {
-  if target.max_x > target.min_x { (pixel.x - target.min_x) / (target.max_x - target.min_x) } else { 0.5 }
+-- Where the pixel is across (x) and up (y) the buffer xLights draws an
+-- effect in, each 0..1. `space` is how the buffer lays the target out:
+-- 0 as the layout shows it; 1 a single line through its pixels in order;
+-- 2 a column per member and 3 a column per strand, each running up it in
+-- wiring order; 4 a row per member and 5 a row per strand. `turn` is the
+-- buffer's transform: 0 none, 1 turned half round, 2 flipped upside down,
+-- 3 flipped left to right, 4 turned clockwise and 5 counterclockwise.
+fn xl_raw_x(space: int) -> float {
+  if space == 1 { pixel.fraction }
+  else if space == 2 { (pixel.member + 0.5) / max(target.members, 1) }
+  else if space == 3 { (pixel.strand + 0.5) / max(target.strands, 1) }
+  else if space == 4 || space == 5 { pixel.along / max(target.strand_length - 1, 1) }
+  else if target.max_x > target.min_x { (pixel.x - target.min_x) / (target.max_x - target.min_x) }
+  else { 0.5 }
+}
+fn xl_raw_y(space: int) -> float {
+  if space == 1 { 0.5 }
+  else if space == 2 || space == 3 { pixel.along / max(target.strand_length - 1, 1) }
+  else if space == 4 { (pixel.member + 0.5) / max(target.members, 1) }
+  else if space == 5 { (pixel.strand + 0.5) / max(target.strands, 1) }
+  else if target.max_y > target.min_y { (pixel.y - target.min_y) / (target.max_y - target.min_y) }
+  else { 0.5 }
+}
+fn xl_x(space: int, turn: int) -> float {
+  if turn == 1 || turn == 3 { 1.0 - xl_raw_x(space) }
+  else if turn == 4 { 1.0 - xl_raw_y(space) }
+  else if turn == 5 { xl_raw_y(space) }
+  else { xl_raw_x(space) }
+}
+fn xl_y(space: int, turn: int) -> float {
+  if turn == 1 || turn == 2 { 1.0 - xl_raw_y(space) }
+  else if turn == 4 { xl_raw_x(space) }
+  else if turn == 5 { 1.0 - xl_raw_x(space) }
+  else { xl_raw_y(space) }
 }
 
--- Where the pixel is up the target, 0 at its bottom and 1 at its top.
-fn xl_v() -> float {
-  if target.max_y > target.min_y { (pixel.y - target.min_y) / (target.max_y - target.min_y) } else { 0.5 }
-}
-
--- The target's width over its height, as an xLights buffer's.
-fn xl_aspect() -> float {
+-- The buffer's width over its height.
+fn xl_aspect(space: int, turn: int) -> float {
   let w = target.max_x - target.min_x;
   let h = target.max_y - target.min_y;
-  if w > 0.0 && h > 0.0 { w / h } else { 1.0 }
+  let length = max(target.strand_length, 1);
+  let base =
+    if space == 1 { max(target.count, 1) }
+    else if space == 2 { max(target.members, 1) / length }
+    else if space == 3 { max(target.strands, 1) / length }
+    else if space == 4 { length / max(target.members, 1) }
+    else if space == 5 { length / max(target.strands, 1) }
+    else if w > 0.0 && h > 0.0 { w / h }
+    else { 1.0 };
+  if turn == 4 || turn == 5 { 1.0 / base } else { base }
+}
+
+-- The buffer's width and height in xLights pixels. A layout buffer is
+-- xLights' grid of a group: a pixel about every 7.5 cm, its longer side at
+-- most 400; the other spaces count members, strands and pixels.
+fn xl_raw_w(space: int) -> float {
+  let w = target.max_x - target.min_x;
+  let h = target.max_y - target.min_y;
+  let length = max(target.strand_length, 1);
+  if space == 1 { max(target.count, 1) }
+  else if space == 2 { max(target.members, 1) }
+  else if space == 3 { max(target.strands, 1) }
+  else if space == 4 || space == 5 { length }
+  else { max(1.0, min(w / 0.075, 400.0 * w / max(max(w, h), 0.001))) }
+}
+fn xl_raw_h(space: int) -> float {
+  let w = target.max_x - target.min_x;
+  let h = target.max_y - target.min_y;
+  let length = max(target.strand_length, 1);
+  if space == 1 { 1.0 }
+  else if space == 2 || space == 3 { length }
+  else if space == 4 { max(target.members, 1) }
+  else if space == 5 { max(target.strands, 1) }
+  else { max(1.0, min(h / 0.075, 400.0 * h / max(max(w, h), 0.001))) }
+}
+fn xl_width(space: int, turn: int) -> float {
+  if turn == 4 || turn == 5 { xl_raw_h(space) } else { xl_raw_w(space) }
+}
+fn xl_height(space: int, turn: int) -> float {
+  if turn == 4 || turn == 5 { xl_raw_w(space) } else { xl_raw_h(space) }
+}
+
+-- A palette index held inside the palette.
+fn xl_pick(count: int, index: float) -> int {
+  clamp(int(index), 0, max(count - 1, 0))
 }
 
 -- Value noise in 0..1 on a grid of unit cells, smooth between them.
@@ -81,9 +151,13 @@ effect On {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     -- Shimmer shows the second color on odd frames, or nothing with one color.
     let odd = shimmer && frame % 2 == 1;
     guard !(odd && len(colors) < 2);
@@ -109,16 +183,20 @@ effect ColorWash {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     guard !(shimmer && frame % 2 == 1);
     let count = len(colors);
     let index = xl_blend_index((progress * cycles) % 1.0, count, circular);
     let i = floor(index);
     let c = mix(colors[int(i) % count][progress], colors[int(i + 1.0) % count][progress], index - i);
-    let h = abs(xl_u() - 0.5) * 2.0;
-    let v = abs(xl_v() - 0.5) * 2.0;
+    let h = abs(xl_x(sp, tr) - 0.5) * 2.0;
+    let v = abs(xl_y(sp, tr) - 0.5) * 2.0;
     let fade_h = if horizontal_fade { if reverse_fades { h } else { 1.0 - h } } else { 1.0 };
     let fade_v = if vertical_fade { if reverse_fades { v } else { 1.0 - v } } else { 1.0 };
     xl_out(c * (fade_h * fade_v), tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
@@ -158,15 +236,19 @@ effect Shockwave {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     let t = xl_accelerate((progress * cycles) % 1.0, acceleration);
-    let aspect = xl_aspect();
+    let aspect = xl_aspect(sp, tr);
     let w = if aspect >= 1.0 { 100.0 } else { 100.0 * aspect };
     let h = if aspect >= 1.0 { 100.0 / aspect } else { 100.0 };
-    let dx = xl_u() * w - center_x[progress] / 100.0 * w;
-    let dy = xl_v() * h - center_y[progress] / 100.0 * h;
+    let dx = xl_x(sp, tr) * w - center_x[progress] / 100.0 * w;
+    let dy = xl_y(sp, tr) * h - center_y[progress] / 100.0 * h;
     -- Unscaled, xLights counts pixels; a target is taken as 100 across.
     let radius_unit = if scale { 0.5 } else { 1.0 };
     let radius = (start_radius + (end_radius - start_radius) * t) * radius_unit;
@@ -184,10 +266,8 @@ effect Shockwave {
 
 -- SINGLE STRAND: chases `chase_size` percent long running `rotations` times
 -- along the target over the clip, the palette's first color at the head; or
--- skips, bands of lit pixels stepping along. `axis` is the way the chase runs:
--- through the pixels in order (xLights' single-line buffers), across the
--- target, down or up it; or, for a single line turned on its side, lighting
--- the whole target.
+-- skips, bands of lit pixels stepping along; the chase runs across the
+-- buffer as `space` and `turn` lay it out.
 effect SingleStrand {
   param colors: array<gradient>;
   param mode: enum { Chase, Skips } = Chase;
@@ -203,22 +283,22 @@ effect SingleStrand {
   param start_position: int in 1..20 = 1;
   param advance: int in 0..100 = 0;
   param skip_right: bool = false;
-  param axis: enum { Line, Across, Down, Up, Whole } = Line;
+  -- A single line turned on its side is one pixel wide: the chase lights it whole.
+  param whole: bool = false;
   param brightness: float in 0.0..4.0 = 1.0;
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
-    let u =
-      if axis == Line { pixel.fraction }
-      else if axis == Across { xl_u() }
-      else if axis == Down { 1.0 - xl_v() }
-      else if axis == Up { xl_v() }
-      else { 0.0 };
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let u = xl_x(sp, tr);
     let count = len(colors);
-    guard mode != Skips || axis != Whole;
+    guard mode != Skips || !whole;
     let lit =
       if mode == Skips {
         -- Bands of `band_size` pixels, `skip_size` apart, stepping a band
@@ -228,7 +308,7 @@ effect SingleStrand {
         let period = band_size + skip_size;
         let k = (place - (start_position - 1) - step) % (period * max(count, 1));
         if k % period < band_size { 1.0 + floor(k / period) } else { 0.0 }
-      } else if axis == Whole { 1.0 }
+      } else if whole { 1.0 }
       else {
         let size = chase_size / 100.0;
         let travel = (progress * rotations + offset / 100.0) % 1.0;
@@ -252,7 +332,7 @@ effect SingleStrand {
     guard lit > 0.0;
     let place = lit - 1.0;
     let level =
-      if mode == Skips || axis == Whole { 1.0 }
+      if mode == Skips || whole { 1.0 }
       else if fade == Head { 1.0 - place }
       else if fade == Tail { place }
       else if fade == HeadAndTail { 1.0 - abs(place - 0.5) * 2.0 }
@@ -268,40 +348,42 @@ effect SingleStrand {
 -- half the target's diagonal long, each `thickness` percent of the space
 -- between arms, bent by `twist` degrees from hub to tip and turning
 -- `speed` × 20 degrees a second. Sweep blades fade from their leading edge;
--- 3D blades fade toward their edges. `flip_vertical` turns the picture
--- upside down, as xLights' buffer transform does.
+-- 3D blades fade toward their edges.
 effect Pinwheel {
   param colors: array<gradient>;
   param arms: int in 1..20 = 3;
-  param arm_size: float in 0.0..400.0 = 100.0;
+  param arm_size: curve in 0.0..400.0;
   param twist: float in -360.0..360.0 = 0.0;
-  param thickness: float in 0.0..100.0 = 0.0;
-  param speed: float in 0.0..50.0 = 10.0;
+  param thickness: curve in 0.0..100.0;
+  param speed: curve in 0.0..50.0;
   param offset: float in 0.0..360.0 = 0.0;
   param clockwise: bool = true;
   param center_x: float in -100.0..100.0 = 0.0;
   param center_y: float in -100.0..100.0 = 0.0;
   param blade: enum { Flat, ThreeD, InvertedThreeD, Sweep } = Flat;
-  param flip_vertical: bool = false;
   param brightness: float in 0.0..4.0 = 1.0;
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
-    let aspect = xl_aspect();
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let aspect = xl_aspect(sp, tr);
     let w = if aspect >= 1.0 { 100.0 } else { 100.0 * aspect };
     let h = if aspect >= 1.0 { 100.0 / aspect } else { 100.0 };
-    let v = if flip_vertical { 1.0 - xl_v() } else { xl_v() };
-    let x1 = xl_u() * w - center_x * w / 200.0 - w / 2.0;
+    let v = xl_y(sp, tr);
+    let x1 = xl_x(sp, tr) * w - center_x * w / 200.0 - w / 2.0;
     let y1 = v * h - center_y * h / 200.0 - h / 2.0;
     let r = sqrt(x1 * x1 + y1 * y1);
-    let max_r = sqrt(w * w + h * h) / 2.0 * arm_size / 100.0;
+    let max_r = sqrt(w * w + h * h) / 2.0 * arm_size[progress] / 100.0;
     guard r > 0.0 && r <= max_r;
-    let turned = time * speed * 20.0;
+    let turned = curve_integral(speed, progress) * duration * 20.0;
     let separation = floor(360.0 / arms);
-    let tmax = max(thickness, 1.0) / 100.0 * separation;
+    let tmax = max(thickness[progress], 1.0) / 100.0 * separation;
     let theta = atan2(x1, y1) * 57.29577951308232 + r / max_r * twist;
     let theta = (if clockwise { turned + theta } else { turned - theta }) + tmax / 2.0 + offset + 540.0;
     let theta = (theta % 360.0 + 360.0) % 360.0;
@@ -345,15 +427,19 @@ effect Galaxy {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     guard revolutions > 0.0;
-    let aspect = xl_aspect();
+    let aspect = xl_aspect(sp, tr);
     let w = if aspect >= 1.0 { 100.0 } else { 100.0 * aspect };
     let h = if aspect >= 1.0 { 100.0 / aspect } else { 100.0 };
-    let dx = xl_u() * w - center_x / 100.0 * w;
-    let dy = xl_v() * h - center_y / 100.0 * h;
+    let dx = xl_x(sp, tr) * w - center_x / 100.0 * w;
+    let dy = xl_y(sp, tr) * h - center_y / 100.0 * h;
     let rho = sqrt(dx * dx + dy * dy);
     let radius_unit = if scale { 0.5 } else { 1.0 };
     let theta = atan2(dx, dy) * 57.29577951308232;
@@ -404,11 +490,15 @@ effect Wave {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     let state = time * speed * 20.0;
-    let degrees = xl_u() * waves * 360.0 + (if right_to_left { state } else { -state });
+    let degrees = xl_x(sp, tr) * waves * 360.0 + (if right_to_left { state } else { -state });
     let s = sin(degrees * 0.017453292519943295);
     let amplitude = if wave_type == DecayingSine { max(0.0, 0.5 - state / 4.0 / 100.0) } else { 0.5 };
     let center =
@@ -416,7 +506,7 @@ effect Wave {
       else if wave_type == Square { 0.5 + (if s > 0.0 { 1.0 } else { -1.0 }) * height / 200.0 }
       else { 0.5 + amplitude * height / 100.0 * s };
     let half = max(0.5 * thickness / 100.0, 0.01);
-    let v = xl_v() - y_offset / 200.0;
+    let v = xl_y(sp, tr) - y_offset / 200.0;
     let low = center - half;
     let high = center + half;
     let inside = (v >= low && v <= high) || (mirror && v >= 1.0 - high && v <= 1.0 - low);
@@ -442,11 +532,11 @@ fn xl_shader_time(rate: float, lead_in: float) -> float {
 -- Where a shader samples the pixel, 0..1 across and up the target, as
 -- xLights' `xl_FragNormCoord`: moved by the offsets (-100..100 shifts half the
 -- target) and zoomed by `zoom` (-100..100) about the middle.
-fn xl_shader_x(zoom: float, offset_x: float) -> float {
-  (xl_u() - offset_x / 200.0 - 0.5) / xl_shader_zoom(zoom) + 0.5
+fn xl_shader_x(x: float, zoom: float, offset_x: float) -> float {
+  (x - offset_x / 200.0 - 0.5) / xl_shader_zoom(zoom) + 0.5
 }
-fn xl_shader_y(zoom: float, offset_y: float) -> float {
-  (xl_v() - offset_y / 200.0 - 0.5) / xl_shader_zoom(zoom) + 0.5
+fn xl_shader_y(y: float, zoom: float, offset_y: float) -> float {
+  (y - offset_y / 200.0 - 0.5) / xl_shader_zoom(zoom) + 0.5
 }
 fn xl_shader_zoom(zoom: float) -> float {
   if zoom < 0.0 { max(1.0 - abs(zoom) / 100.0, 0.01) } else { 1.0 + 9.0 * zoom / 100.0 }
@@ -471,9 +561,13 @@ effect ShaderContinua {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
     let t = tm * 12.0;
     let turn = -tm * 0.005 * TAU;
@@ -481,8 +575,8 @@ effect ShaderContinua {
     let st = sin(turn);
     let di = 0.5772156649;
     let dh = 0.69314718;
-    let px = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 27.0 * xl_aspect();
-    let py = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 27.0;
+    let px = (xl_shader_x(xl_x(sp, tr), zoom, offset_x[progress]) - 0.5) * 27.0 * xl_aspect(sp, tr);
+    let py = (xl_shader_y(xl_y(sp, tr), zoom, offset_y[progress]) - 0.5) * 27.0;
     -- i = -4
     let qx = ct * px + st * py; let qy = -st * px + ct * py;
     let x = qx * di - qy * dh * 0.125; let y = qx * di * 0.125 + qy * dh;
@@ -545,13 +639,17 @@ effect ShaderCosmos {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
     let turn = 0.9 + tm * 0.04;
-    let x0 = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 6.0 * xl_aspect();
-    let y0 = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 6.0;
+    let x0 = (xl_shader_x(xl_x(sp, tr), zoom, offset_x[progress]) - 0.5) * 6.0 * xl_aspect(sp, tr);
+    let y0 = (xl_shader_y(xl_y(sp, tr), zoom, offset_y[progress]) - 0.5) * 6.0;
     let x = x0 * cos(turn) - y0 * sin(turn) + tm * 0.3;
     let y = x0 * sin(turn) + y0 * cos(turn) + tm * 0.2;
     let cloud = xl_fbm(x, y, 3.0);
@@ -581,12 +679,16 @@ effect ShaderVortex {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     let tm = xl_shader_time(curve_integral(speed, progress), lead_in) * 0.1;
-    let x = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 2.0;
-    let y = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 2.0 / xl_aspect();
+    let x = (xl_shader_x(xl_x(sp, tr), zoom, offset_x[progress]) - 0.5) * 2.0;
+    let y = (xl_shader_y(xl_y(sp, tr), zoom, offset_y[progress]) - 0.5) * 2.0 / xl_aspect(sp, tr);
     let r = sqrt(x * x + y * y);
     let turns = atan2(y, x) / TAU + tm * (0.213 - rotation) / TAU;
     let wedge = floor((turns % 1.0 + 1.0) % 1.0 * max(stripes, 1.0));
@@ -612,12 +714,16 @@ effect ShaderStarfield {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
-    let x = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 2.0 * xl_aspect();
-    let y = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 2.0;
+    let x = (xl_shader_x(xl_x(sp, tr), zoom, offset_x[progress]) - 0.5) * 2.0 * xl_aspect(sp, tr);
+    let y = (xl_shader_y(xl_y(sp, tr), zoom, offset_y[progress]) - 0.5) * 2.0;
     let r = sqrt(x * x + y * y);
     let ray = floor((atan2(y, x) / TAU + 0.5) * 48.0);
     let level = max for k in 0..3 {
@@ -646,17 +752,760 @@ effect Shader {
   param fade_in: float in 0.0..600.0 = 0.0;
   param fade_out: float in 0.0..600.0 = 0.0;
   param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
   param tint: gradient;
 
   sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
     let tm = xl_shader_time(curve_integral(speed, progress), lead_in);
-    let x = (xl_shader_x(zoom, offset_x[progress]) - 0.5) * 4.0 * xl_aspect() + tm * 0.2;
-    let y = (xl_shader_y(zoom, offset_y[progress]) - 0.5) * 4.0 - tm * 0.1;
+    let x = (xl_shader_x(xl_x(sp, tr), zoom, offset_x[progress]) - 0.5) * 4.0 * xl_aspect(sp, tr) + tm * 0.2;
+    let y = (xl_shader_y(xl_y(sp, tr), zoom, offset_y[progress]) - 0.5) * 4.0 - tm * 0.1;
     let cloud = xl_fbm(x, y, 5.0);
     let count = len(colors);
     let index = xl_blend_index(fract(cloud * 2.0 + tm * 0.05), count, true);
     let i = floor(index);
     let c = mix(colors[int(i) % count][progress], colors[int(i + 1.0) % count][progress], index - i);
     xl_out(c * smoothstep(0.3, 0.7, cloud), tinted, tint[progress], xl_level(brightness, fade_in, fade_out))
+  }
+}
+
+-- MORPH: a line swept from its start position to its end one, xLights'
+-- `Morph`. Points 1 and 2 of the line each move from their start (`start_x1`,
+-- `start_y1` and `start_x2`, `start_y2`, percent across and up) to their end;
+-- the head, `start_length` pixels long shrinking or growing to `end_length`,
+-- crosses during the first `duration` percent of the clip and drags a tail
+-- that leaves behind it. One color is head and tail; two, head then tail;
+-- three, the head, then the tail from the second color at the head to the
+-- third at its end; four or more, a head from the first to the second color
+-- and a tail through the rest.
+effect Morph {
+  param colors: array<gradient>;
+  param start_x1: float in 0.0..100.0 = 0.0;
+  param start_y1: float in 0.0..100.0 = 0.0;
+  param start_x2: float in 0.0..100.0 = 100.0;
+  param start_y2: float in 0.0..100.0 = 0.0;
+  param end_x1: float in 0.0..100.0 = 0.0;
+  param end_y1: float in 0.0..100.0 = 100.0;
+  param end_x2: float in 0.0..100.0 = 100.0;
+  param end_y2: float in 0.0..100.0 = 100.0;
+  param start_length: float in 0.0..100.0 = 1.0;
+  param end_length: float in 0.0..100.0 = 1.0;
+  param duration_percent: float in 0.0..100.0 = 20.0;
+  param acceleration: float in -10.0..10.0 = 0.0;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    -- The line's points in pixels: point 1 travels A0 to A1, point 2 B0 to B1.
+    let a0x = start_x1 / 100.0 * (w - 1.0);
+    let a0y = start_y1 / 100.0 * (h - 1.0);
+    let a1x = end_x1 / 100.0 * (w - 1.0);
+    let a1y = end_y1 / 100.0 * (h - 1.0);
+    let b0x = start_x2 / 100.0 * (w - 1.0);
+    let b0y = start_y2 / 100.0 * (h - 1.0);
+    let b1x = end_x2 / 100.0 * (w - 1.0);
+    let b1y = end_y2 / 100.0 * (h - 1.0);
+    let dax = a1x - a0x;
+    let day = a1y - a0y;
+    let d0x = b0x - a0x;
+    let d0y = b0y - a0y;
+    let ddx = (b1x - b0x) - dax;
+    let ddy = (b1y - b0y) - day;
+    let q0x = px - a0x;
+    let q0y = py - a0y;
+    -- The sweep `s` whose line passes the pixel: cross(D(s), P - A(s)) = 0.
+    let c2 = -(ddx * day - ddy * dax);
+    let c1 = (ddx * q0y - ddy * q0x) - (d0x * day - d0y * dax);
+    let c0 = d0x * q0y - d0y * q0x;
+    let disc = c1 * c1 - 4.0 * c2 * c0;
+    guard abs(c2) > 0.000001 || abs(c1) > 0.000001;
+    guard abs(c2) <= 0.000001 || disc >= 0.0;
+    let root = sqrt(max(disc, 0.0));
+    let r1 = if abs(c2) > 0.000001 { (-c1 + root) / (2.0 * c2) } else { -c0 / c1 };
+    let r2 = if abs(c2) > 0.000001 { (-c1 - root) / (2.0 * c2) } else { -c0 / c1 };
+    let sweep = if r1 >= -0.001 && r1 <= 1.001 { r1 } else { r2 };
+    guard sweep >= -0.001 && sweep <= 1.001;
+    -- The pixel must lie on that line, between its points (half a pixel over).
+    let lx = d0x + sweep * ddx;
+    let ly = d0y + sweep * ddy;
+    let span = lx * lx + ly * ly;
+    let along_line = if span > 0.0 { ((q0x - sweep * dax) * lx + (q0y - sweep * day) * ly) / span } else { 0.0 };
+    let slack = if span > 0.0 { 0.5 / sqrt(span) } else { 1.0 };
+    guard along_line >= -slack && along_line <= 1.0 + slack;
+    -- Line steps along the longer side's path, as xLights counts them.
+    let total = max(max(max(abs(dax), abs(day)), max(abs(b1x - b0x), abs(b1y - b0y))), 1.0);
+    let i = clamp(sweep, 0.0, 1.0) * total;
+    let p = xl_accelerate(progress, acceleration);
+    let hd = duration_percent / 100.0;
+    let hl = if hd > 0.0 { p / hd } else { 0.0 };
+    let head_len = end_length * hl + start_length * (1.0 - hl);
+    let head_end = if hd > 0.0 { total * hl + head_len * p } else { -1.0 };
+    let head_tail = head_end - head_len;
+    let tail_head = if hd > 0.0 { head_tail - 0.1 } else { 2.0 * total * p };
+    let tail_len = if hd > 0.0 { total * (1.0 / hd - 1.0) } else { total };
+    let tail_end = tail_head - tail_len;
+    let in_head = hd > 0.0 && i >= head_tail - 0.5 && i <= head_end + 0.5;
+    let in_tail = i >= tail_end && i <= tail_head + 0.5 && tail_len > 0.0;
+    guard in_head || in_tail;
+    let q = if tail_len > 0.0 { clamp((i - tail_end) / tail_len, 0.0, 1.0) } else { 1.0 };
+    let head_color =
+      if count >= 4 { mix(colors[0][progress], colors[1][progress], clamp(hl, 0.0, 1.0)) }
+      else { colors[0][progress] };
+    let tail_color =
+      if count == 1 { colors[0][progress] }
+      else if count == 2 { colors[1][progress] }
+      else if count == 3 { mix(colors[2][progress], colors[1][progress], q) }
+      else {
+        let ci = (count - 3) * (1.0 - q);
+        mix(colors[xl_pick(count, 2.0 + floor(ci))][progress], colors[xl_pick(count, 3.0 + floor(ci))][progress], ci - floor(ci))
+      };
+    let tail_level = if q > 0.5 { 1.0 } else { q / 0.5 };
+    let c = if in_head { head_color } else { tail_color * tail_level };
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- RIPPLE, xLights' old circles: a ring growing out from a center
+-- (`center_x`, `center_y`, -100..100 across) to the far side `cycles` times
+-- over the clip, or shrinking in (`implode`). The ring is 2 × `thickness`
+-- one-pixel circles at widening gaps; its color steps through the palette.
+effect Ripple {
+  param colors: array<gradient>;
+  param thickness: int in 1..100 = 3;
+  param cycles: float in 0.0..30.0 = 1.0;
+  param center_x: float in -100.0..100.0 = 0.0;
+  param center_y: float in -100.0..100.0 = 0.0;
+  param implode: bool = false;
+  param three_d: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let rx = (progress * max(cycles, 0.001)) % 1.0;
+    let xc = floor(w / 2.0 + center_x * (w / 2.0) / 100.0);
+    let yc = floor(h / 2.0 + center_y * (h / 2.0) / 100.0);
+    let max_r = if w > h { max(xc, w - xc) } else { max(yc, h - yc) };
+    let radius = if implode { max_r * (1.0 - rx) } else { max_r * rx };
+    let dx = px - xc;
+    let dy = py - yc;
+    let d = sqrt(dx * dx + dy * dy);
+    let level = max for k in 0..(2 * thickness) {
+      let offset = 0.25 * k * (k + 1);
+      let r = if implode { radius - offset } else { radius + offset };
+      guard r >= 0.0 && abs(d - r) <= 0.6;
+      if three_d { 1.0 - k * 0.5 / thickness } else { 1.0 }
+    };
+    guard level > 0.0;
+    let c = colors[xl_pick(count, rx * count)][progress] * level;
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- LIGHTNING: a jagged bolt `bolts` steps tall growing four steps a frame
+-- from `top_x` pixels off the middle, redrawn at random every frame; forked,
+-- its upper half branches. `drift` moves it `drift` / 10 pixels a frame.
+effect Lightning {
+  param colors: array<gradient>;
+  param bolts: int in 1..50 = 10;
+  param segments: int in 1..20 = 5;
+  param forked: bool = false;
+  param top_x: float in -50.0..50.0 = 0.0;
+  param top_y: float in 0.0..100.0 = 0.0;
+  param drift: float in -50.0..50.0 = 0.0;
+  param width: int in 1..7 = 1;
+  param down: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let k = frame;
+    let step_segment = max(floor(h / bolts), 1.0);
+    let grown = min((k % bolts) * 4, bolts);
+    let seg = if k > bolts { bolts } else { grown };
+    let xc = floor(w / 2.0) + top_x;
+    let xoff = floor(k * drift / 10.0);
+    -- Rows count from the bolt's start: up from the bottom, or down from the top.
+    let row = if down { h - 1.0 - py } else { py };
+    let i = ceil((row - top_y) / step_segment);
+    guard i >= 1.0 && i < seg;
+    -- Each point is an offset from the center column, drawn at random.
+    let j_prev = floor(rand(k * 131.0 + (i - 1.0) * 7.0 + 1.0) * 1000.0) + 1.0;
+    let j_here = floor(rand(k * 131.0 + i * 7.0 + 1.0) * 1000.0) + 1.0;
+    let coin_prev = rand(k * 131.0 + (i - 1.0) * 7.0 + 3.0) < 0.5;
+    let coin_here = rand(k * 131.0 + i * 7.0 + 3.0) < 0.5;
+    let even_prev = (i - 1.0) % 2.0 == 0.0;
+    let even_here = i % 2.0 == 0.0;
+    let x_prev = if i - 1.0 < 0.5 { xc } else if even_prev { if coin_prev { xc - j_prev % segments } else { xc + 2.0 * (j_prev % segments) } } else { if coin_prev { xc + j_prev % segments } else { xc - 3.0 * (j_prev % segments) } };
+    let x_here = if even_here { if coin_here { xc - j_here % segments } else { xc + 2.0 * (j_here % segments) } } else { if coin_here { xc + j_here % segments } else { xc - 3.0 * (j_here % segments) } };
+    let y_prev = (i - 1.0) * step_segment + top_y;
+    let t = clamp((row - y_prev) / step_segment, 0.0, 1.0);
+    let x_bolt = x_prev + (x_here - x_prev) * t + xoff;
+    let fork_coin = rand(k * 131.0 + i * 7.0 + 5.0) < 0.5;
+    let x_fork_end = if even_here { if fork_coin { xc + j_here % segments } else { xc - 3.0 * (j_here % segments) } } else { if fork_coin { xc - j_here % segments } else { xc + 2.0 * (j_here % segments) } };
+    let x_fork = x_prev + (x_fork_end - x_prev) * t + xoff;
+    let near = abs(px - x_bolt) <= width + 0.5 || (forked && i > seg / 2.0 && abs(px - x_fork) <= width + 0.5);
+    guard near;
+    xl_out(colors[0][progress], tinted, tint[progress], level_now)
+  }
+}
+
+-- SPIRALS: stripes of the palette's colors, `count` times round, leaning
+-- `rotation` columns over the height and sliding `movement` times across over
+-- the clip; each stripe `thickness` percent of its pitch. 3D fades each
+-- stripe from its leading edge.
+effect Spirals {
+  param colors: array<gradient>;
+  param repeats: int in 1..5 = 1;
+  param rotation: curve in -300.0..300.0;
+  param thickness: curve in 0.0..100.0;
+  param movement: float in -20.0..20.0 = 1.0;
+  param three_d: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let spirals = count * repeats;
+    let pitch = max(floor(w / spirals), 1.0);
+    let stripe = pitch * thickness[progress] / 100.0 + 1.0;
+    let direction = if movement > 0.001 { 1.0 } else if movement < -0.001 { -1.0 } else { 0.0 };
+    let pos = (progress * abs(movement)) % 1.0;
+    let state = floor(pos * w * 10.0 * direction) / 10.0;
+    let raw = px - state - py * rotation[progress] / h;
+    let raw = (raw % w + w) % w;
+    let strand = floor(raw / pitch);
+    let place = raw - strand * pitch;
+    guard place < stripe;
+    let f = if direction < 0.0 { (place + 1.0) / stripe } else { (stripe - place) / stripe };
+    let c = colors[int(strand) % spirals % count][progress] * (if three_d { clamp(f, 0.0, 1.0) } else { 1.0 });
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- SHAPE: `shapes` circles or stars at random places, each born at
+-- `start_size` pixels and growing `growth` pixels over a life of `lifetime`
+-- percent of the clip, fading as it ages, then reborn elsewhere; the outline
+-- is `thickness` pixels. Without `random_initial` they all live and die
+-- together; with it, at their own times. Colors take turns through the palette.
+effect Shape {
+  param colors: array<gradient>;
+  param star: bool = false;
+  param points: int in 2..9 = 5;
+  param thickness: float in 1.0..100.0 = 1.0;
+  param shapes: curve in 1.0..100.0;
+  param most: int in 1..100 = 5;
+  param start_size: float in 0.0..100.0 = 1.0;
+  param lifetime: float in 1.0..100.0 = 5.0;
+  param growth: float in -100.0..100.0 = 10.0;
+  param random_initial: bool = true;
+  param fade_away: bool = true;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let frames = max(duration * frame_rate, 1.0);
+    let life = max(1.0, frames * lifetime / 100.0);
+    let cycle = floor(life) + 1.0;
+    let alive = shapes[progress];
+    let passes = ceil(max(thickness - 0.25, 0.0) / 0.75);
+    let best = max for k in 0..most {
+      guard k < alive;
+      let offset = if random_initial { floor(rand(k * 17.0 + 3.0) * life) } else { 0.0 };
+      let age = (frame + offset) % cycle;
+      let generation = floor((frame + offset) / cycle);
+      let seed = generation * 1013.0 + k * 31.0;
+      let cx = floor(rand(seed + 1.0) * w);
+      let cy = floor(rand(seed + 2.0) * h);
+      let r = max(start_size + age * growth / life, 0.0);
+      let dx = px - cx;
+      let dy = py - cy;
+      let d = sqrt(dx * dx + dy * dy);
+      let outline =
+        if star {
+          let inner = r / 2.618034;
+          let sector = TAU / points;
+          let a = (atan2(dy, dx) % sector + sector) % sector;
+          let ramp = abs(a / sector * 2.0 - 1.0);
+          inner + (r - inner) * ramp
+        } else { r };
+      guard d <= outline + 0.6 && d >= outline - passes * 0.75 - 0.6;
+      let fade = if fade_away { (life - age) / life } else { 1.0 };
+      -- Packed: the fade in the whole part, the color's turn after it.
+      floor(clamp(fade, 0.0, 1.0) * 1000.0) + ((generation * alive + k) % count) / 100.0
+    };
+    guard best >= 1.0;
+    let c = colors[xl_pick(count, round((best - floor(best)) * 100.0))][progress] * (floor(best) / 1000.0);
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- VU METER on a timing track's marks: a pulse fills the target with the
+-- palette's next color on each mark, fading over `bars` frames; a bar steps
+-- one of `bars` columns right on each mark, wrapping, changing color.
+effect VuMeter {
+  param colors: array<gradient>;
+  param beats: marks;
+  param kind: enum { Pulse, Bar } = Pulse;
+  param bars: int in 1..100 = 6;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let index = mark_last_index(beats, time);
+    let first = mark_last_index(beats, -0.0001) + 1;
+    guard index >= first && len(beats) > 0;
+    let n = index - first;
+    let c = colors[n % count][progress];
+    let age = floor((time - mark_at(beats, index)) * frame_rate + 0.5);
+    let used = min(bars, max(int(w), 1));
+    let column = floor(xl_x(sp, tr) * used);
+    let level =
+      if kind == Pulse { if age < bars { (bars - age) / bars } else { 0.0 } }
+      else if column == n % used { 1.0 } else { 0.0 };
+    guard level > 0.0;
+    xl_out(c * level, tinted, tint[progress], level_now)
+  }
+}
+
+-- METEORS: streaks spawned at random, `amount` in 200 a lane a frame, with
+-- tails `length` percent of the buffer, rising up or flying out from a center
+-- (explode) or in to it (implode) at `speed`; each a palette color.
+effect Meteors {
+  param colors: array<gradient>;
+  param motion: enum { Down, Up, Left, Right, Implode, Explode } = Down;
+  param amount: float in 1.0..100.0 = 10.0;
+  param length: float in 1.0..100.0 = 25.0;
+  param speed: curve in 0.0..50.0;
+  param x_offset: float in -100.0..100.0 = 0.0;
+  param y_offset: float in -100.0..100.0 = 0.0;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let radial = motion == Implode || motion == Explode;
+    let cx = floor(w / 2.0 + x_offset * w / 200.0);
+    let cy = floor(h / 2.0 + y_offset * h / 200.0);
+    let corner = sqrt(max(cx, w - cx) * max(cx, w - cx) + max(cy, h - cy) * max(cy, h - cy));
+    let extent = if radial { corner } else if motion == Up || motion == Down { h } else { w };
+    let tail = max(if extent < 10.0 { length / 10.0 } else { extent * length / 100.0 }, 1.0);
+    -- Pixels a frame, and how far this pixel is along its lane from the start.
+    let rate = max(speed[progress] * 1000.0 / frame_rate / 200.0, 0.1);
+    let dx = px - cx;
+    let dy = py - cy;
+    let lanes = 96.0;
+    let lane =
+      if radial { floor((atan2(dy, dx) / TAU + 0.5) * lanes) }
+      else if motion == Up || motion == Down { round(px) }
+      else { round(py) };
+    let distance =
+      if motion == Explode { sqrt(dx * dx + dy * dy) }
+      else if motion == Implode { corner + tail - sqrt(dx * dx + dy * dy) }
+      else if motion == Up { py }
+      else if motion == Down { h - 1.0 - py }
+      else if motion == Right { px }
+      else { w - 1.0 - px };
+    -- A radial lane holds as many meteors as a buffer side's worth of spawns.
+    let chance = amount / 200.0 * (if radial { min(w, h) / lanes } else { 1.0 });
+    let window = min(ceil(tail / rate) + 1.0, 64.0);
+    let hit = max for back in 0..64 {
+      guard back < window;
+      let born = frame - back;
+      guard born >= 0 && rand(lane * 7919.0 + born * 104729.0 + 13.0) < chance;
+      -- The head has travelled `rate` a frame; this pixel is `behind` it.
+      let head = (back + 1.0) * rate + tail;
+      let behind = head - distance;
+      guard behind >= 0.0 && behind <= tail;
+      let shade = 1.0 - behind / tail;
+      floor(shade * 1000.0) + rand(lane * 7919.0 + born * 104729.0 + 17.0) * 0.99
+    };
+    guard hit >= 1.0;
+    let c = colors[xl_pick(count, (hit - floor(hit)) * count)][progress] * (floor(hit) / 1000.0);
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- GARLANDS, flat rows: one ring a row, each `spacing` percent of the height
+-- apart, falling and stacking from the bottom over each of `cycles`; the
+-- first color is the top ring, blending down to the last at the bottom.
+effect Garlands {
+  param colors: array<gradient>;
+  param spacing: float in 1.0..100.0 = 10.0;
+  param cycles: float in 0.0..20.0 = 1.0;
+  param garland_type: int in 0..4 = 0;
+  param direction: enum { Up, Down, Left, Right } = Up;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let vertical = direction == Up || direction == Down;
+    let m = if vertical { h } else { w };
+    let lane = if vertical { px } else { py };
+    let at = if direction == Up { py } else if direction == Down { m - 1.0 - py } else if direction == Right { px } else { m - 1.0 - px };
+    let y = round(at);
+    let pos = (progress * max(cycles, 0.001)) % 1.0;
+    let ps = max(2.0, spacing * m / 100.0);
+    let total = m * ps - m + 1.0;
+    let off = total * pos;
+    let droop_index = int(lane) % (if garland_type == 3 { 6 } else { 5 });
+    let droop =
+      if garland_type == 1 { [0.0, 1.0, 2.0, 1.0, 0.0][droop_index] }
+      else if garland_type == 2 { [0.0, 2.0, 4.0, 2.0, 0.0][droop_index] }
+      else if garland_type == 3 { [0.0, 2.0, 4.0, 6.0, 4.0, 2.0][droop_index] }
+      else if garland_type == 4 { [0.0, 2.0, 0.0, 2.0, 0.0][droop_index] }
+      else { 0.0 };
+    -- The ring drawn on this row: one still falling, or the one stacked here.
+    let ring = first for k in -1..3 {
+      let r = floor((y - 1.0 + off + droop) / ps) + k;
+      guard r >= 0.0 && r < m;
+      guard max(r, floor(1.0 + r * ps - off) - droop) == y;
+      r
+    } else { -1.0 };
+    guard ring >= 0.0;
+    let place = (m - ring - 1.0) / m;
+    let index = xl_blend_index(place, count, false);
+    let i = floor(index);
+    let c = mix(colors[int(i)][progress], colors[xl_pick(count, i + 1.0)][progress], index - i);
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- FAN: `blades` blades between the start and end radii (pixels, or 200ths of
+-- the longer side when `scale`) turning `revolutions` degrees over the clip,
+-- each `blade_width` percent of its share, twisted `blade_angle` degrees
+-- from hub to rim and split into the palette's colors; blades grow out
+-- before and shrink in after the middle `duration_percent` of the clip.
+effect Fan {
+  param colors: array<gradient>;
+  param center_x: curve in 0.0..100.0;
+  param center_y: curve in 0.0..100.0;
+  param start_radius: curve in 0.0..2500.0;
+  param end_radius: curve in 0.0..2500.0;
+  param start_angle: float in 0.0..360.0 = 0.0;
+  param revolutions: float in 0.0..3600.0 = 720.0;
+  param blades: int in 1..16 = 3;
+  param blade_width: float in 5.0..100.0 = 50.0;
+  param blade_angle: float in -360.0..360.0 = 90.0;
+  param elements: int in 1..4 = 1;
+  param element_width: float in 5.0..100.0 = 100.0;
+  param duration_percent: float in 0.0..100.0 = 80.0;
+  param acceleration: float in -10.0..10.0 = 0.0;
+  param reverse: bool = false;
+  param blend_edges: bool = true;
+  param scale: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let p = xl_accelerate(progress, acceleration);
+    let unit = if scale { max(w, h) / 200.0 } else { 1.0 };
+    let r1 = start_radius[progress] * unit;
+    let r2 = end_radius[progress] * unit;
+    let max_r = max(max(r1, r2), 1.0);
+    let dur = duration_percent / 100.0;
+    let ramp = (1.0 - dur) / 2.0;
+    let gap = abs(r2 - r1);
+    let toward = if r2 >= r1 { 1.0 } else { -1.0 };
+    let r2 = if dur < 1.0 && p < ramp { r2 - toward * gap * (1.0 - p / ramp) } else { r2 };
+    let r1 = if dur < 1.0 && p > 1.0 - ramp { r2 - toward * gap * ((1.0 - p) / ramp) } else { r1 };
+    let low = min(r1, r2);
+    let high = max(r1, r2);
+    let x1 = px - (center_x[progress] - 50.0) * w / 100.0 - w * 0.5;
+    let y1 = py - (center_y[progress] - 50.0) * h / 100.0 - h * 0.5;
+    let r = sqrt(x1 * x1 + y1 * y1);
+    guard r >= low && r <= high;
+    let division = 360.0 / blades;
+    let width_blade = division * blade_width / 100.0;
+    let column = width_blade / count;
+    let element = column / elements;
+    let element_size = element * element_width / 100.0;
+    let theta = atan2(x1, y1) * 57.29577951308232 + r / max_r * blade_angle + start_angle;
+    let turned = p * revolutions;
+    let theta = if reverse { turned - theta + 180.0 } else { theta + 180.0 + turned };
+    let theta = (theta % 360.0 + 360.0) % 360.0;
+    let a = theta % division;
+    guard a <= width_blade;
+    let e = a % element;
+    guard e <= element_size;
+    let edge = if blend_edges { 1.0 - abs(e - element_size / 2.0) * 2.0 / element_size } else { 1.0 };
+    xl_out(colors[xl_pick(count, a / column)][progress] * edge, tinted, tint[progress], level_now)
+  }
+}
+
+-- BARS rising: the palette's colors in bands, `repeats` times, moving up a
+-- full set `cycles` times over the clip; gradient blends each band into the
+-- next, 3D fades it from its top.
+effect Bars {
+  param colors: array<gradient>;
+  param repeats: int in 1..5 = 1;
+  param cycles: float in 0.0..30.0 = 1.0;
+  param gradient_bars: bool = false;
+  param three_d: bool = false;
+  param down: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let bar_count = max(repeats * count, 1);
+    let bar_height = max(ceil(h / bar_count), 1.0);
+    let block = max(count * bar_height, 1.0);
+    let pos = (progress * max(cycles, 0.001)) % 1.0;
+    let shift = floor(pos * block);
+    let row = if down { round(py) } else { h - round(py) - 1.0 };
+    let n = 4.0 * block + row + shift;
+    let k = n % bar_height;
+    let ci = floor((n % block) / bar_height);
+    let c = colors[xl_pick(count, ci)][progress];
+    let c = if gradient_bars { mix(c, colors[int(ci + 1.0) % count][progress], k / bar_height) } else { c };
+    let c = if three_d { c * ((bar_height - k - 1.0) / bar_height) } else { c };
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- TWINKLE: `density` percent of the pixels lit at a time, each rising and
+-- falling over `steps` frames at its own moment, in a palette color;
+-- strobe lights them only at their peak.
+effect Twinkle {
+  param colors: array<gradient>;
+  param density: curve in 2.0..100.0;
+  param steps: int in 2..400 = 30;
+  param strobe: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let m = max(steps, 2);
+    let half = max(floor(m / 2.0), 1.0);
+    let phase = floor(rand(pixel.index * 3.7 + 11.0) * m);
+    let cycle = floor((frame + phase) / m);
+    let d = (frame + phase) % m;
+    guard rand(pixel.index * 13.1 + cycle * 97.3) < density[progress] / 100.0;
+    let v = if strobe { if d == half { 1.0 } else { 0.0 } } else if d <= half { d / half } else { max((m - d) / half, 0.0) };
+    guard v > 0.0;
+    xl_out(colors[xl_pick(count, rand(pixel.index * 5.9 + cycle * 31.0) * count)][progress] * v, tinted, tint[progress], level_now)
+  }
+}
+
+-- FIRE, a likeness of xLights' classic fire: flickering flames rising from
+-- the bottom (or top, left or right) `height` percent of the way, growing and
+-- falling back `growth_cycles` times; red to orange, its hue shifted by
+-- `hue_shift` percent. It ignores the palette, as xLights' does.
+effect Fire {
+  param colors: array<gradient>;
+  param height: float in 1.0..100.0 = 50.0;
+  param hue_shift: float in 0.0..100.0 = 0.0;
+  param growth_cycles: float in 0.0..20.0 = 0.0;
+  param location: enum { Bottom, Top, Left, Right } = Bottom;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let grow = if growth_cycles > 0.0 { 0.5 - abs((progress * growth_cycles) % 1.0 - 0.5) } else { 0.0 };
+    let reach = (height + grow * 100.0) / 100.0 * 0.69;
+    let across = if location == Left || location == Right { py / h } else { px / w };
+    let up = if location == Top { 1.0 - py / h } else if location == Left { px / w } else if location == Right { 1.0 - px / w } else { py / h };
+    let flicker = xl_fbm(across * 12.0, up * 6.0 - time * 3.0, 41.0);
+    let heat = clamp(1.0 - up / max(reach, 0.01) + (flicker - 0.5) * 0.9, 0.0, 1.0);
+    guard heat > 0.05;
+    -- xLights' fire palette: dark red up to red, then red toward orange.
+    let index = heat * 199.0;
+    let c = if index < 100.0 { hsv(hue_shift / 100.0, 1.0, index / 100.0) } else { hsv(min(0.00166666 * (index - 100.0) + hue_shift / 100.0, 1.0), 1.0, 1.0) };
+    xl_out(c, tinted, tint[progress], level_now)
+  }
+}
+
+-- BUTTERFLY, style 4 with palette colors: bands of
+-- (x² - y²) sin(phase + (x + y) 2π / (w + h)) / (x² + y²), the phase moving
+-- `speed`; `chunks` and `skip` leave every `skip`th of `chunks` bands dark.
+effect Butterfly {
+  param colors: array<gradient>;
+  param chunks: int in 1..10 = 1;
+  param skip: int in 2..10 = 2;
+  param speed: float in 0.0..100.0 = 10.0;
+  param reverse: bool = false;
+  param brightness: float in 0.0..4.0 = 1.0;
+  param fade_in: float in 0.0..600.0 = 0.0;
+  param fade_out: float in 0.0..600.0 = 0.0;
+  param tinted: bool = false;
+  param space: enum { Layout, Line, MemberColumns, StrandColumns, MemberRows, StrandRows } = Layout;
+  param turn: enum { None, HalfTurn, FlipVertical, FlipHorizontal, Clockwise, Counterclockwise } = None;
+  param tint: gradient;
+
+  sample {
+    let sp = match space { Layout => 0, Line => 1, MemberColumns => 2, StrandColumns => 3, MemberRows => 4, StrandRows => 5 };
+    let tr = match turn { None => 0, HalfTurn => 1, FlipVertical => 2, FlipHorizontal => 3, Clockwise => 4, Counterclockwise => 5 };
+    let w = xl_width(sp, tr);
+    let h = xl_height(sp, tr);
+    let px = xl_x(sp, tr) * (w - 1.0);
+    let py = xl_y(sp, tr) * (h - 1.0);
+    let level_now = xl_level(brightness, fade_in, fade_out);
+    let count = len(colors);
+    let state = floor(frame * speed * (1000.0 / frame_rate) / 50.0);
+    let offset = (if reverse { -1.0 } else { 1.0 }) * state / 200.0;
+    let rsz = TAU / (w + h);
+    let r2 = px * px + py * py;
+    let v = if r2 > 0.001 { (px * px - py * py) * sin(offset + (px + py) * rsz) / r2 } else { 0.0 };
+    let v = v - floor(v);
+    guard chunks <= 1 || int(v * chunks) % skip != 0;
+    let index = xl_blend_index(v, min(count, 8), false);
+    let i = floor(index);
+    let c = mix(colors[int(i)][progress], colors[xl_pick(count, i + 1.0)][progress], index - i);
+    xl_out(c, tinted, tint[progress], level_now)
   }
 }

@@ -35,26 +35,40 @@ import.
   the row's targets, with xLights' settings under their xLights names and in
   xLights' units. The project imports that library; the starter ships it.
 - Effects with likenesses: On, Color Wash, Shockwave, SingleStrand (Chase and
-  Skips), Pinwheel (the new render method), Galaxy and Wave (Sine, Triangle,
-  Square, Decaying Sine). Shaders have likenesses by file: `Continua
+  Skips), Pinwheel (the new render method), Galaxy, Wave (Sine, Triangle,
+  Square, Decaying Sine), Morph, Ripple (the old circle style), Lightning,
+  Spirals, Shape (circles and stars), VU Meter (Timing Event Pulse Color and
+  Timing Event Bar, on the timing track's mark collection), Meteors, Garlands,
+  Fan, Bars (up and down), Twinkle, Fire and Butterfly (style 4). Effects that
+  keep moving particles in xLights (Meteors, Shape, Twinkle, Fire, Lightning)
+  draw the same patterns from seeded randomness instead, so they look alike
+  without matching xLights pixel for pixel. Shaders have likenesses by file: `Continua
   Variation.fs` is ported line for line; `Black Cherry Cosmos.fs`,
   `BlackCherryCosmos2+.fs`, `Vortex V2.fs` and `Euro Vision Triangle
   Starfield.fs` are likenesses; any other shader plays as drifting clouds in
   its palette's colors, and the report names it.
 - Left out, and counted in the report: Off, Warp (it distorts the layers under
-  it), SingleStrand's FX modes (WLED's effects), Faces, Moving Head and any
-  effect with no likeness.
+  it), SingleStrand's FX modes (WLED's effects), VU Meter's audio types, Faces,
+  Moving Head and any effect with no likeness.
+- A setting a file leaves out takes the default of the xLights version that
+  saved it where xLights' own loading does so: a Fan from before 2025.04 is
+  unscaled, and a SingleStrand from before 2024.15 reads its old 3D fade box.
 - An effect's palette is its `colors`, each checked color in order; a color
   curve becomes a gradient over the clip. The brightness slider is
   `brightness`, and the layer's fade in and fade out are `fade_in` and
   `fade_out` in seconds.
 - Value curves on sliders a likeness takes as a curve (Shockwave's center,
-  a shader's speed and offsets) are kept; other sliders take the curve's
-  value at the start.
-- `Per Model` buffer styles play per fixture; the rest play on the whole
-  target. A SingleStrand chase on a single-line buffer runs through the
-  pixels in order; turned 90° it lights the whole line, as xLights' one-pixel
-  wide buffer does.
+  Pinwheel's speed, thickness and arm size, a shader's speed and offsets,
+  and others) are kept; other sliders take the curve's value at the start.
+- The buffer style sets where an effect draws. `Per Model` styles, overlays
+  and vertical stacks play on each fixture of the target on its own; the rest
+  play on the whole target. Each likeness's `space` is the buffer's layout:
+  the layout itself, a single line through the pixels in order, or a column
+  or row per member or per strand. Its `turn` is the buffer transform. A
+  SingleStrand chase on a single line turned 90° lights the whole line, as
+  xLights' one-pixel-wide buffer does. Likenesses that measure in xLights
+  pixels take a layout buffer as xLights' group grid: about a pixel every
+  7.5 cm, its longer side at most 400.
 - Timing tracks become mark collections, one per layer, labels kept: a lyric
   track's phrases, words and phonemes are three.
 - The new sequence runs at xLights' frame rate and length; `--audio`, relative
@@ -71,8 +85,9 @@ where clips combine by their brightest channel, except:
   least half its length gets `tinted` and a `tint` over the clip, the upper
   effect's hue and saturation at the clip's own brightness (`2 is True Unmask`
   takes its color whole). One with nothing under it in its row is left out.
-- Every other mix (Additive, Brightness, the masks and reveals) plays by the
-  brightest channel, and the report counts each.
+- Every other mix (Additive, Brightness, Layered, the masks and reveals) plays
+  by the brightest channel, and the report counts each. Layer blur and the
+  transitions other than fades are left out.
 
 Rows mix the same way: xLights draws later rows over earlier ones, and an
 imported sequence keeps the brighter.

@@ -25,6 +25,19 @@ pub(crate) enum EffectName {
     Warp,
     MovingHead,
     Faces,
+    Morph,
+    Ripple,
+    Lightning,
+    Spirals,
+    Shape,
+    VuMeter,
+    Meteors,
+    Garlands,
+    Fan,
+    Bars,
+    Twinkle,
+    Fire,
+    Butterfly,
     /// Any effect the importer has no likeness of.
     Other,
 }
@@ -44,6 +57,19 @@ impl EffectName {
             "Warp" => Self::Warp,
             "Moving Head" => Self::MovingHead,
             "Faces" => Self::Faces,
+            "Morph" => Self::Morph,
+            "Ripple" => Self::Ripple,
+            "Lightning" => Self::Lightning,
+            "Spirals" => Self::Spirals,
+            "Shape" => Self::Shape,
+            "VU Meter" => Self::VuMeter,
+            "Meteors" => Self::Meteors,
+            "Garlands" => Self::Garlands,
+            "Fan" => Self::Fan,
+            "Bars" => Self::Bars,
+            "Twinkle" => Self::Twinkle,
+            "Fire" => Self::Fire,
+            "Butterfly" => Self::Butterfly,
             _ => Self::Other,
         }
     }
@@ -88,6 +114,9 @@ pub(crate) struct TimingTrack {
 }
 
 pub(crate) struct XSequence {
+    /// The xLights version that saved it, as (year, release): settings it
+    /// leaves out mean what that version's defaults were.
+    pub(crate) version: (u32, u32),
     pub(crate) duration: Duration,
     /// The time between frames xLights renders at.
     pub(crate) frame: Duration,
@@ -273,7 +302,16 @@ pub(crate) fn read(path: &Utf8Path) -> Result<XSequence, ImportError> {
             _ => {}
         }
     }
+    // `2022.21`, or `2026.05.2`: the year and release are enough.
+    let version = head
+        .child("version")
+        .and_then(|element| {
+            let mut parts = element.text.trim().split('.');
+            Some((parts.next()?.parse().ok()?, parts.next()?.parse().ok()?))
+        })
+        .ok_or_else(|| invalid("its <version> is not an xLights version"))?;
     Ok(XSequence {
+        version,
         duration,
         frame,
         rows,
