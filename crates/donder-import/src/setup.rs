@@ -32,6 +32,10 @@ pub enum ImportError {
         path: Utf8PathBuf,
         message: String,
     },
+    Write {
+        path: Utf8PathBuf,
+        message: String,
+    },
     Xml {
         path: Utf8PathBuf,
         message: String,
@@ -80,6 +84,7 @@ impl fmt::Display for ImportError {
                 "{path} holds both an xLights profile and a Vixen profile. choose the folder of one."
             ),
             Self::Read { path, message } => write!(f, "Could not read {path}: {message}"),
+            Self::Write { path, message } => write!(f, "Could not write {path}: {message}"),
             Self::Xml { path, message } => write!(f, "{path} is not readable XML: {message}"),
             Self::NotEmpty => write!(
                 f,

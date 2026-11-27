@@ -19,20 +19,27 @@ impl Mapping {
             path: path.to_owned(),
             message: error.to_string(),
         })?;
-        let rows = text
-            .lines()
-            .filter(|line| !line.trim_start().starts_with('#') && !line.trim().is_empty())
-            .filter_map(|line| {
-                let (row, targets) = line.split_once('\t')?;
-                let targets = targets
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|target| !target.is_empty())
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>();
-                (!targets.is_empty()).then(|| (row.trim().to_owned(), targets))
-            })
-            .collect();
+        let mut rows = Vec::new();
+        for (number, line) in text.lines().enumerate() {
+            if line.trim_start().starts_with('#') || line.trim().is_empty() {
+                continue;
+            }
+            let (row, targets) = line.split_once('\t').ok_or_else(|| {
+                ImportError::Sequence(format!(
+                    "{path}, line {}: put a tab between the row's name and its targets.",
+                    number + 1
+                ))
+            })?;
+            let targets = targets
+                .split(',')
+                .map(str::trim)
+                .filter(|target| !target.is_empty())
+                .map(str::to_owned)
+                .collect::<Vec<_>>();
+            if !targets.is_empty() {
+                rows.push((row.trim().to_owned(), targets));
+            }
+        }
         Ok(Self { rows })
     }
 

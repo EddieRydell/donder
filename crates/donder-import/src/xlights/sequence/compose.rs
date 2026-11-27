@@ -141,7 +141,7 @@ fn param_value(effect: &str, param: &ParamDecl, value: &Value) -> Result<ParamVa
             let option = options
                 .iter()
                 .find(|candidate| candidate.as_str() == *option)
-                .ok_or_else(|| mismatch(effect, name, "has no option {option} for"))?;
+                .ok_or_else(|| mismatch(effect, name, &format!("has no option {option} for")))?;
             ParamValue::option(param, option.clone())
         }
         (Type::Gradient, Value::Gradient(stops)) => {
@@ -315,7 +315,6 @@ pub(crate) fn build(
     }
     report.mark_collections = marks.len();
 
-    let frame_millis = sequence.frame.as_millis().max(1) as u32;
     let mut composition = Composition::default(Color::from_bytes([0x38, 0xbd, 0xf8]));
     composition.marks = marks;
     composition.clips = clips;
@@ -328,7 +327,8 @@ pub(crate) fn build(
                 .unwrap_or(options.sequence.as_str())
         )),
         duration: DonderDuration(sequence.duration),
-        frame_rate: (1000 / frame_millis).max(1),
+        // The nearest whole rate to xLights' frame time: 30 ms is 33 fps.
+        frame_rate: ((1.0 / sequence.frame.as_secs_f64()).round() as u32).max(1),
         audio: SequenceAudio::None,
         composition,
     };
@@ -338,20 +338,24 @@ pub(crate) fn build(
             options.name
         ))
     })?;
-    let id = SequenceId(session.new_id());
-    let document = session.edit(|edit| {
+    // The sequence and its song go into a copy of the session, which replaces
+    // it only when both are in, so a failure leaves the session as it was.
+    let mut candidate = session.clone();
+    let id = SequenceId(candidate.new_id());
+    let document = candidate.edit(|edit| {
         let document = edit.add_object_document(id.into(), name)?;
         edit.project_mut().put((id, new.clone()))?;
         Ok::<_, donder_project_io::SessionEditError>(document)
     })?;
     if let Some(audio) = &options.audio {
-        let asset = session
+        let asset = candidate
             .reference_asset(&document, audio)
             .map_err(|error| ImportError::Sequence(format!("Audio file {audio}: {error}")))?;
         new.audio = SequenceAudio::Asset(asset);
-        session
+        candidate
             .put((id, new))
             .map_err(|error| ImportError::Sequence(format!("{error:?}")))?;
     }
+    *session = candidate;
     Ok(report)
 }

@@ -96,8 +96,12 @@ pub(crate) struct Translated {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Mix {
     Normal,
-    /// `2 is Unmask`: the effect shows only where the layers under it are lit.
-    UnmaskedByBelow,
+    /// `2 is Unmask`: the effect's hue and saturation show only where the
+    /// layers under it are lit, at their brightness.
+    Unmask,
+    /// `2 is True Unmask`: the effect shows whole only where the layers under
+    /// it are lit.
+    TrueUnmask,
     /// Any other mix, by its xLights name.
     Other,
 }
@@ -106,7 +110,8 @@ fn mix(settings: &Settings) -> (Mix, &str) {
     let name = settings.choice("T_CHOICE_LayerMethod", "Normal");
     let mix = match name {
         "Normal" => Mix::Normal,
-        "2 is Unmask" | "2 is True Unmask" => Mix::UnmaskedByBelow,
+        "2 is Unmask" => Mix::Unmask,
+        "2 is True Unmask" => Mix::TrueUnmask,
         _ => Mix::Other,
     };
     (mix, name)
@@ -255,9 +260,9 @@ fn tint_color(placed: &Placed, at: Duration) -> Color {
     // `2 is Unmask` keeps the brightness of the layers under it and takes
     // only the hue and saturation of this effect; `2 is True Unmask` takes
     // its color whole.
-    let (_, mix_name) = mix(settings);
+    let (mixing, _) = mix(settings);
     let peak = color.red.max(color.green).max(color.blue);
-    let level = if mix_name == "2 is True Unmask" {
+    let level = if mixing == Mix::TrueUnmask {
         (level * rise * fall * placed.palette.brightness()).max(0.0)
     } else if peak > 0.0 {
         1.0 / peak
@@ -307,7 +312,7 @@ pub(crate) fn row(
         for placed in effects {
             let (mixing, mix_name) = mix(&placed.settings);
             let source = placed.source_name.clone();
-            if mixing == Mix::UnmaskedByBelow
+            if matches!(mixing, Mix::Unmask | Mix::TrueUnmask)
                 && matches!(placed.name, EffectName::On | EffectName::ColorWash)
             {
                 unmasks.push(Unmask { placed, layer });
@@ -316,7 +321,7 @@ pub(crate) fn row(
             match translate(placed, frame, report) {
                 Ok(params) => {
                     let (port, params) = params;
-                    if mixing == Mix::Other || mixing == Mix::UnmaskedByBelow {
+                    if mixing != Mix::Normal {
                         *report.mixed_by_max.entry(mix_name.to_owned()).or_default() += 1;
                     }
                     *report.played.entry(source.clone()).or_default() += 1;
@@ -733,7 +738,8 @@ fn translate(
         }
         EffectName::Shader => {
             let file = s.text("E_0FILEPICKERCTRL_IFS").unwrap_or_default();
-            let file_name = file.rsplit('/').next().unwrap_or(file).to_owned();
+            // Windows writes the path with backslashes.
+            let file_name = file.rsplit(['/', '\\']).next().unwrap_or(file).to_owned();
             let port = match file_name.as_str() {
                 "Continua Variation.fs" => Port::ShaderContinua,
                 "Black Cherry Cosmos.fs" | "BlackCherryCosmos2+.fs" => Port::ShaderCosmos,

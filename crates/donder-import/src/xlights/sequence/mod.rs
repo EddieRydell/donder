@@ -154,7 +154,7 @@ pub fn import_sequence(
 }
 
 fn write(path: &Utf8Path, text: &str) -> Result<(), ImportError> {
-    fs_err::write(path, text).map_err(|error| ImportError::Read {
+    fs_err::write(path, text).map_err(|error| ImportError::Write {
         path: path.to_owned(),
         message: error.to_string(),
     })

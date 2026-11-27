@@ -122,7 +122,10 @@ fn frame_time(text: &str) -> Option<Duration> {
 /// The sequence's XML: the `.xsq` file itself, or the one inside an `.xsqz`
 /// package, which xLights packs with the show's layout and shaders.
 fn root(path: &Utf8Path) -> Result<Element, ImportError> {
-    if path.extension() != Some("xsqz") {
+    if !path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("xsqz"))
+    {
         return xml::read_file(path);
     }
     let error = |message: String| ImportError::Read {
@@ -190,74 +193,81 @@ pub(crate) fn read(path: &Utf8Path) -> Result<XSequence, ImportError> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let empty_settings = Rc::new(Settings::default());
-    let empty_palette = Rc::new(Palette::parse(""));
+    let reader = Reader {
+        path,
+        settings,
+        palettes,
+        no_settings: Rc::new(Settings::default()),
+        no_palette: Rc::new(Palette::parse("")),
+    };
     let effects = root
         .child("ElementEffects")
         .ok_or_else(|| invalid("it has no <ElementEffects>"))?;
     let mut rows = Vec::new();
     let mut timings = Vec::new();
     for element in effects.children("Element") {
-        let name = element.attribute("name").unwrap_or_default().to_owned();
+        let name = element
+            .attribute("name")
+            .ok_or_else(|| invalid("an <Element> has no name"))?
+            .to_owned();
         match element.attribute("type") {
             Some("timing") => timings.push(TimingTrack {
-                name,
                 layers: element
                     .children("EffectLayer")
                     .map(|layer| {
                         layer
                             .children("Effect")
-                            .filter_map(|label| {
-                                Some(Label {
-                                    start: millis(label, "startTime")?,
-                                    end: millis(label, "endTime")?,
+                            .map(|label| {
+                                Ok::<_, ImportError>(Label {
+                                    start: reader.time(label, "startTime", &name)?,
+                                    end: reader.time(label, "endTime", &name)?,
                                     text: label.attribute("label").unwrap_or_default().to_owned(),
                                 })
                             })
-                            .collect()
+                            .collect::<Result<Vec<_>, _>>()
                     })
-                    .collect(),
+                    .collect::<Result<Vec<_>, _>>()?,
+                name,
             }),
             Some("model") => {
-                let mut push = |name: String, owner: &Element| {
-                    let layers = owner
-                        .children("EffectLayer")
-                        .map(|layer| {
-                            layer
-                                .children("Effect")
-                                .filter_map(|effect| {
-                                    let source_name = effect.attribute("name")?.to_owned();
-                                    let index = |key: &str| {
-                                        effect
-                                            .attribute(key)
-                                            .and_then(|index| index.parse::<usize>().ok())
-                                    };
-                                    Some(Placed {
-                                        name: EffectName::parse(&source_name),
-                                        source_name,
-                                        start: millis(effect, "startTime")?,
-                                        end: millis(effect, "endTime")?,
-                                        settings: index("ref")
-                                            .and_then(|index| settings.get(index).cloned())
-                                            .unwrap_or_else(|| Rc::clone(&empty_settings)),
-                                        palette: index("palette")
-                                            .and_then(|index| palettes.get(index).cloned())
-                                            .unwrap_or_else(|| Rc::clone(&empty_palette)),
-                                    })
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>();
-                    rows.push(Row { name, layers });
-                };
-                push(name.clone(), element);
-                // Submodels and strands carry their own rows, named under the model.
-                for part in element
-                    .children("SubModelEffectLayer")
-                    .chain(element.children("Strand"))
-                {
-                    let part_name = part.attribute("name").unwrap_or_default();
-                    push(format!("{name}/{part_name}"), part);
+                let layers = element
+                    .children("EffectLayer")
+                    .map(|layer| reader.layer(layer, &name))
+                    .collect::<Result<Vec<_>, _>>()?;
+                rows.push(Row {
+                    name: name.clone(),
+                    layers,
+                });
+                // A submodel's or strand's row is one element per layer, its
+                // effects directly inside; a strand's nodes have rows too.
+                let mut parts: Vec<(String, Vec<(usize, &Element)>)> = Vec::new();
+                for part in element.children("SubModelEffectLayer") {
+                    let part_name = part
+                        .attribute("name")
+                        .ok_or_else(|| invalid(&format!("a submodel row of {name} has no name")))?;
+                    push_part(&mut parts, format!("{name}/{part_name}"), part, &invalid)?;
+                }
+                for strand in element.children("Strand") {
+                    let index = number(strand, "index", &name, &invalid)?;
+                    let strand_name = format!("{name}/Strand {}", index + 1);
+                    push_part(&mut parts, strand_name.clone(), strand, &invalid)?;
+                    for node in strand.children("Node") {
+                        let node_index = number(node, "index", &strand_name, &invalid)?;
+                        push_part(
+                            &mut parts,
+                            format!("{strand_name}/Node {}", node_index + 1),
+                            node,
+                            &invalid,
+                        )?;
+                    }
+                }
+                for (row, mut layers) in parts {
+                    layers.sort_by_key(|(layer, _)| *layer);
+                    let layers = layers
+                        .into_iter()
+                        .map(|(_, part)| reader.layer(part, &row))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    rows.push(Row { name: row, layers });
                 }
             }
             _ => {}
@@ -269,4 +279,121 @@ pub(crate) fn read(path: &Utf8Path) -> Result<XSequence, ImportError> {
         rows,
         timings,
     })
+}
+
+/// The attribute `name` of `element` of the row `row`, a whole number.
+fn number(
+    element: &Element,
+    name: &str,
+    row: &str,
+    invalid: &impl Fn(&str) -> ImportError,
+) -> Result<usize, ImportError> {
+    element
+        .attribute(name)
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .ok_or_else(|| invalid(&format!("a part of {row} has no whole-number `{name}`")))
+}
+
+/// Add one layer of the part row `row`: the element's `layer`, 0 when it has none.
+fn push_part<'a>(
+    parts: &mut Vec<(String, Vec<(usize, &'a Element)>)>,
+    row: String,
+    part: &'a Element,
+    invalid: &impl Fn(&str) -> ImportError,
+) -> Result<(), ImportError> {
+    let layer = match part.attribute("layer") {
+        Some(_) => number(part, "layer", &row, invalid)?,
+        None => 0,
+    };
+    match parts.iter_mut().find(|(name, _)| *name == row) {
+        Some((_, layers)) => layers.push((layer, part)),
+        None => parts.push((row, vec![(layer, part)])),
+    }
+    Ok(())
+}
+
+/// What effects refer to: the settings and palettes they index.
+struct Reader<'a> {
+    path: &'a Utf8Path,
+    settings: Vec<Rc<Settings>>,
+    palettes: Vec<Rc<Palette>>,
+    /// Effects with no `ref` or `palette` take none.
+    no_settings: Rc<Settings>,
+    no_palette: Rc<Palette>,
+}
+
+impl Reader<'_> {
+    fn invalid(&self, message: String) -> ImportError {
+        ImportError::Xml {
+            path: self.path.to_owned(),
+            message,
+        }
+    }
+
+    /// A time attribute in milliseconds, which every effect and label has.
+    fn time(&self, element: &Element, name: &str, row: &str) -> Result<Duration, ImportError> {
+        millis(element, name).ok_or_else(|| {
+            self.invalid(format!(
+                "an effect of {row} has no `{name}` in milliseconds"
+            ))
+        })
+    }
+
+    /// The entry of `list` that the attribute `key` indexes, `none` without
+    /// the attribute.
+    fn indexed<T>(
+        &self,
+        effect: &Element,
+        key: &str,
+        list: &[Rc<T>],
+        none: &Rc<T>,
+        row: &str,
+    ) -> Result<Rc<T>, ImportError> {
+        let Some(text) = effect.attribute(key) else {
+            return Ok(Rc::clone(none));
+        };
+        text.trim()
+            .parse::<usize>()
+            .ok()
+            .and_then(|index| list.get(index))
+            .cloned()
+            .ok_or_else(|| {
+                self.invalid(format!(
+                    "an effect of {row} refers to {key} {text}, which the file does not have"
+                ))
+            })
+    }
+
+    /// The effects directly inside `layer`, of the row `row`.
+    fn layer(&self, layer: &Element, row: &str) -> Result<Vec<Placed>, ImportError> {
+        layer
+            .children("Effect")
+            .map(|effect| {
+                let source_name = effect
+                    .attribute("name")
+                    .ok_or_else(|| self.invalid(format!("an effect of {row} has no name")))?
+                    .to_owned();
+                Ok(Placed {
+                    name: EffectName::parse(&source_name),
+                    source_name,
+                    start: self.time(effect, "startTime", row)?,
+                    end: self.time(effect, "endTime", row)?,
+                    settings: self.indexed(
+                        effect,
+                        "ref",
+                        &self.settings,
+                        &self.no_settings,
+                        row,
+                    )?,
+                    palette: self.indexed(
+                        effect,
+                        "palette",
+                        &self.palettes,
+                        &self.no_palette,
+                        row,
+                    )?,
+                })
+            })
+            .collect()
+    }
 }

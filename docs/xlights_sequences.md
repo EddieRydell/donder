@@ -12,8 +12,9 @@ again on this project's geometry. The importer is
 ## Mapping
 
 The first run, with no file at `--map`, writes one to fill in: each xLights
-row that has effects (a model, group, submodel or strand row), and the
-project's groups and fixtures to choose from. Each line is the row's name, a
+row that has effects, and the project's groups and fixtures to choose from.
+A model's or group's row is its name; a submodel's is `Model/Submodel`, a
+strand's `Model/Strand 1` and a node's `Model/Strand 1/Node 3`. Each line is the row's name, a
 tab, then the fixtures and groups it plays on, separated by commas:
 
 ```text
@@ -21,7 +22,8 @@ Mega Tree	mega_tree
 Arches Group	left_arches, middle_arches, right_arches
 ```
 
-Lines starting with `#` are notes, and a row with no targets is left out. Each
+Lines starting with `#` are notes, and a row with no targets is left out; a
+line without a tab is refused. Each
 target plays the row's effects on its own, as one canvas: a vendor's group
 maps best onto one group of about the same shape. Run the command again to
 import.
