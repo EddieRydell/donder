@@ -1823,3 +1823,23 @@ effect Shapes {
     (if edge { outline_colors[progress] } else { fill_colors[progress] }) * intensity
   }
 }
+
+effect LawnWords {
+  param picture: image "The words drawn white on black, spanning the target exactly (around them the target is held just above black, so a MaskFill over the show leaves only the words): column c's centre at c / (width - 1) of the way across, row r's centre at r / (height - 1) of the way up.";
+  param gradient: gradient "The lights' colour, across the target.";
+  param offset: curve in 0.0..1.0 "Where the picture sits over the clip: 0.5 in place, each third of the range one target width, so 0.84 is just off the right and 0.16 just off the left.";
+  param reveal: curve in 0.0..1.0 "How much of the picture shows over the clip, from its left edge: stepping letter by letter types the words in.";
+  param level: curve in 0.0..1.0 "Brightness over the clip, for fading in and out.";
+  sample {
+    let w = max(0.001, target.max_x - target.min_x);
+    let h = max(0.001, target.max_y - target.min_y);
+    let across = (pixel.x - target.min_x) / w;
+    let place = across - (offset[progress] - 0.5) * 3.0;
+    let x = place * (image_width(picture) - 1.0) + 0.5;
+    let y = (pixel.y - target.min_y) / h * (image_height(picture) - 1.0) + 0.5;
+    let drawn = red(image_color(picture, 0, x, y)) >= 0.5 && place <= reveal[progress];
+    -- Around the letters the lawn is a trace above black, too dim to light anything, so a MaskFill with the
+    -- words layer on top shows only the words on the lawn while they play.
+    if drawn { gradient[across] * level[progress] } else { rgb(0.0001, 0.0001, 0.0001) }
+  }
+}
