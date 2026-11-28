@@ -4535,7 +4535,7 @@ Project rydell_house {
     Route {
       target: tree_lb,
       pixels: none,
-      reverse: false,
+      reverse: true,
       controller: controllers.front_door_2,
       port: "4",
       start: Next,
@@ -4571,7 +4571,7 @@ Project rydell_house {
     Route {
       target: tree_rb,
       pixels: none,
-      reverse: false,
+      reverse: true,
       controller: controllers.front_door_2,
       port: "6",
       start: Next,
@@ -4607,7 +4607,7 @@ Project rydell_house {
     Route {
       target: tree_lf,
       pixels: none,
-      reverse: false,
+      reverse: true,
       controller: controllers.front_door_2,
       port: "8",
       start: Next,
@@ -4643,7 +4643,7 @@ Project rydell_house {
     Route {
       target: tree_rf,
       pixels: none,
-      reverse: false,
+      reverse: true,
       controller: controllers.front_door_2,
       port: "10",
       start: Next,

@@ -1012,7 +1012,7 @@ Layout layout {
       description: "The 300-pixel outer seed ring of the wreath above the garage.",
       definition: above_garage_wreath_seeds,
       transform: Transform {
-        position: (-6.15m, 15m, 0m),
+        position: (-6.15m, 12.26m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1022,7 +1022,7 @@ Layout layout {
       description: "The 50-pixel middle bulb ring of the wreath above the garage.",
       definition: above_garage_wreath_bulbs,
       transform: Transform {
-        position: (-6.15m, 15m, 0m),
+        position: (-6.15m, 12.26m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1032,7 +1032,7 @@ Layout layout {
       description: "The 200-pixel inner bullet ring of the wreath above the garage.",
       definition: above_garage_wreath_bullets,
       transform: Transform {
-        position: (-6.15m, 15m, 0m),
+        position: (-6.15m, 12.26m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -1102,7 +1102,7 @@ Layout layout {
       description: none,
       definition: inside_tree,
       transform: Transform {
-        position: (1.526065m, 15.279126m, 0m),
+        position: (-7.104m, 14.22m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -16988,10 +16988,16 @@ FixtureDefinition arch_tunnel_01 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17005,10 +17011,16 @@ FixtureDefinition arch_tunnel_02 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17022,10 +17034,16 @@ FixtureDefinition arch_tunnel_03 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17039,10 +17057,16 @@ FixtureDefinition arch_tunnel_04 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17056,10 +17080,16 @@ FixtureDefinition arch_tunnel_05 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17073,10 +17103,16 @@ FixtureDefinition arch_tunnel_06 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17090,10 +17126,16 @@ FixtureDefinition arch_tunnel_07 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17107,10 +17149,16 @@ FixtureDefinition arch_tunnel_08 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17124,10 +17172,16 @@ FixtureDefinition arch_tunnel_09 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17141,10 +17195,16 @@ FixtureDefinition arch_tunnel_10 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17158,10 +17218,16 @@ FixtureDefinition arch_tunnel_11 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17175,10 +17241,16 @@ FixtureDefinition arch_tunnel_12 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17192,10 +17264,16 @@ FixtureDefinition arch_tunnel_13 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17209,10 +17287,16 @@ FixtureDefinition arch_tunnel_14 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17226,10 +17310,16 @@ FixtureDefinition arch_tunnel_15 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
@@ -17243,10 +17333,16 @@ FixtureDefinition arch_tunnel_16 {
       reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, 90.0),
-        scale: (1.0, 1.0, 1.0),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (0.08, 1.0, 1.0),
       },
-      geometry: Line { length: 6.077, count: 250 },
+      geometry: Arc {
+        radius: 1.934,
+        start_degrees: 180.0,
+        sweep_degrees: -180.0,
+        count: 250,
+        closed: false,
+      },
     },
   ],
 }
