@@ -1423,7 +1423,7 @@ Sequence mr_grinch {
     Clip {
       name: pulse_179,
       description: none,
-      targets: [mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [mega_tree_27, mega_tree_28, mega_tree_29, mega_tree_30, mega_tree_31, mega_tree_32],
       placement: Timed { start: 14.588786s, duration: 1.563214s },
       content: Effect {
         layer: default,
@@ -1462,7 +1462,7 @@ Sequence mr_grinch {
     Clip {
       name: pulse_193,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12, mega_tree_pair_13],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24, mega_tree_25, mega_tree_26],
       placement: Timed { start: 14.765373s, duration: 1.386627s },
       content: Effect {
         layer: default,
@@ -1500,7 +1500,16 @@ Sequence mr_grinch {
     Clip {
       name: pulse_206,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 14.989503s, duration: 1.162497s },
       content: Effect {
         layer: default,
@@ -1540,7 +1549,7 @@ Sequence mr_grinch {
     Clip {
       name: pulse_223,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 15.200048s, duration: 0.951952s },
       content: Effect {
         layer: default,
@@ -1570,7 +1579,7 @@ Sequence mr_grinch {
     Clip {
       name: pulse_235,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_03, mega_tree_04, mega_tree_05, mega_tree_06],
       placement: Timed { start: 15.437761s, duration: 0.714239s },
       content: Effect {
         layer: default,

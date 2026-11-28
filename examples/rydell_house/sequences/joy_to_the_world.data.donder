@@ -90,7 +90,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_7,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 0.391806s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -105,7 +105,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_11,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_07],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_13, mega_tree_14],
       placement: Timed { start: 0.787616s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -120,7 +120,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_15,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_06],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_11, mega_tree_12],
       placement: Timed { start: 1.145567s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -150,7 +150,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_21,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 1.526419s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -165,7 +165,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_25,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 1.948134s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -180,7 +180,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_29,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_07],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_13, mega_tree_14],
       placement: Timed { start: 2.2907s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -195,7 +195,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_33,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 2.615562s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -210,7 +210,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_35,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 2.623297s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -225,7 +225,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_37,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 2.972826s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -240,7 +240,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_41,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 3.379072s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -255,7 +255,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_45,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_07],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_13, mega_tree_14],
       placement: Timed { start: 3.721341s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -270,7 +270,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_49,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 4.0465s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -285,7 +285,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_51,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 4.054234s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -300,7 +300,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_53,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 4.416293s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -315,7 +315,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_57,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 4.833214s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -330,7 +330,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_61,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_07],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_13, mega_tree_14],
       placement: Timed { start: 5.175781s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -345,7 +345,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_65,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_06],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_11, mega_tree_12],
       placement: Timed { start: 5.508377s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -360,7 +360,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_69,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 5.864171s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -417,7 +417,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_73,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 6.354824s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -474,7 +474,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_77,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 6.638817s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -489,7 +489,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_79,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 6.641011s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -546,7 +546,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_81,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 6.965873s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -561,7 +561,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_83,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 6.973608s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -597,7 +597,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_85,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 7.329402s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -675,7 +675,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_89,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 7.801231s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -732,7 +732,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_93,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 8.071949s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -747,7 +747,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_95,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 8.087419s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -804,7 +804,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_97,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 8.41228s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -819,7 +819,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_99,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 8.420015s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -876,7 +876,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_101,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 8.775809s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -933,7 +933,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_105,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 9.232169s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -990,7 +990,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_109,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 9.518357s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1005,7 +1005,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_111,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 9.520781s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1062,7 +1062,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_113,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 9.848029s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1077,7 +1077,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_115,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 9.850953s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1134,7 +1134,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_117,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 10.206747s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1191,7 +1191,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_121,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 10.686312s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1414,7 +1414,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_125,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 10.95703s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1429,7 +1429,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_127,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 10.972499s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1444,7 +1444,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_129,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 11.297361s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1459,7 +1459,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_131,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 11.305096s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1474,7 +1474,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_133,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 11.66089s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1489,7 +1489,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_137,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 12.180791s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1504,7 +1504,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_141,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 12.46113s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1519,7 +1519,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_143,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 12.466979s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1534,7 +1534,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_145,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 12.791841s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1549,7 +1549,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_147,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 12.799575s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1564,7 +1564,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_149,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 13.155369s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1579,7 +1579,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_153,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 13.627199s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1594,7 +1594,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_157,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 13.910698s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1609,7 +1609,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_159,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 13.913387s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1624,7 +1624,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_161,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 14.245983s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1639,7 +1639,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_163,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 14.248473s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1654,7 +1654,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_165,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 14.601777s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1669,7 +1669,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_169,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 15.058137s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1684,7 +1684,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_173,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 15.344325s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1699,7 +1699,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_175,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 15.346749s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1714,7 +1714,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_177,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 15.669186s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1729,7 +1729,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_179,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 15.676921s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1744,7 +1744,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_181,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 16.032715s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1801,7 +1801,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_185,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 16.512279s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1858,7 +1858,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_189,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_07],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_13, mega_tree_14],
       placement: Timed { start: 16.798335s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1915,7 +1915,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_193,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 17.130997s, duration: 1.409599s },
       content: Effect {
         layer: default,
@@ -1930,7 +1930,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_195,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 17.131063s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1966,7 +1966,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_197,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 17.486857s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2044,7 +2044,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_201,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 18.033889s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2101,7 +2101,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_205,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 18.304607s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2116,7 +2116,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_207,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 18.320076s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2173,7 +2173,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_209,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 18.644938s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2188,7 +2188,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_211,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 18.652673s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2245,7 +2245,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_213,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 19.008467s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2302,7 +2302,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_217,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 19.480296s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2499,7 +2499,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_221,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 19.751014s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2514,7 +2514,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_223,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 19.766484s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2592,7 +2592,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_225,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 20.091346s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2607,7 +2607,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_227,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 20.09908s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2685,7 +2685,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_229,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 20.454874s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2784,7 +2784,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_233,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 20.911234s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2862,7 +2862,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_237,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_07],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_13, mega_tree_14],
       placement: Timed { start: 21.19729s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2919,7 +2919,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_241,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 21.530018s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2934,7 +2934,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_243,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 21.532509s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2991,7 +2991,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_245,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 21.885812s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3006,7 +3006,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_249,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 22.365377s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3063,7 +3063,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_253,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 22.636095s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3078,7 +3078,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_255,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 22.651564s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3135,7 +3135,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_257,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 22.976426s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3150,7 +3150,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_259,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 22.984161s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3207,7 +3207,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_261,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 23.339955s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3285,7 +3285,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_265,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 23.92879s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3342,7 +3342,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_269,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 24.199508s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3378,7 +3378,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_271,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 24.214978s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3414,7 +3414,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_273,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 24.53984s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3429,7 +3429,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_275,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 24.547574s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3486,7 +3486,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_277,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 24.903368s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3564,7 +3564,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_281,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 25.359728s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3657,7 +3657,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_285,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 25.630446s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3672,7 +3672,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_287,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 25.645916s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3854,7 +3854,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_289,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 25.970778s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3869,7 +3869,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_291,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 25.978512s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3884,7 +3884,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_293,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 26.334306s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4067,7 +4067,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_297,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_08],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_15, mega_tree_16],
       placement: Timed { start: 26.942085s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4145,7 +4145,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_301,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 27.379481s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4160,7 +4160,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_303,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 27.394951s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4217,7 +4217,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_305,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 27.88649s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4232,7 +4232,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_307,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 27.894225s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4289,7 +4289,7 @@ Sequence joy_to_the_world {
     Clip {
       name: pulse_309,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 28.275662s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4304,7 +4304,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_124,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_03, mega_tree_pair_06],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_05, mega_tree_06, mega_tree_11, mega_tree_12],
       placement: Timed { start: 28.619363s, duration: 3.432324s },
       content: Effect {
         layer: default,
@@ -27795,7 +27795,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_509,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 119.398771s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -27847,7 +27847,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_512,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 119.600349s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -27873,7 +27873,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_516,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 119.783156s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -27925,7 +27925,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_519,
       description: none,
-      targets: [mega_tree_pair_08],
+      targets: [mega_tree_15, mega_tree_16],
       placement: Timed { start: 119.966631s, duration: 0.339043s },
       content: Effect {
         layer: default,
@@ -28116,7 +28116,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_525,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 120.989146s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -28168,7 +28168,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_528,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 121.198482s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -28194,7 +28194,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_532,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 121.389047s, duration: 0.339717s },
       content: Effect {
         layer: default,
@@ -28246,7 +28246,7 @@ Sequence joy_to_the_world {
     Clip {
       name: chase_535,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 121.5877s, duration: 0.33938s },
       content: Effect {
         layer: default,

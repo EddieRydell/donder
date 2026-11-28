@@ -135,66 +135,6 @@ Layout layout {
       members: [left_arches_01, left_arches_03, left_arches_05, left_arches_07],
     },
     Group {
-      name: mega_tree_even_pairs,
-      description: none,
-      members: [
-        mega_tree_03,
-        mega_tree_04,
-        mega_tree_07,
-        mega_tree_08,
-        mega_tree_11,
-        mega_tree_12,
-        mega_tree_15,
-        mega_tree_16,
-        mega_tree_19,
-        mega_tree_20,
-        mega_tree_23,
-        mega_tree_24,
-        mega_tree_27,
-        mega_tree_28,
-        mega_tree_31,
-        mega_tree_32,
-      ],
-    },
-    Group {
-      name: mega_tree_odd_pairs,
-      description: none,
-      members: [
-        mega_tree_01,
-        mega_tree_02,
-        mega_tree_05,
-        mega_tree_06,
-        mega_tree_09,
-        mega_tree_10,
-        mega_tree_13,
-        mega_tree_14,
-        mega_tree_17,
-        mega_tree_18,
-        mega_tree_21,
-        mega_tree_22,
-        mega_tree_25,
-        mega_tree_26,
-        mega_tree_29,
-        mega_tree_30,
-      ],
-    },
-    Group { name: mega_tree_pair_01, description: none, members: [mega_tree_01, mega_tree_02] },
-    Group { name: mega_tree_pair_02, description: none, members: [mega_tree_03, mega_tree_04] },
-    Group { name: mega_tree_pair_03, description: none, members: [mega_tree_05, mega_tree_06] },
-    Group { name: mega_tree_pair_04, description: none, members: [mega_tree_07, mega_tree_08] },
-    Group { name: mega_tree_pair_05, description: none, members: [mega_tree_09, mega_tree_10] },
-    Group { name: mega_tree_pair_06, description: none, members: [mega_tree_11, mega_tree_12] },
-    Group { name: mega_tree_pair_07, description: none, members: [mega_tree_13, mega_tree_14] },
-    Group { name: mega_tree_pair_08, description: none, members: [mega_tree_15, mega_tree_16] },
-    Group { name: mega_tree_pair_09, description: none, members: [mega_tree_17, mega_tree_18] },
-    Group { name: mega_tree_pair_10, description: none, members: [mega_tree_19, mega_tree_20] },
-    Group { name: mega_tree_pair_11, description: none, members: [mega_tree_21, mega_tree_22] },
-    Group { name: mega_tree_pair_12, description: none, members: [mega_tree_23, mega_tree_24] },
-    Group { name: mega_tree_pair_13, description: none, members: [mega_tree_25, mega_tree_26] },
-    Group { name: mega_tree_pair_14, description: none, members: [mega_tree_27, mega_tree_28] },
-    Group { name: mega_tree_pair_15, description: none, members: [mega_tree_29, mega_tree_30] },
-    Group { name: mega_tree_pair_16, description: none, members: [mega_tree_31, mega_tree_32] },
-    Group {
       name: windows,
       description: none,
       members: [window_1, window_2, window_3, peak_1, peak_2, peak_3],
@@ -758,7 +698,7 @@ Layout layout {
     },
     Group {
       name: mega_tree,
-      description: none,
+      description: "The mega tree's 32 strands, left to right, each 50 lights from the bottom up.",
       members: [
         mega_tree_01,
         mega_tree_02,
@@ -792,24 +732,6 @@ Layout layout {
         mega_tree_30,
         mega_tree_31,
         mega_tree_32,
-        mega_tree_odd_pairs,
-        mega_tree_even_pairs,
-        mega_tree_pair_01,
-        mega_tree_pair_02,
-        mega_tree_pair_03,
-        mega_tree_pair_04,
-        mega_tree_pair_05,
-        mega_tree_pair_06,
-        mega_tree_pair_07,
-        mega_tree_pair_08,
-        mega_tree_pair_09,
-        mega_tree_pair_10,
-        mega_tree_pair_11,
-        mega_tree_pair_12,
-        mega_tree_pair_13,
-        mega_tree_pair_14,
-        mega_tree_pair_15,
-        mega_tree_pair_16,
       ],
     },
     Group {
@@ -2880,7 +2802,7 @@ Layout layout {
       description: none,
       definition: mega_tree_01,
       transform: Transform {
-        position: (6.433647m, 13.838237m, 0m),
+        position: (4.065647m, 4.907238m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2910,7 +2832,7 @@ Layout layout {
       description: none,
       definition: mega_tree_04,
       transform: Transform {
-        position: (6.447913m, 13.823971m, 0m),
+        position: (4.407914m, 4.850971m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2930,7 +2852,7 @@ Layout layout {
       description: none,
       definition: mega_tree_06,
       transform: Transform {
-        position: (6.476445m, 13.809705m, 0m),
+        position: (4.721445m, 4.807705m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2940,7 +2862,7 @@ Layout layout {
       description: none,
       definition: mega_tree_07,
       transform: Transform {
-        position: (6.476445m, 13.809705m, 0m),
+        position: (4.892445m, 4.793705m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2960,7 +2882,7 @@ Layout layout {
       description: none,
       definition: mega_tree_09,
       transform: Transform {
-        position: (6.504978m, 13.795439m, 0m),
+        position: (5.306979m, 4.764439m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -2990,7 +2912,7 @@ Layout layout {
       description: none,
       definition: mega_tree_12,
       transform: Transform {
-        position: (6.53351m, 13.795439m, 0m),
+        position: (5.97751m, 4.736439m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3000,7 +2922,7 @@ Layout layout {
       description: none,
       definition: mega_tree_13,
       transform: Transform {
-        position: (6.547776m, 13.795439m, 0m),
+        position: (6.219776m, 4.736439m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3030,7 +2952,7 @@ Layout layout {
       description: none,
       definition: mega_tree_16,
       transform: Transform {
-        position: (6.590575m, 13.795439m, 0m),
+        position: (6.932575m, 4.736438m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3050,7 +2972,7 @@ Layout layout {
       description: none,
       definition: mega_tree_18,
       transform: Transform {
-        position: (6.619107m, 13.795439m, 0m),
+        position: (7.404107m, 4.736439m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3060,7 +2982,7 @@ Layout layout {
       description: none,
       definition: mega_tree_19,
       transform: Transform {
-        position: (6.619107m, 13.795439m, 0m),
+        position: (7.632106m, 4.750439m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3090,7 +3012,7 @@ Layout layout {
       description: none,
       definition: mega_tree_22,
       transform: Transform {
-        position: (6.661906m, 13.809705m, 0m),
+        position: (8.259906m, 4.793705m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3100,7 +3022,7 @@ Layout layout {
       description: none,
       definition: mega_tree_23,
       transform: Transform {
-        position: (6.661906m, 13.809705m, 0m),
+        position: (8.430907m, 4.807704m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3120,7 +3042,7 @@ Layout layout {
       description: none,
       definition: mega_tree_25,
       transform: Transform {
-        position: (6.690439m, 13.823971m, 0m),
+        position: (8.744439m, 4.850971m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3140,7 +3062,7 @@ Layout layout {
       description: none,
       definition: mega_tree_27,
       transform: Transform {
-        position: (6.704705m, 13.823971m, 0m),
+        position: (9.001704m, 4.892971m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3160,7 +3082,7 @@ Layout layout {
       description: none,
       definition: mega_tree_29,
       transform: Transform {
-        position: (6.704705m, 13.838237m, 0m),
+        position: (9.172705m, 4.936237m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -3180,7 +3102,7 @@ Layout layout {
       description: none,
       definition: mega_tree_31,
       transform: Transform {
-        position: (6.704705m, 13.852504m, 0m),
+        position: (9.258706m, 4.993504m, 0m),
         rotation: (0.0, 0.0, 0.0),
         scale: (1.0, 1.0, 1.0),
       },
@@ -15647,10 +15569,10 @@ FixtureDefinition mega_tree_01 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -104.84993),
+        rotation: (0.0, 0.0, 75.15007),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.239598, count: 50 },
@@ -15698,10 +15620,10 @@ FixtureDefinition mega_tree_04 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -102.8084),
+        rotation: (0.0, 0.0, 77.1916),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.201974, count: 50 },
@@ -15732,10 +15654,10 @@ FixtureDefinition mega_tree_06 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -101.031815),
+        rotation: (0.0, 0.0, 78.968185),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.171479, count: 50 },
@@ -15749,10 +15671,10 @@ FixtureDefinition mega_tree_07 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -99.96447),
+        rotation: (0.0, 0.0, 80.03553),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.154087, count: 50 },
@@ -15783,10 +15705,10 @@ FixtureDefinition mega_tree_09 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -97.556404),
+        rotation: (0.0, 0.0, 82.443596),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.110113, count: 50 },
@@ -15834,10 +15756,10 @@ FixtureDefinition mega_tree_12 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -93.512146),
+        rotation: (0.0, 0.0, 86.487854),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.076046, count: 50 },
@@ -15851,10 +15773,10 @@ FixtureDefinition mega_tree_13 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -92.07361),
+        rotation: (0.0, 0.0, 87.92639),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.064936, count: 50 },
@@ -15902,10 +15824,10 @@ FixtureDefinition mega_tree_16 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -87.83797),
+        rotation: (0.0, 0.0, 92.16203),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.065454, count: 50 },
@@ -15936,10 +15858,10 @@ FixtureDefinition mega_tree_18 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -85.047455),
+        rotation: (0.0, 0.0, 94.952545),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.092948, count: 50 },
@@ -15953,10 +15875,10 @@ FixtureDefinition mega_tree_19 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -83.60976),
+        rotation: (0.0, 0.0, 96.39024),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.101549, count: 50 },
@@ -16004,10 +15926,10 @@ FixtureDefinition mega_tree_22 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -79.94925),
+        rotation: (0.0, 0.0, 100.05075),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.15652, count: 50 },
@@ -16021,10 +15943,10 @@ FixtureDefinition mega_tree_23 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -78.88236),
+        rotation: (0.0, 0.0, 101.11764),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.174169, count: 50 },
@@ -16055,10 +15977,10 @@ FixtureDefinition mega_tree_25 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -77.10662),
+        rotation: (0.0, 0.0, 102.89338),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.205088, count: 50 },
@@ -16089,10 +16011,10 @@ FixtureDefinition mega_tree_27 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -75.57648),
+        rotation: (0.0, 0.0, 104.42352),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.221658, count: 50 },
@@ -16123,10 +16045,10 @@ FixtureDefinition mega_tree_29 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -74.50444),
+        rotation: (0.0, 0.0, 105.49556),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.2377825, count: 50 },
@@ -16157,10 +16079,10 @@ FixtureDefinition mega_tree_31 {
     Shape {
       name: shape_1,
       diameter: 0.043m,
-      reverse: true,
+      reverse: false,
       transform: Transform {
         position: (0m, 0m, 0m),
-        rotation: (0.0, 0.0, -73.91802),
+        rotation: (0.0, 0.0, 106.08198),
         scale: (1.0, 1.0, 1.0),
       },
       geometry: Line { length: 9.219805, count: 50 },

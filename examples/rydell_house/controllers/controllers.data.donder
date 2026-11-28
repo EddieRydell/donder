@@ -119,7 +119,7 @@ Controller fran_roof_windows {
 }
 
 Controller megatree {
-  description: "Vixen controllers: Megatree, Megatree Extra",
+  description: "Genius PRO input 1: mega tree strings 1-8, one 100-light string per output, each up one strand and back down the next",
   protocol: E131 {
     sender_name: "Donder",
     bind_address: "0.0.0.0",
@@ -129,12 +129,21 @@ Controller megatree {
     universes: 5,
     channels: 510,
     fseq_channel: 11731,
-    ports: [Port { name: "1", description: none }],
+    ports: [
+      Port { name: "5", description: "String 1" },
+      Port { name: "7", description: "String 2" },
+      Port { name: "2", description: "String 3" },
+      Port { name: "16", description: "String 4" },
+      Port { name: "15", description: "String 5" },
+      Port { name: "4", description: "String 6" },
+      Port { name: "14", description: "String 7" },
+      Port { name: "11", description: "String 8" },
+    ],
   },
 }
 
 Controller megatree_2 {
-  description: "Vixen controllers: Megatree, Megatree Extra",
+  description: "Genius PRO input 2: mega tree strings 9-16, one 100-light string per output, each up one strand and back down the next",
   protocol: E131 {
     sender_name: "Donder",
     bind_address: "0.0.0.0",
@@ -144,7 +153,16 @@ Controller megatree_2 {
     universes: 5,
     channels: 510,
     fseq_channel: 87913,
-    ports: [Port { name: "1", description: none }],
+    ports: [
+      Port { name: "9", description: "String 9" },
+      Port { name: "1", description: "String 10" },
+      Port { name: "3", description: "String 11" },
+      Port { name: "8", description: "String 12" },
+      Port { name: "13", description: "String 13" },
+      Port { name: "12", description: "String 14" },
+      Port { name: "10", description: "String 15" },
+      Port { name: "6", description: "String 16" },
+    ],
   },
 }
 

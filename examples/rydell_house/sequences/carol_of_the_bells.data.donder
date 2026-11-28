@@ -23270,7 +23270,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1262,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 63.17892s, duration: 7.658404s },
       content: Effect {
         layer: default,
@@ -23302,14 +23302,36 @@ Sequence carol_of_the_bells {
       name: chase_1264,
       description: none,
       targets: [
-        mega_tree_even_pairs,
-        mega_tree_pair_03,
-        mega_tree_pair_05,
-        mega_tree_pair_07,
-        mega_tree_pair_09,
-        mega_tree_pair_11,
-        mega_tree_pair_13,
-        mega_tree_pair_15,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_19,
+        mega_tree_20,
+        mega_tree_23,
+        mega_tree_24,
+        mega_tree_27,
+        mega_tree_28,
+        mega_tree_31,
+        mega_tree_32,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_29,
+        mega_tree_30,
       ],
       placement: Timed { start: 63.17892s, duration: 7.658404s },
       content: Effect {
@@ -32074,7 +32096,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1575,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_15],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_29, mega_tree_30],
       placement: Timed { start: 75.608428s, duration: 1.100262s },
       content: Effect {
         layer: default,
@@ -33530,7 +33552,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1585,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_07, mega_tree_pair_13],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_13, mega_tree_14, mega_tree_25, mega_tree_26],
       placement: Timed { start: 75.661614s, duration: 1.098054s },
       content: Effect {
         layer: default,
@@ -33562,7 +33584,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1587,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 75.661614s, duration: 1.098054s },
       content: Effect {
         layer: default,
@@ -33850,7 +33872,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1601,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 75.717791s, duration: 1.041877s },
       content: Effect {
         layer: default,
@@ -33946,7 +33968,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1609,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_14, mega_tree_pair_16],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_27, mega_tree_28, mega_tree_31, mega_tree_32],
       placement: Timed { start: 75.772424s, duration: 1.129597s },
       content: Effect {
         layer: default,
@@ -34234,7 +34256,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1625,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_08, mega_tree_pair_09],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_15, mega_tree_16, mega_tree_17, mega_tree_18],
       placement: Timed { start: 75.868989s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -34266,7 +34288,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1627,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 75.868989s, duration: 1.033032s },
       content: Effect {
         layer: default,
@@ -34298,7 +34320,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1633,
       description: none,
-      targets: [mega_tree_pair_12],
+      targets: [mega_tree_23, mega_tree_24],
       placement: Timed { start: 75.868989s, duration: 1.033032s },
       content: Effect {
         layer: default,
@@ -34458,7 +34480,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1643,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_10, mega_tree_pair_15],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_19, mega_tree_20, mega_tree_29, mega_tree_30],
       placement: Timed { start: 75.936387s, duration: 1.119298s },
       content: Effect {
         layer: default,
@@ -34618,7 +34640,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1655,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_07, mega_tree_pair_13],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_13, mega_tree_14, mega_tree_25, mega_tree_26],
       placement: Timed { start: 76.008609s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -34650,7 +34672,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1657,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 76.008609s, duration: 1.047076s },
       content: Effect {
         layer: default,
@@ -34938,7 +34960,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1671,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 76.064786s, duration: 0.990899s },
       content: Effect {
         layer: default,
@@ -35044,7 +35066,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1689,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_14, mega_tree_pair_16],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_27, mega_tree_28, mega_tree_31, mega_tree_32],
       placement: Timed { start: 76.124696s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -35237,12 +35259,18 @@ Sequence carol_of_the_bells {
       name: chase_1702,
       description: none,
       targets: [
-        mega_tree_pair_01,
-        mega_tree_pair_04,
-        mega_tree_pair_08,
-        mega_tree_pair_09,
-        mega_tree_pair_10,
-        mega_tree_pair_15,
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+        mega_tree_29,
+        mega_tree_30,
       ],
       placement: Timed { start: 76.215984s, duration: 1.12432s },
       content: Effect {
@@ -35275,7 +35303,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1706,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 76.215984s, duration: 1.033032s },
       content: Effect {
         layer: default,
@@ -35307,7 +35335,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1714,
       description: none,
-      targets: [mega_tree_pair_12],
+      targets: [mega_tree_23, mega_tree_24],
       placement: Timed { start: 76.215984s, duration: 1.033032s },
       content: Effect {
         layer: default,
@@ -35403,7 +35431,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1720,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 76.314047s, duration: 1.091607s },
       content: Effect {
         layer: default,
@@ -35595,7 +35623,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1727,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 76.33049s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -35691,7 +35719,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1731,
       description: none,
-      targets: [mega_tree_pair_13],
+      targets: [mega_tree_25, mega_tree_26],
       placement: Timed { start: 76.344534s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -35787,7 +35815,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1736,
       description: none,
-      targets: [mega_tree_pair_08],
+      targets: [mega_tree_15, mega_tree_16],
       placement: Timed { start: 76.352381s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -35883,7 +35911,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1740,
       description: none,
-      targets: [mega_tree_pair_09],
+      targets: [mega_tree_17, mega_tree_18],
       placement: Timed { start: 76.362693s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -35979,7 +36007,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1744,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 76.372623s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -36139,7 +36167,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1750,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 76.418488s, duration: 0.987166s },
       content: Effect {
         layer: default,
@@ -36171,7 +36199,7 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_1752,
       description: none,
-      targets: [mega_tree_pair_16],
+      targets: [mega_tree_31, mega_tree_32],
       placement: Timed { start: 76.418488s, duration: 1.12432s },
       content: Effect {
         layer: default,
@@ -62685,7 +62713,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_3790,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03, mega_tree_pair_04],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+      ],
       placement: Timed { start: 107.969911s, duration: 1.441621s },
       content: Effect {
         layer: default,
@@ -64404,7 +64441,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_3922,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_07, mega_tree_pair_08],
+      targets: [
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+      ],
       placement: Timed { start: 109.098517s, duration: 1.380741s },
       content: Effect {
         layer: default,
@@ -65882,7 +65928,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4055,
       description: none,
-      targets: [mega_tree_pair_09, mega_tree_pair_10, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+      ],
       placement: Timed { start: 110.225524s, duration: 1.368987s },
       content: Effect {
         layer: default,
@@ -67245,7 +67300,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4172,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 111.35301s, duration: 1.445386s },
       content: Effect {
         layer: default,
@@ -68579,7 +68643,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4301,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03, mega_tree_pair_04],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+      ],
       placement: Timed { start: 112.562275s, duration: 1.412318s },
       content: Effect {
         layer: default,
@@ -69808,7 +69881,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4421,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_07, mega_tree_pair_08],
+      targets: [
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+      ],
       placement: Timed { start: 113.6336s, duration: 1.467999s },
       content: Effect {
         layer: default,
@@ -71305,7 +71387,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4555,
       description: none,
-      targets: [mega_tree_pair_09, mega_tree_pair_10, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+      ],
       placement: Timed { start: 114.760213s, duration: 1.427421s },
       content: Effect {
         layer: default,
@@ -72602,7 +72693,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4674,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 116.013189s, duration: 1.357005s },
       content: Effect {
         layer: default,
@@ -73878,7 +73978,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4793,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03, mega_tree_pair_04],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+      ],
       placement: Timed { start: 117.029004s, duration: 1.345678s },
       content: Effect {
         layer: default,
@@ -75076,7 +75185,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_4906,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_07, mega_tree_pair_08],
+      targets: [
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+      ],
       placement: Timed { start: 118.026511s, duration: 1.476066s },
       content: Effect {
         layer: default,
@@ -76463,7 +76581,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_5024,
       description: none,
-      targets: [mega_tree_pair_09, mega_tree_pair_10, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+      ],
       placement: Timed { start: 119.191357s, duration: 1.416183s },
       content: Effect {
         layer: default,
@@ -77586,7 +77713,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_5150,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 120.395241s, duration: 1.425277s },
       content: Effect {
         layer: default,
@@ -79062,7 +79198,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_5282,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03, mega_tree_pair_04],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+      ],
       placement: Timed { start: 121.439938s, duration: 1.393654s },
       content: Effect {
         layer: default,
@@ -80361,7 +80506,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_5409,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_07, mega_tree_pair_08],
+      targets: [
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+      ],
       placement: Timed { start: 122.533861s, duration: 1.424885s },
       content: Effect {
         layer: default,
@@ -81488,7 +81642,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_5508,
       description: none,
-      targets: [mega_tree_pair_09, mega_tree_pair_10, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+      ],
       placement: Timed { start: 123.649115s, duration: 1.416183s },
       content: Effect {
         layer: default,
@@ -82674,7 +82837,16 @@ Sequence carol_of_the_bells {
     Clip {
       name: chase_5642,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 124.828865s, duration: 1.440317s },
       content: Effect {
         layer: default,

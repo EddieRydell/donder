@@ -346,7 +346,7 @@ Sequence rainbow {
     Clip {
       name: pulse_10,
       description: none,
-      targets: [mega_tree_pair_09],
+      targets: [mega_tree_17, mega_tree_18],
       placement: Timed { start: 1.0604s, duration: 7.06728s },
       content: Effect {
         layer: default,
@@ -376,7 +376,7 @@ Sequence rainbow {
     Clip {
       name: pulse_13,
       description: none,
-      targets: [mega_tree_pair_08],
+      targets: [mega_tree_15, mega_tree_16],
       placement: Timed { start: 1.07968s, duration: 7.06728s },
       content: Effect {
         layer: default,
@@ -833,7 +833,7 @@ Sequence rainbow {
     Clip {
       name: pulse_37,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_10],
+      targets: [mega_tree_13, mega_tree_14, mega_tree_19, mega_tree_20],
       placement: Timed { start: 2.62208s, duration: 5.404223s },
       content: Effect {
         layer: default,
@@ -1181,7 +1181,7 @@ Sequence rainbow {
     Clip {
       name: pulse_64,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 3.99096s, duration: 4.207023s },
       content: Effect {
         layer: default,
@@ -1226,7 +1226,7 @@ Sequence rainbow {
     Clip {
       name: pulse_68,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 4.08736s, duration: 4.091343s },
       content: Effect {
         layer: default,
@@ -1372,7 +1372,7 @@ Sequence rainbow {
     Clip {
       name: pulse_74,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 4.6272s, duration: 3.611983s },
       content: Effect {
         layer: default,
@@ -1402,7 +1402,7 @@ Sequence rainbow {
     Clip {
       name: pulse_80,
       description: none,
-      targets: [mega_tree_pair_12, mega_tree_pair_13],
+      targets: [mega_tree_23, mega_tree_24, mega_tree_25, mega_tree_26],
       placement: Timed { start: 4.68504s, duration: 3.534863s },
       content: Effect {
         layer: default,
@@ -1555,7 +1555,7 @@ Sequence rainbow {
     Clip {
       name: pulse_91,
       description: none,
-      targets: [mega_tree_pair_14],
+      targets: [mega_tree_27, mega_tree_28],
       placement: Timed { start: 5.05136s, duration: 3.129983s },
       content: Effect {
         layer: default,
@@ -1585,7 +1585,7 @@ Sequence rainbow {
     Clip {
       name: pulse_94,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 5.1092s, duration: 2.975743s },
       content: Effect {
         layer: default,
@@ -1856,7 +1856,7 @@ Sequence rainbow {
     Clip {
       name: pulse_103,
       description: none,
-      targets: [mega_tree_pair_15],
+      targets: [mega_tree_29, mega_tree_30],
       placement: Timed { start: 5.45624s, duration: 2.744383s },
       content: Effect {
         layer: default,
@@ -1901,7 +1901,7 @@ Sequence rainbow {
     Clip {
       name: pulse_107,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 5.51408s, duration: 2.725103s },
       content: Effect {
         layer: default,
@@ -2045,7 +2045,7 @@ Sequence rainbow {
     Clip {
       name: pulse_112,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 5.95752s, duration: 2.204543s },
       content: Effect {
         layer: default,
@@ -2090,7 +2090,7 @@ Sequence rainbow {
     Clip {
       name: pulse_117,
       description: none,
-      targets: [mega_tree_pair_16],
+      targets: [mega_tree_31, mega_tree_32],
       placement: Timed { start: 5.99608s, duration: 2.204543s },
       content: Effect {
         layer: default,
@@ -2438,7 +2438,7 @@ Sequence rainbow {
     Clip {
       name: pulse_125,
       description: none,
-      targets: [mega_tree_pair_09],
+      targets: [mega_tree_17, mega_tree_18],
       placement: Timed { start: 12.532s, duration: 7.06728s },
       content: Effect {
         layer: default,
@@ -2489,7 +2489,7 @@ Sequence rainbow {
     Clip {
       name: pulse_128,
       description: none,
-      targets: [mega_tree_pair_08],
+      targets: [mega_tree_15, mega_tree_16],
       placement: Timed { start: 12.55128s, duration: 7.06728s },
       content: Effect {
         layer: default,
@@ -2883,7 +2883,7 @@ Sequence rainbow {
     Clip {
       name: pulse_142,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_10],
+      targets: [mega_tree_13, mega_tree_14, mega_tree_19, mega_tree_20],
       placement: Timed { start: 14.09368s, duration: 5.404223s },
       content: Effect {
         layer: default,
@@ -3115,7 +3115,7 @@ Sequence rainbow {
     Clip {
       name: pulse_154,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 15.46256s, duration: 4.207023s },
       content: Effect {
         layer: default,
@@ -3145,7 +3145,7 @@ Sequence rainbow {
     Clip {
       name: pulse_157,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 15.55896s, duration: 4.091343s },
       content: Effect {
         layer: default,
@@ -3567,7 +3567,7 @@ Sequence rainbow {
     Clip {
       name: pulse_164,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05],
+      targets: [mega_tree_07, mega_tree_08, mega_tree_09, mega_tree_10],
       placement: Timed { start: 16.0988s, duration: 3.611983s },
       content: Effect {
         layer: default,
@@ -3627,7 +3627,7 @@ Sequence rainbow {
     Clip {
       name: pulse_174,
       description: none,
-      targets: [mega_tree_pair_12, mega_tree_pair_13],
+      targets: [mega_tree_23, mega_tree_24, mega_tree_25, mega_tree_26],
       placement: Timed { start: 16.15664s, duration: 3.534863s },
       content: Effect {
         layer: default,
@@ -3741,7 +3741,7 @@ Sequence rainbow {
     Clip {
       name: pulse_180,
       description: none,
-      targets: [mega_tree_pair_14],
+      targets: [mega_tree_27, mega_tree_28],
       placement: Timed { start: 16.52296s, duration: 3.129983s },
       content: Effect {
         layer: default,
@@ -3771,7 +3771,7 @@ Sequence rainbow {
     Clip {
       name: pulse_183,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 16.5808s, duration: 2.975743s },
       content: Effect {
         layer: default,
@@ -4013,7 +4013,7 @@ Sequence rainbow {
     Clip {
       name: pulse_190,
       description: none,
-      targets: [mega_tree_pair_15],
+      targets: [mega_tree_29, mega_tree_30],
       placement: Timed { start: 16.92784s, duration: 2.744383s },
       content: Effect {
         layer: default,
@@ -4073,7 +4073,7 @@ Sequence rainbow {
     Clip {
       name: pulse_195,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 16.98568s, duration: 2.725103s },
       content: Effect {
         layer: default,
@@ -4209,7 +4209,7 @@ Sequence rainbow {
     Clip {
       name: pulse_198,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 17.42912s, duration: 2.204543s },
       content: Effect {
         layer: default,
@@ -4239,7 +4239,7 @@ Sequence rainbow {
     Clip {
       name: pulse_201,
       description: none,
-      targets: [mega_tree_pair_16],
+      targets: [mega_tree_31, mega_tree_32],
       placement: Timed { start: 17.46768s, duration: 2.204543s },
       content: Effect {
         layer: default,
@@ -22303,7 +22303,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_108,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 96.96s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22324,7 +22324,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_110,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 96.99028s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22345,7 +22345,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_112,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 97.02355s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22366,7 +22366,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_114,
       description: none,
-      targets: [mega_tree_pair_04],
+      targets: [mega_tree_07, mega_tree_08],
       placement: Timed { start: 97.05196s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22387,7 +22387,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_116,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 97.08168s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22408,7 +22408,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_118,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 97.11224s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22429,7 +22429,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_120,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 97.13794s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22450,7 +22450,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_122,
       description: none,
-      targets: [mega_tree_pair_08],
+      targets: [mega_tree_15, mega_tree_16],
       placement: Timed { start: 97.17037s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22471,7 +22471,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_124,
       description: none,
-      targets: [mega_tree_pair_09],
+      targets: [mega_tree_17, mega_tree_18],
       placement: Timed { start: 97.20467s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22492,7 +22492,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_126,
       description: none,
-      targets: [mega_tree_pair_10],
+      targets: [mega_tree_19, mega_tree_20],
       placement: Timed { start: 97.23159s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22513,7 +22513,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_128,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 97.280296s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22534,7 +22534,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_130,
       description: none,
-      targets: [mega_tree_pair_12],
+      targets: [mega_tree_23, mega_tree_24],
       placement: Timed { start: 97.328497s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22555,7 +22555,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_132,
       description: none,
-      targets: [mega_tree_pair_13],
+      targets: [mega_tree_25, mega_tree_26],
       placement: Timed { start: 97.346572s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22576,7 +22576,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_134,
       description: none,
-      targets: [mega_tree_pair_14],
+      targets: [mega_tree_27, mega_tree_28],
       placement: Timed { start: 97.388747s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22597,7 +22597,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_136,
       description: none,
-      targets: [mega_tree_pair_15],
+      targets: [mega_tree_29, mega_tree_30],
       placement: Timed { start: 97.503223s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22618,7 +22618,7 @@ Sequence rainbow {
     Clip {
       name: butterfly_138,
       description: none,
-      targets: [mega_tree_pair_16],
+      targets: [mega_tree_31, mega_tree_32],
       placement: Timed { start: 97.617699s, duration: 5.336s },
       content: Effect {
         layer: default,
@@ -22960,7 +22960,7 @@ Sequence rainbow {
     Clip {
       name: envelope_46,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 96.96s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -22975,7 +22975,7 @@ Sequence rainbow {
     Clip {
       name: envelope_48,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 96.99028s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -22990,7 +22990,7 @@ Sequence rainbow {
     Clip {
       name: envelope_50,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 97.02355s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23005,7 +23005,7 @@ Sequence rainbow {
     Clip {
       name: envelope_52,
       description: none,
-      targets: [mega_tree_pair_04],
+      targets: [mega_tree_07, mega_tree_08],
       placement: Timed { start: 97.05196s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23020,7 +23020,7 @@ Sequence rainbow {
     Clip {
       name: envelope_54,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 97.08168s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23035,7 +23035,7 @@ Sequence rainbow {
     Clip {
       name: envelope_56,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 97.11224s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23050,7 +23050,7 @@ Sequence rainbow {
     Clip {
       name: envelope_58,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 97.13794s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23065,7 +23065,7 @@ Sequence rainbow {
     Clip {
       name: envelope_60,
       description: none,
-      targets: [mega_tree_pair_08],
+      targets: [mega_tree_15, mega_tree_16],
       placement: Timed { start: 97.17037s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23080,7 +23080,7 @@ Sequence rainbow {
     Clip {
       name: envelope_62,
       description: none,
-      targets: [mega_tree_pair_09],
+      targets: [mega_tree_17, mega_tree_18],
       placement: Timed { start: 97.20467s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23095,7 +23095,7 @@ Sequence rainbow {
     Clip {
       name: envelope_64,
       description: none,
-      targets: [mega_tree_pair_10],
+      targets: [mega_tree_19, mega_tree_20],
       placement: Timed { start: 97.23159s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23110,7 +23110,7 @@ Sequence rainbow {
     Clip {
       name: envelope_66,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 97.280296s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23125,7 +23125,7 @@ Sequence rainbow {
     Clip {
       name: envelope_68,
       description: none,
-      targets: [mega_tree_pair_12],
+      targets: [mega_tree_23, mega_tree_24],
       placement: Timed { start: 97.328497s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23140,7 +23140,7 @@ Sequence rainbow {
     Clip {
       name: envelope_70,
       description: none,
-      targets: [mega_tree_pair_13],
+      targets: [mega_tree_25, mega_tree_26],
       placement: Timed { start: 97.346572s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23155,7 +23155,7 @@ Sequence rainbow {
     Clip {
       name: envelope_72,
       description: none,
-      targets: [mega_tree_pair_14],
+      targets: [mega_tree_27, mega_tree_28],
       placement: Timed { start: 97.388747s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23170,7 +23170,7 @@ Sequence rainbow {
     Clip {
       name: envelope_74,
       description: none,
-      targets: [mega_tree_pair_15],
+      targets: [mega_tree_29, mega_tree_30],
       placement: Timed { start: 97.503223s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },
@@ -23185,7 +23185,7 @@ Sequence rainbow {
     Clip {
       name: envelope_76,
       description: none,
-      targets: [mega_tree_pair_16],
+      targets: [mega_tree_31, mega_tree_32],
       placement: Timed { start: 97.617699s, duration: 5.336s },
       content: Envelope {
         curve: Curve { points: [(0.0, 1.0), (0.9056, 0.0076), (0.9435, 0.0), (1.0, 0.0)] },

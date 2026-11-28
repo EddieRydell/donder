@@ -158,7 +158,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_16,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 0.391806s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -218,7 +227,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_32,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+      ],
       placement: Timed { start: 0.787616s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -233,7 +251,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_40,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+      ],
       placement: Timed { start: 1.145567s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -263,7 +290,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_51,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 1.526419s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -278,7 +314,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_59,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 1.948134s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -293,7 +338,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_67,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+      ],
       placement: Timed { start: 2.2907s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -308,7 +362,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_75,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 2.615562s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -323,7 +377,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_79,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 2.623297s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -338,7 +392,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_83,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 2.972826s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -353,7 +416,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_91,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 3.379072s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -368,7 +440,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_99,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+      ],
       placement: Timed { start: 3.721341s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -383,7 +464,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_107,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 4.0465s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -398,7 +479,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_111,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 4.054234s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -413,7 +494,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_115,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 4.416293s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -428,7 +518,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_123,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 4.833214s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -443,7 +542,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_131,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+      ],
       placement: Timed { start: 5.175781s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -458,7 +566,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_139,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+      ],
       placement: Timed { start: 5.508377s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -473,7 +590,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_147,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 5.864171s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -530,7 +656,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_155,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 6.354824s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -587,7 +722,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_163,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 6.638817s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -602,7 +737,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_167,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 6.641011s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -659,7 +794,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_171,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 6.965873s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -674,7 +809,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_175,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 6.973608s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -710,7 +845,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_179,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 7.329402s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -788,7 +932,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_187,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 7.801231s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -845,7 +998,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_195,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 8.071949s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -860,7 +1013,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_199,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 8.087419s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -917,7 +1070,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_203,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 8.41228s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -932,7 +1085,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_207,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 8.420015s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -989,7 +1142,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_211,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 8.775809s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1046,7 +1208,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_219,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 9.232169s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1103,7 +1274,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_227,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 9.518357s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1118,7 +1289,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_231,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 9.520781s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1175,7 +1346,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_235,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 9.848029s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1190,7 +1361,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_239,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 9.850953s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1247,7 +1418,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_243,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 10.206747s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1304,7 +1484,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_251,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 10.686312s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1527,7 +1716,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_259,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 10.95703s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1542,7 +1731,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_263,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 10.972499s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1557,7 +1746,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_267,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 11.297361s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1572,7 +1761,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_271,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 11.305096s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1587,7 +1776,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_275,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 11.66089s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1602,7 +1800,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_283,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 12.180791s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1617,7 +1824,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_291,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 12.46113s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1632,7 +1839,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_295,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 12.466979s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1647,7 +1854,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_299,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 12.791841s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1662,7 +1869,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_303,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 12.799575s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1677,7 +1884,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_307,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 13.155369s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1692,7 +1908,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_315,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 13.627199s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1707,7 +1932,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_323,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 13.910698s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1722,7 +1947,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_327,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 13.913387s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1737,7 +1962,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_331,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 14.245983s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1752,7 +1977,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_335,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 14.248473s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1767,7 +1992,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_339,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 14.601777s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1782,7 +2016,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_347,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 15.058137s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1797,7 +2040,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_355,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 15.344325s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1812,7 +2055,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_359,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 15.346749s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1827,7 +2070,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_363,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 15.669186s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1842,7 +2085,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_367,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 15.676921s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1857,7 +2100,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_371,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 16.032715s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1914,7 +2166,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_379,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 16.512279s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -1971,7 +2232,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_387,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+      ],
       placement: Timed { start: 16.798335s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2028,7 +2298,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_395,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 17.130997s, duration: 1.409599s },
       content: Effect {
         layer: default,
@@ -2043,7 +2313,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_399,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 17.131063s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2079,7 +2349,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_403,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 17.486857s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2157,7 +2436,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_411,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 18.033889s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2214,7 +2502,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_419,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 18.304607s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2229,7 +2517,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_423,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 18.320076s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2286,7 +2574,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_427,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 18.644938s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2301,7 +2589,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_431,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 18.652673s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2358,7 +2646,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_435,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 19.008467s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2415,7 +2712,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_443,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 19.480296s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2612,7 +2918,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_451,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 19.751014s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2627,7 +2933,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_455,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 19.766484s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2705,7 +3011,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_459,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 20.091346s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2720,7 +3026,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_463,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 20.09908s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2798,7 +3104,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_467,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 20.454874s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2897,7 +3212,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_475,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 20.911234s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -2975,7 +3299,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_483,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+      ],
       placement: Timed { start: 21.19729s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3032,7 +3365,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_491,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 21.530018s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3047,7 +3380,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_495,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 21.532509s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3104,7 +3437,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_499,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 21.885812s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3119,7 +3461,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_507,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 22.365377s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3176,7 +3527,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_515,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 22.636095s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3191,7 +3542,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_519,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 22.651564s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3248,7 +3599,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_523,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 22.976426s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3263,7 +3614,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_527,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 22.984161s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3320,7 +3671,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_531,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 23.339955s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3398,7 +3758,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_539,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 23.92879s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3455,7 +3824,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_547,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 24.199508s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3491,7 +3860,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_551,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 24.214978s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3527,7 +3896,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_555,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 24.53984s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3542,7 +3911,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_559,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 24.547574s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3599,7 +3968,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_563,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 24.903368s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3677,7 +4055,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_571,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 25.359728s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3770,7 +4157,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_579,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 25.630446s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3785,7 +4172,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_583,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 25.645916s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3967,7 +4354,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_587,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 25.970778s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3982,7 +4369,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_591,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 25.978512s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -3997,7 +4384,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_595,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 26.334306s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4180,7 +4576,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_603,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 26.942085s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4258,7 +4663,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_611,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 27.379481s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4273,7 +4678,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_615,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 27.394951s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4330,7 +4735,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_619,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 27.88649s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4345,7 +4750,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_623,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12],
+      targets: [mega_tree_21, mega_tree_22, mega_tree_23, mega_tree_24],
       placement: Timed { start: 27.894225s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4402,7 +4807,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: pulse_627,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 28.275662s, duration: 1.412155s },
       content: Effect {
         layer: default,
@@ -4418,15 +4832,24 @@ Sequence trans_siberian_mix {
       name: chase_124,
       description: none,
       targets: [
-        mega_tree_pair_02,
-        mega_tree_pair_03,
-        mega_tree_pair_04,
-        mega_tree_pair_05,
-        mega_tree_pair_06,
-        mega_tree_pair_07,
-        mega_tree_pair_11,
-        mega_tree_pair_12,
-        mega_tree_pair_13,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+        mega_tree_25,
+        mega_tree_26,
       ],
       placement: Timed { start: 28.619363s, duration: 3.432324s },
       content: Effect {
@@ -4449,11 +4872,16 @@ Sequence trans_siberian_mix {
       name: chase_142,
       description: none,
       targets: [
-        mega_tree_pair_01,
-        mega_tree_pair_08,
-        mega_tree_pair_10,
-        mega_tree_pair_14,
-        mega_tree_pair_16,
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_19,
+        mega_tree_20,
+        mega_tree_27,
+        mega_tree_28,
+        mega_tree_31,
+        mega_tree_32,
       ],
       placement: Timed { start: 28.629796s, duration: 3.432324s },
       content: Effect {
@@ -4490,7 +4918,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_152,
       description: none,
-      targets: [mega_tree_pair_09, mega_tree_pair_15],
+      targets: [mega_tree_17, mega_tree_18, mega_tree_29, mega_tree_30],
       placement: Timed { start: 28.640222s, duration: 3.432324s },
       content: Effect {
         layer: default,
@@ -29278,7 +29706,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_522,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_03, grass_1],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_05, mega_tree_06, grass_1],
       placement: Timed { start: 119.17374s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29304,7 +29732,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_526,
       description: none,
-      targets: [mega_tree_pair_01, grass_1],
+      targets: [mega_tree_01, mega_tree_02, grass_1],
       placement: Timed { start: 119.177033s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29330,7 +29758,15 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_528,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05, mega_tree_pair_06, grass_2],
+      targets: [
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        grass_2,
+      ],
       placement: Timed { start: 119.398771s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29357,10 +29793,14 @@ Sequence trans_siberian_mix {
       name: chase_534,
       description: none,
       targets: [
-        mega_tree_pair_07,
-        mega_tree_pair_08,
-        mega_tree_pair_09,
-        mega_tree_pair_10,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
         grass_3,
         grass_4,
       ],
@@ -29389,7 +29829,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_542,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12, mega_tree_pair_13, grass_4, grass_5],
+      targets: [
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+        mega_tree_25,
+        mega_tree_26,
+        grass_4,
+        grass_5,
+      ],
       placement: Timed { start: 119.783156s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29415,7 +29864,15 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_548,
       description: none,
-      targets: [mega_tree_pair_14, mega_tree_pair_15, mega_tree_pair_16, grass_5],
+      targets: [
+        mega_tree_27,
+        mega_tree_28,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+        grass_5,
+      ],
       placement: Timed { start: 119.966631s, duration: 0.339043s },
       content: Effect {
         layer: default,
@@ -29441,7 +29898,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_554,
       description: none,
-      targets: [mega_tree_pair_14, mega_tree_pair_16, grass_5],
+      targets: [mega_tree_27, mega_tree_28, mega_tree_31, mega_tree_32, grass_5],
       placement: Timed { start: 120.764116s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29467,7 +29924,7 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_558,
       description: none,
-      targets: [mega_tree_pair_15, grass_5],
+      targets: [mega_tree_29, mega_tree_30, grass_5],
       placement: Timed { start: 120.767408s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29493,7 +29950,16 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_560,
       description: none,
-      targets: [mega_tree_pair_11, mega_tree_pair_12, mega_tree_pair_13, grass_4, grass_5],
+      targets: [
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+        mega_tree_25,
+        mega_tree_26,
+        grass_4,
+        grass_5,
+      ],
       placement: Timed { start: 120.989146s, duration: 0.33938s },
       content: Effect {
         layer: default,
@@ -29520,10 +29986,14 @@ Sequence trans_siberian_mix {
       name: chase_566,
       description: none,
       targets: [
-        mega_tree_pair_07,
-        mega_tree_pair_08,
-        mega_tree_pair_09,
-        mega_tree_pair_10,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
         grass_3,
         grass_4,
       ],
@@ -29552,7 +30022,15 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_574,
       description: none,
-      targets: [mega_tree_pair_04, mega_tree_pair_05, mega_tree_pair_06, grass_2],
+      targets: [
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        grass_2,
+      ],
       placement: Timed { start: 121.389047s, duration: 0.339717s },
       content: Effect {
         layer: default,
@@ -29578,7 +30056,15 @@ Sequence trans_siberian_mix {
     Clip {
       name: chase_580,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_03, grass_1],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_05,
+        mega_tree_06,
+        grass_1,
+      ],
       placement: Timed { start: 121.5877s, duration: 0.33938s },
       content: Effect {
         layer: default,

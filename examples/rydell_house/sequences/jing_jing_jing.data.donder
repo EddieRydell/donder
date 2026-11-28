@@ -1694,7 +1694,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_4,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02],
+      targets: [mega_tree_01, mega_tree_02, mega_tree_03, mega_tree_04],
       placement: Timed { start: 11.213991s, duration: 0.568031s },
       content: Effect {
         layer: default,
@@ -1799,7 +1799,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_10,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04],
+      targets: [mega_tree_05, mega_tree_06, mega_tree_07, mega_tree_08],
       placement: Timed { start: 11.455752s, duration: 0.568031s },
       content: Effect {
         layer: default,
@@ -1883,7 +1883,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_16,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 11.734707s, duration: 0.605225s },
       content: Effect {
         layer: default,
@@ -1937,7 +1937,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_19,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 11.846289s, duration: 0.605225s },
       content: Effect {
         layer: default,
@@ -2021,7 +2021,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_22,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08],
+      targets: [mega_tree_13, mega_tree_14, mega_tree_15, mega_tree_16],
       placement: Timed { start: 12.134543s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -2090,7 +2090,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_28,
       description: none,
-      targets: [mega_tree_pair_09],
+      targets: [mega_tree_17, mega_tree_18],
       placement: Timed { start: 12.367005s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -2174,7 +2174,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_31,
       description: none,
-      targets: [mega_tree_pair_10, mega_tree_pair_11],
+      targets: [mega_tree_19, mega_tree_20, mega_tree_21, mega_tree_22],
       placement: Timed { start: 12.478587s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -2228,7 +2228,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_37,
       description: none,
-      targets: [mega_tree_pair_12],
+      targets: [mega_tree_23, mega_tree_24],
       placement: Timed { start: 12.599468s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -2297,7 +2297,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_40,
       description: none,
-      targets: [mega_tree_pair_13, mega_tree_pair_14],
+      targets: [mega_tree_25, mega_tree_26, mega_tree_27, mega_tree_28],
       placement: Timed { start: 12.748244s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -2366,7 +2366,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_46,
       description: none,
-      targets: [mega_tree_pair_15, mega_tree_pair_16],
+      targets: [mega_tree_29, mega_tree_30, mega_tree_31, mega_tree_32],
       placement: Timed { start: 12.89702s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3005,7 +3005,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_57,
       description: none,
-      targets: [mega_tree_pair_15, mega_tree_pair_16],
+      targets: [mega_tree_29, mega_tree_30, mega_tree_31, mega_tree_32],
       placement: Timed { start: 15.816749s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3076,7 +3076,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_63,
       description: none,
-      targets: [mega_tree_pair_14],
+      targets: [mega_tree_27, mega_tree_28],
       placement: Timed { start: 15.956226s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3132,7 +3132,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_66,
       description: none,
-      targets: [mega_tree_pair_12, mega_tree_pair_13],
+      targets: [mega_tree_23, mega_tree_24, mega_tree_25, mega_tree_26],
       placement: Timed { start: 16.05851s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3218,7 +3218,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_72,
       description: none,
-      targets: [mega_tree_pair_11],
+      targets: [mega_tree_21, mega_tree_22],
       placement: Timed { start: 16.207286s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3274,7 +3274,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_75,
       description: none,
-      targets: [mega_tree_pair_10],
+      targets: [mega_tree_19, mega_tree_20],
       placement: Timed { start: 16.272375s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3345,7 +3345,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_78,
       description: none,
-      targets: [mega_tree_pair_08, mega_tree_pair_09],
+      targets: [mega_tree_15, mega_tree_16, mega_tree_17, mega_tree_18],
       placement: Timed { start: 16.486241s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3416,7 +3416,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_84,
       description: none,
-      targets: [mega_tree_pair_07],
+      targets: [mega_tree_13, mega_tree_14],
       placement: Timed { start: 16.728002s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3502,7 +3502,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_87,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06],
+      targets: [mega_tree_09, mega_tree_10, mega_tree_11, mega_tree_12],
       placement: Timed { start: 16.811688s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3558,7 +3558,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_93,
       description: none,
-      targets: [mega_tree_pair_04],
+      targets: [mega_tree_07, mega_tree_08],
       placement: Timed { start: 16.98836s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3629,7 +3629,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_96,
       description: none,
-      targets: [mega_tree_pair_02, mega_tree_pair_03],
+      targets: [mega_tree_03, mega_tree_04, mega_tree_05, mega_tree_06],
       placement: Timed { start: 17.099942s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -3685,7 +3685,7 @@ Sequence jing_jing_jing {
     Clip {
       name: clip_102,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 17.211524s, duration: 0.661016s },
       content: Effect {
         layer: default,
@@ -53355,7 +53355,16 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2579,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 97.691226s, duration: 0.564324s },
       content: Effect {
         layer: default,
@@ -53510,10 +53519,14 @@ Sequence jing_jing_jing {
       name: chase_2591,
       description: none,
       targets: [
-        mega_tree_pair_03,
-        mega_tree_pair_04,
-        mega_tree_pair_13,
-        mega_tree_pair_14,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
         grass_1,
         grass_2,
         grass_5,
@@ -53584,10 +53597,14 @@ Sequence jing_jing_jing {
       name: chase_2603,
       description: none,
       targets: [
-        mega_tree_pair_05,
-        mega_tree_pair_06,
-        mega_tree_pair_11,
-        mega_tree_pair_12,
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
         grass_2,
         grass_4,
       ],
@@ -53657,10 +53674,14 @@ Sequence jing_jing_jing {
       name: chase_2615,
       description: none,
       targets: [
-        mega_tree_pair_07,
-        mega_tree_pair_08,
-        mega_tree_pair_09,
-        mega_tree_pair_10,
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
         grass_3,
         grass_4,
       ],
@@ -53870,7 +53891,16 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2627,
       description: none,
-      targets: [mega_tree_pair_01, mega_tree_pair_02, mega_tree_pair_15, mega_tree_pair_16],
+      targets: [
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_29,
+        mega_tree_30,
+        mega_tree_31,
+        mega_tree_32,
+      ],
       placement: Timed { start: 98.781035s, duration: 0.564324s },
       content: Effect {
         layer: default,
@@ -54024,7 +54054,16 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2639,
       description: none,
-      targets: [mega_tree_pair_03, mega_tree_pair_04, mega_tree_pair_13, mega_tree_pair_14],
+      targets: [
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_25,
+        mega_tree_26,
+        mega_tree_27,
+        mega_tree_28,
+      ],
       placement: Timed { start: 98.924602s, duration: 0.564324s },
       content: Effect {
         layer: default,
@@ -54090,7 +54129,16 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2651,
       description: none,
-      targets: [mega_tree_pair_05, mega_tree_pair_06, mega_tree_pair_11, mega_tree_pair_12],
+      targets: [
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
+        mega_tree_21,
+        mega_tree_22,
+        mega_tree_23,
+        mega_tree_24,
+      ],
       placement: Timed { start: 98.98986s, duration: 0.564324s },
       content: Effect {
         layer: default,
@@ -54156,7 +54204,16 @@ Sequence jing_jing_jing {
     Clip {
       name: chase_2663,
       description: none,
-      targets: [mega_tree_pair_07, mega_tree_pair_08, mega_tree_pair_09, mega_tree_pair_10],
+      targets: [
+        mega_tree_13,
+        mega_tree_14,
+        mega_tree_15,
+        mega_tree_16,
+        mega_tree_17,
+        mega_tree_18,
+        mega_tree_19,
+        mega_tree_20,
+      ],
       placement: Timed { start: 99.11385s, duration: 0.707892s },
       content: Effect {
         layer: default,

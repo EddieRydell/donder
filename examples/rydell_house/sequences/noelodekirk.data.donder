@@ -834,12 +834,18 @@ Sequence noelodekirk {
       name: pulse_31,
       description: none,
       targets: [
-        mega_tree_pair_01,
-        mega_tree_pair_02,
-        mega_tree_pair_03,
-        mega_tree_pair_04,
-        mega_tree_pair_05,
-        mega_tree_pair_06,
+        mega_tree_01,
+        mega_tree_02,
+        mega_tree_03,
+        mega_tree_04,
+        mega_tree_05,
+        mega_tree_06,
+        mega_tree_07,
+        mega_tree_08,
+        mega_tree_09,
+        mega_tree_10,
+        mega_tree_11,
+        mega_tree_12,
       ],
       placement: Timed { start: 37.684845s, duration: 1.487s },
       content: Effect {
@@ -921,7 +927,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_46,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 42.261912s, duration: 0.381088s },
       content: Effect {
         layer: mask_and_fill,
@@ -936,7 +942,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_48,
       description: none,
-      targets: [mega_tree_pair_01],
+      targets: [mega_tree_01, mega_tree_02],
       placement: Timed { start: 42.643s, duration: 3.471s },
       content: Effect {
         layer: mask_and_fill,
@@ -951,7 +957,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_50,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 42.643s, duration: 0.383s },
       content: Effect {
         layer: mask_and_fill,
@@ -966,7 +972,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_52,
       description: none,
-      targets: [mega_tree_pair_02],
+      targets: [mega_tree_03, mega_tree_04],
       placement: Timed { start: 43.026s, duration: 3.088s },
       content: Effect {
         layer: mask_and_fill,
@@ -981,7 +987,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_54,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 43.026s, duration: 0.587299s },
       content: Effect {
         layer: mask_and_fill,
@@ -996,7 +1002,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_56,
       description: none,
-      targets: [mega_tree_pair_03],
+      targets: [mega_tree_05, mega_tree_06],
       placement: Timed { start: 43.613299s, duration: 2.500701s },
       content: Effect {
         layer: mask_and_fill,
@@ -1011,7 +1017,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_58,
       description: none,
-      targets: [mega_tree_pair_04],
+      targets: [mega_tree_07, mega_tree_08],
       placement: Timed { start: 43.613299s, duration: 0.178701s },
       content: Effect {
         layer: mask_and_fill,
@@ -1026,7 +1032,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_60,
       description: none,
-      targets: [mega_tree_pair_04],
+      targets: [mega_tree_07, mega_tree_08],
       placement: Timed { start: 43.792s, duration: 2.322s },
       content: Effect {
         layer: mask_and_fill,
@@ -1041,7 +1047,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_62,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 43.792s, duration: 0.418399s },
       content: Effect {
         layer: mask_and_fill,
@@ -1071,7 +1077,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_65,
       description: none,
-      targets: [mega_tree_pair_05],
+      targets: [mega_tree_09, mega_tree_10],
       placement: Timed { start: 44.210399s, duration: 1.903601s },
       content: Effect {
         layer: mask_and_fill,
@@ -1086,7 +1092,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_67,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 44.210399s, duration: 0.352454s },
       content: Effect {
         layer: mask_and_fill,
@@ -1122,7 +1128,7 @@ Sequence noelodekirk {
     Clip {
       name: pulse_69,
       description: none,
-      targets: [mega_tree_pair_06],
+      targets: [mega_tree_11, mega_tree_12],
       placement: Timed { start: 44.562853s, duration: 1.551147s },
       content: Effect {
         layer: mask_and_fill,
