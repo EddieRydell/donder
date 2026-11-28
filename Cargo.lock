@@ -1744,7 +1744,7 @@ dependencies = [
 
 [[package]]
 name = "donder-audio-analysis"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "donder-workspace-hack",
  "fs-err",
@@ -1756,7 +1756,7 @@ dependencies = [
 
 [[package]]
 name = "donder-cli"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "camino",
  "clap",
@@ -1776,7 +1776,7 @@ dependencies = [
 
 [[package]]
 name = "donder-data-derive"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "donder-workspace-hack",
  "proc-macro2",
@@ -1786,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "donder-desktop"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "bytemuck",
  "camino",
@@ -1834,7 +1834,7 @@ dependencies = [
 
 [[package]]
 name = "donder-device-protocol"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "donder-runtime",
  "donder-runtime-types",
@@ -1844,7 +1844,7 @@ dependencies = [
 
 [[package]]
 name = "donder-editor"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "camino",
  "donder-language",
@@ -1861,7 +1861,7 @@ dependencies = [
 
 [[package]]
 name = "donder-elaboration"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "ab_glyph",
  "camino",
@@ -1882,7 +1882,7 @@ dependencies = [
 
 [[package]]
 name = "donder-fixture-capture"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "donder-language",
  "donder-model",
@@ -1896,7 +1896,7 @@ dependencies = [
 
 [[package]]
 name = "donder-import"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "camino",
  "donder-language",
@@ -1912,7 +1912,7 @@ dependencies = [
 
 [[package]]
 name = "donder-language"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "camino",
  "donder-runtime-types",
@@ -1922,7 +1922,7 @@ dependencies = [
 
 [[package]]
 name = "donder-language-server"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "camino",
  "donder-language",
@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "donder-model"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "donder-language",
  "donder-runtime-types",
@@ -1950,7 +1950,7 @@ dependencies = [
 
 [[package]]
 name = "donder-output"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "artnet_protocol",
  "donder-model",
@@ -1966,7 +1966,7 @@ dependencies = [
 
 [[package]]
 name = "donder-project-io"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "camino",
  "donder-data-derive",
@@ -1984,7 +1984,7 @@ dependencies = [
 
 [[package]]
 name = "donder-runtime"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "bytemuck",
  "criterion",
@@ -1997,11 +1997,11 @@ dependencies = [
 
 [[package]]
 name = "donder-runtime-iram"
-version = "0.2.3"
+version = "0.2.4"
 
 [[package]]
 name = "donder-runtime-types"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "bytemuck",
  "libm",
@@ -2010,7 +2010,7 @@ dependencies = [
 
 [[package]]
 name = "donder-test-support"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "donder-language",
  "donder-runtime",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "donder-workspace-hack"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "aho-corasick",
  "bitflags 2.13.1",
